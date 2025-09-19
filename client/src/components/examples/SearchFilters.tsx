@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import { SearchFilters } from '../SearchFilters';
 
+interface FilterOption {
+  key: string;
+  label: string;
+  value: string;
+}
+
 export default function SearchFiltersExample() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filters, setFilters] = useState([]);
+  const [filters, setFilters] = useState<FilterOption[]>([]);
 
   const handleClearFilters = () => {
     setFilters([]);
