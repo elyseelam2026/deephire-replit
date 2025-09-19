@@ -1,0 +1,191 @@
+Instructions for Building the MVP on Replit
+As a 30+ year vet in MVP dev (from early SaaS like Basecamp to AI prototypes), I'll guide you step-by-step to build a functional MVP on Replit. Replit's great for solo/collaborative coding—supports Python/JS stacks, DB integrations, and even AI model hosting via secrets. Focus on core: Client workflow (JD upload → longlist) + basic candidate profile. Skip full AI fine-tuning initially; use OpenAI API for prototyping. Total build: 2-4 weeks part-time.
+Prerequisites:
+
+Replit account (free tier OK; upgrade to Hacker for $7/mo for more CPU/DB).
+API Keys: OpenAI (for GPT), Pinecone (vector DB—free tier), SendGrid (email—free). Store in Replit Secrets (Tools > Secrets).
+Git: Fork a boilerplate repo if needed (search Replit for "FastAPI React starter").
+
+Step 1: Set Up Project (Day 1, 1-2 hrs)
+
+Create new Replit: Choose "Python" template (for backend); add "Node.js" for frontend later.
+Name: deephire-mvp.
+Install deps via pyproject.toml or console:
+textpip install fastapi uvicorn sqlalchemy psycopg2-binary openai pinecone-client python-dotenv pydantic python-multipart  # Backend
+npm init -y && npm i next react axios  # Frontend (run in subfolder)
+
+Env vars (Secrets): OPENAI_API_KEY, PINECONE_API_KEY, DATABASE_URL (use Replit's built-in Postgres or ElephantSQL free tier).
+
+Step 2: Backend – FastAPI Core (Days 2-5, 10-15 hrs)
+
+Folder: /backend. Main file: main.py.
+Define models (your DB schemas) with SQLAlchemy/Pydantic:
+pythonfrom sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from pydantic import BaseModel
+from datetime import datetime
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+Base = declarative_base()
+engine = create_engine(os.getenv('DATABASE_URL'))
+SessionLocal = sessionmaker(bind=engine)
+
+class Company(Base):
+    __tablename__ = 'companies'
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    parent_company = Column(String)
+    location = Column(String)
+    industry = Column(String)
+    employee_size = Column(Integer)
+    # Add more: subsector, stage, etc.
+    jobs = relationship("Job", back_populates="company")
+
+class Candidate(Base):
+    __tablename__ = 'candidates'
+    id = Column(Integer, primary_key=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    email = Column(String)
+    current_company = Column(String)
+    current_title = Column(String)
+    basic_salary = Column(Float)
+    # Add more: expectations, linkedin_url, etc.
+
+class Job(Base):
+    __tablename__ = 'jobs'
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    department = Column(String)
+    company_id = Column(Integer, ForeignKey('companies.id'))
+    company = relationship("Company", back_populates="jobs")
+    jd_text = Column(String)  # For upload
+
+# Pydantic for API
+class JobCreate(BaseModel):
+    title: str
+    department: str
+    company_id: int
+    jd_text: str  # From upload
+
+Base.metadata.create_all(engine)
+
+API Endpoints (main.py):
+pythonfrom fastapi import FastAPI, UploadFile, File, Depends
+from fastapi.middleware.cors import CORSMiddleware
+import openai
+from sqlalchemy.orm import Session
+
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"])  # For frontend
+
+openai.api_key = os.getenv('OPENAI_API_KEY')
+
+def get_db():
+    db = SessionLocal()
+    try: yield db
+    finally: db.close()
+
+@app.post("/upload-jd")
+async def upload_jd(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    # Save JD
+    jd_content = await file.read()
+    jd_text = jd_content.decode('utf-8')
+    # AI Parse (NAP questions simulated)
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": f"Parse JD: {jd_text}. Extract title, skills, urgency. Suggest NAP questions."}]
+    )
+    parsed = response.choices[0].message.content
+    # Save Job
+    job = Job(title="Extracted Title", jd_text=jd_text)  # Parse properly
+    db.add(job); db.commit()
+    # Generate Longlist (mock DB search + Pinecone for vectors)
+    # Embed JD, query candidate embeddings for matches
+    return {"parsed": parsed, "longlist": ["Candidate1", "Candidate2"]}  # Top 20 mock
+
+@app.get("/candidates/{job_id}")
+def get_longlist(job_id: int, db: Session = Depends(get_db)):
+    # Query DB + AI rank
+    return {"candidates": [/* Ranked list */]}
+
+@app.post("/candidate-profile")
+async def create_profile(candidate_data: dict, db: Session = Depends(get_db)):
+    # Parse CV if uploaded similarly
+    new_cand = Candidate(**candidate_data)
+    db.add(new_cand); db.commit()
+    return {"id": new_cand.id}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+Run: Console uvicorn main:app --reload. Test via Swagger (/docs). Add auth (JWT for portals) later with fastapi-users.
+
+Step 3: Vector DB for Matching (Days 6-7, 3-5 hrs)
+
+Init Pinecone:
+pythonimport pinecone
+pinecone.init(api_key=os.getenv('PINECONE_API_KEY'), environment='us-west1-gcp')
+index = pinecone.Index('deephire-candidates')  # Create in Pinecone dashboard
+# Embed & upsert candidates
+from openai import Embedding
+def embed_text(text):
+    return openai.Embedding.create(input=text, model="text-embedding-ada-002")['data'][0]['embedding']
+# On profile create: index.upsert(vectors=[('id', embed_text(profile_text), metadata)])
+# Query: matches = index.query(vector=embed_jd(jd_text), top_k=20)
+
+Integrate into /upload-jd: Embed JD, query for longlist.
+
+Step 4: Frontend – Next.js Dashboards (Days 8-12, 10-15 hrs)
+
+Folder: /frontend. package.json as above.
+Run npx create-next-app@latest . in folder.
+Key Pages:
+
+/client-portal: JD upload form + longlist table.
+jsx// pages/client-portal.js
+import { useState } from 'react';
+import axios from 'axios';
+
+export default function ClientPortal() {
+  const [file, setFile] = useState(null);
+  const [longlist, setLonglist] = useState([]);
+
+  const handleUpload = async () => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await axios.post('http://localhost:8000/upload-jd', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+    setLonglist(res.data.longlist);
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+      <button onClick={handleUpload}>Upload JD</button>
+      <table>{longlist.map(c => <tr key={c}><td>{c}</td></tr>)}</table>
+    </div>
+  );
+}
+
+/candidate-portal: Profile form + recs (similar axios to /candidate-profile).
+Add portals routing: Use Next.js pages for each (e.g., /admin with role checks via backend auth).
+
+
+Run: npm run dev (port 3000). Proxy backend via next.config.js.
+
+Step 5: Integrations & Polish (Days 13-14, 5 hrs)
+
+Email Outreach: Use SendGrid API in backend for /send-outreach.
+NAP Chatbot: Embed OpenAI in frontend (chat UI with react-chatbot-kit).
+Security: Add role-based (e.g., FastAPI deps for user roles). Basic: Hash passwords with passlib.
+DB Seed: Script to add mock companies/candidates.
+
+Step 6: Testing & Deploy (Days 15-16, 3 hrs)
+
+Local: Run backend/frontend; test end-to-end (JD upload → longlist).
+Replit Deploy: Use Replit's "Deploy" button for web host (autoscale). For prod DB, migrate to Supabase (free Postgres + auth).
+Validation: Unit tests (pytest for backend); manual user tests per your roadmap.
