@@ -9,12 +9,18 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import Dashboard from "@/pages/Dashboard";
 import ClientPortal from "@/pages/ClientPortal";
 import CandidatePortal from "@/pages/CandidatePortal";
+import Companies from "@/pages/Companies";
+import Jobs from "@/pages/Jobs";
+import Candidates from "@/pages/Candidates";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/companies" component={Companies} />
+      <Route path="/jobs" component={Jobs} />
+      <Route path="/candidates" component={Candidates} />
       <Route path="/client" component={ClientPortal} />
       <Route path="/candidate" component={CandidatePortal} />
       <Route component={NotFound} />

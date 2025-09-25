@@ -1,0 +1,155 @@
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Building2, MapPin, Users, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Company } from "@shared/schema";
+
+export default function Companies() {
+  const { data: companies, isLoading, error } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-6" data-testid="companies-page">
+        <div>
+          <h1 className="text-3xl font-bold">Companies</h1>
+          <p className="text-muted-foreground">Manage your client companies</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader>
+                <div className="h-6 bg-muted rounded w-3/4"></div>
+                <div className="h-4 bg-muted rounded w-1/2"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-4 bg-muted rounded"></div>
+                  <div className="h-4 bg-muted rounded w-2/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6 p-6" data-testid="companies-page">
+        <div>
+          <h1 className="text-3xl font-bold">Companies</h1>
+          <p className="text-muted-foreground">Manage your client companies</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive">Failed to load companies. Please try again.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const getStageColor = (stage: string) => {
+    switch (stage) {
+      case "startup":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
+      case "growth":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
+      case "enterprise":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+    }
+  };
+
+  return (
+    <div className="space-y-6 p-6" data-testid="companies-page">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Companies</h1>
+          <p className="text-muted-foreground">
+            Manage your client companies ({companies?.length || 0} total)
+          </p>
+        </div>
+        <Button data-testid="button-add-company">
+          <Building2 className="h-4 w-4 mr-2" />
+          Add Company
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {companies?.map((company) => (
+          <Card key={company.id} className="hover-elevate" data-testid={`company-card-${company.id}`}>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Building2 className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg" data-testid={`company-name-${company.id}`}>
+                      {company.name}
+                    </CardTitle>
+                    {company.stage && (
+                      <Badge variant="secondary" className={getStageColor(company.stage)}>
+                        {company.stage}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {company.industry && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <TrendingUp className="h-4 w-4" />
+                  <span data-testid={`company-industry-${company.id}`}>{company.industry}</span>
+                </div>
+              )}
+              
+              {company.location && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span data-testid={`company-location-${company.id}`}>{company.location}</span>
+                </div>
+              )}
+              
+              {company.employeeSize && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  <span data-testid={`company-employees-${company.id}`}>{company.employeeSize} employees</span>
+                </div>
+              )}
+
+              <div className="pt-2">
+                <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-company-${company.id}`}>
+                  View Details
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {companies?.length === 0 && (
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No companies yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Add your first company to start posting jobs and finding candidates.
+            </p>
+            <Button data-testid="button-add-first-company">
+              <Building2 className="h-4 w-4 mr-2" />
+              Add Company
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
