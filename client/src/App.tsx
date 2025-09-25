@@ -12,6 +12,9 @@ import CandidatePortal from "@/pages/CandidatePortal";
 import Companies from "@/pages/Companies";
 import Jobs from "@/pages/Jobs";
 import Candidates from "@/pages/Candidates";
+import Conversations from "@/pages/Conversations";
+import Outreach from "@/pages/Outreach";
+import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +24,9 @@ function Router() {
       <Route path="/companies" component={Companies} />
       <Route path="/jobs" component={Jobs} />
       <Route path="/candidates" component={Candidates} />
+      <Route path="/conversations" component={Conversations} />
+      <Route path="/outreach" component={Outreach} />
+      <Route path="/settings" component={Settings} />
       <Route path="/client" component={ClientPortal} />
       <Route path="/candidate" component={CandidatePortal} />
       <Route component={NotFound} />

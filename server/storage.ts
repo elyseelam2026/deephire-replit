@@ -1,7 +1,8 @@
 import { 
-  companies, jobs, candidates, jobMatches, users,
+  companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
   type Company, type Job, type Candidate, type JobMatch, type User,
-  type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser
+  type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
+  type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
@@ -35,6 +36,18 @@ export interface IStorage {
   createJobMatch(match: InsertJobMatch): Promise<JobMatch>;
   getJobMatches(jobId: number): Promise<(JobMatch & { candidate: Candidate })[]>;
   getCandidateMatches(candidateId: number): Promise<(JobMatch & { job: Job & { company: Company } })[]>;
+  
+  // Conversation management
+  createConversation(conversation: InsertNapConversation): Promise<NapConversation>;
+  getConversations(): Promise<(NapConversation & { job: Job & { company: Company }, candidate?: Candidate })[]>;
+  getConversation(id: number): Promise<NapConversation | undefined>;
+  updateConversation(id: number, updates: Partial<InsertNapConversation>): Promise<NapConversation | undefined>;
+  
+  // Email outreach management  
+  createEmailOutreach(outreach: InsertEmailOutreach): Promise<EmailOutreach>;
+  getEmailOutreach(): Promise<(EmailOutreach & { candidate: Candidate, job: Job & { company: Company } })[]>;
+  getOutreachForCandidate(candidateId: number): Promise<EmailOutreach[]>;
+  updateEmailOutreach(id: number, updates: Partial<InsertEmailOutreach>): Promise<EmailOutreach | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -224,6 +237,115 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }));
+  }
+
+  // Conversation management
+  async createConversation(insertConversation: InsertNapConversation): Promise<NapConversation> {
+    const [conversation] = await db.insert(napConversations).values(insertConversation).returning();
+    return conversation;
+  }
+
+  async getConversations(): Promise<(NapConversation & { job: Job & { company: Company }, candidate?: Candidate })[]> {
+    const results = await db.select({
+      id: napConversations.id,
+      jobId: napConversations.jobId,
+      candidateId: napConversations.candidateId,
+      messages: napConversations.messages,
+      status: napConversations.status,
+      createdAt: napConversations.createdAt,
+      updatedAt: napConversations.updatedAt,
+      job: jobs,
+      company: companies,
+      candidate: candidates
+    })
+    .from(napConversations)
+    .innerJoin(jobs, eq(napConversations.jobId, jobs.id))
+    .innerJoin(companies, eq(jobs.companyId, companies.id))
+    .leftJoin(candidates, eq(napConversations.candidateId, candidates.id))
+    .orderBy(desc(napConversations.updatedAt));
+
+    return results.map(r => ({
+      id: r.id,
+      jobId: r.jobId,
+      candidateId: r.candidateId,
+      messages: r.messages,
+      status: r.status,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      job: {
+        ...r.job,
+        company: r.company
+      },
+      candidate: r.candidate || undefined
+    }));
+  }
+
+  async getConversation(id: number): Promise<NapConversation | undefined> {
+    const [conversation] = await db.select().from(napConversations).where(eq(napConversations.id, id));
+    return conversation || undefined;
+  }
+
+  async updateConversation(id: number, updates: Partial<InsertNapConversation>): Promise<NapConversation | undefined> {
+    const [conversation] = await db.update(napConversations)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(napConversations.id, id))
+      .returning();
+    return conversation || undefined;
+  }
+
+  // Email outreach management
+  async createEmailOutreach(insertOutreach: InsertEmailOutreach): Promise<EmailOutreach> {
+    const [outreach] = await db.insert(emailOutreach).values(insertOutreach).returning();
+    return outreach;
+  }
+
+  async getEmailOutreach(): Promise<(EmailOutreach & { candidate: Candidate, job: Job & { company: Company } })[]> {
+    const results = await db.select({
+      id: emailOutreach.id,
+      candidateId: emailOutreach.candidateId,
+      jobId: emailOutreach.jobId,
+      subject: emailOutreach.subject,
+      content: emailOutreach.content,
+      status: emailOutreach.status,
+      sentAt: emailOutreach.sentAt,
+      candidate: candidates,
+      job: jobs,
+      company: companies
+    })
+    .from(emailOutreach)
+    .innerJoin(candidates, eq(emailOutreach.candidateId, candidates.id))
+    .innerJoin(jobs, eq(emailOutreach.jobId, jobs.id))
+    .innerJoin(companies, eq(jobs.companyId, companies.id))
+    .orderBy(desc(emailOutreach.sentAt));
+
+    return results.map(r => ({
+      id: r.id,
+      candidateId: r.candidateId,
+      jobId: r.jobId,
+      subject: r.subject,
+      content: r.content,
+      status: r.status,
+      sentAt: r.sentAt,
+      candidate: r.candidate,
+      job: {
+        ...r.job,
+        company: r.company
+      }
+    }));
+  }
+
+  async getOutreachForCandidate(candidateId: number): Promise<EmailOutreach[]> {
+    return await db.select().from(emailOutreach)
+      .where(eq(emailOutreach.candidateId, candidateId))
+      .orderBy(desc(emailOutreach.sentAt));
+  }
+
+  async updateEmailOutreach(id: number, updates: Partial<InsertEmailOutreach>): Promise<EmailOutreach | undefined> {
+    const [outreach] = await db.update(emailOutreach)
+      .set(updates)
+      .where(eq(emailOutreach.id, id))
+      .returning();
+    return outreach || undefined;
   }
 }
 

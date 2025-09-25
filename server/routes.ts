@@ -282,6 +282,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Conversations endpoints
+  app.get("/api/conversations", async (req, res) => {
+    try {
+      const conversations = await storage.getConversations();
+      res.json(conversations);
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+      res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
+  app.get("/api/conversations/:id", async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      const conversation = await storage.getConversation(conversationId);
+      
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      res.json(conversation);
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+      res.status(500).json({ error: "Failed to fetch conversation" });
+    }
+  });
+
+  // Email outreach endpoints  
+  app.get("/api/outreach", async (req, res) => {
+    try {
+      const outreach = await storage.getEmailOutreach();
+      res.json(outreach);
+    } catch (error) {
+      console.error("Error fetching outreach:", error);
+      res.status(500).json({ error: "Failed to fetch outreach" });
+    }
+  });
+
+  app.get("/api/outreach/candidate/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const outreach = await storage.getOutreachForCandidate(candidateId);
+      res.json(outreach);
+    } catch (error) {
+      console.error("Error fetching candidate outreach:", error);
+      res.status(500).json({ error: "Failed to fetch candidate outreach" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
