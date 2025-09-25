@@ -13,13 +13,13 @@ import {
 
 // Navigation items for different user roles
 const adminItems = [
-  { title: "Dashboard", url: "/", icon: BarChart3 },
-  { title: "Companies", url: "/companies", icon: Building2 },
-  { title: "Jobs", url: "/jobs", icon: Briefcase },
-  { title: "Candidates", url: "/candidates", icon: Users },
-  { title: "Conversations", url: "/conversations", icon: MessageSquare },
-  { title: "Outreach", url: "/outreach", icon: Mail },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
+  { title: "Companies", url: "/recruiting/companies", icon: Building2 },
+  { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
+  { title: "Candidates", url: "/recruiting/candidates", icon: Users },
+  { title: "Conversations", url: "/recruiting/conversations", icon: MessageSquare },
+  { title: "Outreach", url: "/recruiting/outreach", icon: Mail },
+  { title: "Settings", url: "/recruiting/settings", icon: Settings },
 ];
 
 const clientItems = [

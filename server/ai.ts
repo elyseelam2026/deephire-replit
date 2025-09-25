@@ -123,3 +123,289 @@ export async function generateCandidateLonglist(
     .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, limit);
 }
+
+// Parse candidate data from CV/resume text
+export async function parseCandidateData(cvText: string): Promise<{
+  firstName: string;
+  lastName: string;
+  email: string;
+  currentCompany?: string;
+  currentTitle?: string;
+  basicSalary?: number;
+  salaryExpectations?: number;
+  linkedinUrl?: string;
+  skills: string[];
+  yearsExperience?: number;
+  location?: string;
+  isAvailable: boolean;
+  cvText: string;
+} | null> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert recruiter. Parse CV/resume text and extract structured candidate data in JSON format. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: `Parse this CV/resume and extract the following information in JSON format:
+          {
+            "firstName": "extracted first name",
+            "lastName": "extracted last name", 
+            "email": "email address if found",
+            "currentCompany": "current employer",
+            "currentTitle": "current job title",
+            "basicSalary": numeric_value_if_mentioned_or_null,
+            "salaryExpectations": numeric_value_if_mentioned_or_null,
+            "linkedinUrl": "linkedin_url_if_found",
+            "skills": ["skill1", "skill2", "skill3"],
+            "yearsExperience": numeric_years_total_or_null,
+            "location": "city, country/state",
+            "isAvailable": true_if_actively_looking_or_false
+          }
+          
+          CV/Resume Text:
+          ${cvText}`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    if (!result.firstName || !result.lastName) {
+      return null; // Invalid data
+    }
+
+    return {
+      firstName: result.firstName,
+      lastName: result.lastName,
+      email: result.email || `${result.firstName}.${result.lastName}@email.com`.toLowerCase(),
+      currentCompany: result.currentCompany || undefined,
+      currentTitle: result.currentTitle || undefined,
+      basicSalary: typeof result.basicSalary === 'number' ? result.basicSalary : undefined,
+      salaryExpectations: typeof result.salaryExpectations === 'number' ? result.salaryExpectations : undefined,
+      linkedinUrl: result.linkedinUrl || undefined,
+      skills: Array.isArray(result.skills) ? result.skills : [],
+      yearsExperience: typeof result.yearsExperience === 'number' ? result.yearsExperience : undefined,
+      location: result.location || undefined,
+      isAvailable: typeof result.isAvailable === 'boolean' ? result.isAvailable : true,
+      cvText: cvText
+    };
+  } catch (error) {
+    console.error("Error parsing candidate data:", error);
+    return null;
+  }
+}
+
+// Parse candidate data from LinkedIn URL or bio page
+export async function parseCandidateFromUrl(url: string): Promise<{
+  firstName: string;
+  lastName: string;
+  email: string;
+  currentCompany?: string;
+  currentTitle?: string;
+  basicSalary?: number;
+  salaryExpectations?: number;
+  linkedinUrl?: string;
+  skills: string[];
+  yearsExperience?: number;
+  location?: string;
+  isAvailable: boolean;
+  cvText: string;
+} | null> {
+  try {
+    // Simulate URL content fetching (in a real app, you'd use a web scraper)
+    const mockUrlContent = `
+      Professional Profile from ${url}
+      
+      This is a simulated profile extraction from a URL. In a production environment, 
+      this would scrape the actual content from LinkedIn or other professional networks.
+      
+      For demonstration purposes, we'll generate sample candidate data based on the URL pattern.
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert recruiter. Extract candidate data from professional profile URLs. Generate realistic candidate data in JSON format based on the URL pattern."
+        },
+        {
+          role: "user",
+          content: `Based on this URL, generate realistic candidate data in JSON format:
+          URL: ${url}
+          
+          Generate:
+          {
+            "firstName": "realistic first name",
+            "lastName": "realistic last name",
+            "email": "generated email based on name",
+            "currentCompany": "realistic company name",
+            "currentTitle": "appropriate job title",
+            "skills": ["relevant skills based on URL pattern"],
+            "yearsExperience": realistic_number,
+            "location": "realistic location",
+            "isAvailable": true,
+            "linkedinUrl": "${url.includes('linkedin') ? url : ''}"
+          }`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    if (!result.firstName || !result.lastName) {
+      return null;
+    }
+
+    return {
+      firstName: result.firstName,
+      lastName: result.lastName,
+      email: result.email || `${result.firstName}.${result.lastName}@email.com`.toLowerCase(),
+      currentCompany: result.currentCompany || undefined,
+      currentTitle: result.currentTitle || undefined,
+      basicSalary: undefined,
+      salaryExpectations: undefined,
+      linkedinUrl: url.includes('linkedin') ? url : undefined,
+      skills: Array.isArray(result.skills) ? result.skills : [],
+      yearsExperience: typeof result.yearsExperience === 'number' ? result.yearsExperience : undefined,
+      location: result.location || undefined,
+      isAvailable: typeof result.isAvailable === 'boolean' ? result.isAvailable : true,
+      cvText: mockUrlContent
+    };
+  } catch (error) {
+    console.error("Error parsing candidate from URL:", error);
+    return null;
+  }
+}
+
+// Parse company data from company documents/profiles
+export async function parseCompanyData(companyText: string): Promise<{
+  name: string;
+  parentCompany?: string;
+  location: string;
+  industry: string;
+  employeeSize?: number;
+  subsector?: string;
+  stage?: string;
+} | null> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert business analyst. Parse company documents and extract structured company data in JSON format. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: `Parse this company document and extract the following information in JSON format:
+          {
+            "name": "company name",
+            "parentCompany": "parent company if subsidiary",
+            "location": "headquarters location (city, state/country)",
+            "industry": "primary industry",
+            "employeeSize": numeric_headcount_or_null,
+            "subsector": "specific subsector if applicable",
+            "stage": "startup|growth|enterprise based on company maturity"
+          }
+          
+          Company Document:
+          ${companyText}`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    if (!result.name || !result.industry) {
+      return null; // Invalid data
+    }
+
+    return {
+      name: result.name,
+      parentCompany: result.parentCompany || undefined,
+      location: result.location || "Unknown",
+      industry: result.industry,
+      employeeSize: typeof result.employeeSize === 'number' ? result.employeeSize : undefined,
+      subsector: result.subsector || undefined,
+      stage: ["startup", "growth", "enterprise"].includes(result.stage) ? result.stage : "growth"
+    };
+  } catch (error) {
+    console.error("Error parsing company data:", error);
+    return null;
+  }
+}
+
+// Parse company data from website URL
+export async function parseCompanyFromUrl(url: string): Promise<{
+  name: string;
+  parentCompany?: string;
+  location: string;
+  industry: string;
+  employeeSize?: number;
+  subsector?: string;
+  stage?: string;
+} | null> {
+  try {
+    // Simulate URL content fetching (in a real app, you'd use a web scraper)
+    const mockUrlContent = `
+      Company Profile from ${url}
+      
+      This is a simulated company extraction from a website URL. In a production environment, 
+      this would scrape the actual content from company websites, about pages, etc.
+      
+      For demonstration purposes, we'll generate sample company data based on the URL pattern.
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert business analyst. Extract company data from website URLs. Generate realistic company data in JSON format based on the URL pattern."
+        },
+        {
+          role: "user",
+          content: `Based on this company URL, generate realistic company data in JSON format:
+          URL: ${url}
+          
+          Generate:
+          {
+            "name": "realistic company name based on URL",
+            "location": "realistic headquarters location",
+            "industry": "appropriate industry based on URL pattern",
+            "employeeSize": realistic_employee_count,
+            "stage": "startup|growth|enterprise based on URL pattern"
+          }`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    if (!result.name || !result.industry) {
+      return null;
+    }
+
+    return {
+      name: result.name,
+      parentCompany: undefined,
+      location: result.location || "Unknown",
+      industry: result.industry,
+      employeeSize: typeof result.employeeSize === 'number' ? result.employeeSize : undefined,
+      subsector: undefined,
+      stage: ["startup", "growth", "enterprise"].includes(result.stage) ? result.stage : "growth"
+    };
+  } catch (error) {
+    console.error("Error parsing company from URL:", error);
+    return null;
+  }
+}

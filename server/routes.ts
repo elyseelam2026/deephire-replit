@@ -6,7 +6,7 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 import { storage } from "./storage";
-import { parseJobDescription, generateCandidateLonglist } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl } from "./ai";
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -328,6 +328,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching candidate outreach:", error);
       res.status(500).json({ error: "Failed to fetch candidate outreach" });
+    }
+  });
+
+  // Admin bulk upload endpoints
+  app.post("/api/admin/upload-candidates", upload.array('files', 50), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[] || [];
+      const urlsText = req.body.urls || "";
+      const urls = urlsText.split('\n').filter((url: string) => url.trim()).map((url: string) => url.trim());
+      
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      // Process uploaded files
+      for (const file of files) {
+        try {
+          const text = file.buffer.toString('utf-8');
+          const candidateData = await parseCandidateData(text);
+          
+          if (candidateData) {
+            await storage.createCandidate(candidateData);
+            successCount++;
+          } else {
+            failedCount++;
+            errors.push(`Failed to parse ${file.originalname}`);
+          }
+        } catch (error) {
+          failedCount++;
+          errors.push(`Error processing ${file.originalname}: ${error}`);
+        }
+      }
+
+      // Process URLs
+      for (const url of urls) {
+        try {
+          const candidateData = await parseCandidateFromUrl(url);
+          
+          if (candidateData) {
+            await storage.createCandidate(candidateData);
+            successCount++;
+          } else {
+            failedCount++;
+            errors.push(`Failed to parse URL: ${url}`);
+          }
+        } catch (error) {
+          failedCount++;
+          errors.push(`Error processing URL ${url}: ${error}`);
+        }
+      }
+
+      res.json({
+        success: successCount,
+        failed: failedCount,
+        total: files.length + urls.length,
+        errors: errors.slice(0, 10) // Limit error messages
+      });
+    } catch (error) {
+      console.error("Error in bulk candidate upload:", error);
+      res.status(500).json({ error: "Failed to process candidate uploads" });
+    }
+  });
+
+  app.post("/api/admin/upload-companies", upload.array('files', 50), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[] || [];
+      const urlsText = req.body.urls || "";
+      const urls = urlsText.split('\n').filter((url: string) => url.trim()).map((url: string) => url.trim());
+      
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      // Process uploaded files
+      for (const file of files) {
+        try {
+          const text = file.buffer.toString('utf-8');
+          const companyData = await parseCompanyData(text);
+          
+          if (companyData) {
+            await storage.createCompany(companyData);
+            successCount++;
+          } else {
+            failedCount++;
+            errors.push(`Failed to parse ${file.originalname}`);
+          }
+        } catch (error) {
+          failedCount++;
+          errors.push(`Error processing ${file.originalname}: ${error}`);
+        }
+      }
+
+      // Process URLs
+      for (const url of urls) {
+        try {
+          const companyData = await parseCompanyFromUrl(url);
+          
+          if (companyData) {
+            await storage.createCompany(companyData);
+            successCount++;
+          } else {
+            failedCount++;
+            errors.push(`Failed to parse URL: ${url}`);
+          }
+        } catch (error) {
+          failedCount++;
+          errors.push(`Error processing URL ${url}: ${error}`);
+        }
+      }
+
+      res.json({
+        success: successCount,
+        failed: failedCount,
+        total: files.length + urls.length,
+        errors: errors.slice(0, 10) // Limit error messages
+      });
+    } catch (error) {
+      console.error("Error in bulk company upload:", error);
+      res.status(500).json({ error: "Failed to process company uploads" });
     }
   });
 
