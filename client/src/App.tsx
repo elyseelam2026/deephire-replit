@@ -25,7 +25,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/recruiting/:rest*" component={RecruitingApp} />
+      <Route path="/recruiting" component={RecruitingApp} />
       <Route path="/admin/:rest*" component={AdminApp} />
+      <Route path="/admin" component={AdminApp} />
       <Route path="/client-portal" component={ClientPortal} />
       <Route path="/candidate-portal" component={CandidatePortal} />
       <Route component={NotFound} />
