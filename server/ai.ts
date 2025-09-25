@@ -1,12 +1,15 @@
 import OpenAI from "openai";
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY must be set");
+if (!process.env.XAI_API_KEY) {
+  throw new Error("XAI_API_KEY must be set");
 }
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ 
+  baseURL: "https://api.x.ai/v1", 
+  apiKey: process.env.XAI_API_KEY 
+});
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+// Using Grok model "grok-2-1212" from xAI for text processing with 131k token context window
 export async function parseJobDescription(jdText: string): Promise<{
   title: string;
   department: string;
@@ -17,7 +20,7 @@ export async function parseJobDescription(jdText: string): Promise<{
 }> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5",
+      model: "grok-2-1212",
       messages: [
         {
           role: "system",
