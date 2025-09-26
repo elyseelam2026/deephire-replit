@@ -1,4 +1,7 @@
 import OpenAI from "openai";
+import * as XLSX from 'xlsx';
+import csvToJson from 'csvtojson';
+import * as cheerio from 'cheerio';
 
 if (!process.env.XAI_API_KEY) {
   throw new Error("XAI_API_KEY must be set");
@@ -406,6 +409,248 @@ export async function parseCompanyFromUrl(url: string): Promise<{
     };
   } catch (error) {
     console.error("Error parsing company from URL:", error);
+    return null;
+  }
+}
+
+// Parse CSV file for candidate or company data
+export async function parseCsvData(buffer: Buffer, dataType: 'candidate' | 'company'): Promise<any[]> {
+  try {
+    const csvString = buffer.toString('utf-8');
+    const jsonData = await csvToJson().fromString(csvString);
+    
+    const results = [];
+    for (const row of jsonData) {
+      if (dataType === 'candidate') {
+        const candidateData = await extractCandidateFromRow(row);
+        if (candidateData) results.push(candidateData);
+      } else {
+        const companyData = await extractCompanyFromRow(row);
+        if (companyData) results.push(companyData);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error("Error parsing CSV data:", error);
+    return [];
+  }
+}
+
+// Parse Excel file for candidate or company data
+export async function parseExcelData(buffer: Buffer, dataType: 'candidate' | 'company'): Promise<any[]> {
+  try {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    
+    const results = [];
+    for (const row of jsonData) {
+      if (dataType === 'candidate') {
+        const candidateData = await extractCandidateFromRow(row as any);
+        if (candidateData) results.push(candidateData);
+      } else {
+        const companyData = await extractCompanyFromRow(row as any);
+        if (companyData) results.push(companyData);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error("Error parsing Excel data:", error);
+    return [];
+  }
+}
+
+// Parse HTML file for candidate or company data
+export async function parseHtmlData(buffer: Buffer, dataType: 'candidate' | 'company'): Promise<any[]> {
+  try {
+    const htmlString = buffer.toString('utf-8');
+    const $ = cheerio.load(htmlString);
+    
+    // Extract all text content and clean it
+    const textContent = $('body').text() || $.text();
+    const cleanedText = textContent.replace(/\s+/g, ' ').trim();
+    
+    if (dataType === 'candidate') {
+      const candidateData = await parseCandidateData(cleanedText);
+      return candidateData ? [candidateData] : [];
+    } else {
+      const companyData = await parseCompanyData(cleanedText);
+      return companyData ? [companyData] : [];
+    }
+  } catch (error) {
+    console.error("Error parsing HTML data:", error);
+    return [];
+  }
+}
+
+// Helper function to extract candidate data from a CSV/Excel row
+async function extractCandidateFromRow(row: any): Promise<any | null> {
+  try {
+    console.log("Processing row data:", Object.keys(row), "First few values:", Object.values(row).slice(0, 3));
+    
+    // Common field mappings for candidate data with more flexible matching
+    const fieldMappings = {
+      firstName: ['firstname', 'first_name', 'fname', 'first', 'givenname', 'forename'],
+      lastName: ['lastname', 'last_name', 'lname', 'last', 'surname', 'familyname', 'family_name'],
+      email: ['email', 'emailaddress', 'email_address', 'mail', 'e_mail'],
+      currentTitle: ['title', 'jobtitle', 'job_title', 'position', 'role', 'current_title', 'designation'],
+      currentCompany: ['company', 'currentcompany', 'current_company', 'employer', 'organization', 'workplace'],
+      linkedinUrl: ['linkedin', 'linkedin_url', 'linkedinprofile', 'linkedin_profile', 'profile_url'],
+      location: ['location', 'city', 'address', 'region', 'country', 'residence'],
+      skills: ['skills', 'skillset', 'skill_set', 'competencies', 'technologies', 'expertise'],
+      yearsExperience: ['experience', 'years_experience', 'yearsexperience', 'exp', 'years_exp', 'work_experience'],
+      basicSalary: ['salary', 'basicsalary', 'basic_salary', 'current_salary', 'pay', 'compensation'],
+      salaryExpectations: ['expected_salary', 'salary_expectations', 'target_salary', 'desired_salary', 'expected_pay']
+    };
+
+    const candidateData: any = {};
+    let fieldsFound = 0;
+    
+    // Create normalized key lookup for better matching
+    const normalizedKeys: { [key: string]: string } = {};
+    Object.keys(row).forEach(key => {
+      const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      normalizedKeys[normalized] = key;
+    });
+    
+    for (const [field, possibleKeys] of Object.entries(fieldMappings)) {
+      for (const possibleKey of possibleKeys) {
+        const normalizedPossibleKey = possibleKey.replace(/[^a-z0-9]/g, '');
+        
+        if (normalizedKeys[normalizedPossibleKey] && row[normalizedKeys[normalizedPossibleKey]]) {
+          let value = row[normalizedKeys[normalizedPossibleKey]];
+          
+          // Skip empty values
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            continue;
+          }
+          
+          if (field === 'skills' && typeof value === 'string') {
+            value = value.split(/[,;|]/).map((s: string) => s.trim()).filter(Boolean);
+          }
+          
+          if (field === 'yearsExperience' || field === 'basicSalary' || field === 'salaryExpectations') {
+            const numValue = parseFloat(value);
+            value = isNaN(numValue) ? null : numValue;
+          }
+          
+          candidateData[field] = value;
+          fieldsFound++;
+          break;
+        }
+      }
+    }
+
+    console.log(`Extracted ${fieldsFound} fields:`, Object.keys(candidateData));
+
+    // More lenient validation - just need firstName OR email
+    if (candidateData.firstName || candidateData.email) {
+      // Set required defaults for database schema compatibility
+      const finalCandidateData = {
+        firstName: candidateData.firstName || 'Unknown',
+        lastName: candidateData.lastName || 'Unknown', 
+        email: candidateData.email || 'unknown@example.com',
+        currentTitle: candidateData.currentTitle || null,
+        currentCompany: candidateData.currentCompany || null,
+        basicSalary: candidateData.basicSalary || null,
+        salaryExpectations: candidateData.salaryExpectations || null,
+        linkedinUrl: candidateData.linkedinUrl || null,
+        cvText: candidateData.cvText || null,
+        skills: candidateData.skills || [],
+        yearsExperience: candidateData.yearsExperience || null,
+        location: candidateData.location || null,
+        isAvailable: true // Default for CSV/Excel imports
+      };
+
+      console.log("Final candidate data prepared for database:", Object.keys(finalCandidateData));
+      return finalCandidateData;
+    }
+
+    // If no structured match, log the issue for debugging
+    console.log("No firstName or email found, available keys:", Object.keys(row));
+    return null;
+  } catch (error) {
+    console.error("Error extracting candidate from row:", error);
+    return null;
+  }
+}
+
+// Helper function to extract company data from a CSV/Excel row
+async function extractCompanyFromRow(row: any): Promise<any | null> {
+  try {
+    console.log("Processing company row data:", Object.keys(row), "First few values:", Object.values(row).slice(0, 3));
+    
+    // Common field mappings for company data with more flexible matching
+    const fieldMappings = {
+      name: ['name', 'company', 'companyname', 'company_name', 'organization', 'business', 'firm'],
+      parentCompany: ['parent', 'parentcompany', 'parent_company', 'holding_company', 'parent_org'],
+      location: ['location', 'address', 'city', 'headquarters', 'hq', 'country', 'region'],
+      industry: ['industry', 'sector', 'vertical', 'business_type', 'domain', 'field'],
+      employeeSize: ['employees', 'employee_size', 'headcount', 'workforce', 'team_size', 'staff'],
+      subsector: ['subsector', 'sub_sector', 'niche', 'specialty', 'focus_area'],
+      stage: ['stage', 'company_stage', 'phase', 'maturity', 'size', 'type']
+    };
+
+    const companyData: any = {};
+    let fieldsFound = 0;
+    
+    // Create normalized key lookup for better matching
+    const normalizedKeys: { [key: string]: string } = {};
+    Object.keys(row).forEach(key => {
+      const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      normalizedKeys[normalized] = key;
+    });
+    
+    for (const [field, possibleKeys] of Object.entries(fieldMappings)) {
+      for (const possibleKey of possibleKeys) {
+        const normalizedPossibleKey = possibleKey.replace(/[^a-z0-9]/g, '');
+        
+        if (normalizedKeys[normalizedPossibleKey] && row[normalizedKeys[normalizedPossibleKey]]) {
+          let value = row[normalizedKeys[normalizedPossibleKey]];
+          
+          // Skip empty values
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            continue;
+          }
+          
+          if (field === 'employeeSize') {
+            const numValue = parseInt(value);
+            value = isNaN(numValue) ? null : numValue;
+          }
+          
+          companyData[field] = value;
+          fieldsFound++;
+          break;
+        }
+      }
+    }
+
+    console.log(`Extracted ${fieldsFound} company fields:`, Object.keys(companyData));
+
+    // Ensure we have at least a company name
+    if (companyData.name) {
+      // Set required defaults for database schema compatibility
+      const finalCompanyData = {
+        name: companyData.name,
+        parentCompany: companyData.parentCompany || null,
+        location: companyData.location || 'Unknown',
+        industry: companyData.industry || 'Unknown',
+        employeeSize: companyData.employeeSize || null,
+        subsector: companyData.subsector || null,
+        stage: companyData.stage || 'growth'
+      };
+
+      console.log("Final company data prepared for database:", Object.keys(finalCompanyData));
+      return finalCompanyData;
+    }
+
+    console.log("No company name found, available keys:", Object.keys(row));
+    return null;
+  } catch (error) {
+    console.error("Error extracting company from row:", error);
     return null;
   }
 }

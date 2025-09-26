@@ -284,13 +284,13 @@ export default function Admin() {
                       id="candidateFiles"
                       type="file"
                       multiple
-                      accept=".pdf,.doc,.docx,.txt"
+                      accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.html"
                       onChange={(e) => setCandidateFiles(e.target.files)}
                       disabled={candidateStatus === 'uploading' || candidateStatus === 'processing'}
                       data-testid="input-candidate-files"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Supports: PDF, DOC, DOCX, TXT files
+                      Supports: PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, HTML files
                     </p>
                   </div>
                   
@@ -400,13 +400,13 @@ export default function Admin() {
                       id="companyFiles"
                       type="file"
                       multiple
-                      accept=".pdf,.doc,.docx,.txt"
+                      accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.html"
                       onChange={(e) => setCompanyFiles(e.target.files)}
                       disabled={companyStatus === 'uploading' || companyStatus === 'processing'}
                       data-testid="input-company-files"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Company profiles, descriptions, job listings
+                      Supports: PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, HTML files
                     </p>
                   </div>
                   

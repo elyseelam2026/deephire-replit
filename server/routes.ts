@@ -6,20 +6,98 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 import { storage } from "./storage";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData } from "./ai";
+import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { z } from "zod";
+
+// Robust file type detection
+async function detectFileType(file: Express.Multer.File): Promise<string> {
+  try {
+    const fileName = file.originalname.toLowerCase();
+    const mimeType = file.mimetype;
+    
+    // Use file-type for magic number detection
+    const detectedType = await fileTypeFromBuffer(file.buffer);
+    
+    // CSV detection (no magic numbers, rely on extension and content)
+    if (fileName.endsWith('.csv') || 
+        mimeType === 'text/csv' || 
+        mimeType === 'application/csv') {
+      return 'csv';
+    }
+    
+    // Excel detection
+    if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx') ||
+        mimeType === 'application/vnd.ms-excel' ||
+        mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        detectedType?.mime === 'application/vnd.ms-excel' ||
+        detectedType?.mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+      return 'excel';
+    }
+    
+    // HTML detection
+    if (fileName.endsWith('.html') || fileName.endsWith('.htm') ||
+        mimeType === 'text/html' ||
+        detectedType?.mime === 'text/html') {
+      return 'html';
+    }
+    
+    // PDF detection
+    if (fileName.endsWith('.pdf') || 
+        mimeType === 'application/pdf' ||
+        detectedType?.mime === 'application/pdf') {
+      return 'pdf';
+    }
+    
+    // Word documents
+    if (fileName.endsWith('.doc') || fileName.endsWith('.docx') ||
+        mimeType === 'application/msword' ||
+        mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        detectedType?.mime === 'application/msword' ||
+        detectedType?.mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      return 'word';
+    }
+    
+    // Text files
+    if (fileName.endsWith('.txt') || mimeType === 'text/plain' || detectedType?.mime === 'text/plain') {
+      return 'text';
+    }
+    
+    // Default to text for unknown types
+    return 'text';
+  } catch (error) {
+    console.error('Error detecting file type:', error);
+    // Fall back to extension-based detection
+    const fileName = file.originalname.toLowerCase();
+    if (fileName.endsWith('.csv')) return 'csv';
+    if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) return 'excel';
+    if (fileName.endsWith('.html') || fileName.endsWith('.htm')) return 'html';
+    return 'text';
+  }
+}
 
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowedTypes = ['text/plain', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const allowedTypes = [
+      'text/plain',
+      'application/pdf', 
+      'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/csv',
+      'application/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/html',
+      'application/vnd.ms-excel.sheet.macroEnabled.12'
+    ];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and TXT files are allowed.'));
+      cb(new Error('Invalid file type. Allowed: PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, HTML files.'));
     }
   }
 });
@@ -345,16 +423,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process uploaded files
       for (const file of files) {
         try {
-          const text = file.buffer.toString('utf-8');
-          const candidateData = await parseCandidateData(text);
+          let candidatesData: any[] = [];
           
-          if (candidateData) {
-            await storage.createCandidate(candidateData);
-            successCount++;
+          // Determine file type with robust detection
+          const detectedType = await detectFileType(file);
+          console.log(`Processing file: ${file.originalname}, detected type: ${detectedType}`);
+          
+          if (detectedType === 'csv') {
+            candidatesData = await parseCsvData(file.buffer, 'candidate');
+            console.log(`CSV parsing result: ${candidatesData.length} candidates found`);
+          } else if (detectedType === 'excel') {
+            candidatesData = await parseExcelData(file.buffer, 'candidate');
+            console.log(`Excel parsing result: ${candidatesData.length} candidates found`);
+          } else if (detectedType === 'html') {
+            candidatesData = await parseHtmlData(file.buffer, 'candidate');
+            console.log(`HTML parsing result: ${candidatesData.length} candidates found`);
           } else {
-            failedCount++;
-            errors.push(`Failed to parse ${file.originalname}`);
+            // Fall back to text parsing for PDF, DOC, TXT files
+            console.log(`Using AI text parsing for file type: ${detectedType}`);
+            const text = file.buffer.toString('utf-8');
+            const candidateData = await parseCandidateData(text);
+            if (candidateData) {
+              candidatesData = [candidateData];
+              console.log(`AI parsing result: 1 candidate found`);
+            } else {
+              console.log(`AI parsing failed for ${file.originalname}`);
+            }
           }
+          
+          // Process each candidate record
+          for (const candidateData of candidatesData) {
+            try {
+              await storage.createCandidate(candidateData);
+              successCount++;
+            } catch (dbError) {
+              failedCount++;
+              errors.push(`Failed to save candidate from ${file.originalname}: ${dbError}`);
+            }
+          }
+          
+          if (candidatesData.length === 0) {
+            failedCount++;
+            errors.push(`No valid candidate data found in ${file.originalname}`);
+          }
+          
         } catch (error) {
           failedCount++;
           errors.push(`Error processing ${file.originalname}: ${error}`);
@@ -404,16 +516,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process uploaded files
       for (const file of files) {
         try {
-          const text = file.buffer.toString('utf-8');
-          const companyData = await parseCompanyData(text);
+          let companiesData: any[] = [];
           
-          if (companyData) {
-            await storage.createCompany(companyData);
-            successCount++;
+          // Determine file type with robust detection
+          const detectedType = await detectFileType(file);
+          console.log(`Processing company file: ${file.originalname}, detected type: ${detectedType}`);
+          
+          if (detectedType === 'csv') {
+            companiesData = await parseCsvData(file.buffer, 'company');
+            console.log(`CSV parsing result: ${companiesData.length} companies found`);
+          } else if (detectedType === 'excel') {
+            companiesData = await parseExcelData(file.buffer, 'company');
+            console.log(`Excel parsing result: ${companiesData.length} companies found`);
+          } else if (detectedType === 'html') {
+            companiesData = await parseHtmlData(file.buffer, 'company');
+            console.log(`HTML parsing result: ${companiesData.length} companies found`);
           } else {
-            failedCount++;
-            errors.push(`Failed to parse ${file.originalname}`);
+            // Fall back to text parsing for PDF, DOC, TXT files
+            console.log(`Using AI text parsing for file type: ${detectedType}`);
+            const text = file.buffer.toString('utf-8');
+            const companyData = await parseCompanyData(text);
+            if (companyData) {
+              companiesData = [companyData];
+              console.log(`AI parsing result: 1 company found`);
+            } else {
+              console.log(`AI parsing failed for ${file.originalname}`);
+            }
           }
+          
+          // Process each company record
+          for (const companyData of companiesData) {
+            try {
+              await storage.createCompany(companyData);
+              successCount++;
+            } catch (dbError) {
+              failedCount++;
+              errors.push(`Failed to save company from ${file.originalname}: ${dbError}`);
+            }
+          }
+          
+          if (companiesData.length === 0) {
+            failedCount++;
+            errors.push(`No valid company data found in ${file.originalname}`);
+          }
+          
         } catch (error) {
           failedCount++;
           errors.push(`Error processing ${file.originalname}: ${error}`);
