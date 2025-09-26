@@ -1,8 +1,11 @@
 import { 
   companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
+  dataIngestionJobs, duplicateDetections, dataReviewQueue,
   type Company, type Job, type Candidate, type JobMatch, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
-  type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach
+  type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
+  type DataIngestionJob, type InsertDataIngestionJob, type DuplicateDetection, type InsertDuplicateDetection,
+  type DataReviewQueue, type InsertDataReviewQueue
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
@@ -48,6 +51,24 @@ export interface IStorage {
   getEmailOutreach(): Promise<(EmailOutreach & { candidate: Candidate, job: Job & { company: Company } })[]>;
   getOutreachForCandidate(candidateId: number): Promise<EmailOutreach[]>;
   updateEmailOutreach(id: number, updates: Partial<InsertEmailOutreach>): Promise<EmailOutreach | undefined>;
+  
+  // Data ingestion management
+  createIngestionJob(job: InsertDataIngestionJob): Promise<DataIngestionJob>;
+  getIngestionJobs(): Promise<DataIngestionJob[]>;
+  getIngestionJob(id: number): Promise<DataIngestionJob | undefined>;
+  updateIngestionJob(id: number, updates: Partial<InsertDataIngestionJob>): Promise<DataIngestionJob | undefined>;
+  
+  // Duplicate detection management
+  createDuplicateDetection(detection: InsertDuplicateDetection): Promise<DuplicateDetection>;
+  getDuplicateDetections(ingestionJobId?: number): Promise<DuplicateDetection[]>;
+  getDuplicateDetection(id: number): Promise<DuplicateDetection | undefined>;
+  updateDuplicateDetection(id: number, updates: Partial<InsertDuplicateDetection>): Promise<DuplicateDetection | undefined>;
+  
+  // Data review queue management
+  createReviewTask(task: InsertDataReviewQueue): Promise<DataReviewQueue>;
+  getReviewTasks(status?: string): Promise<DataReviewQueue[]>;
+  getReviewTask(id: number): Promise<DataReviewQueue | undefined>;
+  updateReviewTask(id: number, updates: Partial<InsertDataReviewQueue>): Promise<DataReviewQueue | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -346,6 +367,87 @@ export class DatabaseStorage implements IStorage {
       .where(eq(emailOutreach.id, id))
       .returning();
     return outreach || undefined;
+  }
+
+  // Data ingestion management
+  async createIngestionJob(insertJob: InsertDataIngestionJob): Promise<DataIngestionJob> {
+    const [job] = await db.insert(dataIngestionJobs).values(insertJob).returning();
+    return job;
+  }
+
+  async getIngestionJobs(): Promise<DataIngestionJob[]> {
+    return await db.select().from(dataIngestionJobs).orderBy(desc(dataIngestionJobs.createdAt));
+  }
+
+  async getIngestionJob(id: number): Promise<DataIngestionJob | undefined> {
+    const [job] = await db.select().from(dataIngestionJobs).where(eq(dataIngestionJobs.id, id));
+    return job || undefined;
+  }
+
+  async updateIngestionJob(id: number, updates: Partial<InsertDataIngestionJob>): Promise<DataIngestionJob | undefined> {
+    const [job] = await db.update(dataIngestionJobs)
+      .set(updates)
+      .where(eq(dataIngestionJobs.id, id))
+      .returning();
+    return job || undefined;
+  }
+
+  // Duplicate detection management
+  async createDuplicateDetection(insertDetection: InsertDuplicateDetection): Promise<DuplicateDetection> {
+    const [detection] = await db.insert(duplicateDetections).values(insertDetection).returning();
+    return detection;
+  }
+
+  async getDuplicateDetections(ingestionJobId?: number): Promise<DuplicateDetection[]> {
+    if (ingestionJobId) {
+      return await db.select().from(duplicateDetections)
+        .where(eq(duplicateDetections.ingestionJobId, ingestionJobId))
+        .orderBy(desc(duplicateDetections.createdAt));
+    }
+    return await db.select().from(duplicateDetections)
+      .orderBy(desc(duplicateDetections.createdAt));
+  }
+
+  async getDuplicateDetection(id: number): Promise<DuplicateDetection | undefined> {
+    const [detection] = await db.select().from(duplicateDetections).where(eq(duplicateDetections.id, id));
+    return detection || undefined;
+  }
+
+  async updateDuplicateDetection(id: number, updates: Partial<InsertDuplicateDetection>): Promise<DuplicateDetection | undefined> {
+    const [detection] = await db.update(duplicateDetections)
+      .set({ ...updates, resolvedAt: updates.resolvedById ? sql`now()` : undefined })
+      .where(eq(duplicateDetections.id, id))
+      .returning();
+    return detection || undefined;
+  }
+
+  // Data review queue management
+  async createReviewTask(insertTask: InsertDataReviewQueue): Promise<DataReviewQueue> {
+    const [task] = await db.insert(dataReviewQueue).values(insertTask).returning();
+    return task;
+  }
+
+  async getReviewTasks(status?: string): Promise<DataReviewQueue[]> {
+    if (status) {
+      return await db.select().from(dataReviewQueue)
+        .where(eq(dataReviewQueue.status, status))
+        .orderBy(desc(dataReviewQueue.createdAt));
+    }
+    return await db.select().from(dataReviewQueue)
+      .orderBy(desc(dataReviewQueue.createdAt));
+  }
+
+  async getReviewTask(id: number): Promise<DataReviewQueue | undefined> {
+    const [task] = await db.select().from(dataReviewQueue).where(eq(dataReviewQueue.id, id));
+    return task || undefined;
+  }
+
+  async updateReviewTask(id: number, updates: Partial<InsertDataReviewQueue>): Promise<DataReviewQueue | undefined> {
+    const [task] = await db.update(dataReviewQueue)
+      .set({ ...updates, reviewedAt: updates.reviewedById ? sql`now()` : undefined })
+      .where(eq(dataReviewQueue.id, id))
+      .returning();
+    return task || undefined;
   }
 }
 

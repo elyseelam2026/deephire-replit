@@ -97,6 +97,58 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 });
 
+// Data ingestion jobs - tracks bulk upload operations
+export const dataIngestionJobs = pgTable("data_ingestion_jobs", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(), // csv, excel, html, pdf, etc.
+  uploadedById: integer("uploaded_by_id").references(() => users.id).notNull(),
+  entityType: text("entity_type").notNull(), // candidate, company
+  status: text("status").default("processing").notNull(), // processing, completed, failed, reviewing
+  totalRecords: integer("total_records").default(0).notNull(),
+  processedRecords: integer("processed_records").default(0).notNull(),
+  successfulRecords: integer("successful_records").default(0).notNull(),
+  duplicateRecords: integer("duplicate_records").default(0).notNull(),
+  errorRecords: integer("error_records").default(0).notNull(),
+  errorDetails: jsonb("error_details"), // array of error messages
+  processingMethod: text("processing_method"), // structured, ai_fallback
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Duplicate detection results - tracks potential duplicates found during ingestion
+export const duplicateDetections = pgTable("duplicate_detections", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  ingestionJobId: integer("ingestion_job_id").references(() => dataIngestionJobs.id),
+  entityType: text("entity_type").notNull(), // candidate, company
+  newRecordData: jsonb("new_record_data").notNull(), // incoming record data
+  existingRecordId: integer("existing_record_id").notNull(), // ID in candidates or companies table
+  matchScore: real("match_score").notNull(), // similarity score (0-100)
+  matchedFields: text("matched_fields").array(), // which fields matched
+  status: text("status").default("pending").notNull(), // pending, resolved_merge, resolved_new, resolved_skip
+  resolution: text("resolution"), // merge, create_new, skip
+  resolvedById: integer("resolved_by_id").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+});
+
+// Data review queue - tracks records that need manual review
+export const dataReviewQueue = pgTable("data_review_queue", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  ingestionJobId: integer("ingestion_job_id").references(() => dataIngestionJobs.id),
+  entityType: text("entity_type").notNull(), // candidate, company
+  recordData: jsonb("record_data").notNull(), // the record that needs review
+  issueType: text("issue_type").notNull(), // duplicate, validation_error, incomplete_data
+  issueDetails: text("issue_details"), // human-readable description
+  priority: text("priority").default("medium").notNull(), // low, medium, high, urgent
+  status: text("status").default("pending").notNull(), // pending, in_review, resolved
+  assignedToId: integer("assigned_to_id").references(() => users.id),
+  reviewedById: integer("reviewed_by_id").references(() => users.id),
+  resolution: jsonb("resolution"), // admin's resolution decision
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
 // Relations
 export const companiesRelations = relations(companies, ({ many }) => ({
   jobs: many(jobs),
@@ -156,7 +208,42 @@ export const emailOutreachRelations = relations(emailOutreach, ({ one }) => ({
   }),
 }));
 
-export const usersRelations = relations(users, ({ one }) => ({
+export const dataIngestionJobsRelations = relations(dataIngestionJobs, ({ one, many }) => ({
+  uploadedBy: one(users, {
+    fields: [dataIngestionJobs.uploadedById],
+    references: [users.id],
+  }),
+  duplicateDetections: many(duplicateDetections),
+  reviewQueue: many(dataReviewQueue),
+}));
+
+export const duplicateDetectionsRelations = relations(duplicateDetections, ({ one }) => ({
+  ingestionJob: one(dataIngestionJobs, {
+    fields: [duplicateDetections.ingestionJobId],
+    references: [dataIngestionJobs.id],
+  }),
+  resolvedBy: one(users, {
+    fields: [duplicateDetections.resolvedById],
+    references: [users.id],
+  }),
+}));
+
+export const dataReviewQueueRelations = relations(dataReviewQueue, ({ one }) => ({
+  ingestionJob: one(dataIngestionJobs, {
+    fields: [dataReviewQueue.ingestionJobId],
+    references: [dataIngestionJobs.id],
+  }),
+  assignedTo: one(users, {
+    fields: [dataReviewQueue.assignedToId],
+    references: [users.id],
+  }),
+  reviewedBy: one(users, {
+    fields: [dataReviewQueue.reviewedById],
+    references: [users.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
   company: one(companies, {
     fields: [users.companyId],
     references: [companies.id],
@@ -165,6 +252,10 @@ export const usersRelations = relations(users, ({ one }) => ({
     fields: [users.candidateId],
     references: [candidates.id],
   }),
+  ingestionJobs: many(dataIngestionJobs),
+  duplicateResolutions: many(duplicateDetections),
+  assignedReviews: many(dataReviewQueue, { relationName: "assignedReviews" }),
+  completedReviews: many(dataReviewQueue, { relationName: "completedReviews" }),
 }));
 
 // Insert schemas
@@ -206,6 +297,24 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
+export const insertDataIngestionJobSchema = createInsertSchema(dataIngestionJobs).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertDuplicateDetectionSchema = createInsertSchema(duplicateDetections).omit({
+  id: true,
+  createdAt: true,
+  resolvedAt: true,
+});
+
+export const insertDataReviewQueueSchema = createInsertSchema(dataReviewQueue).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+
 // Type exports
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type Company = typeof companies.$inferSelect;
@@ -227,3 +336,12 @@ export type EmailOutreach = typeof emailOutreach.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export type InsertDataIngestionJob = z.infer<typeof insertDataIngestionJobSchema>;
+export type DataIngestionJob = typeof dataIngestionJobs.$inferSelect;
+
+export type InsertDuplicateDetection = z.infer<typeof insertDuplicateDetectionSchema>;
+export type DuplicateDetection = typeof duplicateDetections.$inferSelect;
+
+export type InsertDataReviewQueue = z.infer<typeof insertDataReviewQueueSchema>;
+export type DataReviewQueue = typeof dataReviewQueue.$inferSelect;
