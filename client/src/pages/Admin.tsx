@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -29,7 +30,10 @@ import {
   Mail,
   MapPin,
   Briefcase,
-  Star
+  Star,
+  TrendingUp,
+  BarChart3,
+  ArrowRight
 } from "lucide-react";
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
@@ -79,6 +83,225 @@ interface UploadHistoryJob {
   completedAt?: string;
 }
 
+interface UploadSummaryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  result: UploadResult | null;
+  entityType: 'candidate' | 'company';
+  onNavigateToData: () => void;
+  onNavigateToDuplicates: () => void;
+  onNavigateToHistory: () => void;
+}
+
+function UploadSummaryModal({ 
+  isOpen, 
+  onClose, 
+  result, 
+  entityType, 
+  onNavigateToData, 
+  onNavigateToDuplicates, 
+  onNavigateToHistory 
+}: UploadSummaryModalProps) {
+  if (!result) return null;
+
+  const successRate = result.total > 0 ? Math.round((result.success / result.total) * 100) : 0;
+  const duplicateRate = result.total > 0 ? Math.round(((result.duplicates || 0) / result.total) * 100) : 0;
+  const errorRate = result.total > 0 ? Math.round((result.failed / result.total) * 100) : 0;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CheckCircle className="h-6 w-6 text-green-600" />
+            Upload Complete
+          </DialogTitle>
+          <DialogDescription>
+            Your {entityType} upload has been processed successfully. Review the results and next steps below.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Overall Statistics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{result.total}</div>
+                <div className="text-xs text-muted-foreground">Total Processed</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">{result.success}</div>
+                <div className="text-xs text-muted-foreground">Successfully Added</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-amber-600">{result.duplicates || 0}</div>
+                <div className="text-xs text-muted-foreground">Duplicates Found</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">{result.failed}</div>
+                <div className="text-xs text-muted-foreground">Failed to Process</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Success Rate Visualization */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Processing Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Success Rate</span>
+                  <span className="font-medium">{successRate}%</span>
+                </div>
+                <Progress value={successRate} className="h-2" />
+              </div>
+              
+              {(result.duplicates || 0) > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Duplicates Detected</span>
+                    <span className="font-medium">{duplicateRate}%</span>
+                  </div>
+                  <Progress value={duplicateRate} className="h-2 bg-amber-100">
+                    <div 
+                      className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                      style={{ width: `${duplicateRate}%` }}
+                    />
+                  </Progress>
+                </div>
+              )}
+
+              {result.failed > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Processing Errors</span>
+                    <span className="font-medium">{errorRate}%</span>
+                  </div>
+                  <Progress value={errorRate} className="h-2 bg-red-100">
+                    <div 
+                      className="h-full bg-red-500 rounded-full transition-all duration-300"
+                      style={{ width: `${errorRate}%` }}
+                    />
+                  </Progress>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <div className="space-y-4">
+            <div className="text-sm font-medium">What would you like to do next?</div>
+            
+            <div className="grid gap-3">
+              {result.success > 0 && (
+                <Button 
+                  onClick={() => {
+                    onNavigateToData();
+                    onClose();
+                  }}
+                  variant="default" 
+                  className="justify-start"
+                  data-testid="button-view-uploaded-data"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  View Uploaded {entityType === 'candidate' ? 'Candidates' : 'Companies'} ({result.success})
+                  <ArrowRight className="h-4 w-4 ml-auto" />
+                </Button>
+              )}
+
+              {(result.duplicates || 0) > 0 && (
+                <Button 
+                  onClick={() => {
+                    onNavigateToDuplicates();
+                    onClose();
+                  }}
+                  variant="outline" 
+                  className="justify-start"
+                  data-testid="button-review-duplicates"
+                >
+                  <GitMerge className="h-4 w-4 mr-2" />
+                  Review Duplicates ({result.duplicates})
+                  <ArrowRight className="h-4 w-4 ml-auto" />
+                </Button>
+              )}
+
+              <Button 
+                onClick={() => {
+                  onNavigateToHistory();
+                  onClose();
+                }}
+                variant="outline" 
+                className="justify-start"
+                data-testid="button-view-upload-history"
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                View Upload History
+                <ArrowRight className="h-4 w-4 ml-auto" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Error Details */}
+          {result.errors && result.errors.length > 0 && (
+            <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
+              <CardHeader>
+                <CardTitle className="text-sm text-red-800 dark:text-red-200">Processing Errors</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1 text-sm text-red-700 dark:text-red-300">
+                  {result.errors.slice(0, 5).map((error, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                      <span className="text-xs">{error}</span>
+                    </div>
+                  ))}
+                  {result.errors.length > 5 && (
+                    <div className="text-xs text-red-600 dark:text-red-400 mt-2">
+                      ... and {result.errors.length - 5} more errors
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Bottom Action */}
+          <div className="flex justify-between pt-4 border-t">
+            <Button variant="outline" onClick={onClose} data-testid="button-close-summary">
+              Close
+            </Button>
+            <Button 
+              onClick={() => {
+                // Primary action based on results
+                if ((result.duplicates || 0) > 0) {
+                  onNavigateToDuplicates();
+                } else if (result.success > 0) {
+                  onNavigateToData();
+                } else {
+                  onNavigateToHistory();
+                }
+                onClose();
+              }}
+              data-testid="button-primary-action"
+            >
+              {(result.duplicates || 0) > 0 ? 'Review Duplicates' : result.success > 0 ? 'View Data' : 'View History'}
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Admin() {
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
@@ -92,8 +315,36 @@ export default function Admin() {
   const [entityFilter, setEntityFilter] = useState<string>('all');
   const [historyEntityFilter, setHistoryEntityFilter] = useState<string>('all');
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('all');
+  const [summaryModal, setSummaryModal] = useState<{
+    isOpen: boolean;
+    result: UploadResult | null;
+    entityType: 'candidate' | 'company';
+  }>({ isOpen: false, result: null, entityType: 'candidate' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Navigation handlers for the summary modal
+  const handleNavigateToData = (entityType: 'candidate' | 'company') => {
+    // TODO: Navigate to candidates/companies data view when pages are created
+    toast({
+      title: "Navigation",
+      description: `Navigating to ${entityType} data view - will be implemented in next task`,
+    });
+  };
+
+  const handleNavigateToDuplicates = (entityType: 'candidate' | 'company') => {
+    setEntityFilter(entityType);
+    setDuplicateFilter('pending');
+    // Switch to duplicates tab
+    const tabElement = document.querySelector('[data-testid="tab-duplicates"]') as HTMLElement;
+    tabElement?.click();
+  };
+
+  const handleNavigateToHistory = () => {
+    // Switch to history tab
+    const tabElement = document.querySelector('[data-testid="tab-history"]') as HTMLElement;
+    tabElement?.click();
+  };
 
   const candidateUploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -113,12 +364,18 @@ export default function Admin() {
     onSuccess: (result: UploadResult) => {
       setCandidateStatus('completed');
       setCandidateProgress(100);
-      toast({
-        title: "Candidates Uploaded Successfully",
-        description: result.message || `${result.success} candidates processed successfully. ${result.failed} failed. ${result.duplicates || 0} duplicates detected.`,
+      
+      // Show comprehensive summary modal instead of simple toast
+      setSummaryModal({
+        isOpen: true,
+        result,
+        entityType: 'candidate'
       });
+      
       queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/upload-history'] });
+      
       // Reset form
       setCandidateFiles(null);
       setCandidateUrls("");
@@ -227,12 +484,18 @@ export default function Admin() {
     onSuccess: (result: UploadResult) => {
       setCompanyStatus('completed');
       setCompanyProgress(100);
-      toast({
-        title: "Companies Uploaded Successfully",
-        description: result.message || `${result.success} companies processed successfully. ${result.failed} failed. ${result.duplicates || 0} duplicates detected.`,
+      
+      // Show comprehensive summary modal instead of simple toast
+      setSummaryModal({
+        isOpen: true,
+        result,
+        entityType: 'company'
       });
+      
       queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/upload-history'] });
+      
       // Reset form
       setCompanyFiles(null);
       setCompanyUrls("");
@@ -1091,6 +1354,17 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Upload Summary Modal */}
+      <UploadSummaryModal
+        isOpen={summaryModal.isOpen}
+        onClose={() => setSummaryModal(prev => ({ ...prev, isOpen: false }))}
+        result={summaryModal.result}
+        entityType={summaryModal.entityType}
+        onNavigateToData={() => handleNavigateToData(summaryModal.entityType)}
+        onNavigateToDuplicates={() => handleNavigateToDuplicates(summaryModal.entityType)}
+        onNavigateToHistory={handleNavigateToHistory}
+      />
     </div>
   );
 }
