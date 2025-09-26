@@ -707,6 +707,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get pending duplicate detections for review
+  app.get("/api/admin/duplicates", async (req, res) => {
+    try {
+      const { entity, status } = req.query;
+      
+      let duplicates;
+      if (entity === 'candidate') {
+        duplicates = await storage.getCandidateDuplicates(status as string);
+      } else if (entity === 'company') {
+        duplicates = await storage.getCompanyDuplicates(status as string);
+      } else {
+        // Get all duplicates
+        const [candidateDuplicates, companyDuplicates] = await Promise.all([
+          storage.getCandidateDuplicates(status as string),
+          storage.getCompanyDuplicates(status as string)
+        ]);
+        duplicates = [...candidateDuplicates, ...companyDuplicates];
+      }
+      
+      res.json(duplicates);
+    } catch (error) {
+      console.error("Error fetching duplicates:", error);
+      res.status(500).json({ error: "Failed to fetch duplicates" });
+    }
+  });
+
+  // Resolve duplicate detection
+  app.post("/api/admin/duplicates/:id/resolve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action, selectedId } = req.body;
+      
+      const resolveSchema = z.object({
+        action: z.enum(['merge', 'create_new', 'skip']),
+        selectedId: z.number().optional()
+      });
+      
+      const { action: resolveAction, selectedId: mergeWithId } = resolveSchema.parse({ action, selectedId });
+      
+      await storage.resolveDuplicateDetection(parseInt(id), resolveAction, mergeWithId);
+      
+      res.json({ success: true, message: `Duplicate ${resolveAction === 'merge' ? 'merged' : resolveAction === 'create_new' ? 'created as new record' : 'skipped'}` });
+    } catch (error) {
+      console.error("Error resolving duplicate:", error);
+      res.status(500).json({ error: "Failed to resolve duplicate" });
+    }
+  });
+
+  // Bulk resolve duplicates
+  app.post("/api/admin/duplicates/bulk-resolve", async (req, res) => {
+    try {
+      const { duplicateIds, action, selectedIds } = req.body;
+      
+      const bulkResolveSchema = z.object({
+        duplicateIds: z.array(z.number()),
+        action: z.enum(['merge', 'create_new', 'skip']),
+        selectedIds: z.array(z.number()).optional()
+      });
+      
+      const { duplicateIds: ids, action: resolveAction, selectedIds: mergeWithIds } = bulkResolveSchema.parse({ duplicateIds, action, selectedIds });
+      
+      let successCount = 0;
+      const errors: string[] = [];
+      
+      for (let i = 0; i < ids.length; i++) {
+        try {
+          const mergeWithId = mergeWithIds?.[i];
+          await storage.resolveDuplicateDetection(ids[i], resolveAction, mergeWithId);
+          successCount++;
+        } catch (error) {
+          errors.push(`Failed to resolve duplicate ${ids[i]}: ${error}`);
+        }
+      }
+      
+      res.json({ 
+        success: successCount,
+        failed: errors.length,
+        total: ids.length,
+        errors: errors.slice(0, 10)
+      });
+    } catch (error) {
+      console.error("Error bulk resolving duplicates:", error);
+      res.status(500).json({ error: "Failed to bulk resolve duplicates" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

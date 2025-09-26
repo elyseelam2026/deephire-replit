@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { 
   Upload, 
@@ -20,16 +20,44 @@ import {
   AlertCircle,
   Link,
   Database,
-  Zap
+  Zap,
+  GitMerge,
+  UserPlus,
+  X,
+  Eye,
+  Mail,
+  MapPin,
+  Briefcase,
+  Star
 } from "lucide-react";
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
 
 interface UploadResult {
   success: number;
+  duplicates?: number;
   failed: number;
   total: number;
+  message?: string;
   errors: string[];
+}
+
+interface DuplicateDetection {
+  id: number;
+  entityType: 'candidate' | 'company';
+  newRecordData: any;
+  existingRecords: any[];
+  matchedFields: string[];
+  matchScores: number[];
+  status: 'pending' | 'resolved';
+  resolution?: 'merge' | 'create_new' | 'skip';
+  ingestionJobId?: number;
+  createdAt: string;
+}
+
+interface ResolveAction {
+  action: 'merge' | 'create_new' | 'skip';
+  selectedId?: number;
 }
 
 export default function Admin() {
@@ -41,6 +69,8 @@ export default function Admin() {
   const [companyStatus, setCompanyStatus] = useState<UploadStatus>('idle');
   const [candidateProgress, setCandidateProgress] = useState(0);
   const [companyProgress, setCompanyProgress] = useState(0);
+  const [duplicateFilter, setDuplicateFilter] = useState<string>('pending');
+  const [entityFilter, setEntityFilter] = useState<string>('all');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -64,9 +94,10 @@ export default function Admin() {
       setCandidateProgress(100);
       toast({
         title: "Candidates Uploaded Successfully",
-        description: `${result.success} candidates processed successfully. ${result.failed} failed.`,
+        description: result.message || `${result.success} candidates processed successfully. ${result.failed} failed. ${result.duplicates || 0} duplicates detected.`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/duplicates'] });
       // Reset form
       setCandidateFiles(null);
       setCandidateUrls("");
@@ -76,6 +107,56 @@ export default function Admin() {
       toast({
         title: "Upload Failed",
         description: error.message || "Failed to upload candidates",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Fetch duplicates
+  const { data: duplicates = [], isLoading: duplicatesLoading, refetch: refetchDuplicates } = useQuery({
+    queryKey: ['/api/admin/duplicates', { entity: entityFilter !== 'all' ? entityFilter : undefined, status: duplicateFilter !== 'all' ? duplicateFilter : undefined }],
+    queryFn: async ({ queryKey }) => {
+      const [url, filters] = queryKey as [string, { entity?: string; status?: string }];
+      const params = new URLSearchParams();
+      if (filters.entity) params.append('entity', filters.entity);
+      if (filters.status) params.append('status', filters.status);
+      const queryString = params.toString();
+      const fullUrl = queryString ? `${url}?${queryString}` : url;
+      
+      const response = await fetch(fullUrl, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch duplicates');
+      }
+      
+      return response.json();
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Resolve duplicate mutation
+  const resolveDuplicateMutation = useMutation({
+    mutationFn: async ({ duplicateId, action, selectedId }: { duplicateId: number; action: string; selectedId?: number }) => {
+      return await apiRequest(`/api/admin/duplicates/${duplicateId}/resolve`, {
+        method: 'POST',
+        body: { action, selectedId },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      toast({
+        title: "Duplicate Resolved",
+        description: "The duplicate has been resolved successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Resolution Failed",
+        description: error.message || "Failed to resolve duplicate",
         variant: "destructive",
       });
     },
@@ -101,9 +182,10 @@ export default function Admin() {
       setCompanyProgress(100);
       toast({
         title: "Companies Uploaded Successfully",
-        description: `${result.success} companies processed successfully. ${result.failed} failed.`,
+        description: result.message || `${result.success} companies processed successfully. ${result.failed} failed. ${result.duplicates || 0} duplicates detected.`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/duplicates'] });
       // Reset form
       setCompanyFiles(null);
       setCompanyUrls("");
@@ -198,6 +280,64 @@ export default function Admin() {
     companyUploadMutation.mutate(formData);
   };
 
+  const handleResolveDuplicate = (duplicateId: number, action: string, selectedId?: number) => {
+    resolveDuplicateMutation.mutate({ duplicateId, action, selectedId });
+  };
+
+  const formatMatchScore = (score: number) => {
+    return `${Math.round(score)}%`;
+  };
+
+  const getEntityIcon = (entityType: string) => {
+    return entityType === 'candidate' ? <Users className="h-4 w-4" /> : <Building2 className="h-4 w-4" />;
+  };
+
+  const renderFieldValue = (field: string, value: any, entityType: 'candidate' | 'company') => {
+    if (!value) return <span className="text-muted-foreground">-</span>;
+    
+    if (Array.isArray(value)) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.slice(0, 3).map((item, index) => (
+            <Badge key={index} variant="outline" className="text-xs">
+              {item}
+            </Badge>
+          ))}
+          {value.length > 3 && <span className="text-xs text-muted-foreground">+{value.length - 3}</span>}
+        </div>
+      );
+    }
+
+    if (field === 'email' && entityType === 'candidate') {
+      return (
+        <div className="flex items-center gap-1">
+          <Mail className="h-3 w-3" />
+          <span className="text-sm">{value}</span>
+        </div>
+      );
+    }
+
+    if (field === 'location') {
+      return (
+        <div className="flex items-center gap-1">
+          <MapPin className="h-3 w-3" />
+          <span className="text-sm">{value}</span>
+        </div>
+      );
+    }
+
+    if (field === 'currentTitle' && entityType === 'candidate') {
+      return (
+        <div className="flex items-center gap-1">
+          <Briefcase className="h-3 w-3" />
+          <span className="text-sm">{value}</span>
+        </div>
+      );
+    }
+
+    return <span className="text-sm">{String(value).substring(0, 50)}{String(value).length > 50 ? '...' : ''}</span>;
+  };
+
   const getStatusIcon = (status: UploadStatus) => {
     switch (status) {
       case 'uploading':
@@ -249,7 +389,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="candidates" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="candidates" data-testid="tab-candidates">
             <Users className="h-4 w-4 mr-2" />
             Candidate Upload
@@ -257,6 +397,10 @@ export default function Admin() {
           <TabsTrigger value="companies" data-testid="tab-companies">
             <Building2 className="h-4 w-4 mr-2" />
             Company Upload
+          </TabsTrigger>
+          <TabsTrigger value="duplicates" data-testid="tab-duplicates">
+            <AlertCircle className="h-4 w-4 mr-2" />
+            Duplicate Review
           </TabsTrigger>
         </TabsList>
 
@@ -488,6 +632,219 @@ export default function Admin() {
                   </>
                 )}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="duplicates" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                Duplicate Review Queue
+              </CardTitle>
+              <CardDescription>
+                Review and resolve detected duplicates from data ingestion. Choose to merge records, create as new, or skip.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Filters */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="status-filter">Status:</Label>
+                  <Select value={duplicateFilter} onValueChange={setDuplicateFilter}>
+                    <SelectTrigger className="w-32" data-testid="select-status-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="entity-filter">Entity:</Label>
+                  <Select value={entityFilter} onValueChange={setEntityFilter}>
+                    <SelectTrigger className="w-32" data-testid="select-entity-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="candidate">Candidates</SelectItem>
+                      <SelectItem value="company">Companies</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button variant="outline" onClick={() => refetchDuplicates()} disabled={duplicatesLoading} data-testid="button-refresh-duplicates">
+                  <Loader2 className={`h-4 w-4 mr-2 ${duplicatesLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+
+              {/* Duplicates List */}
+              {duplicatesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="ml-2">Loading duplicates...</span>
+                </div>
+              ) : duplicates.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="h-12 w-12 mx-auto text-green-600 mb-4" />
+                  <h3 className="text-lg font-semibold">No Duplicates Found</h3>
+                  <p className="text-muted-foreground">All duplicates have been resolved or no duplicates were detected.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {duplicates.map((duplicate: DuplicateDetection) => (
+                    <Card key={duplicate.id} className="border-l-4 border-l-orange-500">
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                              {getEntityIcon(duplicate.entityType)}
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                {duplicate.entityType === 'candidate' ? 'Candidate' : 'Company'} Duplicate
+                                <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100">
+                                  {duplicate.status}
+                                </Badge>
+                              </CardTitle>
+                              <CardDescription>
+                                Detected {new Date(duplicate.createdAt).toLocaleDateString()} • 
+                                Match Score: {formatMatchScore(Math.max(...duplicate.matchScores))}
+                              </CardDescription>
+                            </div>
+                          </div>
+                          
+                          {duplicate.status === 'pending' && (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleResolveDuplicate(duplicate.id, 'skip')}
+                                disabled={resolveDuplicateMutation.isPending}
+                                data-testid={`button-skip-${duplicate.id}`}
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Skip
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleResolveDuplicate(duplicate.id, 'create_new')}
+                                disabled={resolveDuplicateMutation.isPending}
+                                data-testid={`button-create-new-${duplicate.id}`}
+                              >
+                                <UserPlus className="h-3 w-3 mr-1" />
+                                Create New
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </CardHeader>
+                      
+                      <CardContent className="space-y-4">
+                        {/* New Record Data */}
+                        <div>
+                          <h4 className="font-medium mb-2 flex items-center gap-2">
+                            <Star className="h-4 w-4 text-blue-600" />
+                            New Record Data
+                          </h4>
+                          <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                              {Object.entries(duplicate.newRecordData)
+                                .filter(([key, value]) => value != null && value !== '')
+                                .slice(0, 6)
+                                .map(([field, value]) => (
+                                <div key={field}>
+                                  <div className="text-xs font-medium text-muted-foreground uppercase">{field}</div>
+                                  {renderFieldValue(field, value, duplicate.entityType)}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Existing Matches */}
+                        <div>
+                          <h4 className="font-medium mb-2">Potential Matches</h4>
+                          <div className="space-y-2">
+                            {duplicate.existingRecords.map((record, index) => (
+                              <div
+                                key={record.id || index}
+                                className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border hover-elevate"
+                              >
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      Match: {formatMatchScore(duplicate.matchScores[index])}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs">
+                                      ID: {record.id}
+                                    </Badge>
+                                  </div>
+                                  
+                                  {duplicate.status === 'pending' && (
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={() => handleResolveDuplicate(duplicate.id, 'merge', record.id)}
+                                      disabled={resolveDuplicateMutation.isPending}
+                                      data-testid={`button-merge-${duplicate.id}-${record.id}`}
+                                    >
+                                      <GitMerge className="h-3 w-3 mr-1" />
+                                      Merge With This
+                                    </Button>
+                                  )}
+                                </div>
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                  {Object.entries(record)
+                                    .filter(([key, value]) => value != null && value !== '' && !['id', 'createdAt', 'updatedAt'].includes(key))
+                                    .slice(0, 6)
+                                    .map(([field, value]) => (
+                                    <div key={field}>
+                                      <div className="text-xs font-medium text-muted-foreground uppercase">{field}</div>
+                                      {renderFieldValue(field, value, duplicate.entityType)}
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Matched Fields Indicator */}
+                                {duplicate.matchedFields.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t">
+                                    <div className="text-xs text-muted-foreground mb-1">Matched Fields:</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {duplicate.matchedFields.map((field, idx) => (
+                                        <Badge key={idx} variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                                          {field}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {duplicate.status === 'resolved' && duplicate.resolution && (
+                          <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span className="text-sm text-green-800 dark:text-green-200">
+                              Resolved: {duplicate.resolution === 'merge' ? 'Merged with existing record' : 
+                                       duplicate.resolution === 'create_new' ? 'Created as new record' : 'Skipped'}
+                            </span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

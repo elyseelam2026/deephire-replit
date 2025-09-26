@@ -20,6 +20,7 @@ export interface IStorage {
   createCompany(company: InsertCompany): Promise<Company>;
   getCompanies(): Promise<Company[]>;
   getCompany(id: number): Promise<Company | undefined>;
+  updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined>;
   
   // Job management
   createJob(job: InsertJob): Promise<Job>;
@@ -63,6 +64,9 @@ export interface IStorage {
   getDuplicateDetections(ingestionJobId?: number): Promise<DuplicateDetection[]>;
   getDuplicateDetection(id: number): Promise<DuplicateDetection | undefined>;
   updateDuplicateDetection(id: number, updates: Partial<InsertDuplicateDetection>): Promise<DuplicateDetection | undefined>;
+  getCandidateDuplicates(status?: string): Promise<DuplicateDetection[]>;
+  getCompanyDuplicates(status?: string): Promise<DuplicateDetection[]>;
+  resolveDuplicateDetection(id: number, action: 'merge' | 'create_new' | 'skip', selectedId?: number): Promise<void>;
   
   // Data review queue management
   createReviewTask(task: InsertDataReviewQueue): Promise<DataReviewQueue>;
@@ -100,6 +104,14 @@ export class DatabaseStorage implements IStorage {
 
   async getCompany(id: number): Promise<Company | undefined> {
     const [company] = await db.select().from(companies).where(eq(companies.id, id));
+    return company || undefined;
+  }
+
+  async updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined> {
+    const [company] = await db.update(companies)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(companies.id, id))
+      .returning();
     return company || undefined;
   }
 
@@ -448,6 +460,110 @@ export class DatabaseStorage implements IStorage {
       .where(eq(dataReviewQueue.id, id))
       .returning();
     return task || undefined;
+  }
+
+  // Enhanced duplicate detection methods for admin review
+  async getCandidateDuplicates(status?: string): Promise<DuplicateDetection[]> {
+    if (status) {
+      return await db.select().from(duplicateDetections)
+        .where(and(
+          eq(duplicateDetections.entityType, 'candidate'),
+          eq(duplicateDetections.status, status)
+        ))
+        .orderBy(desc(duplicateDetections.createdAt));
+    }
+    return await db.select().from(duplicateDetections)
+      .where(eq(duplicateDetections.entityType, 'candidate'))
+      .orderBy(desc(duplicateDetections.createdAt));
+  }
+
+  async getCompanyDuplicates(status?: string): Promise<DuplicateDetection[]> {
+    if (status) {
+      return await db.select().from(duplicateDetections)
+        .where(and(
+          eq(duplicateDetections.entityType, 'company'),
+          eq(duplicateDetections.status, status)
+        ))
+        .orderBy(desc(duplicateDetections.createdAt));
+    }
+    return await db.select().from(duplicateDetections)
+      .where(eq(duplicateDetections.entityType, 'company'))
+      .orderBy(desc(duplicateDetections.createdAt));
+  }
+
+  async resolveDuplicateDetection(
+    id: number, 
+    action: 'merge' | 'create_new' | 'skip', 
+    selectedId?: number
+  ): Promise<void> {
+    const duplicateDetection = await this.getDuplicateDetection(id);
+    if (!duplicateDetection) {
+      throw new Error(`Duplicate detection ${id} not found`);
+    }
+
+    // Update the duplicate detection status
+    await this.updateDuplicateDetection(id, {
+      status: 'resolved',
+      resolution: action,
+      resolvedById: 1, // TODO: Get actual user ID from session
+      resolvedAt: sql`now()`
+    });
+
+    if (action === 'create_new') {
+      // Create the new record from the new record data
+      const newRecordData = duplicateDetection.newRecordData as any;
+      
+      if (duplicateDetection.entityType === 'candidate') {
+        // Create new candidate
+        await this.createCandidate(newRecordData);
+      } else if (duplicateDetection.entityType === 'company') {
+        // Create new company
+        await this.createCompany(newRecordData);
+      }
+    } else if (action === 'merge' && selectedId) {
+      // Merge logic: Update the selected existing record with new data
+      const newRecordData = duplicateDetection.newRecordData as any;
+      
+      if (duplicateDetection.entityType === 'candidate') {
+        // Merge candidate data - update existing record with non-null values from new data
+        const existingCandidate = await this.getCandidate(selectedId);
+        if (existingCandidate) {
+          const mergedData: any = { ...existingCandidate };
+          
+          // Merge non-null fields from new data
+          Object.keys(newRecordData).forEach(key => {
+            if (newRecordData[key] != null && newRecordData[key] !== '') {
+              // For array fields, merge arrays
+              if (Array.isArray(newRecordData[key]) && Array.isArray(existingCandidate[key as keyof Candidate])) {
+                const existingArray = existingCandidate[key as keyof Candidate] as string[];
+                const newArray = newRecordData[key] as string[];
+                mergedData[key] = Array.from(new Set([...existingArray, ...newArray]));
+              } else {
+                mergedData[key] = newRecordData[key];
+              }
+            }
+          });
+          
+          await this.updateCandidate(selectedId, mergedData);
+        }
+      } else if (duplicateDetection.entityType === 'company') {
+        // Merge company data
+        const existingCompany = await this.getCompany(selectedId);
+        if (existingCompany) {
+          const mergedData: any = { ...existingCompany };
+          
+          // Merge non-null fields from new data
+          Object.keys(newRecordData).forEach(key => {
+            if (newRecordData[key] != null && newRecordData[key] !== '') {
+              mergedData[key] = newRecordData[key];
+            }
+          });
+          
+          await this.updateCompany(selectedId, mergedData);
+        }
+      }
+    }
+    // If action is 'skip', we don't create or merge anything, just mark as resolved
   }
 }
 
