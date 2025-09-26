@@ -102,7 +102,7 @@ export const dataIngestionJobs = pgTable("data_ingestion_jobs", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   fileName: text("file_name").notNull(),
   fileType: text("file_type").notNull(), // csv, excel, html, pdf, etc.
-  uploadedById: integer("uploaded_by_id").references(() => users.id).notNull(),
+  uploadedById: integer("uploaded_by_id").references(() => users.id),
   entityType: text("entity_type").notNull(), // candidate, company
   status: text("status").default("processing").notNull(), // processing, completed, failed, reviewing
   totalRecords: integer("total_records").default(0).notNull(),

@@ -69,7 +69,7 @@ interface UploadHistoryJob {
   id: number;
   fileName: string;
   fileType: string;
-  uploadedById: number;
+  uploadedById: number | null;
   entityType: 'candidate' | 'company';
   status: 'processing' | 'completed' | 'failed' | 'reviewing';
   totalRecords: number;
@@ -1262,6 +1262,7 @@ export default function Admin() {
 
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                               <span>Uploaded: {new Date(job.createdAt).toLocaleString()}</span>
+                              <span>By: {job.uploadedById ? `User ${job.uploadedById}` : 'System'}</span>
                               {job.completedAt && (
                                 <span>Completed: {new Date(job.completedAt).toLocaleString()}</span>
                               )}

@@ -428,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ingestionJob = await storage.createIngestionJob({
           fileName: files.length > 0 ? files.map(f => f.originalname).join(', ') : `URL batch (${urls.length} URLs)`,
           fileType: files.length > 0 ? await detectFileType(files[0]) : 'url',
-          uploadedById: 1, // TODO: Get actual user ID from session
+          uploadedById: null, // TODO: Get actual user ID from session when authentication is implemented
           entityType: 'candidate',
           status: 'processing',
           totalRecords: 0 // Will update after processing
@@ -555,7 +555,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error in bulk candidate upload:", error);
-      res.status(500).json({ error: "Failed to process candidate uploads" });
+      console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+      console.error("Error message:", error instanceof Error ? error.message : error);
+      res.status(500).json({ error: "Failed to process candidate uploads", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -576,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ingestionJob = await storage.createIngestionJob({
           fileName: files.length > 0 ? files.map(f => f.originalname).join(', ') : `URL batch (${urls.length} URLs)`,
           fileType: files.length > 0 ? await detectFileType(files[0]) : 'url',
-          uploadedById: 1, // TODO: Get actual user ID from session
+          uploadedById: null, // TODO: Get actual user ID from session when authentication is implemented
           entityType: 'company',
           status: 'processing',
           totalRecords: 0 // Will update after processing
