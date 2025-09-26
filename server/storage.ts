@@ -55,8 +55,18 @@ export interface IStorage {
   
   // Data ingestion management
   createIngestionJob(job: InsertDataIngestionJob): Promise<DataIngestionJob>;
-  getIngestionJobs(): Promise<DataIngestionJob[]>;
+  getIngestionJobs(filters?: {
+    entityType?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<DataIngestionJob[]>;
   getIngestionJob(id: number): Promise<DataIngestionJob | undefined>;
+  getIngestionJobDetails(id: number): Promise<(DataIngestionJob & { 
+    uploadedBy: User;
+    duplicateCount: number;
+    pendingDuplicates: number;
+  }) | undefined>;
   updateIngestionJob(id: number, updates: Partial<InsertDataIngestionJob>): Promise<DataIngestionJob | undefined>;
   
   // Duplicate detection management
@@ -387,13 +397,89 @@ export class DatabaseStorage implements IStorage {
     return job;
   }
 
-  async getIngestionJobs(): Promise<DataIngestionJob[]> {
-    return await db.select().from(dataIngestionJobs).orderBy(desc(dataIngestionJobs.createdAt));
+  async getIngestionJobs(filters?: {
+    entityType?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<DataIngestionJob[]> {
+    const conditions = [];
+    if (filters?.entityType) {
+      conditions.push(eq(dataIngestionJobs.entityType, filters.entityType));
+    }
+    if (filters?.status) {
+      conditions.push(eq(dataIngestionJobs.status, filters.status));
+    }
+    
+    const baseQuery = db.select().from(dataIngestionJobs);
+    let query = conditions.length > 0 
+      ? baseQuery.where(and(...conditions))
+      : baseQuery;
+    
+    query = query.orderBy(desc(dataIngestionJobs.createdAt));
+    
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+    
+    return await query;
   }
 
   async getIngestionJob(id: number): Promise<DataIngestionJob | undefined> {
     const [job] = await db.select().from(dataIngestionJobs).where(eq(dataIngestionJobs.id, id));
     return job || undefined;
+  }
+
+  async getIngestionJobDetails(id: number): Promise<(DataIngestionJob & { 
+    uploadedBy: User;
+    duplicateCount: number;
+    pendingDuplicates: number;
+  }) | undefined> {
+    const jobWithUser = await db.select({
+      id: dataIngestionJobs.id,
+      fileName: dataIngestionJobs.fileName,
+      fileType: dataIngestionJobs.fileType,
+      uploadedById: dataIngestionJobs.uploadedById,
+      entityType: dataIngestionJobs.entityType,
+      status: dataIngestionJobs.status,
+      totalRecords: dataIngestionJobs.totalRecords,
+      processedRecords: dataIngestionJobs.processedRecords,
+      successfulRecords: dataIngestionJobs.successfulRecords,
+      duplicateRecords: dataIngestionJobs.duplicateRecords,
+      errorRecords: dataIngestionJobs.errorRecords,
+      errorDetails: dataIngestionJobs.errorDetails,
+      processingMethod: dataIngestionJobs.processingMethod,
+      createdAt: dataIngestionJobs.createdAt,
+      completedAt: dataIngestionJobs.completedAt,
+      uploadedBy: users
+    })
+    .from(dataIngestionJobs)
+    .leftJoin(users, eq(dataIngestionJobs.uploadedById, users.id))
+    .where(eq(dataIngestionJobs.id, id));
+    
+    if (!jobWithUser[0] || !jobWithUser[0].uploadedBy) {
+      return undefined;
+    }
+    
+    // Get duplicate counts
+    const duplicates = await db.select({
+      total: sql<number>`count(*)`,
+      pending: sql<number>`sum(case when ${duplicateDetections.status} = 'pending' then 1 else 0 end)`
+    })
+    .from(duplicateDetections)
+    .where(eq(duplicateDetections.ingestionJobId, id));
+    
+    const duplicateStats = duplicates[0] || { total: 0, pending: 0 };
+    
+    return {
+      ...jobWithUser[0],
+      uploadedBy: jobWithUser[0].uploadedBy,
+      duplicateCount: Number(duplicateStats.total) || 0,
+      pendingDuplicates: Number(duplicateStats.pending) || 0
+    };
   }
 
   async updateIngestionJob(id: number, updates: Partial<InsertDataIngestionJob>): Promise<DataIngestionJob | undefined> {

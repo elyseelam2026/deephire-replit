@@ -61,6 +61,24 @@ interface ResolveAction {
   selectedId?: number;
 }
 
+interface UploadHistoryJob {
+  id: number;
+  fileName: string;
+  fileType: string;
+  uploadedById: number;
+  entityType: 'candidate' | 'company';
+  status: 'processing' | 'completed' | 'failed' | 'reviewing';
+  totalRecords: number;
+  processedRecords: number;
+  successfulRecords: number;
+  duplicateRecords: number;
+  errorRecords: number;
+  errorDetails?: any;
+  processingMethod?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
 export default function Admin() {
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
@@ -72,6 +90,8 @@ export default function Admin() {
   const [companyProgress, setCompanyProgress] = useState(0);
   const [duplicateFilter, setDuplicateFilter] = useState<string>('pending');
   const [entityFilter, setEntityFilter] = useState<string>('all');
+  const [historyEntityFilter, setHistoryEntityFilter] = useState<string>('all');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('all');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -137,13 +157,39 @@ export default function Admin() {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
+  // Fetch upload history
+  const { data: uploadHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useQuery({
+    queryKey: ['/api/admin/upload-history', { entityType: historyEntityFilter !== 'all' ? historyEntityFilter : undefined, status: historyStatusFilter !== 'all' ? historyStatusFilter : undefined }],
+    queryFn: async ({ queryKey }) => {
+      const [url, filters] = queryKey as [string, { entityType?: string; status?: string }];
+      const params = new URLSearchParams();
+      if (filters.entityType) params.append('entityType', filters.entityType);
+      if (filters.status) params.append('status', filters.status);
+      const queryString = params.toString();
+      const fullUrl = queryString ? `${url}?${queryString}` : url;
+      
+      const response = await fetch(fullUrl, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch upload history');
+      }
+      
+      return response.json();
+    },
+    refetchInterval: 60000, // Refresh every minute
+  });
+
   // Resolve duplicate mutation
   const resolveDuplicateMutation = useMutation({
     mutationFn: async ({ duplicateId, action, selectedId }: { duplicateId: number; action: string; selectedId?: number }) => {
-      return await apiRequest(`/api/admin/duplicates/${duplicateId}/resolve`, {
-        method: 'POST',
-        body: { action, selectedId },
-      });
+      const response = await apiRequest(
+        'POST',
+        `/api/admin/duplicates/${duplicateId}/resolve`,
+        { action, selectedId }
+      );
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/duplicates'] });
@@ -390,7 +436,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="candidates" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="candidates" data-testid="tab-candidates">
             <Users className="h-4 w-4 mr-2" />
             Candidate Upload
@@ -402,6 +448,10 @@ export default function Admin() {
           <TabsTrigger value="duplicates" data-testid="tab-duplicates">
             <AlertCircle className="h-4 w-4 mr-2" />
             Duplicate Review
+          </TabsTrigger>
+          <TabsTrigger value="history" data-testid="tab-history">
+            <FileText className="h-4 w-4 mr-2" />
+            Upload History
           </TabsTrigger>
         </TabsList>
 
@@ -841,6 +891,161 @@ export default function Admin() {
                             </span>
                           </div>
                         )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Upload History
+              </CardTitle>
+              <CardDescription>
+                Track and monitor all bulk upload operations with detailed processing statistics.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Filters */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="history-entity-filter">Entity:</Label>
+                  <Select value={historyEntityFilter} onValueChange={setHistoryEntityFilter}>
+                    <SelectTrigger className="w-32" data-testid="select-history-entity-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="candidate">Candidates</SelectItem>
+                      <SelectItem value="company">Companies</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="history-status-filter">Status:</Label>
+                  <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
+                    <SelectTrigger className="w-32" data-testid="select-history-status-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="processing">Processing</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="reviewing">Reviewing</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Upload History List */}
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : uploadHistory.length === 0 ? (
+                <div className="text-center py-8">
+                  <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No upload history found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {uploadHistory.map((job: UploadHistoryJob) => (
+                    <Card key={job.id} className="hover-elevate">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-3 flex-1">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${
+                                job.entityType === 'candidate' 
+                                  ? 'bg-blue-50 dark:bg-blue-950' 
+                                  : 'bg-purple-50 dark:bg-purple-950'
+                              }`}>
+                                {job.entityType === 'candidate' ? (
+                                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                ) : (
+                                  <Building2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                )}
+                              </div>
+                              <div>
+                                <h3 className="font-medium">{job.fileName}</h3>
+                                <p className="text-sm text-muted-foreground capitalize">
+                                  {job.entityType} • {job.fileType.toUpperCase()}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div className="text-center p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                                <div className="text-2xl font-bold text-blue-600">{job.totalRecords}</div>
+                                <div className="text-xs text-muted-foreground">Total</div>
+                              </div>
+                              <div className="text-center p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                                <div className="text-2xl font-bold text-green-600">{job.successfulRecords}</div>
+                                <div className="text-xs text-muted-foreground">Success</div>
+                              </div>
+                              <div className="text-center p-3 bg-amber-50 dark:bg-amber-950 rounded-lg">
+                                <div className="text-2xl font-bold text-amber-600">{job.duplicateRecords}</div>
+                                <div className="text-xs text-muted-foreground">Duplicates</div>
+                              </div>
+                              <div className="text-center p-3 bg-red-50 dark:bg-red-950 rounded-lg">
+                                <div className="text-2xl font-bold text-red-600">{job.errorRecords}</div>
+                                <div className="text-xs text-muted-foreground">Errors</div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span>Uploaded: {new Date(job.createdAt).toLocaleString()}</span>
+                              {job.completedAt && (
+                                <span>Completed: {new Date(job.completedAt).toLocaleString()}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <Badge 
+                              variant={
+                                job.status === 'completed' ? 'default' :
+                                job.status === 'processing' ? 'secondary' :
+                                job.status === 'reviewing' ? 'secondary' : 'destructive'
+                              }
+                              className={
+                                job.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200' :
+                                job.status === 'processing' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200' :
+                                job.status === 'reviewing' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200' : ''
+                              }
+                            >
+                              {job.status === 'processing' && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                              {job.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
+                              {job.status === 'reviewing' && <AlertCircle className="h-3 w-3 mr-1" />}
+                              {job.status === 'failed' && <X className="h-3 w-3 mr-1" />}
+                              {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
+                            </Badge>
+
+                            {job.duplicateRecords > 0 && job.status === 'reviewing' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  // Switch to duplicates tab and filter by this job
+                                  setEntityFilter(job.entityType);
+                                  setDuplicateFilter('pending');
+                                  (document.querySelector('[data-testid="tab-duplicates"]') as HTMLElement)?.click();
+                                }}
+                                data-testid={`button-review-duplicates-${job.id}`}
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                Review {job.duplicateRecords} Duplicates
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}

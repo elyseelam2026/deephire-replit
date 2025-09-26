@@ -793,6 +793,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get upload history with filtering
+  app.get("/api/admin/upload-history", async (req, res) => {
+    try {
+      const { entityType, status, limit = 50, offset = 0 } = req.query;
+      
+      const uploadHistory = await storage.getIngestionJobs({
+        entityType: entityType as string,
+        status: status as string,
+        limit: parseInt(limit as string) || 50,
+        offset: parseInt(offset as string) || 0
+      });
+      
+      res.json(uploadHistory);
+    } catch (error) {
+      console.error("Error fetching upload history:", error);
+      res.status(500).json({ error: "Failed to fetch upload history" });
+    }
+  });
+
+  // Get specific upload job details
+  app.get("/api/admin/upload-history/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const jobDetails = await storage.getIngestionJobDetails(parseInt(id));
+      
+      if (!jobDetails) {
+        return res.status(404).json({ error: "Upload job not found" });
+      }
+      
+      res.json(jobDetails);
+    } catch (error) {
+      console.error("Error fetching upload job details:", error);
+      res.status(500).json({ error: "Failed to fetch upload job details" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
