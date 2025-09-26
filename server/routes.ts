@@ -9,6 +9,7 @@ import { storage } from "./storage";
 import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData } from "./ai";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
+import { duplicateDetectionService } from "./duplicate-detection";
 import { z } from "zod";
 
 // Robust file type detection
@@ -418,7 +419,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let successCount = 0;
       let failedCount = 0;
+      let duplicateCount = 0;
       const errors: string[] = [];
+      
+      // Create ingestion job for tracking
+      let ingestionJob;
+      if (files.length > 0 || urls.length > 0) {
+        ingestionJob = await storage.createIngestionJob({
+          fileName: files.length > 0 ? files.map(f => f.originalname).join(', ') : `URL batch (${urls.length} URLs)`,
+          fileType: files.length > 0 ? await detectFileType(files[0]) : 'url',
+          uploadedById: 1, // TODO: Get actual user ID from session
+          entityType: 'candidate',
+          status: 'processing',
+          totalRecords: 0 // Will update after processing
+        });
+      }
 
       // Process uploaded files
       for (const file of files) {
@@ -454,11 +469,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Process each candidate record
           for (const candidateData of candidatesData) {
             try {
-              await storage.createCandidate(candidateData);
-              successCount++;
+              // Check for duplicates before saving
+              const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData, 70);
+              
+              if (duplicates.length > 0) {
+                // Record duplicate detections
+                await duplicateDetectionService.detectCandidateDuplicates(
+                  candidateData, 
+                  ingestionJob?.id,
+                  70
+                );
+                duplicateCount++;
+                console.log(`Found ${duplicates.length} potential duplicates for ${candidateData.firstName} ${candidateData.lastName}`);
+              } else {
+                // No duplicates found, save the candidate
+                await storage.createCandidate(candidateData);
+                successCount++;
+              }
             } catch (dbError) {
               failedCount++;
-              errors.push(`Failed to save candidate from ${file.originalname}: ${dbError}`);
+              errors.push(`Failed to process candidate from ${file.originalname}: ${dbError}`);
             }
           }
           
@@ -479,8 +509,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const candidateData = await parseCandidateFromUrl(url);
           
           if (candidateData) {
-            await storage.createCandidate(candidateData);
-            successCount++;
+            // Check for duplicates
+            const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData, 70);
+            
+            if (duplicates.length > 0) {
+              await duplicateDetectionService.detectCandidateDuplicates(
+                candidateData, 
+                ingestionJob?.id,
+                70
+              );
+              duplicateCount++;
+            } else {
+              await storage.createCandidate(candidateData);
+              successCount++;
+            }
           } else {
             failedCount++;
             errors.push(`Failed to parse URL: ${url}`);
@@ -491,10 +533,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Update ingestion job with final counts
+      if (ingestionJob) {
+        await storage.updateIngestionJob(ingestionJob.id, {
+          status: 'completed',
+          totalRecords: successCount + failedCount + duplicateCount,
+          successfulRecords: successCount,
+          duplicateRecords: duplicateCount,
+          errorRecords: failedCount,
+          processingMethod: 'structured' // TODO: Determine based on actual processing method
+        });
+      }
+
       res.json({
         success: successCount,
+        duplicates: duplicateCount,
         failed: failedCount,
         total: files.length + urls.length,
+        message: `Processed ${successCount + duplicateCount + failedCount} candidates: ${successCount} saved, ${duplicateCount} duplicates detected, ${failedCount} failed`,
         errors: errors.slice(0, 10) // Limit error messages
       });
     } catch (error) {
@@ -511,7 +567,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let successCount = 0;
       let failedCount = 0;
+      let duplicateCount = 0;
       const errors: string[] = [];
+      
+      // Create ingestion job for tracking
+      let ingestionJob;
+      if (files.length > 0 || urls.length > 0) {
+        ingestionJob = await storage.createIngestionJob({
+          fileName: files.length > 0 ? files.map(f => f.originalname).join(', ') : `URL batch (${urls.length} URLs)`,
+          fileType: files.length > 0 ? await detectFileType(files[0]) : 'url',
+          uploadedById: 1, // TODO: Get actual user ID from session
+          entityType: 'company',
+          status: 'processing',
+          totalRecords: 0 // Will update after processing
+        });
+      }
 
       // Process uploaded files
       for (const file of files) {
@@ -547,11 +617,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Process each company record
           for (const companyData of companiesData) {
             try {
-              await storage.createCompany(companyData);
-              successCount++;
+              // Check for duplicates before saving
+              const duplicates = await duplicateDetectionService.findCompanyDuplicates(companyData, 75);
+              
+              if (duplicates.length > 0) {
+                // Record duplicate detections
+                await duplicateDetectionService.detectCompanyDuplicates(
+                  companyData, 
+                  ingestionJob?.id,
+                  75
+                );
+                duplicateCount++;
+                console.log(`Found ${duplicates.length} potential duplicates for company ${companyData.name}`);
+              } else {
+                // No duplicates found, save the company
+                await storage.createCompany(companyData);
+                successCount++;
+              }
             } catch (dbError) {
               failedCount++;
-              errors.push(`Failed to save company from ${file.originalname}: ${dbError}`);
+              errors.push(`Failed to process company from ${file.originalname}: ${dbError}`);
             }
           }
           
@@ -572,8 +657,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const companyData = await parseCompanyFromUrl(url);
           
           if (companyData) {
-            await storage.createCompany(companyData);
-            successCount++;
+            // Check for duplicates
+            const duplicates = await duplicateDetectionService.findCompanyDuplicates(companyData, 75);
+            
+            if (duplicates.length > 0) {
+              await duplicateDetectionService.detectCompanyDuplicates(
+                companyData, 
+                ingestionJob?.id,
+                75
+              );
+              duplicateCount++;
+            } else {
+              await storage.createCompany(companyData);
+              successCount++;
+            }
           } else {
             failedCount++;
             errors.push(`Failed to parse URL: ${url}`);
@@ -584,10 +681,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Update ingestion job with final counts
+      if (ingestionJob) {
+        await storage.updateIngestionJob(ingestionJob.id, {
+          status: 'completed',
+          totalRecords: successCount + failedCount + duplicateCount,
+          successfulRecords: successCount,
+          duplicateRecords: duplicateCount,
+          errorRecords: failedCount,
+          processingMethod: 'structured' // TODO: Determine based on actual processing method
+        });
+      }
+
       res.json({
         success: successCount,
+        duplicates: duplicateCount,
         failed: failedCount,
         total: files.length + urls.length,
+        message: `Processed ${successCount + duplicateCount + failedCount} companies: ${successCount} saved, ${duplicateCount} duplicates detected, ${failedCount} failed`,
         errors: errors.slice(0, 10) // Limit error messages
       });
     } catch (error) {
