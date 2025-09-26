@@ -325,11 +325,8 @@ export default function Admin() {
 
   // Navigation handlers for the summary modal
   const handleNavigateToData = (entityType: 'candidate' | 'company') => {
-    // TODO: Navigate to candidates/companies data view when pages are created
-    toast({
-      title: "Navigation",
-      description: `Navigating to ${entityType} data view - will be implemented in next task`,
-    });
+    const targetPath = entityType === 'candidate' ? '/recruiting/candidates' : '/recruiting/companies';
+    window.location.href = targetPath;
   };
 
   const handleNavigateToDuplicates = (entityType: 'candidate' | 'company') => {
