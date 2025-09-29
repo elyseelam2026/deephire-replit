@@ -593,7 +593,7 @@ export class DatabaseStorage implements IStorage {
       .set({
         status: 'resolved',
         resolution: action,
-        resolvedById: 1, // TODO: Get actual user ID from session
+        resolvedById: null, // TODO: Set actual user ID when authentication is implemented
         resolvedAt: sql`now()`
       })
       .where(eq(duplicateDetections.id, id));

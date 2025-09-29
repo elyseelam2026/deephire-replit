@@ -10,6 +10,7 @@ import { parseJobDescription, generateCandidateLonglist, parseCandidateData, par
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { duplicateDetectionService } from "./duplicate-detection";
+import { queueBulkUrlJob } from "./background-jobs";
 import { z } from "zod";
 
 // Robust file type detection
@@ -503,54 +504,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Process URLs
-      for (const url of urls) {
-        try {
-          const candidateData = await parseCandidateFromUrl(url);
-          
-          if (candidateData) {
-            // Check for duplicates
-            const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData, 70);
-            
-            if (duplicates.length > 0) {
-              await duplicateDetectionService.detectCandidateDuplicates(
-                candidateData, 
-                ingestionJob?.id,
-                70
-              );
-              duplicateCount++;
-            } else {
-              await storage.createCandidate(candidateData);
-              successCount++;
-            }
-          } else {
-            failedCount++;
-            errors.push(`Failed to parse URL: ${url}`);
-          }
-        } catch (error) {
-          failedCount++;
-          errors.push(`Error processing URL ${url}: ${error}`);
-        }
+      // Process URLs using background job system for scalability
+      if (urls.length > 0 && ingestionJob) {
+        console.log(`Queuing background processing for ${urls.length} URLs (job ID: ${ingestionJob.id})`);
+        
+        // Use background job processing for URLs (handles 800+ efficiently)
+        await queueBulkUrlJob(ingestionJob.id, urls, {
+          batchSize: 10, // Process 10 URLs per batch
+          concurrency: 3 // 3 concurrent requests per batch
+        });
+        
+        // Update ingestion job to show it's being processed in background
+        await storage.updateIngestionJob(ingestionJob.id, {
+          status: 'processing',
+          totalRecords: urls.length,
+          processingMethod: 'background_concurrent'
+        });
       }
 
-      // Update ingestion job with final counts
-      if (ingestionJob) {
+      // Update ingestion job with final counts for files (URLs handled in background)
+      if (ingestionJob && urls.length === 0) {
+        // Only files were processed, mark as completed
         await storage.updateIngestionJob(ingestionJob.id, {
           status: 'completed',
           totalRecords: successCount + failedCount + duplicateCount,
           successfulRecords: successCount,
           duplicateRecords: duplicateCount,
           errorRecords: failedCount,
-          processingMethod: 'structured' // TODO: Determine based on actual processing method
+          processingMethod: 'structured'
         });
       }
+
+      // Prepare response based on what was processed
+      const responseMessage = urls.length > 0 
+        ? `Files processed: ${successCount} saved, ${duplicateCount} duplicates, ${failedCount} failed. ${urls.length} URLs queued for background processing.`
+        : `Processed ${successCount + duplicateCount + failedCount} candidates: ${successCount} saved, ${duplicateCount} duplicates detected, ${failedCount} failed`;
 
       res.json({
         success: successCount,
         duplicates: duplicateCount,
         failed: failedCount,
         total: files.length + urls.length,
-        message: `Processed ${successCount + duplicateCount + failedCount} candidates: ${successCount} saved, ${duplicateCount} duplicates detected, ${failedCount} failed`,
+        urlsQueued: urls.length,
+        backgroundProcessing: urls.length > 0,
+        jobId: ingestionJob?.id,
+        message: responseMessage,
         errors: errors.slice(0, 10) // Limit error messages
       });
     } catch (error) {
