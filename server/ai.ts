@@ -256,20 +256,29 @@ export async function parseCandidateFromUrl(url: string): Promise<{
         },
         {
           role: "user",
-          content: `Based on this URL, generate realistic candidate data in JSON format:
+          content: `Based on this URL, generate realistic and DIVERSE candidate data in JSON format. Use VARIED first names, last names, companies, and locations to avoid duplicates.
+
           URL: ${url}
           ${extractedName ? `Extracted Name from URL: ${extractedName}` : ''}
           
+          Requirements:
+          - Use diverse, realistic first names (not generic terms like "Candidate")  
+          - Use varied last names from different cultures/backgrounds
+          - Generate professional email addresses with different domains (.com, .org, .net, gmail.com, company domains)
+          - Use diverse company names across different industries
+          - Vary job titles and seniority levels
+          - Include different geographic locations
+          
           Generate:
           {
-            "firstName": "${extractedName ? extractedName.split(' ')[0] : 'realistic first name'}",
-            "lastName": "${extractedName ? extractedName.split(' ').slice(1).join(' ') || extractedName.split(' ')[0] : 'realistic last name'}",
-            "email": "generated email based on name",
-            "currentCompany": "realistic company name based on URL domain if available",
-            "currentTitle": "appropriate job title",
-            "skills": ["relevant skills based on URL pattern"],
-            "yearsExperience": realistic_number,
-            "location": "realistic location",
+            "firstName": "${extractedName ? extractedName.split(' ')[0] : 'diverse realistic first name (John, Maria, Chen, Ahmed, Sarah, etc.)'}",
+            "lastName": "${extractedName ? extractedName.split(' ').slice(1).join(' ') || extractedName.split(' ')[0] : 'diverse realistic last name (Smith, Garcia, Wong, Johnson, etc.)'}",
+            "email": "professional email with varied domain (not just @email.com)",
+            "currentCompany": "realistic diverse company name",
+            "currentTitle": "specific job title with varied seniority levels",
+            "skills": ["relevant technical and soft skills"],
+            "yearsExperience": realistic_number_between_1_and_20,
+            "location": "diverse realistic city, state/country",
             "isAvailable": true,
             "linkedinUrl": "${url.includes('linkedin') || url.includes('people') ? url : ''}"
           }`

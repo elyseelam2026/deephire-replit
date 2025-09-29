@@ -75,7 +75,7 @@ export interface CandidateMatchResult {
 
 export async function findCandidateDuplicates(
   newCandidate: Partial<Candidate>, 
-  threshold: number = 70
+  threshold: number = 85
 ): Promise<CandidateMatchResult[]> {
   const existingCandidates = await storage.getCandidates();
   const matches: CandidateMatchResult[] = [];
@@ -296,7 +296,7 @@ export class DuplicateDetectionService {
   // Expose the standalone functions as service methods
   async findCandidateDuplicates(
     newCandidate: Partial<Candidate>,
-    threshold: number = 70
+    threshold: number = 85
   ): Promise<CandidateMatchResult[]> {
     return findCandidateDuplicates(newCandidate, threshold);
   }
@@ -311,7 +311,7 @@ export class DuplicateDetectionService {
   async detectCandidateDuplicates(
     newCandidate: Partial<Candidate>,
     ingestionJobId?: number,
-    threshold: number = 70
+    threshold: number = 85
   ): Promise<void> {
     const matches = await findCandidateDuplicates(newCandidate, threshold);
     

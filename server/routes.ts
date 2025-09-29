@@ -470,15 +470,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Process each candidate record
           for (const candidateData of candidatesData) {
             try {
-              // Check for duplicates before saving
-              const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData, 70);
+              // Check for duplicates before saving  
+              const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData);
               
               if (duplicates.length > 0) {
                 // Record duplicate detections
                 await duplicateDetectionService.detectCandidateDuplicates(
                   candidateData, 
-                  ingestionJob?.id,
-                  70
+                  ingestionJob?.id
                 );
                 duplicateCount++;
                 console.log(`Found ${duplicates.length} potential duplicates for ${candidateData.firstName} ${candidateData.lastName}`);

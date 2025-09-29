@@ -33,13 +33,12 @@ async function processBatch(urls: string[], ingestionJobId: number): Promise<{
         }
 
         // Check for duplicates
-        const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData, 70);
+        const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData);
         
         if (duplicates.length > 0) {
           await duplicateDetectionService.detectCandidateDuplicates(
             candidateData, 
-            ingestionJobId,
-            70
+            ingestionJobId
           );
           return { type: 'duplicate', candidateData };
         } else {
