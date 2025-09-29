@@ -39,7 +39,7 @@ export interface IStorage {
   // Job matching
   createJobMatch(match: InsertJobMatch): Promise<JobMatch>;
   getJobMatches(jobId: number): Promise<(JobMatch & { candidate: Candidate })[]>;
-  getCandidateMatches(candidateId: number): Promise<(JobMatch & { job: Job & { company: Company } })[]>;
+  getCandidateMatches(candidateId: number): Promise<(JobMatch & { job: Job & { company: Partial<Company> } })[]>;
   
   // Conversation management
   createConversation(conversation: InsertNapConversation): Promise<NapConversation>;
@@ -411,10 +411,11 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(dataIngestionJobs.status, filters.status));
     }
     
-    const baseQuery = db.select().from(dataIngestionJobs);
-    let query = conditions.length > 0 
-      ? baseQuery.where(and(...conditions))
-      : baseQuery;
+    let query = db.select().from(dataIngestionJobs);
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
     
     query = query.orderBy(desc(dataIngestionJobs.createdAt));
     
@@ -588,12 +589,14 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Update the duplicate detection status
-    await this.updateDuplicateDetection(id, {
-      status: 'resolved',
-      resolution: action,
-      resolvedById: 1, // TODO: Get actual user ID from session
-      resolvedAt: sql`now()`
-    });
+    await db.update(duplicateDetections)
+      .set({
+        status: 'resolved',
+        resolution: action,
+        resolvedById: 1, // TODO: Get actual user ID from session
+        resolvedAt: sql`now()`
+      })
+      .where(eq(duplicateDetections.id, id));
 
     if (action === 'create_new') {
       // Create the new record from the new record data

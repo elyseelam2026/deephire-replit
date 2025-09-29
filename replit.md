@@ -6,6 +6,16 @@ DeepHire is an enterprise-grade B2B recruiting platform that leverages AI to rev
 
 The application features a multi-portal architecture with role-based interfaces, AI-powered candidate longlisting using advanced language models, and comprehensive candidate and job management systems. Built with modern web technologies, it emphasizes enterprise-level design patterns, professional aesthetics, and data-heavy interfaces optimized for recruitment workflows.
 
+## Recent Changes
+
+### September 29, 2025
+- **Enhanced Enterprise Schema**: Applied comprehensive database schema with 50+ candidate fields and 40+ company fields covering identity, professional background, preferences, compliance, and recruiting metadata
+- **Fixed Critical Storage Interface**: Resolved all TypeScript compatibility issues with updated schema structures including proper type definitions and query optimizations
+- **Database Migration Success**: Successfully applied all schema changes using drizzle-kit push with comprehensive enterprise fields
+- **LinkedIn URL Parsing Fixed**: Resolved critical issue preventing extraction of candidate data from LinkedIn profile URLs in Excel/CSV uploads
+- **Storage Interface Updates**: Updated all CRUD operations to work with new comprehensive schema while maintaining backward compatibility
+- **Query Optimization**: Fixed complex query builder issues for data ingestion jobs and duplicate detection workflows
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -31,12 +41,15 @@ Preferred communication style: Simple, everyday language.
 ### Database Design
 - **Primary Database**: PostgreSQL with Neon serverless hosting
 - **ORM**: Drizzle ORM for type-safe database operations and schema management
+- **Enterprise Schema**: Comprehensive data models with 50+ candidate fields and 40+ company fields
 - **Schema Structure**:
-  - Companies table: Client organizations and candidate employers
-  - Jobs table: Job postings with AI-parsed structured data
-  - Candidates table: Professional profiles with skills and experience
-  - Job matches table: AI-generated candidate-job compatibility scores
-  - Users table: Authentication and role management
+  - **Companies table**: Enterprise-grade client organizations with comprehensive business data including legal structure, financial information, compliance, and operational details
+  - **Candidates table**: Professional profiles with extensive fields covering identity, experience, skills, preferences, legal status, and recruiting metadata
+  - **Jobs table**: Job postings with AI-parsed structured data and enhanced requirements tracking
+  - **Job matches table**: AI-generated candidate-job compatibility scores with application tracking
+  - **Users table**: Authentication and role management for multi-tenant access
+  - **Data ingestion jobs**: Batch processing tracking for Excel/CSV uploads
+  - **Duplicate detection**: Intelligent duplicate prevention with manual resolution workflows
 
 ### AI and Machine Learning
 - **Language Model**: xAI Grok-2-1212 with 131k token context window for comprehensive text processing

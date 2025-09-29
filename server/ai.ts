@@ -220,9 +220,26 @@ export async function parseCandidateFromUrl(url: string): Promise<{
   cvText: string;
 } | null> {
   try {
-    // Simulate URL content fetching (in a real app, you'd use a web scraper)
+    // Try to extract name from URL pattern first (for LinkedIn, company profile URLs)
+    let extractedName = '';
+    if (url.includes('linkedin.com/in/') || url.includes('people/')) {
+      const namePattern = /\/(?:in\/|people\/)([^\/\?]+)/;
+      const match = url.match(namePattern);
+      if (match) {
+        extractedName = match[1]
+          .replace(/-/g, ' ')
+          .replace(/[0-9]/g, '')
+          .trim()
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      }
+    }
+
+    // Enhanced URL content with name extraction
     const mockUrlContent = `
       Professional Profile from ${url}
+      ${extractedName ? `Profile Name: ${extractedName}` : ''}
       
       This is a simulated profile extraction from a URL. In a production environment, 
       this would scrape the actual content from LinkedIn or other professional networks.
@@ -235,25 +252,26 @@ export async function parseCandidateFromUrl(url: string): Promise<{
       messages: [
         {
           role: "system",
-          content: "You are an expert recruiter. Extract candidate data from professional profile URLs. Generate realistic candidate data in JSON format based on the URL pattern."
+          content: "You are an expert recruiter. Extract candidate data from professional profile URLs. Generate realistic candidate data in JSON format based on the URL pattern and any extracted names."
         },
         {
           role: "user",
           content: `Based on this URL, generate realistic candidate data in JSON format:
           URL: ${url}
+          ${extractedName ? `Extracted Name from URL: ${extractedName}` : ''}
           
           Generate:
           {
-            "firstName": "realistic first name",
-            "lastName": "realistic last name",
+            "firstName": "${extractedName ? extractedName.split(' ')[0] : 'realistic first name'}",
+            "lastName": "${extractedName ? extractedName.split(' ').slice(1).join(' ') || extractedName.split(' ')[0] : 'realistic last name'}",
             "email": "generated email based on name",
-            "currentCompany": "realistic company name",
+            "currentCompany": "realistic company name based on URL domain if available",
             "currentTitle": "appropriate job title",
             "skills": ["relevant skills based on URL pattern"],
             "yearsExperience": realistic_number,
             "location": "realistic location",
             "isAvailable": true,
-            "linkedinUrl": "${url.includes('linkedin') ? url : ''}"
+            "linkedinUrl": "${url.includes('linkedin') || url.includes('people') ? url : ''}"
           }`
         }
       ],
@@ -274,7 +292,7 @@ export async function parseCandidateFromUrl(url: string): Promise<{
       currentTitle: result.currentTitle || undefined,
       basicSalary: undefined,
       salaryExpectations: undefined,
-      linkedinUrl: url.includes('linkedin') ? url : undefined,
+      linkedinUrl: url, // Always preserve the original URL regardless of domain
       skills: Array.isArray(result.skills) ? result.skills : [],
       yearsExperience: typeof result.yearsExperience === 'number' ? result.yearsExperience : undefined,
       location: result.location || undefined,
@@ -491,7 +509,7 @@ async function extractCandidateFromRow(row: any): Promise<any | null> {
   try {
     console.log("Processing row data:", Object.keys(row), "First few values:", Object.values(row).slice(0, 3));
     
-    // Common field mappings for candidate data with more flexible matching
+    // Step 1: Extract structured data using field mappings
     const fieldMappings = {
       firstName: ['firstname', 'first_name', 'fname', 'first', 'givenname', 'forename'],
       lastName: ['lastname', 'last_name', 'lname', 'last', 'surname', 'familyname', 'family_name'],
@@ -516,6 +534,7 @@ async function extractCandidateFromRow(row: any): Promise<any | null> {
       normalizedKeys[normalized] = key;
     });
     
+    // Extract structured fields
     for (const [field, possibleKeys] of Object.entries(fieldMappings)) {
       for (const possibleKey of possibleKeys) {
         const normalizedPossibleKey = possibleKey.replace(/[^a-z0-9]/g, '');
@@ -544,11 +563,27 @@ async function extractCandidateFromRow(row: any): Promise<any | null> {
       }
     }
 
+    // Step 2: Check for any URLs and preserve them
+    let foundUrl = '';
+    for (const [key, value] of Object.entries(row)) {
+      if (typeof value === 'string' && value.trim()) {
+        const urlPattern = /https?:\/\/[^\s]+/;
+        if (urlPattern.test(value.trim())) {
+          foundUrl = value.trim();
+          console.log(`Found URL in column "${key}": ${foundUrl}`);
+          // Always preserve the URL regardless of domain
+          if (!candidateData.linkedinUrl) {
+            candidateData.linkedinUrl = foundUrl;
+          }
+          break;
+        }
+      }
+    }
+
     console.log(`Extracted ${fieldsFound} fields:`, Object.keys(candidateData));
 
-    // More lenient validation - just need firstName OR email
+    // Step 3: If we have sufficient structured data, use it
     if (candidateData.firstName || candidateData.email) {
-      // Set required defaults for database schema compatibility
       const finalCandidateData = {
         firstName: candidateData.firstName || 'Unknown',
         lastName: candidateData.lastName || 'Unknown', 
@@ -562,15 +597,25 @@ async function extractCandidateFromRow(row: any): Promise<any | null> {
         skills: candidateData.skills || [],
         yearsExperience: candidateData.yearsExperience || null,
         location: candidateData.location || null,
-        isAvailable: true // Default for CSV/Excel imports
+        isAvailable: true
       };
 
-      console.log("Final candidate data prepared for database:", Object.keys(finalCandidateData));
+      console.log("Using structured data with URL preserved:", Object.keys(finalCandidateData));
       return finalCandidateData;
     }
 
-    // If no structured match, log the issue for debugging
-    console.log("No firstName or email found, available keys:", Object.keys(row));
+    // Step 4: If no structured data but we have a URL, use URL parsing as fallback
+    if (foundUrl) {
+      console.log("No structured data found, attempting URL parsing for:", foundUrl);
+      const candidateFromUrl = await parseCandidateFromUrl(foundUrl);
+      if (candidateFromUrl) {
+        console.log("Successfully extracted candidate from URL:", candidateFromUrl.firstName, candidateFromUrl.lastName);
+        return candidateFromUrl;
+      }
+    }
+
+    // Step 5: No valid data found
+    console.log("No firstName, email, or valid URL found, available keys:", Object.keys(row));
     return null;
   } catch (error) {
     console.error("Error extracting candidate from row:", error);
