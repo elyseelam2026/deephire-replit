@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Users, TrendingUp } from "lucide-react";
+import { Building2, MapPin, Users, TrendingUp, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Company } from "@shared/schema";
 
 export default function Companies() {
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  
   const { data: companies, isLoading, error } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
   });
@@ -126,7 +130,13 @@ export default function Companies() {
               )}
 
               <div className="pt-2">
-                <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-company-${company.id}`}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full" 
+                  onClick={() => setSelectedCompany(company)}
+                  data-testid={`button-view-company-${company.id}`}
+                >
                   View Details
                 </Button>
               </div>
@@ -150,6 +160,55 @@ export default function Companies() {
           </CardContent>
         </Card>
       )}
+
+      {/* Company Detail Modal */}
+      <Dialog open={!!selectedCompany} onOpenChange={(open) => !open && setSelectedCompany(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid={`company-profile-${selectedCompany?.id}`}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <Building2 className="h-6 w-6" />
+              {selectedCompany?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Company details and information
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCompany && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                {selectedCompany.industry && (
+                  <div>
+                    <h4 className="font-medium text-sm">Industry</h4>
+                    <p className="text-muted-foreground">{selectedCompany.industry}</p>
+                  </div>
+                )}
+                {selectedCompany.location && (
+                  <div>
+                    <h4 className="font-medium text-sm">Location</h4>
+                    <p className="text-muted-foreground">{selectedCompany.location}</p>
+                  </div>
+                )}
+                {selectedCompany.employeeSize && (
+                  <div>
+                    <h4 className="font-medium text-sm">Employee Size</h4>
+                    <p className="text-muted-foreground">{selectedCompany.employeeSize} employees</p>
+                  </div>
+                )}
+                {selectedCompany.stage && (
+                  <div>
+                    <h4 className="font-medium text-sm">Stage</h4>
+                    <Badge variant="secondary" className={getStageColor(selectedCompany.stage)}>
+                      {selectedCompany.stage}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+              
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

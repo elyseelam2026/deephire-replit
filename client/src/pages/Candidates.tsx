@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Candidate } from "@shared/schema";
 import { useState } from "react";
 
 export default function Candidates() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   
   const { data: candidates, isLoading, error } = useQuery<Candidate[]>({
     queryKey: ['/api/candidates', searchQuery],
@@ -184,7 +186,13 @@ export default function Candidates() {
               )}
 
               <div className="pt-2 space-y-2">
-                <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-candidate-${candidate.id}`}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full" 
+                  onClick={() => setSelectedCandidate(candidate)}
+                  data-testid={`button-view-candidate-${candidate.id}`}
+                >
                   View Profile
                 </Button>
                 <div className="flex gap-2">
@@ -226,6 +234,99 @@ export default function Candidates() {
           </CardContent>
         </Card>
       )}
+
+      {/* Candidate Detail Modal */}
+      <Dialog open={!!selectedCandidate} onOpenChange={(open) => !open && setSelectedCandidate(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid={`candidate-profile-${selectedCandidate?.id}`}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback>
+                  {selectedCandidate?.firstName?.[0]}{selectedCandidate?.lastName?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              {selectedCandidate?.firstName} {selectedCandidate?.lastName}
+            </DialogTitle>
+            <DialogDescription>
+              Candidate profile and details
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCandidate && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                {selectedCandidate.email && (
+                  <div>
+                    <h4 className="font-medium text-sm">Email</h4>
+                    <p className="text-muted-foreground">{selectedCandidate.email}</p>
+                  </div>
+                )}
+                {selectedCandidate.phoneNumber && (
+                  <div>
+                    <h4 className="font-medium text-sm">Phone</h4>
+                    <p className="text-muted-foreground">{selectedCandidate.phoneNumber}</p>
+                  </div>
+                )}
+                {selectedCandidate.location && (
+                  <div>
+                    <h4 className="font-medium text-sm">Location</h4>
+                    <p className="text-muted-foreground">{selectedCandidate.location}</p>
+                  </div>
+                )}
+                {selectedCandidate.currentTitle && (
+                  <div>
+                    <h4 className="font-medium text-sm">Current Role</h4>
+                    <p className="text-muted-foreground">{selectedCandidate.currentTitle}</p>
+                  </div>
+                )}
+              </div>
+              
+              {selectedCandidate.salaryExpectations && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Salary Expectations</h4>
+                  <p className="text-muted-foreground">{formatSalary(selectedCandidate.salaryExpectations)}</p>
+                </div>
+              )}
+              
+              {selectedCandidate.skills && selectedCandidate.skills.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCandidate.skills.map((skill, index) => (
+                      <Badge key={index} variant="outline">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedCandidate.linkedinUrl && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">LinkedIn Profile</h4>
+                  <a 
+                    href={selectedCandidate.linkedinUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    View LinkedIn Profile
+                  </a>
+                </div>
+              )}
+              
+              {selectedCandidate.isAvailable !== undefined && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Availability</h4>
+                  <Badge variant={selectedCandidate.isAvailable ? "default" : "secondary"}>
+                    {selectedCandidate.isAvailable ? "Available" : "Not Available"}
+                  </Badge>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

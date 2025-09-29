@@ -1,11 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Briefcase, MapPin, Clock, Users, TrendingUp } from "lucide-react";
 import { Job } from "@shared/schema";
 
+const formatDate = (dateString: string | Date) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
+};
+
 export default function Jobs() {
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  
   const { data: jobs, isLoading, error } = useQuery<Job[]>({
     queryKey: ['/api/jobs'],
   });
@@ -166,7 +179,13 @@ export default function Jobs() {
               )}
 
               <div className="pt-2 space-y-2">
-                <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-job-${job.id}`}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full" 
+                  onClick={() => setSelectedJob(job)}
+                  data-testid={`button-view-job-${job.id}`}
+                >
                   View Details
                 </Button>
                 <Button variant="secondary" size="sm" className="w-full" data-testid={`button-view-candidates-${job.id}`}>
@@ -194,6 +213,76 @@ export default function Jobs() {
           </CardContent>
         </Card>
       )}
+
+      {/* Job Detail Modal */}
+      <Dialog open={!!selectedJob} onOpenChange={(open) => !open && setSelectedJob(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid={`job-profile-${selectedJob?.id}`}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <Briefcase className="h-6 w-6" />
+              {selectedJob?.title}
+            </DialogTitle>
+            <DialogDescription>
+              Job details and requirements
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedJob && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                {selectedJob.department && (
+                  <div>
+                    <h4 className="font-medium text-sm">Department</h4>
+                    <p className="text-muted-foreground">{selectedJob.department}</p>
+                  </div>
+                )}
+                {selectedJob.urgency && (
+                  <div>
+                    <h4 className="font-medium text-sm">Urgency</h4>
+                    <Badge variant="secondary" className={getUrgencyColor(selectedJob.urgency)}>
+                      {selectedJob.urgency}
+                    </Badge>
+                  </div>
+                )}
+                {selectedJob.status && (
+                  <div>
+                    <h4 className="font-medium text-sm">Status</h4>
+                    <Badge variant="secondary" className={getStatusColor(selectedJob.status)}>
+                      {selectedJob.status}
+                    </Badge>
+                  </div>
+                )}
+                <div>
+                  <h4 className="font-medium text-sm">Posted</h4>
+                  <p className="text-muted-foreground">{formatDate(selectedJob.createdAt)}</p>
+                </div>
+              </div>
+              
+              {selectedJob.skills && selectedJob.skills.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Required Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJob.skills.map((skill, index) => (
+                      <Badge key={index} variant="outline">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedJob.jdText && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Job Description</h4>
+                  <div className="text-muted-foreground whitespace-pre-wrap max-h-60 overflow-y-auto">
+                    {selectedJob.jdText}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

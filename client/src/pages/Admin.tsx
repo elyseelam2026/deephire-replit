@@ -51,9 +51,9 @@ interface DuplicateDetection {
   id: number;
   entityType: 'candidate' | 'company';
   newRecordData: any;
-  existingRecords: any[];
+  existingRecordId: number;
   matchedFields: string[];
-  matchScores: number[];
+  matchScore: number;
   status: 'pending' | 'resolved';
   resolution?: 'merge' | 'create_new' | 'skip';
   ingestionJobId?: number;
@@ -1026,7 +1026,7 @@ export default function Admin() {
                               </CardTitle>
                               <CardDescription>
                                 Detected {new Date(duplicate.createdAt).toLocaleDateString()} • 
-                                Match Score: {formatMatchScore(Math.max(...duplicate.matchScores))}
+                                Match Score: {formatMatchScore(duplicate.matchScore || 0)}
                               </CardDescription>
                             </div>
                           </div>
@@ -1079,66 +1079,51 @@ export default function Admin() {
                           </div>
                         </div>
 
-                        {/* Existing Matches */}
+                        {/* Existing Match */}
                         <div>
-                          <h4 className="font-medium mb-2">Potential Matches</h4>
-                          <div className="space-y-2">
-                            {duplicate.existingRecords.map((record, index) => (
-                              <div
-                                key={record.id || index}
-                                className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border hover-elevate"
-                              >
-                                <div className="flex items-start justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">
-                                      Match: {formatMatchScore(duplicate.matchScores[index])}
+                          <h4 className="font-medium mb-2">Potential Match</h4>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border hover-elevate">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  Match: {formatMatchScore(duplicate.matchScore)}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  ID: {duplicate.existingRecordId}
+                                </Badge>
+                              </div>
+                              
+                              {duplicate.status === 'pending' && (
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => handleResolveDuplicate(duplicate.id, 'merge', duplicate.existingRecordId)}
+                                  disabled={resolveDuplicateMutation.isPending}
+                                  data-testid={`button-merge-${duplicate.id}-${duplicate.existingRecordId}`}
+                                >
+                                  <GitMerge className="h-3 w-3 mr-1" />
+                                  Merge With This
+                                </Button>
+                              )}
+                            </div>
+                            
+                            <div className="text-sm text-muted-foreground">
+                              Existing {duplicate.entityType} record (ID: {duplicate.existingRecordId})
+                            </div>
+
+                            {/* Matched Fields Indicator */}
+                            {duplicate.matchedFields && duplicate.matchedFields.length > 0 && (
+                              <div className="mt-3 pt-3 border-t">
+                                <div className="text-xs text-muted-foreground mb-1">Matched Fields:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {duplicate.matchedFields.map((field, idx) => (
+                                    <Badge key={idx} variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                                      {field}
                                     </Badge>
-                                    <Badge variant="outline" className="text-xs">
-                                      ID: {record.id}
-                                    </Badge>
-                                  </div>
-                                  
-                                  {duplicate.status === 'pending' && (
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      onClick={() => handleResolveDuplicate(duplicate.id, 'merge', record.id)}
-                                      disabled={resolveDuplicateMutation.isPending}
-                                      data-testid={`button-merge-${duplicate.id}-${record.id}`}
-                                    >
-                                      <GitMerge className="h-3 w-3 mr-1" />
-                                      Merge With This
-                                    </Button>
-                                  )}
-                                </div>
-                                
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                  {Object.entries(record)
-                                    .filter(([key, value]) => value != null && value !== '' && !['id', 'createdAt', 'updatedAt'].includes(key))
-                                    .slice(0, 6)
-                                    .map(([field, value]) => (
-                                    <div key={field}>
-                                      <div className="text-xs font-medium text-muted-foreground uppercase">{field}</div>
-                                      {renderFieldValue(field, value, duplicate.entityType)}
-                                    </div>
                                   ))}
                                 </div>
-
-                                {/* Matched Fields Indicator */}
-                                {duplicate.matchedFields.length > 0 && (
-                                  <div className="mt-3 pt-3 border-t">
-                                    <div className="text-xs text-muted-foreground mb-1">Matched Fields:</div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {duplicate.matchedFields.map((field, idx) => (
-                                        <Badge key={idx} variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                                          {field}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
                               </div>
-                            ))}
+                            )}
                           </div>
                         </div>
 
