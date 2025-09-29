@@ -863,6 +863,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manually trigger enhanced reprocessing of existing candidates
+  app.post("/api/admin/reprocess-candidates", async (req, res) => {
+    try {
+      console.log('Starting manual reprocessing of existing candidates with bioUrl...');
+      
+      // Find candidates that have bioUrl but missing enhanced data
+      const candidatesNeedingReprocessing = await storage.getCandidatesForReprocessing();
+      
+      if (candidatesNeedingReprocessing.length === 0) {
+        return res.json({
+          message: "No candidates found that need reprocessing",
+          queuedCount: 0
+        });
+      }
+      
+      // Extract URLs and queue for background processing
+      const urlsToProcess = candidatesNeedingReprocessing
+        .filter(candidate => candidate.bioUrl)
+        .map(candidate => candidate.bioUrl!);
+      
+      if (urlsToProcess.length > 0) {
+        // Queue URLs for enhanced processing
+        const jobId = await queueBulkUrlJob(urlsToProcess, 'candidate', 'enhanced_reprocessing');
+        
+        console.log(`Queued ${urlsToProcess.length} candidates for enhanced reprocessing in job ${jobId}`);
+        
+        res.json({
+          message: `Successfully queued ${urlsToProcess.length} candidates for enhanced reprocessing`,
+          queuedCount: urlsToProcess.length,
+          jobId: jobId,
+          candidateIds: candidatesNeedingReprocessing.map(c => c.id)
+        });
+      } else {
+        res.json({
+          message: "No candidates with bio URLs found for reprocessing",
+          queuedCount: 0
+        });
+      }
+      
+    } catch (error) {
+      console.error("Error triggering candidate reprocessing:", error);
+      res.status(500).json({ error: "Failed to trigger candidate reprocessing" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

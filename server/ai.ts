@@ -203,33 +203,95 @@ export async function parseCandidateData(cvText: string): Promise<{
   }
 }
 
-// Fetch web content from URL
+// Fetch web content from URL with real HTTP requests
 async function fetchWebContent(url: string): Promise<string> {
   try {
-    console.log(`Fetching content from: ${url}`);
+    console.log(`Fetching real content from: ${url}`);
     
-    // For bio pages like Bain Capital, we simulate the fetching
-    // In production, you'd use a web scraper like Puppeteer or Cheerio
-    const mockBioContent = `
-      Bio Profile from ${url}
-      
-      Professional background and career information for the candidate.
-      This person has extensive experience in their field and has worked
-      at various prestigious organizations.
-      
-      Connect with them on LinkedIn: https://www.linkedin.com/in/sample-profile
-      
-      Career highlights:
-      - Senior executive with 15+ years experience
-      - Led teams of 50+ professionals
-      - Expert in strategic planning and business development
-      - MBA from top-tier business school
-      - Currently leading major initiatives
-    `;
+    // Basic URL validation
+    if (!url || !url.startsWith('http')) {
+      console.log('Invalid URL provided');
+      return '';
+    }
     
-    return mockBioContent;
+    // Fetch the actual web page
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      // 30 second timeout for slow pages
+      signal: AbortSignal.timeout(30000)
+    });
+    
+    if (!response.ok) {
+      console.log(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+      return '';
+    }
+    
+    const html = await response.text();
+    console.log(`Successfully fetched ${html.length} characters from ${url}`);
+    
+    // Parse HTML and extract text content using Cheerio
+    const $ = cheerio.load(html);
+    
+    // Remove script and style elements
+    $('script, style, nav, footer, .sidebar, .menu').remove();
+    
+    // Extract main content - try different selectors
+    let textContent = '';
+    
+    // Try to find main content areas
+    const contentSelectors = [
+      'main', '.main-content', '.content', '.post-content',
+      '.entry-content', '.article-content', '.page-content',
+      '.bio', '.biography', '.profile', '.about',
+      '.container', '.wrapper', 'article', '.article'
+    ];
+    
+    for (const selector of contentSelectors) {
+      const content = $(selector).first();
+      if (content.length > 0) {
+        textContent = content.text().trim();
+        if (textContent.length > 200) { // Good amount of content found
+          console.log(`Extracted content using selector: ${selector}`);
+          break;
+        }
+      }
+    }
+    
+    // Fallback to body text if no main content found
+    if (!textContent || textContent.length < 100) {
+      textContent = $('body').text().trim();
+      console.log('Used body text as fallback');
+    }
+    
+    // Clean up whitespace and limit length
+    textContent = textContent
+      .replace(/\s+/g, ' ')  // Normalize whitespace
+      .replace(/\n\s*\n/g, '\n')  // Remove empty lines
+      .trim();
+    
+    // Limit to first 10,000 characters to avoid token limits
+    if (textContent.length > 10000) {
+      textContent = textContent.substring(0, 10000) + '...';
+    }
+    
+    console.log(`Extracted ${textContent.length} characters of clean text from ${url}`);
+    return textContent;
+    
   } catch (error) {
-    console.error(`Error fetching content from ${url}:`, error);
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      console.error(`Timeout fetching ${url}:`, error.message);
+    } else {
+      console.error(`Error fetching content from ${url}:`, error);
+    }
     return '';
   }
 }

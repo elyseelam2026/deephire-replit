@@ -32,6 +32,7 @@ export interface IStorage {
   // Candidate management
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
   getCandidates(): Promise<Candidate[]>;
+  getCandidatesForReprocessing(): Promise<Candidate[]>;
   getCandidate(id: number): Promise<Candidate | undefined>;
   updateCandidate(id: number, updates: Partial<InsertCandidate>): Promise<Candidate | undefined>;
   searchCandidates(query: string): Promise<Candidate[]>;
@@ -162,6 +163,21 @@ export class DatabaseStorage implements IStorage {
 
   async getCandidates(): Promise<Candidate[]> {
     return await db.select().from(candidates).orderBy(desc(candidates.createdAt));
+  }
+
+  async getCandidatesForReprocessing(): Promise<Candidate[]> {
+    return await db
+      .select()
+      .from(candidates)
+      .where(
+        and(
+          // Has a bioUrl (was processed from URL)
+          sql`${candidates.bioUrl} IS NOT NULL`,
+          // Missing enhanced data (biography is null or empty)
+          sql`(${candidates.biography} IS NULL OR ${candidates.biography} = '' OR ${candidates.careerSummary} IS NULL OR ${candidates.careerSummary} = '')`,
+        )
+      )
+      .orderBy(desc(candidates.createdAt));
   }
 
   async getCandidate(id: number): Promise<Candidate | undefined> {
