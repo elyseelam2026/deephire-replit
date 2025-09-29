@@ -6,7 +6,7 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 import { storage } from "./storage";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData } from "./ai";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { duplicateDetectionService } from "./duplicate-detection";
@@ -446,8 +446,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`Processing file: ${file.originalname}, detected type: ${detectedType}`);
           
           if (detectedType === 'csv') {
-            candidatesData = await parseCsvData(file.buffer, 'candidate');
-            console.log(`CSV parsing result: ${candidatesData.length} candidates found`);
+            // Extract URLs from CSV for background processing
+            const csvUrls = await extractUrlsFromCsv(file.buffer);
+            
+            // Add CSV URLs to the URL batch for background processing
+            if (csvUrls.length > 0) {
+              urls.push(...csvUrls);
+              console.log(`Found ${csvUrls.length} URLs in CSV file: ${file.originalname}`);
+            }
+            
+            // Process only structured data from CSV (not URLs)
+            candidatesData = await parseCsvStructuredData(file.buffer, 'candidate');
+            console.log(`CSV structured data result: ${candidatesData.length} candidates found`);
           } else if (detectedType === 'excel') {
             candidatesData = await parseExcelData(file.buffer, 'candidate');
             console.log(`Excel parsing result: ${candidatesData.length} candidates found`);

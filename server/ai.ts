@@ -464,6 +464,138 @@ export async function parseCsvData(buffer: Buffer, dataType: 'candidate' | 'comp
   }
 }
 
+// Extract URLs from CSV data for background processing
+export async function extractUrlsFromCsv(buffer: Buffer): Promise<string[]> {
+  try {
+    const csvString = buffer.toString('utf-8');
+    const jsonData = await csvToJson().fromString(csvString);
+    
+    const urls: string[] = [];
+    const urlPattern = /https?:\/\/[^\s]+/;
+    
+    for (const row of jsonData) {
+      for (const [key, value] of Object.entries(row)) {
+        if (typeof value === 'string' && value.trim() && urlPattern.test(value.trim())) {
+          urls.push(value.trim());
+          break; // Only take first URL per row
+        }
+      }
+    }
+    
+    console.log(`Extracted ${urls.length} URLs from CSV for background processing`);
+    return urls;
+  } catch (error) {
+    console.error("Error extracting URLs from CSV:", error);
+    return [];
+  }
+}
+
+// Parse CSV for structured data only (no URL processing)
+export async function parseCsvStructuredData(buffer: Buffer, dataType: 'candidate' | 'company'): Promise<any[]> {
+  try {
+    const csvString = buffer.toString('utf-8');
+    const jsonData = await csvToJson().fromString(csvString);
+    
+    const results = [];
+    for (const row of jsonData) {
+      if (dataType === 'candidate') {
+        // Only process rows with structured data (not URLs)
+        const hasStructuredData = extractStructuredCandidateData(row);
+        if (hasStructuredData) results.push(hasStructuredData);
+      } else {
+        const companyData = await extractCompanyFromRow(row);
+        if (companyData) results.push(companyData);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error("Error parsing CSV structured data:", error);
+    return [];
+  }
+}
+
+// Extract structured candidate data from row (no URL processing)
+function extractStructuredCandidateData(row: any): any | null {
+  try {
+    const fieldMappings = {
+      firstName: ['firstname', 'first_name', 'fname', 'first', 'givenname', 'forename'],
+      lastName: ['lastname', 'last_name', 'lname', 'last', 'surname', 'familyname', 'family_name'],
+      email: ['email', 'emailaddress', 'email_address', 'mail', 'e_mail'],
+      currentTitle: ['title', 'jobtitle', 'job_title', 'position', 'role', 'current_title', 'designation'],
+      currentCompany: ['company', 'currentcompany', 'current_company', 'employer', 'organization', 'workplace'],
+      location: ['location', 'city', 'address', 'region', 'country', 'residence'],
+      skills: ['skills', 'skillset', 'skill_set', 'competencies', 'technologies', 'expertise'],
+      yearsExperience: ['experience', 'years_experience', 'yearsexperience', 'exp', 'years_exp', 'work_experience'],
+      basicSalary: ['salary', 'basicsalary', 'basic_salary', 'current_salary', 'pay', 'compensation'],
+      salaryExpectations: ['expected_salary', 'salary_expectations', 'target_salary', 'desired_salary', 'expected_pay']
+    };
+
+    const candidateData: any = {};
+    let fieldsFound = 0;
+    
+    // Create normalized key lookup
+    const normalizedKeys: { [key: string]: string } = {};
+    Object.keys(row).forEach(key => {
+      const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      normalizedKeys[normalized] = key;
+    });
+    
+    // Extract structured fields
+    for (const [field, possibleKeys] of Object.entries(fieldMappings)) {
+      for (const possibleKey of possibleKeys) {
+        const normalizedPossibleKey = possibleKey.replace(/[^a-z0-9]/g, '');
+        
+        if (normalizedKeys[normalizedPossibleKey] && row[normalizedKeys[normalizedPossibleKey]]) {
+          let value = row[normalizedKeys[normalizedPossibleKey]];
+          
+          // Skip empty values and URLs
+          if (!value || (typeof value === 'string' && (value.trim() === '' || value.includes('http')))) {
+            continue;
+          }
+          
+          if (field === 'skills' && typeof value === 'string') {
+            value = value.split(/[,;|]/).map((s: string) => s.trim()).filter(Boolean);
+          }
+          
+          if (field === 'yearsExperience' || field === 'basicSalary' || field === 'salaryExpectations') {
+            const numValue = parseFloat(value);
+            value = isNaN(numValue) ? null : numValue;
+          }
+          
+          candidateData[field] = value;
+          fieldsFound++;
+          break;
+        }
+      }
+    }
+
+    // Only return if we have meaningful structured data
+    if (fieldsFound >= 2 && (candidateData.firstName || candidateData.email)) {
+      return {
+        firstName: candidateData.firstName || 'Unknown',
+        lastName: candidateData.lastName || 'Unknown', 
+        email: candidateData.email || 'unknown@example.com',
+        currentTitle: candidateData.currentTitle || null,
+        currentCompany: candidateData.currentCompany || null,
+        basicSalary: candidateData.basicSalary || null,
+        salaryExpectations: candidateData.salaryExpectations || null,
+        linkedinUrl: null,
+        cvText: null,
+        skills: candidateData.skills || [],
+        yearsExperience: candidateData.yearsExperience || null,
+        location: candidateData.location || null,
+        isAvailable: true
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error extracting structured candidate data:", error);
+    return null;
+  }
+}
+
 // Parse Excel file for candidate or company data
 export async function parseExcelData(buffer: Buffer, dataType: 'candidate' | 'company'): Promise<any[]> {
   try {
