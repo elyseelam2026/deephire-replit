@@ -160,9 +160,14 @@ export const candidates = pgTable("candidates", {
   preferredContactMethod: text("preferred_contact_method"), // email, phone, linkedin
   timeZone: text("time_zone"),
   linkedinUrl: text("linkedin_url"),
+  bioUrl: text("bio_url"), // Original bio page URL (e.g., company bio page)
   portfolioUrl: text("portfolio_url"),
   githubUrl: text("github_url"),
   personalWebsite: text("personal_website"),
+  
+  // AI-Generated Profile Content
+  biography: text("biography"), // Comprehensive biography generated from multiple sources
+  careerSummary: text("career_summary"), // Structured career history summary
   
   // Address
   street: text("street"),
