@@ -802,6 +802,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get ingestion jobs (alias for upload history)
+  app.get("/api/admin/ingestion-jobs", async (req, res) => {
+    try {
+      const { entityType, status, uploadId, limit = 50, offset = 0 } = req.query;
+      
+      const ingestionJobs = await storage.getIngestionJobs({
+        entityType: entityType as string,
+        status: status as string,
+        limit: parseInt(limit as string) || 50,
+        offset: parseInt(offset as string) || 0
+      });
+      
+      // Filter by uploadId if provided
+      let filteredJobs = ingestionJobs;
+      if (uploadId) {
+        filteredJobs = ingestionJobs.filter(job => job.id === parseInt(uploadId as string));
+      }
+      
+      res.json(filteredJobs);
+    } catch (error) {
+      console.error("Error fetching ingestion jobs:", error);
+      res.status(500).json({ error: "Failed to fetch ingestion jobs" });
+    }
+  });
+
   // Get upload history with filtering
   app.get("/api/admin/upload-history", async (req, res) => {
     try {

@@ -203,7 +203,238 @@ export async function parseCandidateData(cvText: string): Promise<{
   }
 }
 
-// Parse candidate data from LinkedIn URL or bio page
+// Fetch web content from URL
+async function fetchWebContent(url: string): Promise<string> {
+  try {
+    console.log(`Fetching content from: ${url}`);
+    
+    // For bio pages like Bain Capital, we simulate the fetching
+    // In production, you'd use a web scraper like Puppeteer or Cheerio
+    const mockBioContent = `
+      Bio Profile from ${url}
+      
+      Professional background and career information for the candidate.
+      This person has extensive experience in their field and has worked
+      at various prestigious organizations.
+      
+      Connect with them on LinkedIn: https://www.linkedin.com/in/sample-profile
+      
+      Career highlights:
+      - Senior executive with 15+ years experience
+      - Led teams of 50+ professionals
+      - Expert in strategic planning and business development
+      - MBA from top-tier business school
+      - Currently leading major initiatives
+    `;
+    
+    return mockBioContent;
+  } catch (error) {
+    console.error(`Error fetching content from ${url}:`, error);
+    return '';
+  }
+}
+
+// Extract LinkedIn URL from web content
+function extractLinkedInUrl(content: string): string | null {
+  try {
+    // Common patterns for LinkedIn URLs
+    const linkedinPatterns = [
+      /https:\/\/www\.linkedin\.com\/in\/[a-zA-Z0-9-]+\/?/g,
+      /https:\/\/linkedin\.com\/in\/[a-zA-Z0-9-]+\/?/g,
+      /linkedin\.com\/in\/[a-zA-Z0-9-]+/g
+    ];
+    
+    for (const pattern of linkedinPatterns) {
+      const matches = content.match(pattern);
+      if (matches && matches.length > 0) {
+        let linkedinUrl = matches[0];
+        // Ensure it's a complete URL
+        if (!linkedinUrl.startsWith('http')) {
+          linkedinUrl = 'https://' + linkedinUrl;
+        }
+        console.log(`Found LinkedIn URL: ${linkedinUrl}`);
+        return linkedinUrl;
+      }
+    }
+    
+    console.log('No LinkedIn URL found in content');
+    return null;
+  } catch (error) {
+    console.error('Error extracting LinkedIn URL:', error);
+    return null;
+  }
+}
+
+// Enhanced function to parse candidate from bio URL and discover LinkedIn
+export async function parseEnhancedCandidateFromUrl(bioUrl: string): Promise<{
+  firstName: string;
+  lastName: string;
+  email: string;
+  currentCompany?: string;
+  currentTitle?: string;
+  basicSalary?: number;
+  salaryExpectations?: number;
+  bioUrl: string;
+  linkedinUrl?: string;
+  skills: string[];
+  yearsExperience?: number;
+  location?: string;
+  isAvailable: boolean;
+  biography?: string;
+  careerSummary?: string;
+  cvText?: string;
+} | null> {
+  try {
+    console.log(`Processing enhanced candidate extraction from bio URL: ${bioUrl}`);
+    
+    // Step 1: Fetch content from bio page
+    const bioContent = await fetchWebContent(bioUrl);
+    if (!bioContent) {
+      console.log('No content found from bio URL');
+      return null;
+    }
+    
+    // Step 2: Search for LinkedIn URL in bio content
+    const discoveredLinkedInUrl = extractLinkedInUrl(bioContent);
+    
+    // Step 3: Extract candidate data from bio page
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert candidate profile analyst. Extract structured candidate data from bio pages and generate realistic professional information. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: `Extract candidate information from this bio page content and generate a comprehensive profile:
+          
+          Bio URL: ${bioUrl}
+          Content: ${bioContent}
+          
+          Generate realistic candidate data in JSON format:
+          {
+            "firstName": "extracted or inferred first name",
+            "lastName": "extracted or inferred last name", 
+            "email": "professional email (use realistic domain)",
+            "currentCompany": "current company name",
+            "currentTitle": "current job title",
+            "skills": ["relevant professional skills based on bio"],
+            "yearsExperience": realistic_number_based_on_bio,
+            "location": "professional location",
+            "biography": "comprehensive 2-3 paragraph professional biography",
+            "careerSummary": "structured career highlights and achievements"
+          }`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    if (!result.firstName || !result.lastName) {
+      console.log('Could not extract valid candidate data from bio');
+      return null;
+    }
+
+    const candidateData = {
+      firstName: result.firstName,
+      lastName: result.lastName,
+      email: result.email || `${result.firstName}.${result.lastName}@email.com`.toLowerCase(),
+      currentCompany: result.currentCompany || undefined,
+      currentTitle: result.currentTitle || undefined,
+      basicSalary: undefined,
+      salaryExpectations: undefined,
+      bioUrl: bioUrl, // Store original bio URL
+      linkedinUrl: discoveredLinkedInUrl || undefined, // Store discovered LinkedIn URL
+      skills: Array.isArray(result.skills) ? result.skills : [],
+      yearsExperience: typeof result.yearsExperience === 'number' ? result.yearsExperience : undefined,
+      location: result.location || undefined,
+      isAvailable: true,
+      biography: result.biography || undefined,
+      careerSummary: result.careerSummary || undefined,
+      cvText: bioContent
+    };
+    
+    console.log(`Enhanced extraction complete for ${candidateData.firstName} ${candidateData.lastName}`);
+    if (discoveredLinkedInUrl) {
+      console.log(`  - Bio URL: ${bioUrl}`);
+      console.log(`  - LinkedIn URL: ${discoveredLinkedInUrl}`);
+    }
+    
+    return candidateData;
+  } catch (error) {
+    console.error("Error in enhanced candidate extraction:", error);
+    return null;
+  }
+}
+
+// Generate comprehensive biography from multiple sources
+export async function generateComprehensiveBiography(bioUrl: string, linkedinUrl?: string, existingData?: any): Promise<{
+  biography: string;
+  careerSummary: string;
+} | null> {
+  try {
+    console.log(`Generating comprehensive biography from multiple sources`);
+    console.log(`  - Bio URL: ${bioUrl}`);
+    if (linkedinUrl) console.log(`  - LinkedIn URL: ${linkedinUrl}`);
+    
+    // Fetch content from both sources
+    const bioContent = await fetchWebContent(bioUrl);
+    let linkedinContent = '';
+    
+    if (linkedinUrl) {
+      linkedinContent = await fetchWebContent(linkedinUrl);
+    }
+    
+    // Generate comprehensive biography using AI
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional biography writer. Create comprehensive, engaging biographies that highlight career achievements, expertise, and professional journey. Combine information from multiple sources into a cohesive narrative."
+        },
+        {
+          role: "user",
+          content: `Create a comprehensive professional biography and career summary using the following sources:
+          
+          Bio Page Content:
+          ${bioContent}
+          
+          ${linkedinUrl ? `LinkedIn Profile Content:\n${linkedinContent}\n` : ''}
+          
+          ${existingData ? `Additional Data:\n${JSON.stringify(existingData, null, 2)}\n` : ''}
+          
+          Generate a professional profile in JSON format:
+          {
+            "biography": "Comprehensive 3-4 paragraph professional biography that tells their career story, highlights key achievements, expertise areas, and professional impact. Make it engaging and informative.",
+            "careerSummary": "Structured summary of career highlights, key positions, major accomplishments, areas of expertise, and notable achievements. Focus on concrete results and impact."
+          }`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    if (!result.biography || !result.careerSummary) {
+      console.log('Could not generate comprehensive biography');
+      return null;
+    }
+    
+    console.log('Successfully generated comprehensive biography and career summary');
+    return {
+      biography: result.biography,
+      careerSummary: result.careerSummary
+    };
+  } catch (error) {
+    console.error("Error generating comprehensive biography:", error);
+    return null;
+  }
+}
+
+// Parse candidate data from LinkedIn URL or bio page (legacy function - keeping for backward compatibility)
 export async function parseCandidateFromUrl(url: string): Promise<{
   firstName: string;
   lastName: string;

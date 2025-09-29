@@ -301,17 +301,55 @@ export default function Candidates() {
                 </div>
               )}
               
-              {selectedCandidate.linkedinUrl && (
+              {/* Profile Links */}
+              <div className="flex gap-4">
+                {selectedCandidate.linkedinUrl && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">LinkedIn Profile</h4>
+                    <a 
+                      href={selectedCandidate.linkedinUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                      data-testid={`link-linkedin-${selectedCandidate.id}`}
+                    >
+                      View LinkedIn Profile
+                    </a>
+                  </div>
+                )}
+                {selectedCandidate.bioUrl && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Bio Page</h4>
+                    <a 
+                      href={selectedCandidate.bioUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                      data-testid={`link-bio-${selectedCandidate.id}`}
+                    >
+                      View Bio Profile
+                    </a>
+                  </div>
+                )}
+              </div>
+              
+              {/* Professional Biography */}
+              {selectedCandidate.biography && (
                 <div>
-                  <h4 className="font-medium text-sm mb-2">LinkedIn Profile</h4>
-                  <a 
-                    href={selectedCandidate.linkedinUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 underline"
-                  >
-                    View LinkedIn Profile
-                  </a>
+                  <h4 className="font-medium text-sm mb-2">Professional Biography</h4>
+                  <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-biography-${selectedCandidate.id}`}>
+                    {selectedCandidate.biography}
+                  </div>
+                </div>
+              )}
+              
+              {/* Career Summary */}
+              {selectedCandidate.careerSummary && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Career Highlights</h4>
+                  <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-career-summary-${selectedCandidate.id}`}>
+                    {selectedCandidate.careerSummary}
+                  </div>
                 </div>
               )}
               

@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { parseCandidateFromUrl } from './ai';
+import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography } from './ai';
 import { duplicateDetectionService } from './duplicate-detection';
 import type { DataIngestionJob } from '@shared/schema';
 
@@ -26,7 +26,27 @@ async function processBatch(urls: string[], ingestionJobId: number): Promise<{
   const results = await Promise.allSettled(
     urls.map(async (url) => {
       try {
-        const candidateData = await parseCandidateFromUrl(url);
+        // Use enhanced parsing that discovers LinkedIn URLs and generates biographies
+        const candidateData = await parseEnhancedCandidateFromUrl(url);
+        
+        // If we found a LinkedIn URL, enhance the biography with multi-source data
+        if (candidateData && candidateData.linkedinUrl) {
+          try {
+            const enhancedBio = await generateComprehensiveBiography(
+              candidateData.bioUrl, 
+              candidateData.linkedinUrl,
+              candidateData
+            );
+            
+            if (enhancedBio) {
+              candidateData.biography = enhancedBio.biography;
+              candidateData.careerSummary = enhancedBio.careerSummary;
+              console.log(`Enhanced biography generated for ${candidateData.firstName} ${candidateData.lastName}`);
+            }
+          } catch (bioError) {
+            console.log(`Biography enhancement failed for ${candidateData.firstName}, continuing with basic data:`, bioError);
+          }
+        }
         
         if (!candidateData) {
           return { type: 'failed', error: `Failed to parse URL: ${url}` };

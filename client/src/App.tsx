@@ -30,6 +30,7 @@ function Router() {
       <Route path="/admin" component={AdminApp} />
       <Route path="/client-portal" component={ClientPortal} />
       <Route path="/candidate-portal" component={CandidatePortal} />
+      <Route path="/candidates" component={CandidatesOnly} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -66,6 +67,26 @@ function RecruitingApp() {
         </div>
       </div>
     </SidebarProvider>
+  );
+}
+
+function CandidatesOnly() {
+  const [, setLocation] = useLocation();
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setLocation('/')}>
+            ← Back to Portal Selection
+          </Button>
+        </div>
+        <ThemeToggle />
+      </header>
+      <main>
+        <Candidates />
+      </main>
+    </div>
   );
 }
 
