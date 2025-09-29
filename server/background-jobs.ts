@@ -10,11 +10,13 @@ interface BulkUrlJob {
   urls: string[];
   batchSize: number;
   concurrency: number;
+  status: 'queued' | 'processing' | 'paused' | 'stopped' | 'completed' | 'failed';
 }
 
 // In-memory job queue (in production, use Redis/Bull/etc)
 const jobQueue: BulkUrlJob[] = [];
 const processingJobs = new Map<number, boolean>();
+const jobControls = new Map<number, { paused: boolean; stopped: boolean }>();
 
 // Process a batch of URLs concurrently
 async function processBatch(urls: string[], ingestionJobId: number): Promise<{
@@ -103,6 +105,8 @@ async function processBulkUrlJob(job: BulkUrlJob): Promise<void> {
   try {
     // Mark job as processing
     processingJobs.set(job.jobId, true);
+    jobControls.set(job.jobId, { paused: false, stopped: false });
+    job.status = 'processing';
     
     await storage.updateIngestionJob(job.jobId, {
       status: 'processing',
@@ -116,8 +120,37 @@ async function processBulkUrlJob(job: BulkUrlJob): Promise<void> {
 
     // Process URLs in batches
     for (let i = 0; i < job.urls.length; i += job.batchSize) {
+      const controls = jobControls.get(job.jobId);
+      
+      // Check if job should be stopped
+      if (controls?.stopped) {
+        console.log(`Job ${job.jobId} was stopped by user`);
+        await storage.updateIngestionJob(job.jobId, { status: 'stopped' });
+        job.status = 'stopped';
+        return;
+      }
+      
+      // Check if job should be paused
+      while (controls?.paused && !controls?.stopped) {
+        console.log(`Job ${job.jobId} is paused, waiting...`);
+        await storage.updateIngestionJob(job.jobId, { status: 'paused' });
+        job.status = 'paused';
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Check every second
+      }
+      
+      // Resume processing
+      if (job.status === 'paused') {
+        console.log(`Job ${job.jobId} resumed processing`);
+        await storage.updateIngestionJob(job.jobId, { status: 'processing' });
+        job.status = 'processing';
+      }
+      
       const batch = job.urls.slice(i, i + job.batchSize);
-      console.log(`Processing batch ${Math.floor(i / job.batchSize) + 1}/${Math.ceil(job.urls.length / job.batchSize)} (${batch.length} URLs)`);
+      const batchNumber = Math.floor(i / job.batchSize) + 1;
+      const totalBatches = Math.ceil(job.urls.length / job.batchSize);
+      const progressPercentage = Math.round((i / job.urls.length) * 100);
+      
+      console.log(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} URLs) - ${progressPercentage}% complete`);
       
       const batchResults = await processBatch(batch, job.jobId);
       
@@ -126,14 +159,16 @@ async function processBulkUrlJob(job: BulkUrlJob): Promise<void> {
       totalDuplicateCount += batchResults.duplicateCount;
       allErrors.push(...batchResults.errors);
       
-      // Update progress
+      // Update progress with percentage
       const processedSoFar = Math.min(i + job.batchSize, job.urls.length);
+      const completionPercentage = Math.round((processedSoFar / job.urls.length) * 100);
+      
       await storage.updateIngestionJob(job.jobId, {
         processedRecords: processedSoFar,
         successfulRecords: totalSuccessCount,
         duplicateRecords: totalDuplicateCount,
         errorRecords: totalFailedCount,
-        errorDetails: allErrors.length > 0 ? JSON.stringify(allErrors.slice(0, 50)) : undefined // Limit error details
+        errorDetails: allErrors.length > 0 ? JSON.stringify({...allErrors.slice(0, 50), progressPercentage: completionPercentage}) : JSON.stringify({progressPercentage: completionPercentage})
       });
     }
 
@@ -172,7 +207,8 @@ export async function queueBulkUrlJob(
     jobId,
     urls,
     batchSize: options.batchSize || 10, // Process 10 URLs per batch
-    concurrency: options.concurrency || 3 // 3 concurrent requests per batch
+    concurrency: options.concurrency || 3, // 3 concurrent requests per batch
+    status: 'queued'
   };
   
   jobQueue.push(job);
@@ -182,9 +218,48 @@ export async function queueBulkUrlJob(
   setImmediate(() => processBulkUrlJob(job));
 }
 
+// Pause a job
+export function pauseJob(jobId: number): boolean {
+  const controls = jobControls.get(jobId);
+  if (controls && processingJobs.has(jobId)) {
+    controls.paused = true;
+    console.log(`Job ${jobId} paused by user`);
+    return true;
+  }
+  return false;
+}
+
+// Resume a job
+export function resumeJob(jobId: number): boolean {
+  const controls = jobControls.get(jobId);
+  if (controls && processingJobs.has(jobId)) {
+    controls.paused = false;
+    console.log(`Job ${jobId} resumed by user`);
+    return true;
+  }
+  return false;
+}
+
+// Stop a job
+export function stopJob(jobId: number): boolean {
+  const controls = jobControls.get(jobId);
+  if (controls && processingJobs.has(jobId)) {
+    controls.stopped = true;
+    controls.paused = false; // Stop overrides pause
+    console.log(`Job ${jobId} stopped by user`);
+    return true;
+  }
+  return false;
+}
+
 // Get job processing status
 export function getJobProcessingStatus(jobId: number): boolean {
   return processingJobs.has(jobId);
+}
+
+// Get job controls status
+export function getJobControls(jobId: number): { paused: boolean; stopped: boolean } | null {
+  return jobControls.get(jobId) || null;
 }
 
 // Get queue length

@@ -10,7 +10,7 @@ import { parseJobDescription, generateCandidateLonglist, parseCandidateData, par
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { duplicateDetectionService } from "./duplicate-detection";
-import { queueBulkUrlJob } from "./background-jobs";
+import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { z } from "zod";
 
 // Robust file type detection
@@ -884,15 +884,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map(candidate => candidate.bioUrl!);
       
       if (urlsToProcess.length > 0) {
-        // Queue URLs for enhanced processing
-        const jobId = await queueBulkUrlJob(urlsToProcess, 'candidate', 'enhanced_reprocessing');
+        // Create a new ingestion job for reprocessing
+        const reprocessJob = await storage.createIngestionJob({
+          fileName: `Enhanced Reprocessing (${urlsToProcess.length} URLs)`,
+          fileType: 'url',
+          entityType: 'candidate',
+          status: 'processing',
+          totalRecords: urlsToProcess.length,
+          processingMethod: 'enhanced_reprocessing'
+        });
         
-        console.log(`Queued ${urlsToProcess.length} candidates for enhanced reprocessing in job ${jobId}`);
+        // Queue URLs for enhanced processing
+        await queueBulkUrlJob(reprocessJob.id, urlsToProcess);
+        
+        console.log(`Queued ${urlsToProcess.length} candidates for enhanced reprocessing in job ${reprocessJob.id}`);
         
         res.json({
           message: `Successfully queued ${urlsToProcess.length} candidates for enhanced reprocessing`,
           queuedCount: urlsToProcess.length,
-          jobId: jobId,
+          jobId: reprocessJob.id,
           candidateIds: candidatesNeedingReprocessing.map(c => c.id)
         });
       } else {
@@ -905,6 +915,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error triggering candidate reprocessing:", error);
       res.status(500).json({ error: "Failed to trigger candidate reprocessing" });
+    }
+  });
+
+  // Background job control endpoints
+  app.post("/api/admin/jobs/:id/pause", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const success = pauseJob(jobId);
+      
+      if (success) {
+        res.json({ message: "Job paused successfully", jobId });
+      } else {
+        res.status(404).json({ error: "Job not found or not currently running" });
+      }
+    } catch (error) {
+      console.error("Error pausing job:", error);
+      res.status(500).json({ error: "Failed to pause job" });
+    }
+  });
+
+  app.post("/api/admin/jobs/:id/resume", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const success = resumeJob(jobId);
+      
+      if (success) {
+        res.json({ message: "Job resumed successfully", jobId });
+      } else {
+        res.status(404).json({ error: "Job not found or not currently running" });
+      }
+    } catch (error) {
+      console.error("Error resuming job:", error);
+      res.status(500).json({ error: "Failed to resume job" });
+    }
+  });
+
+  app.post("/api/admin/jobs/:id/stop", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const success = stopJob(jobId);
+      
+      if (success) {
+        res.json({ message: "Job stopped successfully", jobId });
+      } else {
+        res.status(404).json({ error: "Job not found or not currently running" });
+      }
+    } catch (error) {
+      console.error("Error stopping job:", error);
+      res.status(500).json({ error: "Failed to stop job" });
+    }
+  });
+
+  app.get("/api/admin/jobs/:id/status", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const isProcessing = getJobProcessingStatus(jobId);
+      const controls = getJobControls(jobId);
+      const jobDetails = await storage.getIngestionJobDetails(jobId);
+      
+      res.json({
+        jobId,
+        isProcessing,
+        controls: controls || { paused: false, stopped: false },
+        jobDetails,
+        progressPercentage: jobDetails && jobDetails.totalRecords > 0 
+          ? Math.round((jobDetails.processedRecords / jobDetails.totalRecords) * 100) 
+          : 0
+      });
+    } catch (error) {
+      console.error("Error getting job status:", error);
+      res.status(500).json({ error: "Failed to get job status" });
     }
   });
 
