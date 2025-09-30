@@ -534,9 +534,10 @@ export default function Admin() {
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to Add Candidate",
-        description: error.message || "Could not find or add candidate. Please try with more specific information.",
+        title: "Could Not Find Candidate",
+        description: error.message || "We couldn't find accessible public profiles for this person. Try using the Candidate Upload tab instead with their LinkedIn URL or CV file.",
         variant: "destructive",
+        duration: 8000,
       });
     },
   });
@@ -779,7 +780,7 @@ export default function Admin() {
                 Quick Add Candidate
               </CardTitle>
               <CardDescription>
-                Add a candidate by name and company. Our AI will search for their LinkedIn profile and bio page, then automatically generate a comprehensive biography.
+                Add a candidate by name and company. Our AI will search for their LinkedIn profile and bio page, then automatically generate a comprehensive biography. Works best for candidates with public profiles at well-known companies.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -847,6 +848,13 @@ export default function Admin() {
                     </>
                   )}
                 </Button>
+              </div>
+
+              {/* Alternative Methods Note */}
+              <div className="bg-muted/50 rounded-lg p-4 text-sm">
+                <p className="text-muted-foreground">
+                  <strong>Can't find the candidate?</strong> If Quick Add doesn't work, use the <strong>Candidate Upload</strong> tab to add candidates with their LinkedIn URL or upload their CV/resume file directly.
+                </p>
               </div>
 
               {/* Information Cards */}
