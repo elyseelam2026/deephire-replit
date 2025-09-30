@@ -815,18 +815,18 @@ export default function Admin() {
 
                 <div className="space-y-2">
                   <Label htmlFor="quick-add-company">
-                    Current Company
+                    Company Name
                   </Label>
                   <Input
                     id="quick-add-company"
-                    placeholder="e.g., Bain Capital, Microsoft, Google"
+                    placeholder="e.g., Bain Capital, Microsoft, Digital China"
                     value={quickAddCompany}
                     onChange={(e) => setQuickAddCompany(e.target.value)}
                     disabled={quickAddMutation.isPending}
                     data-testid="input-quick-add-company"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Provide the full company name for best results
+                    Can be current OR previous employer - we'll search for their LinkedIn profile at this company
                   </p>
                 </div>
 
