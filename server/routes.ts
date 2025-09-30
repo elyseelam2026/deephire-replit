@@ -298,6 +298,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete candidate endpoint
+  app.delete("/api/candidates/:id", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+
+      await storage.deleteCandidate(candidateId);
+      res.json({ success: true, message: "Candidate deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting candidate:", error);
+      res.status(500).json({ error: "Failed to delete candidate" });
+    }
+  });
+
   // Upload candidate CV endpoint
   app.post("/api/candidates/upload-cv", upload.single('file'), async (req: MulterRequest, res) => {
     try {

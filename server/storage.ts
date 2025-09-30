@@ -35,6 +35,7 @@ export interface IStorage {
   getCandidatesForReprocessing(): Promise<Candidate[]>;
   getCandidate(id: number): Promise<Candidate | undefined>;
   updateCandidate(id: number, updates: Partial<InsertCandidate>): Promise<Candidate | undefined>;
+  deleteCandidate(id: number): Promise<void>;
   searchCandidates(query: string): Promise<Candidate[]>;
   
   // Job matching
@@ -191,6 +192,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(candidates.id, id))
       .returning();
     return candidate || undefined;
+  }
+
+  async deleteCandidate(id: number): Promise<void> {
+    await db.delete(candidates).where(eq(candidates.id, id));
   }
 
   async searchCandidates(query: string): Promise<Candidate[]> {

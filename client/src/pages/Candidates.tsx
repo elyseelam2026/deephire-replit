@@ -1,17 +1,32 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink } from "lucide-react";
+import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Candidate } from "@shared/schema";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Candidates() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [candidateToDelete, setCandidateToDelete] = useState<Candidate | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const { data: candidates, isLoading, error } = useQuery<Candidate[]>({
     queryKey: ['/api/candidates', searchQuery],
@@ -23,6 +38,28 @@ export default function Candidates() {
       if (!response.ok) throw new Error('Failed to fetch candidates');
       return response.json();
     }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (candidateId: number) => {
+      const response = await apiRequest('DELETE', `/api/candidates/${candidateId}`, null);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      toast({
+        title: "Candidate Deleted",
+        description: "The candidate has been removed successfully.",
+      });
+      setCandidateToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete candidate",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -220,6 +257,14 @@ export default function Candidates() {
                       <ExternalLink className="h-4 w-4" />
                     </Button>
                   )}
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setCandidateToDelete(candidate)}
+                    data-testid={`button-delete-candidate-${candidate.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -380,6 +425,27 @@ export default function Candidates() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!candidateToDelete} onOpenChange={() => setCandidateToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Candidate?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {candidateToDelete?.firstName} {candidateToDelete?.lastName}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => candidateToDelete && deleteMutation.mutate(candidateToDelete.id)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
