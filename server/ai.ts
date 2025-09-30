@@ -13,88 +13,53 @@ const openai = new OpenAI({
 });
 
 /**
- * Search for LinkedIn profile using Google search
+ * Search for LinkedIn profile using SerpAPI (reliable Google search API)
  * Returns the LinkedIn profile URL if found
  */
 async function searchLinkedInProfile(firstName: string, lastName: string, company: string): Promise<string | null> {
   try {
-    // Construct search query for LinkedIn profile
-    const query = `${firstName} ${lastName} ${company} site:linkedin.com/in`;
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    const apiKey = process.env.SERPAPI_API_KEY;
     
-    console.log(`Searching LinkedIn with query: "${query}"`);
-    
-    // Fetch Google search results
-    const response = await fetch(searchUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    
-    if (!response.ok) {
-      console.error(`Google search failed with status: ${response.status}`);
+    if (!apiKey) {
+      console.error('SERPAPI_API_KEY not configured');
       return null;
     }
     
-    const html = await response.text();
-    const $ = cheerio.load(html);
+    // Construct search query for LinkedIn profile
+    const query = `${firstName} ${lastName} ${company} site:linkedin.com/in`;
+    console.log(`Searching LinkedIn with SerpAPI query: "${query}"`);
     
-    // Extract LinkedIn URLs from search results
-    // Note: Google percent-encodes URLs in redirects, so we can't filter by literal "linkedin.com/in/"
-    // Instead, we check ALL Google redirect URLs and decode them
-    const linkedinUrls: string[] = [];
+    // Use SerpAPI to get clean Google search results
+    const searchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(query)}&engine=google`;
     
-    // Find all Google redirect URLs (they start with /url?)
-    $('a[href^="/url?"]').each((_, element) => {
-      const href = $(element).attr('href');
-      if (href) {
-        try {
-          // Parse as Google redirect URL
-          const baseUrl = `https://www.google.com${href}`;
-          const urlObj = new URL(baseUrl);
-          const params = urlObj.searchParams;
-          
-          // Try 'q' parameter first (most common)
-          let linkedinUrl = params.get('q');
-          
-          // Try 'url' parameter as fallback
-          if (!linkedinUrl) {
-            linkedinUrl = params.get('url');
-          }
-          
-          // Check if it's a LinkedIn profile URL after decoding
-          if (linkedinUrl && linkedinUrl.includes('linkedin.com/in/')) {
-            linkedinUrls.push(linkedinUrl);
-            console.log(`Extracted LinkedIn URL from Google redirect: ${linkedinUrl}`);
-          }
-        } catch (error) {
-          console.error(`Failed to parse redirect URL: ${href}`, error);
-        }
-      }
-    });
+    const response = await fetch(searchUrl);
     
-    // Also check for any direct LinkedIn URLs (rare but possible)
-    $('a[href*="linkedin.com"]').each((_, element) => {
-      const href = $(element).attr('href');
-      if (href && href.includes('linkedin.com/in/') && !href.startsWith('/url?')) {
-        linkedinUrls.push(href);
-        console.log(`Found direct LinkedIn URL: ${href}`);
-      }
-    });
+    if (!response.ok) {
+      console.error(`SerpAPI search failed with status: ${response.status}`);
+      return null;
+    }
     
-    // Return the first valid LinkedIn profile URL found
-    for (const url of linkedinUrls) {
-      // Validate it's a full LinkedIn URL with profile slug
-      if (url.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[\w-]+/)) {
+    const data = await response.json();
+    
+    // SerpAPI returns structured results with organic_results array
+    const organicResults = data.organic_results || [];
+    
+    console.log(`SerpAPI returned ${organicResults.length} results`);
+    
+    // Find LinkedIn profile URLs in the results
+    for (const result of organicResults) {
+      const link = result.link || '';
+      
+      // Check if it's a LinkedIn profile URL
+      if (link.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[\w-]+/)) {
         // Clean up the URL - remove query parameters and fragments
-        const cleanUrl = url.split('?')[0].split('#')[0];
-        console.log(`Found valid LinkedIn URL: ${cleanUrl}`);
+        const cleanUrl = link.split('?')[0].split('#')[0];
+        console.log(`✓ Found LinkedIn profile via SerpAPI: ${cleanUrl}`);
         return cleanUrl;
       }
     }
     
-    console.log(`No valid LinkedIn profile found in search results`);
-    console.log(`Checked ${linkedinUrls.length} potential URLs`);
+    console.log('✗ No LinkedIn profile found in SerpAPI results');
     return null;
   } catch (error) {
     console.error(`Error searching for LinkedIn profile: ${error}`);
@@ -1277,6 +1242,79 @@ async function extractCompanyFromRow(row: any): Promise<any | null> {
 }
 
 /**
+ * Generate a fallback candidate profile when LinkedIn content cannot be fetched
+ * Uses AI to infer email and create a basic profile with available information
+ */
+async function generateFallbackCandidateProfile(
+  firstName: string,
+  lastName: string,
+  company: string,
+  linkedinUrl: string
+): Promise<any> {
+  console.log(`Generating fallback profile for ${firstName} ${lastName} (LinkedIn blocked)...`);
+  
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert recruiter. Generate a basic candidate profile when detailed information is unavailable. Always respond with valid JSON.`
+        },
+        {
+          role: "user",
+          content: `Create a basic professional profile for ${firstName} ${lastName} at ${company}.
+
+LinkedIn URL found: ${linkedinUrl} (content not accessible)
+
+Generate this JSON structure:
+{
+  "firstName": "${firstName}",
+  "lastName": "${lastName}",
+  "email": "inferred email using company domain research",
+  "phoneNumber": null,
+  "currentTitle": "Professional",
+  "currentCompany": "${company}",
+  "location": "Unknown",
+  "skills": [],
+  "yearsExperience": null,
+  "education": null,
+  "linkedinUrl": "${linkedinUrl}",
+  "biography": "A brief 1-paragraph placeholder biography",
+  "careerSummary": "Profile discovered via automated search. Detailed information pending manual review."
+}
+
+**Email Inference:**
+1. Use company "${company}" to determine domain:
+   - "Digital China" → digitalchina.com
+   - "Microsoft" → microsoft.com
+   - "Bain Capital" → baincapital.com
+2. Apply standard format: firstname.lastname@domain.com
+3. Example: For "Ping Chen" at "Digital China" → ping.chen@digitalchina.com
+
+**Biography Template:**
+"${firstName} ${lastName} is a professional currently associated with ${company}. Their LinkedIn profile has been identified at ${linkedinUrl}. Additional career details and accomplishments are available for review through their professional profile. Further information can be obtained through direct outreach or profile verification."`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("No response from AI");
+    }
+
+    const profileData = JSON.parse(content);
+    console.log(`✓ Generated fallback profile with inferred email: ${profileData.email}`);
+    
+    return profileData;
+  } catch (error) {
+    console.error(`Failed to generate fallback profile: ${error}`);
+    throw error;
+  }
+}
+
+/**
  * Search for candidate profile URLs (bio page and LinkedIn) by name and company
  * Uses web search to discover professional profiles
  */
@@ -1348,6 +1386,16 @@ export async function searchCandidateProfilesByName(
           linkedinContent,
           normalizedBioUrl || '',
           normalizedLinkedinUrl || ''
+        );
+      } else if (normalizedLinkedinUrl) {
+        // LinkedIn URL found but content fetch failed (likely blocked by LinkedIn)
+        // Generate a basic profile with the info we have
+        console.log(`LinkedIn fetch blocked - generating fallback profile with available data`);
+        candidateData = await generateFallbackCandidateProfile(
+          firstName,
+          lastName,
+          company,
+          normalizedLinkedinUrl
         );
       }
     }

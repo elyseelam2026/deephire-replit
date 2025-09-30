@@ -307,7 +307,6 @@ export default function Admin() {
   const [quickAddFirstName, setQuickAddFirstName] = useState("");
   const [quickAddLastName, setQuickAddLastName] = useState("");
   const [quickAddCompany, setQuickAddCompany] = useState("");
-  const [quickAddLinkedInUrl, setQuickAddLinkedInUrl] = useState("");
   
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
@@ -532,7 +531,6 @@ export default function Admin() {
       setQuickAddFirstName("");
       setQuickAddLastName("");
       setQuickAddCompany("");
-      setQuickAddLinkedInUrl("");
     },
     onError: (error: any) => {
       toast({
@@ -557,8 +555,7 @@ export default function Admin() {
     quickAddMutation.mutate({
       firstName: quickAddFirstName.trim(),
       lastName: quickAddLastName.trim(),
-      company: quickAddCompany.trim(),
-      linkedinUrl: quickAddLinkedInUrl.trim() || undefined
+      company: quickAddCompany.trim()
     });
   };
 
@@ -833,23 +830,6 @@ export default function Admin() {
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="quick-add-linkedin">
-                    LinkedIn URL <span className="text-muted-foreground font-normal">(recommended)</span>
-                  </Label>
-                  <Input
-                    id="quick-add-linkedin"
-                    placeholder="e.g., https://linkedin.com/in/ping-chen-558ab416"
-                    value={quickAddLinkedInUrl}
-                    onChange={(e) => setQuickAddLinkedInUrl(e.target.value)}
-                    disabled={quickAddMutation.isPending}
-                    data-testid="input-quick-add-linkedin"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Providing the LinkedIn URL ensures accurate profile discovery
-                  </p>
-                </div>
-
                 <Button
                   onClick={handleQuickAdd}
                   disabled={quickAddMutation.isPending || !quickAddFirstName.trim() || !quickAddLastName.trim() || !quickAddCompany.trim()}
@@ -859,7 +839,7 @@ export default function Admin() {
                   {quickAddMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing Profile...
+                      Finding Profile & Generating Biography...
                     </>
                   ) : (
                     <>
@@ -870,10 +850,10 @@ export default function Admin() {
                 </Button>
               </div>
 
-              {/* How to Find LinkedIn URLs */}
+              {/* How It Works */}
               <div className="bg-muted/50 rounded-lg p-4 text-sm">
                 <p className="text-muted-foreground">
-                  <strong>How to find LinkedIn URLs:</strong> Search "[Name] [Company] LinkedIn" in Google, copy the profile URL (e.g., linkedin.com/in/username), and paste it above. This ensures accurate profile discovery and comprehensive data extraction.
+                  <strong>How it works:</strong> Just provide the candidate's name and company. Our system will automatically search for their LinkedIn profile, extract their professional information, infer their email, and generate a comprehensive biography - all in seconds.
                 </p>
               </div>
 
