@@ -1303,7 +1303,7 @@ ${linkedinContent}
 {
   "firstName": "${firstName}",
   "lastName": "${lastName}",
-  "email": "extracted email if available, otherwise null",
+  "email": "inferred email using intelligent research-based approach (see instructions below)",
   "phoneNumber": "extracted phone if available, otherwise null",
   "currentTitle": "current job title",
   "currentCompany": "${company}",
@@ -1314,6 +1314,31 @@ ${linkedinContent}
   "biography": "A comprehensive 2-3 paragraph professional biography covering career journey, achievements, and expertise",
   "careerSummary": "A structured summary of career progression with key roles and accomplishments"
 }
+
+**IMPORTANT - Email Inference Instructions:**
+If no explicit email is found in the profile content, infer the likely email address using this systematic approach:
+
+1. Identify the person's current company from the profile (e.g., "Digital China")
+2. Determine the company's domain name:
+   - For "Digital China" → digitalchina.com
+   - For "Microsoft" → microsoft.com
+   - For "Bain Capital" → baincapital.com
+   - Use company's official domain, not a generic or incorrect one
+3. Research common email formats for that company by analyzing any available information:
+   - firstname.lastname@domain.com (most common)
+   - firstnamelastname@domain.com
+   - first.last@domain.com
+   - flastname@domain.com
+4. Apply the most likely format pattern to construct: email address
+
+For example:
+- Name: "Chen Ping" (or "Ping Chen"), Company: "Digital China"
+- Domain: digitalchina.com
+- Likely formats: ping.chen@digitalchina.com OR chen.ping@digitalchina.com OR pingchen@digitalchina.com
+- Choose the most standard format (firstname.lastname@domain.com is usually safest)
+- Result: "ping.chen@digitalchina.com"
+
+NEVER use domains from previous companies in career history. ONLY use the CURRENT company's domain.
 
 Professional Content:
 ${combinedContent}
