@@ -1193,31 +1193,19 @@ async function extractCompanyFromRow(row: any): Promise<any | null> {
 export async function searchCandidateProfilesByName(
   firstName: string,
   lastName: string,
-  company: string
+  company: string,
+  linkedinUrl?: string | null,
+  bioUrl?: string | null
 ): Promise<{
   bioUrl: string | null;
   linkedinUrl: string | null;
   candidateData: any | null;
 }> {
   console.log(`\nSearching for candidate profiles: ${firstName} ${lastName} at ${company}`);
+  console.log(`Provided LinkedIn URL: ${linkedinUrl || 'none'}`);
+  console.log(`Provided bio URL: ${bioUrl || 'none'}`);
   
   try {
-    // NOTE: This function provides basic URL construction.
-    // For production use, integrate with actual web search API.
-    // The Admin UI will trigger jobs that use the full web search infrastructure.
-    
-    // Construct potential bio URL
-    const normalizedFirst = firstName.toLowerCase().replace(/[^a-z]/g, '');
-    const normalizedLast = lastName.toLowerCase().replace(/[^a-z]/g, '');
-    const companySlug = company.toLowerCase().replace(/\s+/g, '').replace(/[^a-z]/g, '');
-    
-    let bioUrl: string | null = `https://www.${companySlug}.com/people/${normalizedFirst}-${normalizedLast}`;
-    console.log(`Constructed bio URL: ${bioUrl}`);
-    
-    // Construct LinkedIn profile URL
-    let linkedinUrl: string | null = `https://www.linkedin.com/in/${normalizedFirst}${normalizedLast}`;
-    console.log(`Constructed LinkedIn URL: ${linkedinUrl}`);
-    
     // If we found at least one URL, extract candidate data
     let candidateData: any = null;
     if (bioUrl || linkedinUrl) {
@@ -1260,7 +1248,7 @@ export async function searchCandidateProfilesByName(
     }
     
     return {
-      bioUrl,
+      bioUrl: linkedinUrl || bioUrl,
       linkedinUrl,
       candidateData
     };
