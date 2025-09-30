@@ -49,9 +49,10 @@ async function searchLinkedInProfile(firstName: string, lastName: string, compan
     // Find LinkedIn profile URLs in the results
     for (const result of organicResults) {
       const link = result.link || '';
+      console.log(`Checking result link: ${link}`);
       
-      // Check if it's a LinkedIn profile URL
-      if (link.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[\w-]+/)) {
+      // Check if it's a LinkedIn profile URL (more flexible pattern)
+      if (link.includes('linkedin.com/in/')) {
         // Clean up the URL - remove query parameters and fragments
         const cleanUrl = link.split('?')[0].split('#')[0];
         console.log(`✓ Found LinkedIn profile via SerpAPI: ${cleanUrl}`);
@@ -1349,54 +1350,34 @@ export async function searchCandidateProfilesByName(
       }
     }
     
-    // If we found at least one URL, extract candidate data
+    // If we found a LinkedIn URL, generate a basic profile without fetching content
+    // This approach mimics how humans work - just store the URL and let recruiters click it later
     let candidateData: any = null;
-    if (normalizedBioUrl || normalizedLinkedinUrl) {
-      console.log(`Extracting candidate data from found URLs...`);
-      
-      // Fetch and parse bio URL if found
-      let bioContent = '';
-      if (normalizedBioUrl) {
-        try {
-          bioContent = await fetchWebContent(normalizedBioUrl);
-          console.log(`Fetched ${bioContent.length} characters from bio URL`);
-        } catch (error) {
-          console.error(`Failed to fetch bio URL: ${error}`);
-        }
-      }
-      
-      // Fetch and parse LinkedIn URL if found (will likely fail due to blocking, but try anyway)
-      let linkedinContent = '';
-      if (normalizedLinkedinUrl) {
-        try {
-          linkedinContent = await fetchWebContent(normalizedLinkedinUrl);
-          console.log(`Fetched ${linkedinContent.length} characters from LinkedIn URL`);
-        } catch (error) {
-          console.log(`LinkedIn fetch failed (expected): ${error}`);
-        }
-      }
-      
-      // Generate candidate profile using AI
-      if (bioContent || linkedinContent) {
+    if (normalizedLinkedinUrl) {
+      console.log(`LinkedIn URL found - generating profile without fetching content (stored for later access)`);
+      candidateData = await generateFallbackCandidateProfile(
+        firstName,
+        lastName,
+        company,
+        normalizedLinkedinUrl
+      );
+    } else if (normalizedBioUrl) {
+      // If we have a bio URL, try to fetch and parse it
+      console.log(`Extracting candidate data from bio URL...`);
+      try {
+        const bioContent = await fetchWebContent(normalizedBioUrl);
+        console.log(`Fetched ${bioContent.length} characters from bio URL`);
         candidateData = await generateCandidateProfileFromContent(
           firstName,
           lastName,
           company,
           bioContent,
-          linkedinContent,
-          normalizedBioUrl || '',
-          normalizedLinkedinUrl || ''
+          '',
+          normalizedBioUrl,
+          ''
         );
-      } else if (normalizedLinkedinUrl) {
-        // LinkedIn URL found but content fetch failed (likely blocked by LinkedIn)
-        // Generate a basic profile with the info we have
-        console.log(`LinkedIn fetch blocked - generating fallback profile with available data`);
-        candidateData = await generateFallbackCandidateProfile(
-          firstName,
-          lastName,
-          company,
-          normalizedLinkedinUrl
-        );
+      } catch (error) {
+        console.error(`Failed to fetch bio URL: ${error}`);
       }
     }
     
