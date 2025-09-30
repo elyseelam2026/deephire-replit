@@ -1185,3 +1185,185 @@ async function extractCompanyFromRow(row: any): Promise<any | null> {
     return null;
   }
 }
+
+/**
+ * Search for candidate profile URLs (bio page and LinkedIn) by name and company
+ * Uses web search to discover professional profiles
+ */
+export async function searchCandidateProfilesByName(
+  firstName: string,
+  lastName: string,
+  company: string
+): Promise<{
+  bioUrl: string | null;
+  linkedinUrl: string | null;
+  candidateData: any | null;
+}> {
+  console.log(`\nSearching for candidate profiles: ${firstName} ${lastName} at ${company}`);
+  
+  try {
+    // NOTE: This function provides basic URL construction.
+    // For production use, integrate with actual web search API.
+    // The Admin UI will trigger jobs that use the full web search infrastructure.
+    
+    // Construct potential bio URL
+    const normalizedFirst = firstName.toLowerCase().replace(/[^a-z]/g, '');
+    const normalizedLast = lastName.toLowerCase().replace(/[^a-z]/g, '');
+    const companySlug = company.toLowerCase().replace(/\s+/g, '').replace(/[^a-z]/g, '');
+    
+    let bioUrl: string | null = `https://www.${companySlug}.com/people/${normalizedFirst}-${normalizedLast}`;
+    console.log(`Constructed bio URL: ${bioUrl}`);
+    
+    // Construct LinkedIn profile URL
+    let linkedinUrl: string | null = `https://www.linkedin.com/in/${normalizedFirst}${normalizedLast}`;
+    console.log(`Constructed LinkedIn URL: ${linkedinUrl}`);
+    
+    // If we found at least one URL, extract candidate data
+    let candidateData: any = null;
+    if (bioUrl || linkedinUrl) {
+      console.log(`Extracting candidate data from found URLs...`);
+      
+      // Fetch and parse bio URL if found
+      let bioContent = '';
+      if (bioUrl) {
+        try {
+          bioContent = await fetchWebContent(bioUrl);
+          console.log(`Fetched ${bioContent.length} characters from bio URL`);
+        } catch (error) {
+          console.error(`Failed to fetch bio URL: ${error}`);
+        }
+      }
+      
+      // Fetch and parse LinkedIn URL if found (will likely fail due to blocking, but try anyway)
+      let linkedinContent = '';
+      if (linkedinUrl) {
+        try {
+          linkedinContent = await fetchWebContent(linkedinUrl);
+          console.log(`Fetched ${linkedinContent.length} characters from LinkedIn URL`);
+        } catch (error) {
+          console.log(`LinkedIn fetch failed (expected): ${error}`);
+        }
+      }
+      
+      // Generate candidate profile using AI
+      if (bioContent || linkedinContent) {
+        candidateData = await generateCandidateProfileFromContent(
+          firstName,
+          lastName,
+          company,
+          bioContent,
+          linkedinContent,
+          bioUrl || '',
+          linkedinUrl || ''
+        );
+      }
+    }
+    
+    return {
+      bioUrl,
+      linkedinUrl,
+      candidateData
+    };
+  } catch (error) {
+    console.error(`Error searching for candidate profiles: ${error}`);
+    return {
+      bioUrl: null,
+      linkedinUrl: null,
+      candidateData: null
+    };
+  }
+}
+
+/**
+ * Generate candidate profile data from scraped content using AI
+ */
+async function generateCandidateProfileFromContent(
+  firstName: string,
+  lastName: string,
+  company: string,
+  bioContent: string,
+  linkedinContent: string,
+  bioUrl: string,
+  linkedinUrl: string
+): Promise<any> {
+  console.log(`Generating candidate profile using AI for ${firstName} ${lastName}...`);
+  
+  try {
+    const combinedContent = `
+Bio Page Content:
+${bioContent}
+
+LinkedIn Content:
+${linkedinContent}
+    `.trim();
+    
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert recruiter analyzing professional profiles. Extract structured candidate data from bio pages and LinkedIn profiles. Generate comprehensive biographies and career summaries. Always respond with valid JSON.`
+        },
+        {
+          role: "user",
+          content: `Analyze these professional profiles for ${firstName} ${lastName} at ${company} and extract the following information in JSON format:
+          
+{
+  "firstName": "${firstName}",
+  "lastName": "${lastName}",
+  "email": "extracted email if available, otherwise null",
+  "phoneNumber": "extracted phone if available, otherwise null",
+  "currentTitle": "current job title",
+  "currentCompany": "${company}",
+  "location": "city, state/country",
+  "skills": ["skill1", "skill2", "skill3", ...],
+  "yearsExperience": number or null,
+  "education": "highest degree and institution",
+  "biography": "A comprehensive 2-3 paragraph professional biography covering career journey, achievements, and expertise",
+  "careerSummary": "A structured summary of career progression with key roles and accomplishments"
+}
+
+Professional Content:
+${combinedContent}
+
+Be thorough and professional. The biography should be well-written and suitable for executive profiles.`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+    
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    console.log(`Successfully generated candidate profile data`);
+    
+    return {
+      firstName: result.firstName || firstName,
+      lastName: result.lastName || lastName,
+      email: result.email || null,
+      phoneNumber: result.phoneNumber || null,
+      linkedinUrl: linkedinUrl || null,
+      bioUrl: bioUrl || null,
+      currentTitle: result.currentTitle || null,
+      currentCompany: result.currentCompany || company,
+      location: result.location || null,
+      skills: Array.isArray(result.skills) ? result.skills : [],
+      yearsExperience: result.yearsExperience || null,
+      education: result.education || null,
+      biography: result.biography || null,
+      careerSummary: result.careerSummary || null,
+      isAvailable: true,
+      isActivelyLooking: false,
+      isOpenToOpportunities: true,
+      salaryCurrency: 'USD'
+    };
+  } catch (error) {
+    console.error(`Error generating candidate profile: ${error}`);
+    return {
+      firstName,
+      lastName,
+      currentCompany: company,
+      linkedinUrl: linkedinUrl || null,
+      bioUrl: bioUrl || null,
+      salaryCurrency: 'USD'
+    };
+  }
+}

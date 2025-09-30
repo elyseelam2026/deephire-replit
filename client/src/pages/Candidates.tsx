@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin } from "lucide-react";
+import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Candidate } from "@shared/schema";
 import { useState } from "react";
@@ -201,8 +201,23 @@ export default function Candidates() {
                     Contact
                   </Button>
                   {candidate.linkedinUrl && (
-                    <Button variant="secondary" size="sm" data-testid={`button-linkedin-candidate-${candidate.id}`}>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      onClick={() => window.open(candidate.linkedinUrl!, '_blank')}
+                      data-testid={`button-linkedin-candidate-${candidate.id}`}
+                    >
                       <Linkedin className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {candidate.bioUrl && (
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      onClick={() => window.open(candidate.bioUrl!, '_blank')}
+                      data-testid={`button-bio-candidate-${candidate.id}`}
+                    >
+                      <ExternalLink className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
