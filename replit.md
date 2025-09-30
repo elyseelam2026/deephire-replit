@@ -8,6 +8,12 @@ The application features a multi-portal architecture with role-based interfaces,
 
 ## Recent Changes
 
+### September 30, 2025
+- **LinkedIn URL Corrections**: Fixed incorrect LinkedIn profile URLs for Jen Fox, Brian Fulginiti, Iris Fuli, Kevin Gallagher, Ben Gallagher, and Alexis Gajwani using web search to find accurate profile identifiers
+- **UI Scrolling Fix**: Resolved candidate list scrolling issue by changing main container from overflow-hidden to overflow-y-auto, enabling visibility of all 17+ candidates
+- **Search Functionality Verified**: Confirmed candidate search feature working correctly across firstName, lastName, currentTitle, and currentCompany fields with case-insensitive matching
+- **End-to-End Testing**: Validated all fixes through automated Playwright tests confirming LinkedIn URLs, scrolling behavior, and search accuracy
+
 ### September 29, 2025
 - **Enhanced Enterprise Schema**: Applied comprehensive database schema with 50+ candidate fields and 40+ company fields covering identity, professional background, preferences, compliance, and recruiting metadata
 - **Fixed Critical Storage Interface**: Resolved all TypeScript compatibility issues with updated schema structures including proper type definitions and query optimizations
