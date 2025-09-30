@@ -40,32 +40,61 @@ async function searchLinkedInProfile(firstName: string, lastName: string, compan
     const $ = cheerio.load(html);
     
     // Extract LinkedIn URLs from search results
+    // Note: Google percent-encodes URLs in redirects, so we can't filter by literal "linkedin.com/in/"
+    // Instead, we check ALL Google redirect URLs and decode them
     const linkedinUrls: string[] = [];
-    $('a[href*="linkedin.com/in/"]').each((_, element) => {
+    
+    // Find all Google redirect URLs (they start with /url?)
+    $('a[href^="/url?"]').each((_, element) => {
       const href = $(element).attr('href');
       if (href) {
-        // Google wraps URLs in redirect links, extract the actual URL
-        const match = href.match(/url=([^&]+)/);
-        if (match) {
-          const decodedUrl = decodeURIComponent(match[1]);
-          if (decodedUrl.includes('linkedin.com/in/')) {
-            linkedinUrls.push(decodedUrl);
+        try {
+          // Parse as Google redirect URL
+          const baseUrl = `https://www.google.com${href}`;
+          const urlObj = new URL(baseUrl);
+          const params = urlObj.searchParams;
+          
+          // Try 'q' parameter first (most common)
+          let linkedinUrl = params.get('q');
+          
+          // Try 'url' parameter as fallback
+          if (!linkedinUrl) {
+            linkedinUrl = params.get('url');
           }
-        } else if (href.includes('linkedin.com/in/')) {
-          linkedinUrls.push(href);
+          
+          // Check if it's a LinkedIn profile URL after decoding
+          if (linkedinUrl && linkedinUrl.includes('linkedin.com/in/')) {
+            linkedinUrls.push(linkedinUrl);
+            console.log(`Extracted LinkedIn URL from Google redirect: ${linkedinUrl}`);
+          }
+        } catch (error) {
+          console.error(`Failed to parse redirect URL: ${href}`, error);
         }
+      }
+    });
+    
+    // Also check for any direct LinkedIn URLs (rare but possible)
+    $('a[href*="linkedin.com"]').each((_, element) => {
+      const href = $(element).attr('href');
+      if (href && href.includes('linkedin.com/in/') && !href.startsWith('/url?')) {
+        linkedinUrls.push(href);
+        console.log(`Found direct LinkedIn URL: ${href}`);
       }
     });
     
     // Return the first valid LinkedIn profile URL found
     for (const url of linkedinUrls) {
-      if (url.match(/linkedin\.com\/in\/[\w-]+\/?$/)) {
-        console.log(`Found LinkedIn URL: ${url}`);
-        return url;
+      // Validate it's a full LinkedIn URL with profile slug
+      if (url.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[\w-]+/)) {
+        // Clean up the URL - remove query parameters and fragments
+        const cleanUrl = url.split('?')[0].split('#')[0];
+        console.log(`Found valid LinkedIn URL: ${cleanUrl}`);
+        return cleanUrl;
       }
     }
     
-    console.log(`No LinkedIn profile found in search results`);
+    console.log(`No valid LinkedIn profile found in search results`);
+    console.log(`Checked ${linkedinUrls.length} potential URLs`);
     return null;
   } catch (error) {
     console.error(`Error searching for LinkedIn profile: ${error}`);
