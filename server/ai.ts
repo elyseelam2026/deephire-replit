@@ -1206,16 +1206,20 @@ export async function searchCandidateProfilesByName(
   console.log(`Provided bio URL: ${bioUrl || 'none'}`);
   
   try {
+    // Normalize the optional parameters to null if undefined
+    const normalizedLinkedinUrl = linkedinUrl ?? null;
+    const normalizedBioUrl = bioUrl ?? null;
+    
     // If we found at least one URL, extract candidate data
     let candidateData: any = null;
-    if (bioUrl || linkedinUrl) {
+    if (normalizedBioUrl || normalizedLinkedinUrl) {
       console.log(`Extracting candidate data from found URLs...`);
       
       // Fetch and parse bio URL if found
       let bioContent = '';
-      if (bioUrl) {
+      if (normalizedBioUrl) {
         try {
-          bioContent = await fetchWebContent(bioUrl);
+          bioContent = await fetchWebContent(normalizedBioUrl);
           console.log(`Fetched ${bioContent.length} characters from bio URL`);
         } catch (error) {
           console.error(`Failed to fetch bio URL: ${error}`);
@@ -1224,9 +1228,9 @@ export async function searchCandidateProfilesByName(
       
       // Fetch and parse LinkedIn URL if found (will likely fail due to blocking, but try anyway)
       let linkedinContent = '';
-      if (linkedinUrl) {
+      if (normalizedLinkedinUrl) {
         try {
-          linkedinContent = await fetchWebContent(linkedinUrl);
+          linkedinContent = await fetchWebContent(normalizedLinkedinUrl);
           console.log(`Fetched ${linkedinContent.length} characters from LinkedIn URL`);
         } catch (error) {
           console.log(`LinkedIn fetch failed (expected): ${error}`);
@@ -1241,15 +1245,15 @@ export async function searchCandidateProfilesByName(
           company,
           bioContent,
           linkedinContent,
-          bioUrl || '',
-          linkedinUrl || ''
+          normalizedBioUrl || '',
+          normalizedLinkedinUrl || ''
         );
       }
     }
     
     return {
-      bioUrl: linkedinUrl || bioUrl,
-      linkedinUrl,
+      bioUrl: normalizedLinkedinUrl || normalizedBioUrl,
+      linkedinUrl: normalizedLinkedinUrl,
       candidateData
     };
   } catch (error) {
