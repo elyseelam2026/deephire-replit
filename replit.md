@@ -11,13 +11,13 @@ The application features a multi-portal architecture with role-based interfaces,
 ### September 30, 2025
 - **SerpAPI Integration for Automated LinkedIn Discovery**: Implemented fully automated LinkedIn profile discovery using SerpAPI (no manual URL input required)
   - Replaces unreliable Google scraping with production-ready SerpAPI REST API
-  - Successfully tested with real candidates (e.g., Satya Nadella at Microsoft)
-  - Handles LinkedIn content blocking gracefully with fallback profile generation
-- **Intelligent Fallback Profile Generation**: When LinkedIn URL found but content fetch blocked (999 error)
-  - Generates candidate profile with LinkedIn URL from SerpAPI
-  - Infers email using company domain research (e.g., satya.nadella@microsoft.com)
-  - Creates placeholder biography mentioning profile pending review
-  - Returns 200 success (not 404) when LinkedIn URL successfully discovered
+  - Successfully tested with real candidates (famous: Satya Nadella at Microsoft; regular: Herman Yu at Baidu)
+  - Fixed URL extraction pattern for broader LinkedIn profile detection
+- **Simplified LinkedIn Storage Approach** (Based on user feedback):
+  - When LinkedIn URL found via SerpAPI → Store it immediately → Done!
+  - Removed unreliable content fetching (LinkedIn blocks most requests anyway)
+  - Mimics human workflow: Find URL, store it, let recruiters click it later
+  - Generates profile with LinkedIn URL and inferred email (e.g., herman.yu@baidu.com)
 - **Quick Add UI Simplification**: Removed manual LinkedIn URL input field
   - Admin provides only: First Name, Last Name, Company
   - System automatically discovers LinkedIn profile via SerpAPI
