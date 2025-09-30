@@ -9,10 +9,20 @@ The application features a multi-portal architecture with role-based interfaces,
 ## Recent Changes
 
 ### September 30, 2025
-- **Quick Add Web Search Integration**: Integrated automated LinkedIn profile discovery using Google search parsing (note: may be blocked by anti-bot measures in production - users should provide LinkedIn URLs manually for reliability)
-- **Intelligent Email Inference**: Enhanced AI to research company domains and apply common email patterns (e.g., Digital China → ping.chen@digitalchina.com)
-- **Quick Add UI Improvements**: Added optional LinkedIn URL field (recommended), updated helper texts to clarify company accepts current OR previous employer
-- **Google Search Implementation**: Implemented robust URL parsing handling multiple Google redirect formats (`q=` and `url=` parameters) with proper percent-decode handling
+- **SerpAPI Integration for Automated LinkedIn Discovery**: Implemented fully automated LinkedIn profile discovery using SerpAPI (no manual URL input required)
+  - Replaces unreliable Google scraping with production-ready SerpAPI REST API
+  - Successfully tested with real candidates (e.g., Satya Nadella at Microsoft)
+  - Handles LinkedIn content blocking gracefully with fallback profile generation
+- **Intelligent Fallback Profile Generation**: When LinkedIn URL found but content fetch blocked (999 error)
+  - Generates candidate profile with LinkedIn URL from SerpAPI
+  - Infers email using company domain research (e.g., satya.nadella@microsoft.com)
+  - Creates placeholder biography mentioning profile pending review
+  - Returns 200 success (not 404) when LinkedIn URL successfully discovered
+- **Quick Add UI Simplification**: Removed manual LinkedIn URL input field
+  - Admin provides only: First Name, Last Name, Company
+  - System automatically discovers LinkedIn profile via SerpAPI
+  - Updated loading state: "Finding Profile & Generating Biography..."
+  - Clear "How it works" guidance for fully automated workflow
 - **LinkedIn URL Corrections**: Fixed incorrect LinkedIn profile URLs for Jen Fox, Brian Fulginiti, Iris Fuli, Kevin Gallagher, Ben Gallagher, and Alexis Gajwani using web search to find accurate profile identifiers
 - **UI Scrolling Fix**: Resolved candidate list scrolling issue by changing main container from overflow-hidden to overflow-y-auto, enabling visibility of all 17+ candidates
 - **Search Functionality Verified**: Confirmed candidate search feature working correctly across firstName, lastName, currentTitle, and currentCompany fields with case-insensitive matching
