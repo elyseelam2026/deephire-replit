@@ -936,6 +936,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Boolean search for LinkedIn candidates
+  app.post("/api/admin/boolean-search", async (req, res) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ 
+          error: "Search query is required" 
+        });
+      }
+      
+      console.log(`Boolean search query: ${query}`);
+      
+      // Use SerpAPI to search with boolean query
+      const apiKey = process.env.SERPAPI_API_KEY;
+      
+      if (!apiKey) {
+        return res.status(500).json({ 
+          error: "Search service not configured" 
+        });
+      }
+      
+      const searchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(query)}&engine=google&num=10`;
+      
+      const response = await fetch(searchUrl);
+      
+      if (!response.ok) {
+        console.error(`SerpAPI search failed with status: ${response.status}`);
+        return res.status(500).json({ 
+          error: "Search service unavailable" 
+        });
+      }
+      
+      const data = await response.json();
+      const organicResults = data.organic_results || [];
+      
+      console.log(`SerpAPI returned ${organicResults.length} results`);
+      
+      // Extract candidate information from search results
+      const results = organicResults
+        .filter((result: any) => result.link?.includes('linkedin.com/in/'))
+        .map((result: any) => {
+          // Extract LinkedIn URL
+          const linkedinUrl = result.link.split('?')[0].split('#')[0];
+          
+          // Extract name and title from result
+          const title = result.title || '';
+          const snippet = result.snippet || '';
+          
+          // Try to parse name from title (LinkedIn format: "Name - Title - Company | LinkedIn")
+          const titleParts = title.split(' - ');
+          const name = titleParts[0]?.replace(' | LinkedIn', '').trim() || '';
+          const jobTitle = titleParts[1]?.trim() || '';
+          
+          // Try to extract company from snippet or title
+          let company = '';
+          const snippetCompanyMatch = snippet.match(/(?:at|@)\s+([^·•\n]+)/i);
+          if (snippetCompanyMatch && snippetCompanyMatch[1]) {
+            company = snippetCompanyMatch[1].trim();
+          } else if (titleParts[2]) {
+            company = titleParts[2].split('|')[0].trim();
+          }
+          
+          return {
+            name,
+            title: jobTitle,
+            company: company.trim(),
+            linkedinUrl,
+            snippet: snippet.substring(0, 200)
+          };
+        })
+        .filter((result: any) => result.name && result.linkedinUrl);
+      
+      console.log(`Extracted ${results.length} LinkedIn profiles from search results`);
+      
+      res.json({
+        success: true,
+        query,
+        count: results.length,
+        results
+      });
+      
+    } catch (error) {
+      console.error("Error in boolean search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform search",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Add candidate by name and company - AI searches for profiles and creates record
   app.post("/api/admin/add-candidate-by-name", async (req, res) => {
     try {

@@ -33,7 +33,8 @@ import {
   Star,
   TrendingUp,
   BarChart3,
-  ArrowRight
+  ArrowRight,
+  Search
 } from "lucide-react";
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
@@ -307,6 +308,9 @@ export default function Admin() {
   const [quickAddFirstName, setQuickAddFirstName] = useState("");
   const [quickAddLastName, setQuickAddLastName] = useState("");
   const [quickAddCompany, setQuickAddCompany] = useState("");
+  const [booleanSearch, setBooleanSearch] = useState("");
+  const [booleanSearchResults, setBooleanSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
@@ -557,6 +561,87 @@ export default function Admin() {
       lastName: quickAddLastName.trim(),
       company: quickAddCompany.trim()
     });
+  };
+
+  const handleBooleanSearch = async () => {
+    if (!booleanSearch.trim()) {
+      toast({
+        title: "Empty Search",
+        description: "Please enter a boolean search query.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    setBooleanSearchResults([]);
+
+    try {
+      const response = await apiRequest('POST', '/api/admin/boolean-search', {
+        query: booleanSearch.trim()
+      });
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        setBooleanSearchResults(data.results);
+        toast({
+          title: "Search Complete",
+          description: `Found ${data.results.length} candidates. Select one to add.`,
+        });
+      } else {
+        toast({
+          title: "No Results",
+          description: "No candidates found for this search query. Try different terms.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Search Failed",
+        description: error.message || "Failed to search LinkedIn. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectCandidate = async (result: any) => {
+    if (!result.linkedinUrl) {
+      toast({
+        title: "Missing LinkedIn URL",
+        description: "This result doesn't have a LinkedIn URL. Cannot add candidate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Extract name from result
+    const nameParts = result.name?.split(' ') || ['', ''];
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    const company = result.company || result.title || 'Unknown Company';
+
+    if (!firstName) {
+      toast({
+        title: "Missing Name",
+        description: "Unable to extract name from search result.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Use the existing quick add mutation with the selected candidate
+    quickAddMutation.mutate({
+      firstName,
+      lastName: lastName || firstName,  // Use first name as fallback if no last name
+      company,
+      linkedinUrl: result.linkedinUrl
+    });
+
+    // Clear search results after selection
+    setBooleanSearchResults([]);
+    setBooleanSearch("");
   };
 
   const handleCandidateUpload = async () => {
@@ -848,6 +933,103 @@ export default function Admin() {
                     </>
                   )}
                 </Button>
+              </div>
+
+              {/* Separator */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or use boolean search
+                  </span>
+                </div>
+              </div>
+
+              {/* Boolean Search */}
+              <div className="max-w-2xl space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="boolean-search">
+                    Boolean Search Query
+                  </Label>
+                  <Textarea
+                    id="boolean-search"
+                    placeholder='e.g., "software engineer" AND Python AND (Google OR Microsoft) site:linkedin.com/in'
+                    value={booleanSearch}
+                    onChange={(e) => setBooleanSearch(e.target.value)}
+                    disabled={isSearching}
+                    rows={3}
+                    data-testid="input-boolean-search"
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use boolean operators (AND, OR, NOT) and LinkedIn site filters to find specific candidates. Results will appear below for selection.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleBooleanSearch}
+                  disabled={isSearching || !booleanSearch.trim()}
+                  className="w-full"
+                  data-testid="button-boolean-search"
+                >
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Searching LinkedIn...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Search LinkedIn
+                    </>
+                  )}
+                </Button>
+
+                {/* Search Results */}
+                {booleanSearchResults.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t">
+                    <h3 className="font-semibold text-sm">
+                      Select Candidate to Add ({booleanSearchResults.length} results)
+                    </h3>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {booleanSearchResults.map((result, index) => (
+                        <Card 
+                          key={index}
+                          className="hover-elevate cursor-pointer"
+                          onClick={() => handleSelectCandidate(result)}
+                          data-testid={`search-result-${index}`}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-1">
+                                <h4 className="font-semibold">{result.name || 'Name not found'}</h4>
+                                {result.title && (
+                                  <p className="text-sm text-muted-foreground">{result.title}</p>
+                                )}
+                                {result.company && (
+                                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                                    <Building2 className="h-3 w-3" />
+                                    {result.company}
+                                  </p>
+                                )}
+                                {result.linkedinUrl && (
+                                  <p className="text-xs text-blue-600 dark:text-blue-400 font-mono truncate">
+                                    {result.linkedinUrl}
+                                  </p>
+                                )}
+                              </div>
+                              <Button size="sm" variant="default">
+                                Add
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* How It Works */}
