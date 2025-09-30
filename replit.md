@@ -9,6 +9,13 @@ The application features a multi-portal architecture with role-based interfaces,
 ## Recent Changes
 
 ### September 30, 2025
+- **Boolean Search Functionality**: Implemented advanced LinkedIn search for Quick Add with multi-result selection
+  - Added textarea field accepting complex boolean queries (AND, OR, NOT operators with site:linkedin.com/in filter)
+  - Created `/api/admin/boolean-search` endpoint using SerpAPI to execute custom search queries
+  - Displays up to 10 search results as selectable cards showing name, title, company, LinkedIn URL
+  - Fixed company extraction logic with fallback chain: result.company → result.title → "Unknown Company"
+  - Successfully tested with query "software engineer AND Python AND Microsoft site:linkedin.com/in"
+  - User selects desired candidate from results → system creates candidate with LinkedIn URL stored
 - **SerpAPI Integration for Automated LinkedIn Discovery**: Implemented fully automated LinkedIn profile discovery using SerpAPI (no manual URL input required)
   - Replaces unreliable Google scraping with production-ready SerpAPI REST API
   - Successfully tested with real candidates (famous: Satya Nadella at Microsoft; regular: Herman Yu at Baidu)
