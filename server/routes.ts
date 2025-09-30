@@ -939,7 +939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add candidate by name and company - AI searches for profiles and creates record
   app.post("/api/admin/add-candidate-by-name", async (req, res) => {
     try {
-      const { firstName, lastName, company, linkedinUrl, bioUrl } = req.body;
+      const { firstName, lastName, company, linkedinUrl } = req.body;
       
       // Validate required fields
       if (!firstName || !lastName || !company) {
@@ -949,15 +949,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`Searching for candidate: ${firstName} ${lastName} at ${company}`);
+      if (linkedinUrl) {
+        console.log(`LinkedIn URL provided: ${linkedinUrl}`);
+      } else {
+        console.log(`No LinkedIn URL provided, will attempt web search`);
+      }
       
-      // Use AI to search for candidate profiles (bio page and LinkedIn)
-      // Pass any provided URLs from the frontend (if user already searched)
+      // Use AI to search for candidate profiles - it will use provided URL or attempt web search
       const searchResult = await searchCandidateProfilesByName(
         firstName,
         lastName,
         company,
-        linkedinUrl || null,
-        bioUrl || null
+        linkedinUrl || null,  // Use provided LinkedIn URL if available
+        null   // bioUrl
       );
       
       // Check if we found profile data

@@ -307,6 +307,7 @@ export default function Admin() {
   const [quickAddFirstName, setQuickAddFirstName] = useState("");
   const [quickAddLastName, setQuickAddLastName] = useState("");
   const [quickAddCompany, setQuickAddCompany] = useState("");
+  const [quickAddLinkedInUrl, setQuickAddLinkedInUrl] = useState("");
   
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
@@ -514,7 +515,7 @@ export default function Admin() {
 
   // Quick Add candidate by name mutation
   const quickAddMutation = useMutation({
-    mutationFn: async (data: { firstName: string; lastName: string; company: string }) => {
+    mutationFn: async (data: { firstName: string; lastName: string; company: string; linkedinUrl?: string }) => {
       const response = await apiRequest('POST', '/api/admin/add-candidate-by-name', data);
       return response.json();
     },
@@ -531,6 +532,7 @@ export default function Admin() {
       setQuickAddFirstName("");
       setQuickAddLastName("");
       setQuickAddCompany("");
+      setQuickAddLinkedInUrl("");
     },
     onError: (error: any) => {
       toast({
@@ -556,6 +558,7 @@ export default function Admin() {
       firstName: quickAddFirstName.trim(),
       lastName: quickAddLastName.trim(),
       company: quickAddCompany.trim(),
+      linkedinUrl: quickAddLinkedInUrl.trim() || undefined
     });
   };
 
@@ -826,7 +829,24 @@ export default function Admin() {
                     data-testid="input-quick-add-company"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Can be current OR previous employer - we'll search for their LinkedIn profile at this company
+                    Can be current OR previous employer - used for email inference
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quick-add-linkedin">
+                    LinkedIn URL <span className="text-muted-foreground font-normal">(recommended)</span>
+                  </Label>
+                  <Input
+                    id="quick-add-linkedin"
+                    placeholder="e.g., https://linkedin.com/in/ping-chen-558ab416"
+                    value={quickAddLinkedInUrl}
+                    onChange={(e) => setQuickAddLinkedInUrl(e.target.value)}
+                    disabled={quickAddMutation.isPending}
+                    data-testid="input-quick-add-linkedin"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Providing the LinkedIn URL ensures accurate profile discovery
                   </p>
                 </div>
 
@@ -839,7 +859,7 @@ export default function Admin() {
                   {quickAddMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Searching and Adding Candidate...
+                      Processing Profile...
                     </>
                   ) : (
                     <>
@@ -850,10 +870,10 @@ export default function Admin() {
                 </Button>
               </div>
 
-              {/* Alternative Methods Note */}
+              {/* How to Find LinkedIn URLs */}
               <div className="bg-muted/50 rounded-lg p-4 text-sm">
                 <p className="text-muted-foreground">
-                  <strong>Can't find the candidate?</strong> If Quick Add doesn't work, use the <strong>Candidate Upload</strong> tab to add candidates with their LinkedIn URL or upload their CV/resume file directly.
+                  <strong>How to find LinkedIn URLs:</strong> Search "[Name] [Company] LinkedIn" in Google, copy the profile URL (e.g., linkedin.com/in/username), and paste it above. This ensures accurate profile discovery and comprehensive data extraction.
                 </p>
               </div>
 

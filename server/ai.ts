@@ -12,6 +12,67 @@ const openai = new OpenAI({
   apiKey: process.env.XAI_API_KEY 
 });
 
+/**
+ * Search for LinkedIn profile using Google search
+ * Returns the LinkedIn profile URL if found
+ */
+async function searchLinkedInProfile(firstName: string, lastName: string, company: string): Promise<string | null> {
+  try {
+    // Construct search query for LinkedIn profile
+    const query = `${firstName} ${lastName} ${company} site:linkedin.com/in`;
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    
+    console.log(`Searching LinkedIn with query: "${query}"`);
+    
+    // Fetch Google search results
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`Google search failed with status: ${response.status}`);
+      return null;
+    }
+    
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    
+    // Extract LinkedIn URLs from search results
+    const linkedinUrls: string[] = [];
+    $('a[href*="linkedin.com/in/"]').each((_, element) => {
+      const href = $(element).attr('href');
+      if (href) {
+        // Google wraps URLs in redirect links, extract the actual URL
+        const match = href.match(/url=([^&]+)/);
+        if (match) {
+          const decodedUrl = decodeURIComponent(match[1]);
+          if (decodedUrl.includes('linkedin.com/in/')) {
+            linkedinUrls.push(decodedUrl);
+          }
+        } else if (href.includes('linkedin.com/in/')) {
+          linkedinUrls.push(href);
+        }
+      }
+    });
+    
+    // Return the first valid LinkedIn profile URL found
+    for (const url of linkedinUrls) {
+      if (url.match(/linkedin\.com\/in\/[\w-]+\/?$/)) {
+        console.log(`Found LinkedIn URL: ${url}`);
+        return url;
+      }
+    }
+    
+    console.log(`No LinkedIn profile found in search results`);
+    return null;
+  } catch (error) {
+    console.error(`Error searching for LinkedIn profile: ${error}`);
+    return null;
+  }
+}
+
 // Using Grok model "grok-2-1212" from xAI for text processing with 131k token context window
 export async function parseJobDescription(jdText: string): Promise<{
   title: string;
@@ -1207,8 +1268,19 @@ export async function searchCandidateProfilesByName(
   
   try {
     // Normalize the optional parameters to null if undefined
-    const normalizedLinkedinUrl = linkedinUrl ?? null;
+    let normalizedLinkedinUrl = linkedinUrl ?? null;
     const normalizedBioUrl = bioUrl ?? null;
+    
+    // If LinkedIn URL not provided, search for it
+    if (!normalizedLinkedinUrl) {
+      console.log(`No LinkedIn URL provided, searching via web search...`);
+      normalizedLinkedinUrl = await searchLinkedInProfile(firstName, lastName, company);
+      if (normalizedLinkedinUrl) {
+        console.log(`✓ Found LinkedIn profile via web search: ${normalizedLinkedinUrl}`);
+      } else {
+        console.log(`✗ Could not find LinkedIn profile via web search`);
+      }
+    }
     
     // If we found at least one URL, extract candidate data
     let candidateData: any = null;
