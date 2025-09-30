@@ -154,7 +154,7 @@ export const candidates = pgTable("candidates", {
   middleName: text("middle_name"),
   preferredName: text("preferred_name"),
   pronouns: text("pronouns"), // he/him, she/her, they/them, etc.
-  email: text("email").notNull().unique(),
+  email: text("email").unique(),
   phoneNumber: text("phone_number"),
   alternatePhone: text("alternate_phone"),
   preferredContactMethod: text("preferred_contact_method"), // email, phone, linkedin

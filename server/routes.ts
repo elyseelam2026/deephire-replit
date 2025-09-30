@@ -918,6 +918,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add candidate by name and company - AI searches for profiles and creates record
+  app.post("/api/admin/add-candidate-by-name", async (req, res) => {
+    try {
+      const { firstName, lastName, company } = req.body;
+      
+      // Validate required fields
+      if (!firstName || !lastName || !company) {
+        return res.status(400).json({ 
+          error: "firstName, lastName, and company are required fields" 
+        });
+      }
+      
+      console.log(`Searching for candidate: ${firstName} ${lastName} at ${company}`);
+      
+      // Use AI to search for candidate profiles (bio page and LinkedIn)
+      const searchResult = await searchCandidateProfilesByName(
+        firstName,
+        lastName,
+        company
+      );
+      
+      // Check if we found profile data
+      if (!searchResult.candidateData) {
+        return res.status(404).json({ 
+          error: `Could not find or generate profile data for ${firstName} ${lastName} at ${company}`,
+          bioUrl: searchResult.bioUrl,
+          linkedinUrl: searchResult.linkedinUrl,
+          message: "Try providing more specific company information or check if the person has public profiles"
+        });
+      }
+      
+      // Create the candidate record (duplicate detection will run automatically)
+      // The duplicate detection service will flag this if it's a duplicate
+      const newCandidate = await storage.createCandidate(searchResult.candidateData);
+      
+      console.log(`Successfully created candidate ${newCandidate.id}: ${firstName} ${lastName}`);
+      
+      res.json({
+        success: true,
+        message: `Successfully added ${firstName} ${lastName} from ${company}`,
+        candidate: newCandidate,
+        bioUrl: searchResult.bioUrl,
+        linkedinUrl: searchResult.linkedinUrl
+      });
+      
+    } catch (error) {
+      console.error("Error adding candidate by name:", error);
+      res.status(500).json({ 
+        error: "Failed to add candidate",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Background job control endpoints
   app.post("/api/admin/jobs/:id/pause", async (req, res) => {
     try {

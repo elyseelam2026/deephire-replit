@@ -303,6 +303,11 @@ function UploadSummaryModal({
 }
 
 export default function Admin() {
+  // Quick Add states
+  const [quickAddFirstName, setQuickAddFirstName] = useState("");
+  const [quickAddLastName, setQuickAddLastName] = useState("");
+  const [quickAddCompany, setQuickAddCompany] = useState("");
+  
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
   const [companyFiles, setCompanyFiles] = useState<FileList | null>(null);
@@ -507,6 +512,52 @@ export default function Admin() {
     },
   });
 
+  // Quick Add candidate by name mutation
+  const quickAddMutation = useMutation({
+    mutationFn: async (data: { firstName: string; lastName: string; company: string }) => {
+      const response = await apiRequest('POST', '/api/admin/add-candidate-by-name', data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Candidate Added",
+        description: `Successfully added ${data.candidate.firstName} ${data.candidate.lastName} from ${data.candidate.currentCompany}`,
+      });
+      
+      // Refresh candidates list
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      
+      // Reset form
+      setQuickAddFirstName("");
+      setQuickAddLastName("");
+      setQuickAddCompany("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Add Candidate",
+        description: error.message || "Could not find or add candidate. Please try with more specific information.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleQuickAdd = () => {
+    if (!quickAddFirstName.trim() || !quickAddLastName.trim() || !quickAddCompany.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide first name, last name, and company.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    quickAddMutation.mutate({
+      firstName: quickAddFirstName.trim(),
+      lastName: quickAddLastName.trim(),
+      company: quickAddCompany.trim(),
+    });
+  };
+
   const handleCandidateUpload = async () => {
     if (!candidateFiles && !candidateUrls.trim()) {
       toast({
@@ -695,8 +746,12 @@ export default function Admin() {
         </div>
       </div>
 
-      <Tabs defaultValue="candidates" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="quick-add" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="quick-add" data-testid="tab-quick-add">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Quick Add
+          </TabsTrigger>
           <TabsTrigger value="candidates" data-testid="tab-candidates">
             <Users className="h-4 w-4 mr-2" />
             Candidate Upload
@@ -714,6 +769,139 @@ export default function Admin() {
             Upload History
           </TabsTrigger>
         </TabsList>
+
+        {/* Quick Add Tab Content */}
+        <TabsContent value="quick-add" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Quick Add Candidate
+              </CardTitle>
+              <CardDescription>
+                Add a candidate by name and company. Our AI will search for their LinkedIn profile and bio page, then automatically generate a comprehensive biography.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="max-w-xl space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="quick-add-first-name">
+                    First Name
+                  </Label>
+                  <Input
+                    id="quick-add-first-name"
+                    placeholder="e.g., John"
+                    value={quickAddFirstName}
+                    onChange={(e) => setQuickAddFirstName(e.target.value)}
+                    disabled={quickAddMutation.isPending}
+                    data-testid="input-quick-add-first-name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quick-add-last-name">
+                    Last Name
+                  </Label>
+                  <Input
+                    id="quick-add-last-name"
+                    placeholder="e.g., Smith"
+                    value={quickAddLastName}
+                    onChange={(e) => setQuickAddLastName(e.target.value)}
+                    disabled={quickAddMutation.isPending}
+                    data-testid="input-quick-add-last-name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quick-add-company">
+                    Current Company
+                  </Label>
+                  <Input
+                    id="quick-add-company"
+                    placeholder="e.g., Bain Capital, Microsoft, Google"
+                    value={quickAddCompany}
+                    onChange={(e) => setQuickAddCompany(e.target.value)}
+                    disabled={quickAddMutation.isPending}
+                    data-testid="input-quick-add-company"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Provide the full company name for best results
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleQuickAdd}
+                  disabled={quickAddMutation.isPending || !quickAddFirstName.trim() || !quickAddLastName.trim() || !quickAddCompany.trim()}
+                  className="w-full"
+                  data-testid="button-quick-add-submit"
+                >
+                  {quickAddMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Searching and Adding Candidate...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Add Candidate
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Information Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                        <Zap className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-sm">AI-Powered Search</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Automatically finds LinkedIn profiles and bio pages
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                        <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-sm">Biography Generation</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Creates comprehensive professional biographies
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-sm">Instant Addition</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Candidate ready in your system immediately
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="candidates" className="space-y-6">
           <Card>
