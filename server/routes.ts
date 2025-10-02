@@ -1277,6 +1277,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save manually entered biography
+  app.post("/api/admin/save-biography/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const { biography, bioSource } = req.body;
+      
+      if (!biography || !biography.trim()) {
+        return res.status(400).json({ error: "Biography is required" });
+      }
+      
+      const updated = await storage.updateCandidate(candidateId, { 
+        biography: biography.trim(),
+        bioSource: bioSource || 'manual',
+        bioStatus: 'verified'
+      });
+      
+      res.json({
+        success: true,
+        candidate: updated
+      });
+      
+    } catch (error) {
+      console.error("Error saving biography:", error);
+      res.status(500).json({ 
+        error: "Failed to save biography",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Background job control endpoints
   app.post("/api/admin/jobs/:id/pause", async (req, res) => {
     try {

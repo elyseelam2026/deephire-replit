@@ -3,8 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit } from "lucide-react";
+import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Candidate } from "@shared/schema";
 import { useState } from "react";
@@ -25,6 +27,8 @@ export default function Candidates() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [candidateToDelete, setCandidateToDelete] = useState<Candidate | null>(null);
+  const [bioDialogOpen, setBioDialogOpen] = useState(false);
+  const [bioText, setBioText] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -57,6 +61,30 @@ export default function Candidates() {
       toast({
         title: "Delete Failed",
         description: error.message || "Failed to delete candidate",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveBiographyMutation = useMutation({
+    mutationFn: async ({ candidateId, biography, bioSource }: { candidateId: number; biography: string; bioSource: string }) => {
+      const response = await apiRequest('POST', `/api/admin/save-biography/${candidateId}`, { biography, bioSource });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      toast({
+        title: "Biography Saved",
+        description: "The biography has been saved successfully.",
+      });
+      setBioDialogOpen(false);
+      setBioText("");
+      setSelectedCandidate(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save biography",
         variant: "destructive",
       });
     },
@@ -607,6 +635,20 @@ export default function Candidates() {
                     <ExternalLink className="h-3 w-3 mr-2" />
                     Verify Biography
                   </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => {
+                      if (!selectedCandidate) return;
+                      setBioText(selectedCandidate.biography || "");
+                      setBioDialogOpen(true);
+                    }}
+                    data-testid={`button-generate-biography-${selectedCandidate.id}`}
+                  >
+                    <FileText className="h-3 w-3 mr-2" />
+                    {selectedCandidate.biography ? "Edit Biography" : "Add Biography"}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -634,6 +676,70 @@ export default function Candidates() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Biography Entry Dialog */}
+      <Dialog open={bioDialogOpen} onOpenChange={setBioDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedCandidate?.biography ? "Edit Biography" : "Add Biography"}
+            </DialogTitle>
+            <DialogDescription>
+              Enter or paste the candidate's professional biography. You can manually type it or copy it from their LinkedIn profile after verifying it's the correct person.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="biography-text">Biography</Label>
+              <Textarea
+                id="biography-text"
+                placeholder="Enter professional biography here..."
+                value={bioText}
+                onChange={(e) => setBioText(e.target.value)}
+                rows={12}
+                className="resize-none"
+                data-testid="textarea-biography"
+              />
+              <p className="text-xs text-muted-foreground">
+                This biography will be marked as manually entered. Make sure to verify the LinkedIn profile first.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBioDialogOpen(false);
+                  setBioText("");
+                }}
+                data-testid="button-cancel-biography"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!selectedCandidate || !bioText.trim()) {
+                    toast({
+                      title: "Biography Required",
+                      description: "Please enter a biography before saving",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  saveBiographyMutation.mutate({
+                    candidateId: selectedCandidate.id,
+                    biography: bioText.trim(),
+                    bioSource: "manual"
+                  });
+                }}
+                disabled={saveBiographyMutation.isPending || !bioText.trim()}
+                data-testid="button-save-biography"
+              >
+                {saveBiographyMutation.isPending ? "Saving..." : "Save Biography"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
