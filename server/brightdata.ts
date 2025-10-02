@@ -136,8 +136,10 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, 
           // DEBUG: Log ALL field names in the raw data
           console.log(`[Bright Data] RAW DATA STRUCTURE - All fields present:`);
           console.log(JSON.stringify(Object.keys(profileData), null, 2));
-          console.log(`[Bright Data] SAMPLE RAW DATA (first 500 chars):`);
-          console.log(JSON.stringify(profileData, null, 2).substring(0, 500));
+          console.log(`[Bright Data] CRITICAL FIELDS DETAILED:`);
+          console.log(`  - experience type: ${typeof profileData.experience}, isArray: ${Array.isArray(profileData.experience)}, value:`, JSON.stringify(profileData.experience).substring(0, 300));
+          console.log(`  - education type: ${typeof profileData.education}, isArray: ${Array.isArray(profileData.education)}, value:`, JSON.stringify(profileData.education).substring(0, 300));
+          console.log(`  - current_company type: ${typeof profileData.current_company}, value:`, JSON.stringify(profileData.current_company).substring(0, 200));
           
           return profileData as LinkedInProfileData;
         } else {
