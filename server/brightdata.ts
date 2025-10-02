@@ -198,7 +198,7 @@ export async function generateBiographyFromLinkedInData(profileData: LinkedInPro
       return `${idx + 1}. ${cert.name || 'Certification'} from ${cert.issuing_organization || 'Organization'}`;
     }).join('\n') || 'No certifications available';
 
-    const prompt = `You are a professional biography writer for executive recruitment. Based on the LinkedIn profile data provided, write a comprehensive 2-3 paragraph professional biography.
+    const prompt = `You are a professional biography writer for executive recruitment. Based on the LinkedIn profile data provided, write a comprehensive professional biography with three clear sections.
 
 **Profile Information:**
 Name: ${profileData.name || 'Unknown'}
@@ -219,16 +219,39 @@ ${certificationsSummary}
 **Languages:** ${profileData.languages?.join(', ') || 'Not specified'}
 **Recommendations:** ${profileData.recommendations_count || 0}
 
-**Instructions:**
-- Write a professional, third-person biography suitable for executive profiles
-- Focus on career progression, key achievements, and areas of expertise
-- Highlight leadership roles, significant projects, and industry impact
-- Keep it concise but comprehensive (2-3 paragraphs)
-- Use professional language appropriate for B2B recruiting
-- DO NOT fabricate information - only use data provided above
-- If certain details are missing, work with what's available
+**REQUIRED BIOGRAPHY STRUCTURE:**
 
-Return ONLY the biography text, no additional formatting or metadata.`;
+Write the biography in exactly this format:
+
+**Executive Summary**
+[Write 2-3 sentences summarizing their current role, core expertise, and key professional strengths. Focus on their primary areas of specialization and what makes them valuable as an executive.]
+
+**Career History**
+[Write a detailed chronological account of their professional journey, starting from their MOST RECENT position and working backwards to their FIRST position. For each role, describe:
+- The company and their title
+- Key responsibilities and achievements
+- Duration of the role (if available)
+- Notable projects or impact
+Structure this as flowing prose, not bullet points. Make sure to go from newest to oldest positions.]
+
+**Education Background**
+[List their educational credentials in detail, including:
+- Degrees earned and field of study
+- Universities/institutions attended
+- Any notable certifications or professional qualifications
+- Relevant academic achievements or honors if mentioned]
+
+**CRITICAL INSTRUCTIONS:**
+- Write in professional, third-person voice
+- Use complete sentences and flowing prose (not bullet points)
+- Present career history in REVERSE chronological order (most recent first, earliest last)
+- DO NOT fabricate any information - only use data provided above
+- If certain details are missing from a section, work with what's available but maintain the three-section structure
+- Use professional language appropriate for B2B executive recruiting
+- Keep each section substantive and detailed
+- Include section headers exactly as shown above
+
+Return ONLY the biography text with the three sections. Do not add any preamble or metadata.`;
 
     const response = await client.chat.completions.create({
       model: "grok-2-1212",
@@ -239,7 +262,7 @@ Return ONLY the biography text, no additional formatting or metadata.`;
         }
       ],
       temperature: 0.7,
-      max_tokens: 1000
+      max_tokens: 2500
     });
 
     const biography = response.choices[0].message.content?.trim() || '';
