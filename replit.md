@@ -8,6 +8,22 @@ The application features a multi-portal architecture with role-based interfaces,
 
 ## Recent Changes
 
+### October 2, 2025
+- **QA Validation System**: Implemented comprehensive manual validation tools for candidate data verification
+  - Added three validation endpoints: `/api/admin/validate-email`, `/api/admin/validate-linkedin`, `/api/admin/validate-biography`
+  - "Verify Email" button re-researches company domain using SerpAPI, shows before/after comparison, allows one-click update
+  - "Verify LinkedIn URL" button searches for candidate profile using SerpAPI, compares URLs, enables correction
+  - "Verify Biography" button opens LinkedIn profile in new tab for manual comparison (LinkedIn blocks automation)
+  - Update endpoints: `/api/admin/update-candidate-email`, `/api/admin/update-candidate-linkedin` for accepting suggested changes
+  - UI integration: Validation buttons appear in candidate detail dialog with browser confirm() dialogs for comparisons
+  - Successfully tested with Christian Brun and other candidates
+- **Enhanced Domain Validation Logic**: Improved company email domain detection with relevance scoring
+  - Extracts company name keywords, filters common words (company, inc, ltd, group)
+  - Scores domains based on keyword matches, exact name alignment, and position in search results
+  - Minimum relevance threshold (score ≥5) prevents low-quality domain matches
+  - Returns null when no suitable domain found, preventing incorrect email generation
+  - Fixed Christian Brun's email validation to correctly use c.brun@wellesleys.com domain
+
 ### September 30, 2025
 - **Boolean Search Functionality**: Implemented advanced LinkedIn search for Quick Add with multi-result selection
   - Added textarea field accepting complex boolean queries (AND, OR, NOT operators with site:linkedin.com/in filter)
