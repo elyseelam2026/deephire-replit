@@ -54,7 +54,11 @@ export async function scrapeLinkedInProfile(linkedinUrl: string): Promise<Linked
   const endpoint = `${BRIGHTDATA_BASE_URL}/trigger`;
   
   const requestBody = [{
-    url: linkedinUrl
+    url: linkedinUrl,
+    include_skills: true,
+    include_certifications: true,
+    include_accomplishments: true,
+    include_people_also_viewed: false
   }];
 
   console.log(`[Bright Data] Scraping LinkedIn profile: ${linkedinUrl}`);
