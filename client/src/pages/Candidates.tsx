@@ -421,6 +421,166 @@ export default function Candidates() {
                   </Badge>
                 </div>
               )}
+              
+              {/* QA Validation Section */}
+              <div className="border-t pt-6">
+                <h4 className="font-medium text-sm mb-4">QA Validation</h4>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      if (!selectedCandidate) return;
+                      try {
+                        const response = await fetch(`/api/admin/validate-email/${selectedCandidate.id}`, {
+                          method: 'POST',
+                        });
+                        const result = await response.json();
+                        
+                        if (result.success && result.suggestedEmail && !result.isMatch) {
+                          const confirmed = window.confirm(
+                            `Email Validation Result:\n\n` +
+                            `Current: ${result.currentEmail}\n` +
+                            `Suggested: ${result.suggestedEmail}\n\n` +
+                            `Would you like to update to the suggested email?`
+                          );
+                          
+                          if (confirmed) {
+                            const updateResponse = await fetch(`/api/admin/update-candidate-email/${selectedCandidate.id}`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ email: result.suggestedEmail })
+                            });
+                            
+                            if (updateResponse.ok) {
+                              queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+                              toast({
+                                title: "Email Updated",
+                                description: `Email updated to ${result.suggestedEmail}`,
+                              });
+                              setSelectedCandidate(null);
+                            }
+                          }
+                        } else if (result.isMatch) {
+                          toast({
+                            title: "Email Verified",
+                            description: "Email is correct!",
+                          });
+                        } else {
+                          toast({
+                            title: "Could Not Validate",
+                            description: result.message || "Unable to determine company email domain",
+                            variant: "destructive",
+                          });
+                        }
+                      } catch (error) {
+                        toast({
+                          title: "Validation Failed",
+                          description: "Failed to validate email",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    data-testid={`button-verify-email-${selectedCandidate.id}`}
+                  >
+                    <Mail className="h-3 w-3 mr-2" />
+                    Verify Email
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      if (!selectedCandidate) return;
+                      try {
+                        const response = await fetch(`/api/admin/validate-linkedin/${selectedCandidate.id}`, {
+                          method: 'POST',
+                        });
+                        const result = await response.json();
+                        
+                        if (result.success && result.suggestedLinkedinUrl && !result.isMatch) {
+                          const confirmed = window.confirm(
+                            `LinkedIn URL Validation Result:\n\n` +
+                            `Current: ${result.currentLinkedinUrl}\n` +
+                            `Suggested: ${result.suggestedLinkedinUrl}\n\n` +
+                            `Would you like to update to the suggested URL?`
+                          );
+                          
+                          if (confirmed) {
+                            const updateResponse = await fetch(`/api/admin/update-candidate-linkedin/${selectedCandidate.id}`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ linkedinUrl: result.suggestedLinkedinUrl })
+                            });
+                            
+                            if (updateResponse.ok) {
+                              queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+                              toast({
+                                title: "LinkedIn URL Updated",
+                                description: "LinkedIn profile URL has been updated",
+                              });
+                              setSelectedCandidate(null);
+                            }
+                          }
+                        } else if (result.isMatch) {
+                          toast({
+                            title: "LinkedIn URL Verified",
+                            description: "LinkedIn URL is correct!",
+                          });
+                        } else {
+                          toast({
+                            title: "Could Not Validate",
+                            description: "Unable to find alternative LinkedIn profile",
+                            variant: "destructive",
+                          });
+                        }
+                      } catch (error) {
+                        toast({
+                          title: "Validation Failed",
+                          description: "Failed to validate LinkedIn URL",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    data-testid={`button-verify-linkedin-${selectedCandidate.id}`}
+                  >
+                    <Linkedin className="h-3 w-3 mr-2" />
+                    Verify LinkedIn URL
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      if (!selectedCandidate) return;
+                      try {
+                        const response = await fetch(`/api/admin/validate-biography/${selectedCandidate.id}`, {
+                          method: 'POST',
+                        });
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                          window.open(result.linkedinUrl, '_blank');
+                          toast({
+                            title: "Manual Verification Required",
+                            description: result.note || "Please manually compare biography with LinkedIn profile",
+                          });
+                        }
+                      } catch (error) {
+                        toast({
+                          title: "Validation Failed",
+                          description: "Failed to validate biography",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    data-testid={`button-verify-biography-${selectedCandidate.id}`}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-2" />
+                    Verify Biography
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>

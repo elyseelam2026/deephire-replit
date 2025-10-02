@@ -71,7 +71,7 @@ function scoreDomainRelevance(domain: string, companyKeywords: string[]): number
  * Research company domain and email pattern using web search
  * Returns domain and email pattern format
  */
-async function researchCompanyEmailPattern(companyName: string): Promise<{
+export async function researchCompanyEmailPattern(companyName: string): Promise<{
   domain: string | null;
   emailPattern: string | null;
 }> {
@@ -266,7 +266,7 @@ function generateEmailAddress(
  * Search for LinkedIn profile using SerpAPI (reliable Google search API)
  * Returns the LinkedIn profile URL if found
  */
-async function searchLinkedInProfile(firstName: string, lastName: string, company: string, jobTitle?: string | null): Promise<string | null> {
+export async function searchLinkedInProfile(firstName: string, lastName: string, company: string, jobTitle?: string | null): Promise<string | null> {
   try {
     const apiKey = process.env.SERPAPI_API_KEY;
     

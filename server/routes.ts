@@ -6,7 +6,7 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 import { storage } from "./storage";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile } from "./ai";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { duplicateDetectionService } from "./duplicate-detection";
@@ -1084,6 +1084,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error adding candidate by name:", error);
       res.status(500).json({ 
         error: "Failed to add candidate",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Validation endpoints for QA/verification
+  app.post("/api/admin/validate-email/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+      
+      if (!candidate.currentCompany) {
+        return res.status(400).json({ error: "Candidate has no company information" });
+      }
+      
+      // Re-research company domain and email pattern
+      const emailInfo = await researchCompanyEmailPattern(candidate.currentCompany);
+      
+      if (!emailInfo.domain || !emailInfo.emailPattern) {
+        return res.json({
+          success: false,
+          message: "Could not determine company email domain",
+          currentEmail: candidate.email,
+          suggestedEmail: null
+        });
+      }
+      
+      // Generate new email based on researched info
+      const first = candidate.firstName.toLowerCase();
+      const last = candidate.lastName.toLowerCase();
+      const firstInitial = first.charAt(0);
+      
+      let localPart: string;
+      switch (emailInfo.emailPattern) {
+        case 'f.lastname':
+          localPart = `${firstInitial}.${last}`;
+          break;
+        case 'firstnamelastname':
+          localPart = `${first}${last}`;
+          break;
+        case 'firstname.lastname':
+        default:
+          localPart = `${first}.${last}`;
+          break;
+      }
+      
+      const suggestedEmail = `${localPart}@${emailInfo.domain}`;
+      
+      res.json({
+        success: true,
+        currentEmail: candidate.email,
+        suggestedEmail,
+        domain: emailInfo.domain,
+        pattern: emailInfo.emailPattern,
+        isMatch: candidate.email === suggestedEmail
+      });
+      
+    } catch (error) {
+      console.error("Error validating email:", error);
+      res.status(500).json({ 
+        error: "Failed to validate email",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.post("/api/admin/validate-linkedin/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+      
+      if (!candidate.linkedinUrl) {
+        return res.status(400).json({ error: "Candidate has no LinkedIn URL" });
+      }
+      
+      // Search for LinkedIn profile to verify
+      const suggestedUrl = await searchLinkedInProfile(
+        candidate.firstName,
+        candidate.lastName,
+        candidate.currentCompany || '',
+        candidate.currentTitle
+      );
+      
+      res.json({
+        success: true,
+        currentLinkedinUrl: candidate.linkedinUrl,
+        suggestedLinkedinUrl: suggestedUrl,
+        isMatch: candidate.linkedinUrl === suggestedUrl,
+        confidence: suggestedUrl ? "high" : "low"
+      });
+      
+    } catch (error) {
+      console.error("Error validating LinkedIn URL:", error);
+      res.status(500).json({ 
+        error: "Failed to validate LinkedIn URL",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.post("/api/admin/validate-biography/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+      
+      if (!candidate.linkedinUrl) {
+        return res.status(400).json({ error: "Candidate has no LinkedIn URL to verify against" });
+      }
+      
+      // Note: We cannot actually scrape LinkedIn content due to blocking
+      // This endpoint will return a message explaining the limitation
+      res.json({
+        success: true,
+        message: "Biography validation requires manual review",
+        note: "LinkedIn blocks automated content access. Please manually verify the biography by visiting the LinkedIn profile.",
+        currentBiography: candidate.biography || "No biography available",
+        linkedinUrl: candidate.linkedinUrl,
+        suggestion: "Open the LinkedIn profile and compare the generated biography with the actual profile information"
+      });
+      
+    } catch (error) {
+      console.error("Error validating biography:", error);
+      res.status(500).json({ 
+        error: "Failed to validate biography",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Update candidate email after validation
+  app.post("/api/admin/update-candidate-email/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+      
+      const updated = await storage.updateCandidate(candidateId, { email });
+      
+      res.json({
+        success: true,
+        candidate: updated
+      });
+      
+    } catch (error) {
+      console.error("Error updating candidate email:", error);
+      res.status(500).json({ 
+        error: "Failed to update email",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Update candidate LinkedIn URL after validation
+  app.post("/api/admin/update-candidate-linkedin/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const { linkedinUrl } = req.body;
+      
+      if (!linkedinUrl) {
+        return res.status(400).json({ error: "LinkedIn URL is required" });
+      }
+      
+      const updated = await storage.updateCandidate(candidateId, { linkedinUrl });
+      
+      res.json({
+        success: true,
+        candidate: updated
+      });
+      
+    } catch (error) {
+      console.error("Error updating candidate LinkedIn URL:", error);
+      res.status(500).json({ 
+        error: "Failed to update LinkedIn URL",
         details: error instanceof Error ? error.message : "Unknown error"
       });
     }
