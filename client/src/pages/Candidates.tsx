@@ -317,7 +317,15 @@ export default function Candidates() {
               <div className="grid grid-cols-2 gap-4">
                 {selectedCandidate.email && (
                   <div>
-                    <h4 className="font-medium text-sm">Email</h4>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      Email
+                      {(selectedCandidate as any).emailStatus === 'inferred' && (
+                        <Badge variant="secondary" className="text-xs">Inferred</Badge>
+                      )}
+                      {(selectedCandidate as any).emailStatus === 'verified' && (
+                        <Badge variant="default" className="text-xs">Verified</Badge>
+                      )}
+                    </h4>
                     <p className="text-muted-foreground">{selectedCandidate.email}</p>
                   </div>
                 )}
@@ -394,14 +402,34 @@ export default function Candidates() {
               </div>
               
               {/* Professional Biography */}
-              {selectedCandidate.biography && (
-                <div>
-                  <h4 className="font-medium text-sm mb-2">Professional Biography</h4>
+              <div>
+                <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                  Professional Biography
+                  {(selectedCandidate as any).bioStatus === 'not_provided' && (
+                    <Badge variant="secondary" className="text-xs">Not Provided</Badge>
+                  )}
+                  {(selectedCandidate as any).bioStatus === 'inferred' && (
+                    <Badge variant="secondary" className="text-xs">AI Generated</Badge>
+                  )}
+                  {(selectedCandidate as any).bioStatus === 'verified' && (
+                    <Badge variant="default" className="text-xs">Verified</Badge>
+                  )}
+                </h4>
+                {selectedCandidate.biography ? (
                   <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-biography-${selectedCandidate.id}`}>
                     {selectedCandidate.biography}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed">
+                    <p className="text-muted-foreground text-sm mb-2">
+                      No biography available. 
+                      {selectedCandidate.linkedinUrl && (
+                        <span> Click the LinkedIn link above to view their full profile and manually add biographical information if needed.</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
               
               {/* Career Summary */}
               {selectedCandidate.careerSummary && (
