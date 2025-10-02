@@ -2,91 +2,7 @@
 
 ## Overview
 
-DeepHire is an enterprise-grade B2B recruiting platform that leverages AI to revolutionize talent acquisition. The system provides intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows for recruiting firms and their clients. The platform serves three distinct user types: admin users (recruiters), client companies posting jobs, and candidates seeking opportunities.
-
-The application features a multi-portal architecture with role-based interfaces, AI-powered candidate longlisting using advanced language models, and comprehensive candidate and job management systems. Built with modern web technologies, it emphasizes enterprise-level design patterns, professional aesthetics, and data-heavy interfaces optimized for recruitment workflows.
-
-## Recent Changes
-
-### October 2, 2025
-- **Critical Fixes for Email and LinkedIn Accuracy**: Fixed domain selection and Bright Data parsing bugs
-  - **Fixed Email Domain Selection**: Now prefers root domains over subdomains (digitalchina.com NOT en.digitalchina.com)
-    - Added -15 point penalty for subdomains (en., www2., etc.) in scoring algorithm
-    - Prevents incorrect email generation like p.chen@en.digitalchina.com
-    - Correctly generates p.chen@digitalchina.com using company's primary domain
-  - **Fixed Bright Data Response Parsing**: Handles both response formats (array and wrapped)
-    - Bright Data returns direct array format: `[{id, name, experience...}]`
-    - Previous code only checked for wrapped format: `{status: 'ready', data: [...]}`
-    - Now correctly detects profile data and stops polling when data is ready
-  - **LinkedIn Search Accuracy**: Job title field improves matching for common names
-    - Quick Add form has optional "Job Title" field (e.g., CFO, Managing Director)
-    - Including job title makes LinkedIn search more accurate: "Ping Chen" + "Digital China" + "CFO"
-    - Without job title, system may find wrong person with same name at same company
-- **Fully Automated End-to-End Biography Generation**: Implemented complete workflow from name+company to generated biography
-  - **Complete Automation Chain**: Quick Add (name + company) → SerpAPI finds LinkedIn URL → Bright Data scrapes profile → Grok AI generates biography → Saves automatically
-  - Created `server/brightdata.ts` module with Bright Data API client for LinkedIn profile scraping
-  - Modified POST `/api/admin/add-candidate-by-name` to automatically trigger biography generation after creating candidate
-  - Integrated Grok AI to generate professional 2-3 paragraph biographies from scraped LinkedIn data
-  - Biography saved with bioSource="brightdata", bioStatus="verified" for data provenance tracking
-  - Polling mechanism with 60 attempts over 3 minutes to handle Bright Data async scraping
-  - Manual "Auto-Generate Biography" button also available in candidate detail for on-demand generation
-  - Enhanced error handling: biography generation failures don't block candidate creation
-  - Comprehensive logging for debugging scraping issues
-- **Manual Biography Entry**: Added human-verified biography workflow alongside automated generation
-  - "Add Biography Manually" button opens dialog for manual text entry
-  - Large textarea (12 rows) for typing or pasting biography from verified LinkedIn profile
-  - Biography saved with bioSource="manual", bioStatus="verified"
-  - Pre-fills existing biography when editing
-  - Supports both automated (Bright Data) and manual entry workflows
-- **QA Validation System**: Implemented comprehensive manual validation tools for candidate data verification
-  - Added three validation endpoints: `/api/admin/validate-email`, `/api/admin/validate-linkedin`, `/api/admin/validate-biography`
-  - "Verify Email" button re-researches company domain using SerpAPI, shows before/after comparison, allows one-click update
-  - "Verify LinkedIn URL" button searches for candidate profile using SerpAPI, compares URLs, enables correction
-  - "Verify Biography" button opens LinkedIn profile in new tab for manual comparison (LinkedIn blocks automation)
-  - Update endpoints: `/api/admin/update-candidate-email`, `/api/admin/update-candidate-linkedin` for accepting suggested changes
-  - UI integration: Validation buttons appear in candidate detail dialog with browser confirm() dialogs for comparisons
-  - Successfully tested with Christian Brun and other candidates
-- **Enhanced Domain Validation Logic**: Improved company email domain detection with relevance scoring
-  - Extracts company name keywords, filters common words (company, inc, ltd, group)
-  - Scores domains based on keyword matches, exact name alignment, and position in search results
-  - Minimum relevance threshold (score ≥5) prevents low-quality domain matches
-  - Returns null when no suitable domain found, preventing incorrect email generation
-  - Fixed Christian Brun's email validation to correctly use c.brun@wellesleys.com domain
-
-### September 30, 2025
-- **Boolean Search Functionality**: Implemented advanced LinkedIn search for Quick Add with multi-result selection
-  - Added textarea field accepting complex boolean queries (AND, OR, NOT operators with site:linkedin.com/in filter)
-  - Created `/api/admin/boolean-search` endpoint using SerpAPI to execute custom search queries
-  - Displays up to 10 search results as selectable cards showing name, title, company, LinkedIn URL
-  - Fixed company extraction logic with fallback chain: result.company → result.title → "Unknown Company"
-  - Successfully tested with query "software engineer AND Python AND Microsoft site:linkedin.com/in"
-  - User selects desired candidate from results → system creates candidate with LinkedIn URL stored
-- **SerpAPI Integration for Automated LinkedIn Discovery**: Implemented fully automated LinkedIn profile discovery using SerpAPI (no manual URL input required)
-  - Replaces unreliable Google scraping with production-ready SerpAPI REST API
-  - Successfully tested with real candidates (famous: Satya Nadella at Microsoft; regular: Herman Yu at Baidu)
-  - Fixed URL extraction pattern for broader LinkedIn profile detection
-- **Simplified LinkedIn Storage Approach** (Based on user feedback):
-  - When LinkedIn URL found via SerpAPI → Store it immediately → Done!
-  - Removed unreliable content fetching (LinkedIn blocks most requests anyway)
-  - Mimics human workflow: Find URL, store it, let recruiters click it later
-  - Generates profile with LinkedIn URL and inferred email (e.g., herman.yu@baidu.com)
-- **Quick Add UI Simplification**: Removed manual LinkedIn URL input field
-  - Admin provides only: First Name, Last Name, Company
-  - System automatically discovers LinkedIn profile via SerpAPI
-  - Updated loading state: "Finding Profile & Generating Biography..."
-  - Clear "How it works" guidance for fully automated workflow
-- **LinkedIn URL Corrections**: Fixed incorrect LinkedIn profile URLs for Jen Fox, Brian Fulginiti, Iris Fuli, Kevin Gallagher, Ben Gallagher, and Alexis Gajwani using web search to find accurate profile identifiers
-- **UI Scrolling Fix**: Resolved candidate list scrolling issue by changing main container from overflow-hidden to overflow-y-auto, enabling visibility of all 17+ candidates
-- **Search Functionality Verified**: Confirmed candidate search feature working correctly across firstName, lastName, currentTitle, and currentCompany fields with case-insensitive matching
-- **End-to-End Testing**: Validated all fixes through automated Playwright tests confirming LinkedIn URLs, scrolling behavior, and search accuracy
-
-### September 29, 2025
-- **Enhanced Enterprise Schema**: Applied comprehensive database schema with 50+ candidate fields and 40+ company fields covering identity, professional background, preferences, compliance, and recruiting metadata
-- **Fixed Critical Storage Interface**: Resolved all TypeScript compatibility issues with updated schema structures including proper type definitions and query optimizations
-- **Database Migration Success**: Successfully applied all schema changes using drizzle-kit push with comprehensive enterprise fields
-- **LinkedIn URL Parsing Fixed**: Resolved critical issue preventing extraction of candidate data from LinkedIn profile URLs in Excel/CSV uploads
-- **Storage Interface Updates**: Updated all CRUD operations to work with new comprehensive schema while maintaining backward compatibility
-- **Query Optimization**: Fixed complex query builder issues for data ingestion jobs and duplicate detection workflows
+DeepHire is an enterprise-grade B2B recruiting platform that uses AI to revolutionize talent acquisition. It offers intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows for recruiting firms and their clients. The platform supports three user types: admin (recruiters), client companies, and candidates, featuring a multi-portal architecture, AI-powered candidate longlisting, and comprehensive management systems for candidates and jobs. The project emphasizes enterprise-level design, professional aesthetics, and data-heavy interfaces optimized for recruitment.
 
 ## User Preferences
 
@@ -95,68 +11,71 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend Architecture
-- **Framework**: React 18 with TypeScript for type safety and modern development practices
-- **Build System**: Vite for fast development and optimized production builds
-- **UI Library**: Radix UI primitives with shadcn/ui components for accessible, customizable interface elements
-- **Styling**: Tailwind CSS with custom design system featuring enterprise-focused color palette and spacing
-- **State Management**: TanStack Query for server state management and API data synchronization
-- **Routing**: Wouter for lightweight client-side routing
-- **Theme System**: Dark/light mode support with CSS custom properties
+- **Framework**: React 18 with TypeScript.
+- **Build System**: Vite.
+- **UI Library**: Radix UI primitives with shadcn/ui components.
+- **Styling**: Tailwind CSS with a custom enterprise-focused design system.
+- **State Management**: TanStack Query for server state.
+- **Routing**: Wouter.
+- **Theme System**: Dark/light mode support.
 
 ### Backend Architecture
-- **Runtime**: Node.js with Express.js framework for RESTful API endpoints
-- **Language**: TypeScript throughout for consistent typing and development experience
-- **File Handling**: Multer middleware for job description and CV file uploads
-- **AI Integration**: xAI's Grok model for job description parsing and candidate matching intelligence
-- **Session Management**: Express sessions with PostgreSQL session store
+- **Runtime**: Node.js with Express.js.
+- **Language**: TypeScript.
+- **File Handling**: Multer for uploads.
+- **AI Integration**: xAI's Grok model for job description parsing and candidate matching.
+- **Session Management**: Express sessions with PostgreSQL store.
 
 ### Database Design
-- **Primary Database**: PostgreSQL with Neon serverless hosting
-- **ORM**: Drizzle ORM for type-safe database operations and schema management
-- **Enterprise Schema**: Comprehensive data models with 50+ candidate fields and 40+ company fields
-- **Schema Structure**:
-  - **Companies table**: Enterprise-grade client organizations with comprehensive business data including legal structure, financial information, compliance, and operational details
-  - **Candidates table**: Professional profiles with extensive fields covering identity, experience, skills, preferences, legal status, and recruiting metadata
-  - **Jobs table**: Job postings with AI-parsed structured data and enhanced requirements tracking
-  - **Job matches table**: AI-generated candidate-job compatibility scores with application tracking
-  - **Users table**: Authentication and role management for multi-tenant access
-  - **Data ingestion jobs**: Batch processing tracking for Excel/CSV uploads
-  - **Duplicate detection**: Intelligent duplicate prevention with manual resolution workflows
+- **Primary Database**: PostgreSQL with Neon serverless hosting.
+- **ORM**: Drizzle ORM for type-safe operations.
+- **Enterprise Schema**: Comprehensive data models for Companies (50+ fields), Candidates (40+ fields), Jobs, Job matches, Users, Data ingestion jobs, and Duplicate detection.
 
 ### AI and Machine Learning
-- **Language Model**: xAI Grok-2-1212 with 131k token context window for comprehensive text processing
-- **Job Description Parsing**: Automated extraction of job titles, departments, skills, urgency levels, and requirements
-- **Candidate Matching**: Intelligent longlist generation based on skills alignment and job requirements
-- **Response Format**: Structured JSON output for consistent data processing
+- **Language Model**: xAI Grok-2-1212 with 131k token context window.
+- **Capabilities**: Automated job description parsing (titles, skills, requirements) and intelligent candidate longlist generation.
+- **Response Format**: Structured JSON output.
 
 ### Design System
-- **Design Philosophy**: Enterprise-first approach balancing professionalism with modern usability
-- **Color Palette**: Deep navy primary (HSL 220 85% 25%) for trust, professional green accents
-- **Typography**: Inter font family for readability and professional appearance
-- **Component Library**: Comprehensive set of reusable components including data tables, cards, forms, and navigation elements
-- **Layout System**: Tailwind spacing units (4, 6, 8) for consistent visual hierarchy
+- **Design Philosophy**: Enterprise-first, professional, and usable.
+- **Color Palette**: Deep navy primary, professional green accents.
+- **Typography**: Inter font family.
+- **Component Library**: Reusable components for data tables, cards, forms, navigation.
+- **Layout System**: Tailwind spacing units for consistent hierarchy.
+
+### Technical Implementations
+- **LinkedIn Profile Validation**: Multi-result scoring algorithm with confidence threshold using SerpAPI for accurate LinkedIn profile matching.
+- **Automated Biography Generation**: Full workflow from name+company to generated biography using SerpAPI for LinkedIn discovery, Bright Data for scraping, and Grok AI for generation.
+- **Manual Biography Entry**: Allows human-verified biography input.
+- **QA Validation System**: Tools for manual validation of email, LinkedIn, and biography data.
+- **Boolean Search Functionality**: Advanced LinkedIn search for Quick Add using SerpAPI, displaying multiple selectable results.
+- **Email Pattern Research**: `researchCompanyEmailPattern()` function researches company email patterns via SerpAPI.
+- **Subdomain Detection Improvements**: Enhanced handling of multi-part TLDs and known subdomain prefixes.
+- **Enhanced Domain Validation Logic**: Improved company email domain detection with relevance scoring.
 
 ## External Dependencies
 
 ### AI Services
-- **xAI Grok API**: Advanced language model for job description parsing and candidate matching with 131k context window
-- **API Integration**: RESTful communication with structured JSON responses for consistent data processing
+- **xAI Grok API**: For job description parsing and candidate matching.
+
+### Data Services
+- **SerpAPI**: For search engine results, LinkedIn profile discovery, and email pattern research.
+- **Bright Data**: For LinkedIn profile scraping.
 
 ### Database and Storage
-- **Neon PostgreSQL**: Serverless PostgreSQL database with connection pooling and automatic scaling
-- **Drizzle ORM**: Type-safe database operations with migration support and schema validation
+- **Neon PostgreSQL**: Serverless PostgreSQL database.
+- **Drizzle ORM**: For database interactions.
 
 ### Email Services
-- **SendGrid**: Transactional email delivery for candidate outreach and system notifications
-- **Email Templates**: Structured communication for recruitment workflows
+- **SendGrid**: For transactional email delivery.
 
 ### Development Infrastructure
-- **Replit Environment**: Cloud-based development platform with integrated database provisioning
-- **Vite Development Server**: Hot module replacement and fast refresh for efficient development
-- **TypeScript Compiler**: Static type checking across frontend, backend, and shared modules
+- **Replit Environment**: Cloud-based development.
+- **Vite Development Server**: For local development.
+- **TypeScript Compiler**: For type checking.
 
 ### UI and Component Libraries
-- **Radix UI**: Accessible, unstyled component primitives for complex UI patterns
-- **Lucide Icons**: Consistent icon set optimized for professional interfaces
-- **Tailwind CSS**: Utility-first styling with custom design system integration
-- **shadcn/ui**: Pre-built component library built on Radix primitives with enterprise theming
+- **Radix UI**: Accessible component primitives.
+- **Lucide Icons**: Consistent icon set.
+- **Tailwind CSS**: Utility-first styling.
+- **shadcn/ui**: Pre-built components.

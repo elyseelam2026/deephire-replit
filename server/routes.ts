@@ -1075,19 +1075,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // AUTOMATIC BIOGRAPHY GENERATION: If LinkedIn URL exists, trigger Bright Data scraping
       if (newCandidate.linkedinUrl) {
-        console.log(`[Auto Biography] Triggering automatic biography generation for candidate ${newCandidate.id}`);
+        console.log(`\n========================================`);
+        console.log(`[Auto Biography] START - Candidate ${newCandidate.id}: ${firstName} ${lastName}`);
+        console.log(`[Auto Biography] LinkedIn URL: ${newCandidate.linkedinUrl}`);
+        console.log(`========================================`);
         
         try {
           // Step 1: Scrape LinkedIn profile using Bright Data
-          console.log(`[Auto Biography] Scraping LinkedIn profile: ${newCandidate.linkedinUrl}`);
+          console.log(`[Auto Biography] STEP 1: Initiating Bright Data scraping...`);
           const profileData = await scrapeLinkedInProfile(newCandidate.linkedinUrl);
+          console.log(`[Auto Biography] STEP 1 COMPLETE: Profile data received`);
+          console.log(`[Auto Biography] Profile data keys: ${Object.keys(profileData).join(', ')}`);
           
           // Step 2: Generate biography from scraped data using Grok AI
-          console.log(`[Auto Biography] Generating biography from LinkedIn data`);
+          console.log(`[Auto Biography] STEP 2: Generating biography from LinkedIn data...`);
           const biography = await generateBiographyFromLinkedInData(profileData);
+          console.log(`[Auto Biography] STEP 2 COMPLETE: Biography generated (${biography.length} chars)`);
           
           // Step 3: Save biography to candidate record
-          console.log(`[Auto Biography] Saving biography to candidate ${newCandidate.id}`);
+          console.log(`[Auto Biography] STEP 3: Saving biography to candidate ${newCandidate.id}...`);
           const updatedCandidate = await storage.updateCandidate(newCandidate.id, {
             biography,
             bioSource: 'brightdata',
@@ -1096,16 +1102,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           if (updatedCandidate) {
             newCandidate = updatedCandidate;
-            console.log(`[Auto Biography] ✓ Biography successfully auto-generated and saved`);
+            console.log(`[Auto Biography] STEP 3 COMPLETE: Biography saved successfully`);
+            console.log(`\n========================================`);
+            console.log(`[Auto Biography] ✓ SUCCESS - Biography auto-generated for ${firstName} ${lastName}`);
+            console.log(`========================================\n`);
           }
         } catch (bioError) {
           // Don't fail the entire request if biography generation fails
           // Just log the error and continue
-          console.error(`[Auto Biography] Failed to auto-generate biography:`, bioError);
-          console.log(`[Auto Biography] Candidate created successfully but biography generation failed. User can try manually.`);
+          console.log(`\n========================================`);
+          console.error(`[Auto Biography] ✗ FAILED - Biography generation error`);
+          console.error(`[Auto Biography] Error type: ${bioError instanceof Error ? bioError.name : 'Unknown'}`);
+          console.error(`[Auto Biography] Error message: ${bioError instanceof Error ? bioError.message : String(bioError)}`);
+          console.error(`[Auto Biography] Full error:`, bioError);
+          console.log(`[Auto Biography] Candidate ${newCandidate.id} created successfully but biography generation failed`);
+          console.log(`[Auto Biography] User can try "Auto-Generate Biography" button manually`);
+          console.log(`========================================\n`);
         }
       } else {
-        console.log(`[Auto Biography] No LinkedIn URL found, skipping automatic biography generation`);
+        console.log(`\n========================================`);
+        console.log(`[Auto Biography] SKIPPED - No LinkedIn URL found for ${firstName} ${lastName}`);
+        console.log(`[Auto Biography] LinkedIn search may have failed or returned low confidence match`);
+        console.log(`[Auto Biography] Check LinkedIn search logs above for details`);
+        console.log(`========================================\n`);
       }
       
       res.json({

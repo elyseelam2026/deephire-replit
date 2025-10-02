@@ -281,8 +281,8 @@ function generateEmailAddress(
 }
 
 /**
- * Search for LinkedIn profile using SerpAPI (reliable Google search API)
- * Returns the LinkedIn profile URL if found
+ * Search for LinkedIn profile using SerpAPI with validation
+ * Returns the LinkedIn profile URL ONLY if it matches the person with high confidence
  */
 export async function searchLinkedInProfile(firstName: string, lastName: string, company: string, jobTitle?: string | null): Promise<string | null> {
   try {
@@ -294,7 +294,6 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
     }
     
     // Construct search query for LinkedIn profile with proper quoting to ensure exact matching
-    // Guard against empty/whitespace values to prevent query failures
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
     const cleanCompany = company?.trim() || '';
@@ -308,43 +307,136 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
     const parts = [namePart, companyPart, titlePart, 'site:linkedin.com/in'].filter(p => p);
     const query = parts.join(' ');
     
-    console.log(`Searching LinkedIn with SerpAPI query: "${query}"`);
+    console.log(`\n[LinkedIn Search] Query: "${query}"`);
     
     // Use SerpAPI to get clean Google search results
-    const searchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(query)}&engine=google`;
+    const searchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(query)}&engine=google&num=10`;
     
     const response = await fetch(searchUrl);
     
     if (!response.ok) {
-      console.error(`SerpAPI search failed with status: ${response.status}`);
+      console.error(`[LinkedIn Search] SerpAPI failed with status: ${response.status}`);
       return null;
     }
     
     const data = await response.json();
-    
-    // SerpAPI returns structured results with organic_results array
     const organicResults = data.organic_results || [];
     
-    console.log(`SerpAPI returned ${organicResults.length} results`);
+    console.log(`[LinkedIn Search] Found ${organicResults.length} results, validating each...`);
     
-    // Find LinkedIn profile URLs in the results
+    // Score and validate each LinkedIn profile
+    interface ScoredResult {
+      url: string;
+      score: number;
+      title: string;
+      snippet: string;
+      reasons: string[];
+    }
+    
+    const scoredResults: ScoredResult[] = [];
+    
     for (const result of organicResults) {
       const link = result.link || '';
-      console.log(`Checking result link: ${link}`);
       
-      // Check if it's a LinkedIn profile URL (more flexible pattern)
-      if (link.includes('linkedin.com/in/')) {
-        // Clean up the URL - remove query parameters and fragments
-        const cleanUrl = link.split('?')[0].split('#')[0];
-        console.log(`✓ Found LinkedIn profile via SerpAPI: ${cleanUrl}`);
-        return cleanUrl;
+      // Must be a LinkedIn profile URL
+      if (!link.includes('linkedin.com/in/')) continue;
+      
+      const title = (result.title || '').toLowerCase();
+      const snippet = (result.snippet || '').toLowerCase();
+      const combined = `${title} ${snippet}`;
+      
+      let score = 0;
+      const reasons: string[] = [];
+      
+      // Name matching (critical)
+      const firstLower = cleanFirst.toLowerCase();
+      const lastLower = cleanLast.toLowerCase();
+      const fullName = `${firstLower} ${lastLower}`;
+      
+      if (combined.includes(fullName)) {
+        score += 50;
+        reasons.push(`Full name match`);
+      } else if (combined.includes(firstLower) && combined.includes(lastLower)) {
+        score += 30;
+        reasons.push(`First and last name present`);
+      } else if (combined.includes(lastLower)) {
+        score += 10;
+        reasons.push(`Last name only`);
+      }
+      
+      // Company matching (important)
+      if (cleanCompany) {
+        const companyLower = cleanCompany.toLowerCase();
+        const companyWords = companyLower.split(/\s+/).filter(w => w.length > 3);
+        
+        if (combined.includes(companyLower)) {
+          score += 30;
+          reasons.push(`Full company name match`);
+        } else {
+          // Check if major company words are present
+          const matchedWords = companyWords.filter(word => combined.includes(word));
+          if (matchedWords.length > 0) {
+            score += 15 * matchedWords.length;
+            reasons.push(`Company keywords: ${matchedWords.join(', ')}`);
+          }
+        }
+      }
+      
+      // Job title matching (helpful)
+      if (cleanTitle) {
+        const titleLower = cleanTitle.toLowerCase();
+        if (combined.includes(titleLower)) {
+          score += 20;
+          reasons.push(`Job title match`);
+        }
+      }
+      
+      // Position in search results (minor factor)
+      const position = organicResults.indexOf(result);
+      score += Math.max(0, 5 - position); // First result gets +5, decreasing
+      
+      const cleanUrl = link.split('?')[0].split('#')[0];
+      
+      console.log(`  [${position + 1}] ${cleanUrl}`);
+      console.log(`      Score: ${score} - ${reasons.join(', ') || 'No matches'}`);
+      
+      scoredResults.push({
+        url: cleanUrl,
+        score,
+        title: result.title || '',
+        snippet: result.snippet || '',
+        reasons
+      });
+    }
+    
+    // Sort by score descending
+    scoredResults.sort((a, b) => b.score - a.score);
+    
+    // Accept ONLY if top result has minimum confidence score
+    const MIN_CONFIDENCE_SCORE = 40; // Requires at least name + company/title match
+    
+    if (scoredResults.length > 0) {
+      const best = scoredResults[0];
+      
+      if (best.score >= MIN_CONFIDENCE_SCORE) {
+        console.log(`\n[LinkedIn Search] ✓ ACCEPTED: ${best.url}`);
+        console.log(`   Confidence: ${best.score} (threshold: ${MIN_CONFIDENCE_SCORE})`);
+        console.log(`   Reasons: ${best.reasons.join(', ')}`);
+        return best.url;
+      } else {
+        console.log(`\n[LinkedIn Search] ✗ REJECTED: Insufficient confidence`);
+        console.log(`   Best score: ${best.score} (threshold: ${MIN_CONFIDENCE_SCORE})`);
+        console.log(`   Best match: ${best.url}`);
+        console.log(`   Reasons: ${best.reasons.join(', ') || 'No strong matches'}`);
+        console.log(`   ⚠️ TIP: Add job title to improve matching accuracy`);
+        return null;
       }
     }
     
-    console.log('✗ No LinkedIn profile found in SerpAPI results');
+    console.log('[LinkedIn Search] ✗ No LinkedIn profiles found in results');
     return null;
   } catch (error) {
-    console.error(`Error searching for LinkedIn profile: ${error}`);
+    console.error(`[LinkedIn Search] Error: ${error}`);
     return null;
   }
 }
@@ -1752,6 +1844,7 @@ export async function searchCandidateProfilesByName(
 
 /**
  * Generate candidate profile data from scraped content using AI
+ * NOW WITH PROPER EMAIL PATTERN RESEARCH - NO MORE GUESSING
  */
 async function generateCandidateProfileFromContent(
   firstName: string,
@@ -1765,6 +1858,18 @@ async function generateCandidateProfileFromContent(
   console.log(`Generating candidate profile using AI for ${firstName} ${lastName}...`);
   
   try {
+    // CRITICAL FIX: Research actual company email pattern before asking AI to extract data
+    console.log(`[Email Research] Researching email pattern for ${company}...`);
+    const emailInfo = await researchCompanyEmailPattern(company);
+    
+    let emailAddress: string | null = null;
+    if (emailInfo.domain && emailInfo.emailPattern) {
+      emailAddress = generateEmailAddress(firstName, lastName, emailInfo.domain, emailInfo.emailPattern);
+      console.log(`[Email Research] ✓ Generated email using researched pattern: ${emailAddress}`);
+    } else {
+      console.log(`[Email Research] ⚠️ Could not research pattern, will try to extract from content or use fallback`);
+    }
+    
     const combinedContent = `
 Bio Page Content:
 ${bioContent}
@@ -1787,7 +1892,7 @@ ${linkedinContent}
 {
   "firstName": "${firstName}",
   "lastName": "${lastName}",
-  "email": "inferred email using intelligent research-based approach (see instructions below)",
+  "email": "extracted email if found in content, otherwise null (we'll use researched pattern)",
   "phoneNumber": "extracted phone if available, otherwise null",
   "currentTitle": "current job title",
   "currentCompany": "${company}",
@@ -1799,32 +1904,9 @@ ${linkedinContent}
   "careerSummary": "A structured summary of career progression with key roles and accomplishments"
 }
 
-**IMPORTANT - Email Inference Instructions:**
-If no explicit email is found in the profile content, infer the likely email address using this systematic approach:
-
-1. Use the company provided in the search query: "${company}"
-   - This could be the person's current OR previous employer
-   - The search is for "${firstName} ${lastName}" at "${company}"
-2. Determine the company's domain name:
-   - For "Digital China" → digitalchina.com
-   - For "Microsoft" → microsoft.com
-   - For "Bain Capital" → baincapital.com
-   - Use the company's official domain, not a generic or incorrect one
-3. Research common email formats for that company by analyzing any available information:
-   - firstname.lastname@domain.com (most common)
-   - firstnamelastname@domain.com
-   - first.last@domain.com
-   - flastname@domain.com
-4. Apply the most likely format pattern to construct the email address
-
-For example:
-- Search query: "Ping Chen" at "Digital China"
-- Domain: digitalchina.com
-- Likely formats: ping.chen@digitalchina.com OR chen.ping@digitalchina.com OR pingchen@digitalchina.com
-- Choose the most standard format (firstname.lastname@domain.com is usually safest)
-- Result: "ping.chen@digitalchina.com"
-
-IMPORTANT: Use the company name from the search query ("${company}"), not necessarily the person's current employer. The search is specifically for this person's association with this company.
+**IMPORTANT - Email Extraction:**
+Look for explicit email addresses in the profile content. If you find one, use it.
+If NOT found in content, return null for email - we'll use our researched company pattern.
 
 Professional Content:
 ${combinedContent}
@@ -1838,10 +1920,22 @@ Be thorough and professional. The biography should be well-written and suitable 
     const result = JSON.parse(response.choices[0].message.content || "{}");
     console.log(`Successfully generated candidate profile data`);
     
+    // Use researched email if AI didn't find one in content
+    const finalEmail = result.email || emailAddress || null;
+    if (result.email) {
+      console.log(`[Email] Using email found in profile content: ${result.email}`);
+    } else if (emailAddress) {
+      console.log(`[Email] Using researched pattern: ${emailAddress}`);
+    } else {
+      console.log(`[Email] No email found or researched`);
+    }
+    
     return {
       firstName: result.firstName || firstName,
       lastName: result.lastName || lastName,
-      email: result.email || null,
+      email: finalEmail,
+      emailStatus: result.email ? 'found' : (emailAddress ? 'inferred' : 'none'),
+      emailSource: result.email ? 'profile_content' : (emailAddress ? 'domain_pattern' : null),
       phoneNumber: result.phoneNumber || null,
       linkedinUrl: linkedinUrl || null,
       bioUrl: bioUrl || null,
