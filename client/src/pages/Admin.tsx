@@ -309,6 +309,7 @@ export default function Admin() {
   const [quickAddLastName, setQuickAddLastName] = useState("");
   const [quickAddCompany, setQuickAddCompany] = useState("");
   const [quickAddJobTitle, setQuickAddJobTitle] = useState("");
+  const [quickAddLinkedinUrl, setQuickAddLinkedinUrl] = useState("");
   const [booleanSearch, setBooleanSearch] = useState("");
   const [booleanSearchResults, setBooleanSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -537,6 +538,7 @@ export default function Admin() {
       setQuickAddLastName("");
       setQuickAddCompany("");
       setQuickAddJobTitle("");
+      setQuickAddLinkedinUrl("");
     },
     onError: (error: any) => {
       toast({
@@ -562,7 +564,8 @@ export default function Admin() {
       firstName: quickAddFirstName.trim(),
       lastName: quickAddLastName.trim(),
       company: quickAddCompany.trim(),
-      jobTitle: quickAddJobTitle.trim() || undefined
+      jobTitle: quickAddJobTitle.trim() || undefined,
+      linkedinUrl: quickAddLinkedinUrl.trim() || undefined
     });
   };
 
@@ -868,7 +871,7 @@ export default function Admin() {
                 Quick Add Candidate
               </CardTitle>
               <CardDescription>
-                Add a candidate by name and company. Our AI will search for their LinkedIn profile and bio page, then automatically generate a comprehensive biography. Works best for candidates with public profiles at well-known companies.
+                Add a candidate by name and company. If you provide a LinkedIn URL, we'll use it directly. Otherwise, our system will search for their LinkedIn profile automatically. The system stores only real data - no AI-generated biographies.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -932,6 +935,23 @@ export default function Admin() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Improves search accuracy for common names
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quick-add-linkedin-url">
+                    LinkedIn URL <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="quick-add-linkedin-url"
+                    placeholder="e.g., https://linkedin.com/in/john-smith"
+                    value={quickAddLinkedinUrl}
+                    onChange={(e) => setQuickAddLinkedinUrl(e.target.value)}
+                    disabled={quickAddMutation.isPending}
+                    data-testid="input-quick-add-linkedin-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Paste the LinkedIn profile URL if you already have it - skips automatic search
                   </p>
                 </div>
 
