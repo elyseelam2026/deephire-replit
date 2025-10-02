@@ -275,10 +275,21 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
       return null;
     }
     
-    // Construct search query for LinkedIn profile
-    const query = jobTitle 
-      ? `${firstName} ${lastName} ${company} ${jobTitle} site:linkedin.com/in`
-      : `${firstName} ${lastName} ${company} site:linkedin.com/in`;
+    // Construct search query for LinkedIn profile with proper quoting to ensure exact matching
+    // Guard against empty/whitespace values to prevent query failures
+    const cleanFirst = firstName.trim();
+    const cleanLast = lastName.trim();
+    const cleanCompany = company?.trim() || '';
+    const cleanTitle = jobTitle?.trim() || '';
+    
+    const namePart = `"${cleanFirst} ${cleanLast}"`;
+    const companyPart = cleanCompany ? `"${cleanCompany}"` : '';
+    const titlePart = cleanTitle ? `"${cleanTitle}"` : '';
+    
+    // Build query with only non-empty parts
+    const parts = [namePart, companyPart, titlePart, 'site:linkedin.com/in'].filter(p => p);
+    const query = parts.join(' ');
+    
     console.log(`Searching LinkedIn with SerpAPI query: "${query}"`);
     
     // Use SerpAPI to get clean Google search results
