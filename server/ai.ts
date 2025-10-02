@@ -283,6 +283,7 @@ function generateEmailAddress(
 /**
  * Search for LinkedIn profile using SerpAPI with validation
  * Returns the LinkedIn profile URL ONLY if it matches the person with high confidence
+ * HYBRID APPROACH: Tries exact matching first, then loose matching if needed
  */
 export async function searchLinkedInProfile(firstName: string, lastName: string, company: string, jobTitle?: string | null): Promise<string | null> {
   try {
@@ -293,34 +294,58 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
       return null;
     }
     
-    // Construct search query for LinkedIn profile with proper quoting to ensure exact matching
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
     const cleanCompany = company?.trim() || '';
     const cleanTitle = jobTitle?.trim() || '';
     
-    const namePart = `"${cleanFirst} ${cleanLast}"`;
-    const companyPart = cleanCompany ? `"${cleanCompany}"` : '';
-    const titlePart = cleanTitle ? `"${cleanTitle}"` : '';
+    let organicResults: any[] = [];
+    let queryUsed = '';
     
-    // Build query with only non-empty parts
-    const parts = [namePart, companyPart, titlePart, 'site:linkedin.com/in'].filter(p => p);
-    const query = parts.join(' ');
+    // STRATEGY 1: Try exact matching with quotes (most precise)
+    const exactNamePart = `"${cleanFirst} ${cleanLast}"`;
+    const exactCompanyPart = cleanCompany ? `"${cleanCompany}"` : '';
+    const exactTitlePart = cleanTitle ? `"${cleanTitle}"` : '';
     
-    console.log(`\n[LinkedIn Search] Query: "${query}"`);
+    const exactParts = [exactNamePart, exactCompanyPart, exactTitlePart, 'site:linkedin.com/in'].filter(p => p);
+    const exactQuery = exactParts.join(' ');
     
-    // Use SerpAPI to get clean Google search results
-    const searchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(query)}&engine=google&num=10`;
+    console.log(`\n[LinkedIn Search] Strategy 1 - Exact matching: "${exactQuery}"`);
     
-    const response = await fetch(searchUrl);
+    const exactUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(exactQuery)}&engine=google&num=10`;
+    const exactResponse = await fetch(exactUrl);
     
-    if (!response.ok) {
-      console.error(`[LinkedIn Search] SerpAPI failed with status: ${response.status}`);
-      return null;
+    if (exactResponse.ok) {
+      const exactData = await exactResponse.json();
+      organicResults = exactData.organic_results || [];
+      queryUsed = exactQuery;
+      console.log(`[LinkedIn Search] Exact matching returned ${organicResults.length} results`);
     }
     
-    const data = await response.json();
-    const organicResults = data.organic_results || [];
+    // STRATEGY 2: If exact matching finds nothing, try loose matching without quotes
+    if (organicResults.length === 0) {
+      console.log(`[LinkedIn Search] Strategy 2 - Loose matching without quotes...`);
+      
+      const looseParts = [
+        `${cleanFirst} ${cleanLast}`,
+        cleanCompany || '',
+        cleanTitle || '',
+        'site:linkedin.com/in'
+      ].filter(p => p);
+      const looseQuery = looseParts.join(' ');
+      
+      console.log(`[LinkedIn Search] Loose query: "${looseQuery}"`);
+      
+      const looseUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(looseQuery)}&engine=google&num=10`;
+      const looseResponse = await fetch(looseUrl);
+      
+      if (looseResponse.ok) {
+        const looseData = await looseResponse.json();
+        organicResults = looseData.organic_results || [];
+        queryUsed = looseQuery;
+        console.log(`[LinkedIn Search] Loose matching returned ${organicResults.length} results`);
+      }
+    }
     
     console.log(`[LinkedIn Search] Found ${organicResults.length} results, validating each...`);
     

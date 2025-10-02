@@ -44,6 +44,10 @@ Preferred communication style: Simple, everyday language.
 - **Layout System**: Tailwind spacing units for consistent hierarchy.
 
 ### Technical Implementations
+- **Hybrid LinkedIn Search Strategy** (Oct 2, 2025): 2-stage search to handle exact-phrase failures
+  - Stage 1: Exact matching with quotes for precision (`"Christian Brun" "Wellesley Partners"`)
+  - Stage 2: Loose matching without quotes if Stage 1 finds nothing (handles company name variations)
+  - Prevents "0 results" errors while maintaining quality through confidence scoring
 - **LinkedIn Profile Validation**: Multi-result scoring algorithm with confidence threshold using SerpAPI for accurate LinkedIn profile matching.
 - **Automated Biography Generation**: Full workflow from name+company to generated biography using SerpAPI for LinkedIn discovery, Bright Data for scraping, and Grok AI for generation.
 - **Manual Biography Entry**: Allows human-verified biography input.
