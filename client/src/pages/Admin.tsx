@@ -308,6 +308,7 @@ export default function Admin() {
   const [quickAddFirstName, setQuickAddFirstName] = useState("");
   const [quickAddLastName, setQuickAddLastName] = useState("");
   const [quickAddCompany, setQuickAddCompany] = useState("");
+  const [quickAddJobTitle, setQuickAddJobTitle] = useState("");
   const [booleanSearch, setBooleanSearch] = useState("");
   const [booleanSearchResults, setBooleanSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -535,6 +536,7 @@ export default function Admin() {
       setQuickAddFirstName("");
       setQuickAddLastName("");
       setQuickAddCompany("");
+      setQuickAddJobTitle("");
     },
     onError: (error: any) => {
       toast({
@@ -559,7 +561,8 @@ export default function Admin() {
     quickAddMutation.mutate({
       firstName: quickAddFirstName.trim(),
       lastName: quickAddLastName.trim(),
-      company: quickAddCompany.trim()
+      company: quickAddCompany.trim(),
+      jobTitle: quickAddJobTitle.trim() || undefined
     });
   };
 
@@ -912,6 +915,23 @@ export default function Admin() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Can be current OR previous employer - used for email inference
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quick-add-job-title">
+                    Job Title <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="quick-add-job-title"
+                    placeholder="e.g., Managing Director, CFO, Senior Engineer"
+                    value={quickAddJobTitle}
+                    onChange={(e) => setQuickAddJobTitle(e.target.value)}
+                    disabled={quickAddMutation.isPending}
+                    data-testid="input-quick-add-job-title"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Improves search accuracy for common names
                   </p>
                 </div>
 
