@@ -519,7 +519,7 @@ export default function Admin() {
 
   // Quick Add candidate by name mutation
   const quickAddMutation = useMutation({
-    mutationFn: async (data: { firstName: string; lastName: string; company: string; linkedinUrl?: string }) => {
+    mutationFn: async (data: { firstName: string; lastName: string; company: string; jobTitle?: string; linkedinUrl?: string }) => {
       const response = await apiRequest('POST', '/api/admin/add-candidate-by-name', data);
       return response.json();
     },

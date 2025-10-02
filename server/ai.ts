@@ -16,7 +16,7 @@ const openai = new OpenAI({
  * Search for LinkedIn profile using SerpAPI (reliable Google search API)
  * Returns the LinkedIn profile URL if found
  */
-async function searchLinkedInProfile(firstName: string, lastName: string, company: string): Promise<string | null> {
+async function searchLinkedInProfile(firstName: string, lastName: string, company: string, jobTitle?: string | null): Promise<string | null> {
   try {
     const apiKey = process.env.SERPAPI_API_KEY;
     
@@ -26,7 +26,9 @@ async function searchLinkedInProfile(firstName: string, lastName: string, compan
     }
     
     // Construct search query for LinkedIn profile
-    const query = `${firstName} ${lastName} ${company} site:linkedin.com/in`;
+    const query = jobTitle 
+      ? `${firstName} ${lastName} ${company} ${jobTitle} site:linkedin.com/in`
+      : `${firstName} ${lastName} ${company} site:linkedin.com/in`;
     console.log(`Searching LinkedIn with SerpAPI query: "${query}"`);
     
     // Use SerpAPI to get clean Google search results
@@ -1403,13 +1405,14 @@ export async function searchCandidateProfilesByName(
   lastName: string,
   company: string,
   linkedinUrl?: string | null,
-  bioUrl?: string | null
+  bioUrl?: string | null,
+  jobTitle?: string | null
 ): Promise<{
   bioUrl: string | null;
   linkedinUrl: string | null;
   candidateData: any | null;
 }> {
-  console.log(`\nSearching for candidate profiles: ${firstName} ${lastName} at ${company}`);
+  console.log(`\nSearching for candidate profiles: ${firstName} ${lastName} at ${company}${jobTitle ? ` (${jobTitle})` : ''}`);
   console.log(`Provided LinkedIn URL: ${linkedinUrl || 'none'}`);
   console.log(`Provided bio URL: ${bioUrl || 'none'}`);
   
@@ -1421,7 +1424,7 @@ export async function searchCandidateProfilesByName(
     // If LinkedIn URL not provided, search for it
     if (!normalizedLinkedinUrl) {
       console.log(`No LinkedIn URL provided, searching via web search...`);
-      normalizedLinkedinUrl = await searchLinkedInProfile(firstName, lastName, company);
+      normalizedLinkedinUrl = await searchLinkedInProfile(firstName, lastName, company, jobTitle);
       if (normalizedLinkedinUrl) {
         console.log(`✓ Found LinkedIn profile via web search: ${normalizedLinkedinUrl}`);
       } else {
