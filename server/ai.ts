@@ -13,6 +13,133 @@ const openai = new OpenAI({
 });
 
 /**
+ * Research company domain and email pattern using web search
+ * Returns domain and email pattern format
+ */
+async function researchCompanyEmailPattern(companyName: string): Promise<{
+  domain: string | null;
+  emailPattern: string | null;
+}> {
+  try {
+    const apiKey = process.env.SERPAPI_API_KEY;
+    
+    if (!apiKey) {
+      console.error('SERPAPI_API_KEY not configured');
+      return { domain: null, emailPattern: null };
+    }
+    
+    // Search for company website
+    const domainQuery = `${companyName} official website`;
+    console.log(`Researching company domain: "${domainQuery}"`);
+    
+    const domainSearchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(domainQuery)}&engine=google&num=5`;
+    const domainResponse = await fetch(domainSearchUrl);
+    
+    if (!domainResponse.ok) {
+      console.error(`Domain search failed with status: ${domainResponse.status}`);
+      return { domain: null, emailPattern: null };
+    }
+    
+    const domainData = await domainResponse.json();
+    const organicResults = domainData.organic_results || [];
+    
+    // Extract domain from first few results
+    let domain: string | null = null;
+    for (const result of organicResults.slice(0, 3)) {
+      const link = result.link || '';
+      try {
+        const url = new URL(link);
+        const hostname = url.hostname.replace('www.', '');
+        // Skip common non-company domains
+        if (!hostname.includes('linkedin.com') && !hostname.includes('wikipedia.org') && 
+            !hostname.includes('facebook.com') && !hostname.includes('twitter.com')) {
+          domain = hostname;
+          console.log(`✓ Found company domain: ${domain}`);
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    
+    if (!domain) {
+      console.log('✗ Could not determine company domain');
+      return { domain: null, emailPattern: null };
+    }
+    
+    // Search for email pattern
+    const emailQuery = `${companyName} email format contact`;
+    console.log(`Researching email pattern: "${emailQuery}"`);
+    
+    const emailSearchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(emailQuery)}&engine=google&num=5`;
+    const emailResponse = await fetch(emailSearchUrl);
+    
+    if (!emailResponse.ok) {
+      console.log('Email pattern search failed, will use default pattern');
+      return { domain, emailPattern: 'firstname.lastname' };
+    }
+    
+    const emailData = await emailResponse.json();
+    const emailResults = emailData.organic_results || [];
+    
+    // Look for email patterns in snippets
+    let emailPattern = 'firstname.lastname'; // default
+    for (const result of emailResults) {
+      const snippet = (result.snippet || '').toLowerCase();
+      
+      // Check for common patterns in snippets
+      if (snippet.includes('first.last@') || snippet.includes('firstname.lastname@')) {
+        emailPattern = 'firstname.lastname';
+        break;
+      } else if (snippet.includes('f.last@') || snippet.includes('flast@') || snippet.includes('first initial')) {
+        emailPattern = 'f.lastname';
+        break;
+      } else if (snippet.includes('firstlast@') || snippet.includes('no dot')) {
+        emailPattern = 'firstnamelastname';
+        break;
+      }
+    }
+    
+    console.log(`✓ Email pattern determined: ${emailPattern}@${domain}`);
+    return { domain, emailPattern };
+    
+  } catch (error) {
+    console.error(`Error researching company email: ${error}`);
+    return { domain: null, emailPattern: null };
+  }
+}
+
+/**
+ * Generate email address based on researched company domain and pattern
+ */
+function generateEmailAddress(
+  firstName: string,
+  lastName: string,
+  domain: string,
+  pattern: string
+): string {
+  const first = firstName.toLowerCase();
+  const last = lastName.toLowerCase();
+  const firstInitial = first.charAt(0);
+  
+  let localPart: string;
+  switch (pattern) {
+    case 'f.lastname':
+      localPart = `${firstInitial}.${last}`;
+      break;
+    case 'firstnamelastname':
+      localPart = `${first}${last}`;
+      break;
+    case 'firstname.lastname':
+    default:
+      localPart = `${first}.${last}`;
+      break;
+  }
+  
+  return `${localPart}@${domain}`;
+}
+
+/**
  * Search for LinkedIn profile using SerpAPI (reliable Google search API)
  * Returns the LinkedIn profile URL if found
  */
@@ -1257,6 +1384,19 @@ async function generateComprehensiveProfileFromLinkedIn(
   console.log(`Generating comprehensive profile for ${firstName} ${lastName} from LinkedIn URL`);
   
   try {
+    // First, research the company's actual domain and email pattern
+    const emailInfo = await researchCompanyEmailPattern(company);
+    
+    let inferredEmail: string;
+    if (emailInfo.domain && emailInfo.emailPattern) {
+      inferredEmail = generateEmailAddress(firstName, lastName, emailInfo.domain, emailInfo.emailPattern);
+      console.log(`✓ Generated email using researched pattern: ${inferredEmail}`);
+    } else {
+      // Fallback to simple inference
+      inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${company.toLowerCase().replace(/\s+/g, '')}.com`;
+      console.log(`⚠ Using fallback email pattern: ${inferredEmail}`);
+    }
+    
     const response = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
@@ -1271,12 +1411,13 @@ async function generateComprehensiveProfileFromLinkedIn(
 Name: ${firstName} ${lastName}
 Company: ${company}
 LinkedIn: ${linkedinUrl}
+Email: ${inferredEmail}
 
 Generate the following in JSON format:
 {
   "firstName": "${firstName}",
   "lastName": "${lastName}",
-  "email": "inferred professional email based on company domain",
+  "email": "${inferredEmail}",
   "phoneNumber": null,
   "currentTitle": "inferred senior professional title based on company and name",
   "currentCompany": "${company}",
@@ -1288,11 +1429,6 @@ Generate the following in JSON format:
   "biography": "A comprehensive 2-3 paragraph professional biography covering career journey, achievements, and expertise. Make it realistic and professional.",
   "careerSummary": "A structured summary of career progression with key roles and accomplishments"
 }
-
-**Email Inference:**
-- Research the company "${company}" domain
-- Use format: firstname.lastname@domain.com
-- Examples: Microsoft → microsoft.com, Baidu → baidu.com, Google → google.com
 
 **Biography Guidelines:**
 - Write 2-3 comprehensive paragraphs
