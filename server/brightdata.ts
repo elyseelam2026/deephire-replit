@@ -92,7 +92,7 @@ export async function scrapeLinkedInProfile(linkedinUrl: string): Promise<Linked
   }
 }
 
-async function pollForProfileData(snapshotId: string, maxAttempts: number = 30, delayMs: number = 2000): Promise<LinkedInProfileData> {
+async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, delayMs: number = 3000): Promise<LinkedInProfileData> {
   const endpoint = `${BRIGHTDATA_BASE_URL}/snapshot/${snapshotId}`;
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -109,22 +109,38 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 30, 
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[Bright Data] Poll Error (${response.status}):`, errorText);
-        throw new Error(`Failed to poll snapshot: ${response.status}`);
+        
+        if (attempt === maxAttempts) {
+          throw new Error(`Failed to poll snapshot after ${maxAttempts} attempts: ${response.status}`);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        continue;
       }
 
       const data: any = await response.json();
       
-      if (data.status === 'ready' && data.data && data.data.length > 0) {
-        console.log(`[Bright Data] Profile data ready!`);
-        return data.data[0] as LinkedInProfileData;
-      } else if (data.status === 'failed') {
-        throw new Error('Bright Data scraping job failed');
+      console.log(`[Bright Data] Response:`, JSON.stringify(data).substring(0, 200));
+      
+      if (data.status === 'ready') {
+        if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+          console.log(`[Bright Data] Profile data ready! Found ${data.data.length} results`);
+          return data.data[0] as LinkedInProfileData;
+        } else {
+          console.error(`[Bright Data] Status is 'ready' but no data found:`, data);
+          throw new Error('Bright Data returned ready status but no profile data');
+        }
+      } else if (data.status === 'failed' || data.status === 'error') {
+        console.error(`[Bright Data] Job failed with status: ${data.status}`, data);
+        throw new Error(`Bright Data scraping job failed with status: ${data.status}`);
+      } else if (data.status === 'running' || data.status === 'pending' || !data.status) {
+        console.log(`[Bright Data] Status: ${data.status || 'unknown'}, waiting... (attempt ${attempt}/${maxAttempts})`);
       } else {
-        console.log(`[Bright Data] Status: ${data.status}, waiting...`);
+        console.warn(`[Bright Data] Unexpected status: ${data.status}, continuing to poll...`);
       }
       
     } catch (error) {
-      console.error(`[Bright Data] Poll attempt ${attempt} failed:`, error);
+      console.error(`[Bright Data] Poll attempt ${attempt} error:`, error);
       if (attempt === maxAttempts) {
         throw error;
       }
@@ -133,7 +149,7 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 30, 
     await new Promise(resolve => setTimeout(resolve, delayMs));
   }
   
-  throw new Error('Bright Data scraping timed out after maximum polling attempts');
+  throw new Error(`Bright Data scraping timed out after ${maxAttempts} polling attempts (${Math.round(maxAttempts * delayMs / 1000)}s)`);
 }
 
 export async function generateBiographyFromLinkedInData(profileData: LinkedInProfileData): Promise<string> {

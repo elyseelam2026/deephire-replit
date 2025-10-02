@@ -9,6 +9,20 @@ The application features a multi-portal architecture with role-based interfaces,
 ## Recent Changes
 
 ### October 2, 2025
+- **Bright Data Integration for Automated Biography Generation**: Implemented LinkedIn profile scraping and AI biography generation
+  - Created `server/brightdata.ts` module with Bright Data API client for LinkedIn profile scraping
+  - Added POST `/api/admin/generate-biography/:candidateId` endpoint for automated biography generation
+  - Integrated Grok AI to generate professional 2-3 paragraph biographies from scraped LinkedIn data
+  - "Auto-Generate Biography" button in candidate detail QA section (only enabled when LinkedIn URL exists)
+  - Biography saved with bioSource="brightdata", bioStatus="verified" for data provenance tracking
+  - Polling mechanism with 60 attempts over 3 minutes to handle Bright Data async scraping
+  - Enhanced error handling and logging for debugging scraping issues
+- **Manual Biography Entry**: Added human-verified biography workflow alongside automated generation
+  - "Add Biography Manually" button opens dialog for manual text entry
+  - Large textarea (12 rows) for typing or pasting biography from verified LinkedIn profile
+  - Biography saved with bioSource="manual", bioStatus="verified"
+  - Pre-fills existing biography when editing
+  - Supports both automated (Bright Data) and manual entry workflows
 - **QA Validation System**: Implemented comprehensive manual validation tools for candidate data verification
   - Added three validation endpoints: `/api/admin/validate-email`, `/api/admin/validate-linkedin`, `/api/admin/validate-biography`
   - "Verify Email" button re-researches company domain using SerpAPI, shows before/after comparison, allows one-click update
