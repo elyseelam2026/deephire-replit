@@ -1504,7 +1504,7 @@ async function generateComprehensiveProfileFromLinkedIn(
   company: string,
   linkedinUrl: string
 ): Promise<any> {
-  console.log(`Generating comprehensive profile for ${firstName} ${lastName} from LinkedIn URL`);
+  console.log(`Creating profile for ${firstName} ${lastName} - LinkedIn URL only (NO biography generation)`);
   
   try {
     // First, research the company's actual domain and email pattern
@@ -1520,65 +1520,45 @@ async function generateComprehensiveProfileFromLinkedIn(
       console.log(`⚠ Using fallback email pattern: ${inferredEmail}`);
     }
     
-    const response = await openai.chat.completions.create({
-      model: "grok-2-1212",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert recruiter creating professional candidate profiles. Generate comprehensive, realistic professional biographies based on available information. Always respond with valid JSON."
-        },
-        {
-          role: "user",
-          content: `Create a comprehensive professional profile for this candidate:
-
-Name: ${firstName} ${lastName}
-Company: ${company}
-LinkedIn: ${linkedinUrl}
-Email: ${inferredEmail}
-
-Generate the following in JSON format:
-{
-  "firstName": "${firstName}",
-  "lastName": "${lastName}",
-  "email": "${inferredEmail}",
-  "phoneNumber": null,
-  "currentTitle": "inferred senior professional title based on company and name",
-  "currentCompany": "${company}",
-  "location": "inferred major business location",
-  "skills": ["relevant professional skills based on company industry"],
-  "yearsExperience": reasonable estimate,
-  "education": "inferred prestigious education background",
-  "linkedinUrl": "${linkedinUrl}",
-  "biography": "A comprehensive 2-3 paragraph professional biography covering career journey, achievements, and expertise. Make it realistic and professional.",
-  "careerSummary": "A structured summary of career progression with key roles and accomplishments"
-}
-
-**Biography Guidelines:**
-- Write 2-3 comprehensive paragraphs
-- Include career progression and achievements
-- Mention educational background
-- Discuss expertise and impact
-- Keep professional and realistic tone
-- Base details on what's typical for professionals at ${company}
-
-**Important:** Generate realistic, professional content based on the company's industry and the candidate's likely role.`
-        }
-      ],
-      response_format: { type: "json_object" }
-    });
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("No response from AI");
-    }
-
-    const profileData = JSON.parse(content);
-    console.log(`✓ Generated comprehensive profile with ${profileData.biography?.length || 0} character biography`);
+    // STOP GENERATING FAKE BIOGRAPHIES
+    // We cannot read LinkedIn profiles, so we should NOT fabricate biographies
+    // Return only the real data we have: LinkedIn URL and inferred email
+    console.log(`✓ Profile created with REAL data only - NO fabricated biography`);
     
-    return profileData;
+    return {
+      firstName,
+      lastName,
+      email: inferredEmail,
+      emailStatus: 'inferred',
+      emailSource: 'domain_pattern',
+      phoneNumber: null,
+      currentTitle: null,
+      currentCompany: company,
+      location: null,
+      skills: [],
+      yearsExperience: null,
+      education: null,
+      linkedinUrl: linkedinUrl || null,
+      biography: null, // NO FAKE BIOGRAPHY
+      bioStatus: 'not_provided',
+      bioSource: null,
+      careerSummary: null,
+      isAvailable: true,
+      isActivelyLooking: false,
+      isOpenToOpportunities: true,
+      salaryCurrency: 'USD'
+    };
   } catch (error) {
-    console.error(`Failed to generate comprehensive profile: ${error}`);
-    throw error;
+    console.error(`Error creating profile: ${error}`);
+    return {
+      firstName,
+      lastName,
+      currentCompany: company,
+      linkedinUrl: linkedinUrl || null,
+      bioStatus: 'not_provided',
+      emailStatus: 'inferred',
+      salaryCurrency: 'USD'
+    };
   }
 }
 

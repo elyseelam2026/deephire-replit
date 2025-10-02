@@ -167,7 +167,13 @@ export const candidates = pgTable("candidates", {
   
   // AI-Generated Profile Content
   biography: text("biography"), // Comprehensive biography generated from multiple sources
+  bioStatus: text("bio_status").default("not_provided"), // not_provided, inferred, verified
+  bioSource: text("bio_source"), // manual, linkedin_url, ai_placeholder
+  bioLastVerifiedAt: timestamp("bio_last_verified_at"),
+  bioVerifiedBy: text("bio_verified_by"), // user who verified
   careerSummary: text("career_summary"), // Structured career history summary
+  emailStatus: text("email_status").default("inferred"), // inferred, verified
+  emailSource: text("email_source").default("domain_pattern"), // domain_pattern, manual, verified
   
   // Address
   street: text("street"),
