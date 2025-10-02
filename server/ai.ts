@@ -13,6 +13,61 @@ const openai = new OpenAI({
 });
 
 /**
+ * Extract keywords from company name for domain validation
+ */
+function extractCompanyKeywords(companyName: string): string[] {
+  const stopWords = ['inc', 'llc', 'ltd', 'limited', 'corporation', 'corp', 'company', 'co', 'the', 'and', 'group', 'partners'];
+  
+  return companyName
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '') // Remove special chars
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !stopWords.includes(word));
+}
+
+/**
+ * Score domain relevance against company name
+ * Higher score = better match
+ */
+function scoreDomainRelevance(domain: string, companyKeywords: string[]): number {
+  let score = 0;
+  const domainLower = domain.toLowerCase();
+  const domainWithoutTLD = domainLower.split('.')[0]; // Get main domain name without TLD
+  
+  for (const keyword of companyKeywords) {
+    if (domainLower.includes(keyword)) {
+      // Full keyword match gets high score
+      score += keyword.length * 2;
+      
+      // Bonus points if keyword is the entire domain (exact match)
+      if (domainWithoutTLD === keyword) {
+        score += 20; // Strong bonus for exact match
+      }
+      // Bonus for domain being close to just the keyword
+      else if (domainWithoutTLD.length <= keyword.length + 3) {
+        score += 10; // Moderate bonus for short domain
+      }
+    } else {
+      // Partial match gets lower score
+      for (let i = 0; i < keyword.length - 2; i++) {
+        const substring = keyword.substring(i, i + 3);
+        if (domainLower.includes(substring)) {
+          score += 1;
+          break;
+        }
+      }
+    }
+  }
+  
+  // Penalty for very long domains (likely not the main company site)
+  if (domainWithoutTLD.length > 20) {
+    score -= 5;
+  }
+  
+  return score;
+}
+
+/**
  * Research company domain and email pattern using web search
  * Returns domain and email pattern format
  */
@@ -28,11 +83,15 @@ async function researchCompanyEmailPattern(companyName: string): Promise<{
       return { domain: null, emailPattern: null };
     }
     
+    // Extract keywords for validation
+    const companyKeywords = extractCompanyKeywords(companyName);
+    console.log(`Company keywords for validation: ${companyKeywords.join(', ')}`);
+    
     // Search for company website
     const domainQuery = `${companyName} official website`;
     console.log(`Researching company domain: "${domainQuery}"`);
     
-    const domainSearchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(domainQuery)}&engine=google&num=5`;
+    const domainSearchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(domainQuery)}&engine=google&num=10`;
     const domainResponse = await fetch(domainSearchUrl);
     
     if (!domainResponse.ok) {
@@ -43,22 +102,86 @@ async function researchCompanyEmailPattern(companyName: string): Promise<{
     const domainData = await domainResponse.json();
     const organicResults = domainData.organic_results || [];
     
-    // Extract domain from first few results
-    let domain: string | null = null;
-    for (const result of organicResults.slice(0, 3)) {
+    // Extract and score all candidate domains
+    const candidateDomains: Array<{ domain: string; score: number; rank: number }> = [];
+    
+    for (let i = 0; i < Math.min(10, organicResults.length); i++) {
+      const result = organicResults[i];
       const link = result.link || '';
+      
       try {
         const url = new URL(link);
         const hostname = url.hostname.replace('www.', '');
+        
         // Skip common non-company domains
-        if (!hostname.includes('linkedin.com') && !hostname.includes('wikipedia.org') && 
-            !hostname.includes('facebook.com') && !hostname.includes('twitter.com')) {
-          domain = hostname;
-          console.log(`✓ Found company domain: ${domain}`);
-          break;
+        if (hostname.includes('linkedin.com') || hostname.includes('wikipedia.org') || 
+            hostname.includes('facebook.com') || hostname.includes('twitter.com') ||
+            hostname.includes('instagram.com') || hostname.includes('youtube.com') ||
+            hostname.includes('bloomberg.com') || hostname.includes('crunchbase.com')) {
+          continue;
         }
+        
+        // Score this domain
+        const relevanceScore = scoreDomainRelevance(hostname, companyKeywords);
+        const rankBonus = 10 - i; // Earlier results get bonus points
+        const totalScore = relevanceScore + rankBonus;
+        
+        candidateDomains.push({
+          domain: hostname,
+          score: totalScore,
+          rank: i + 1
+        });
+        
+        console.log(`  Candidate: ${hostname} (rank #${i + 1}, relevance: ${relevanceScore}, total: ${totalScore})`);
+        
       } catch (e) {
         continue;
+      }
+    }
+    
+    // Sort by score and pick the best
+    candidateDomains.sort((a, b) => b.score - a.score);
+    
+    let domain: string | null = null;
+    
+    // If no keywords were extracted, use first result but log warning
+    if (companyKeywords.length === 0) {
+      console.log('⚠ No company keywords extracted, using first valid result with caution');
+      if (candidateDomains.length > 0) {
+        domain = candidateDomains[0].domain;
+        console.log(`✓ Selected domain (low confidence - no keywords): ${domain}`);
+      }
+    } else if (candidateDomains.length > 0) {
+      // Find first candidate with minimum relevance threshold
+      const MIN_RELEVANCE = 5;
+      let selectedCandidate = null;
+      
+      for (const candidate of candidateDomains) {
+        const rankBonus = 10 - candidate.rank + 1;
+        const relevanceScore = candidate.score - rankBonus;
+        
+        if (relevanceScore >= MIN_RELEVANCE) {
+          selectedCandidate = candidate;
+          domain = candidate.domain;
+          console.log(`✓ Selected domain: ${domain} (score: ${candidate.score}, relevance: ${relevanceScore})`);
+          
+          // Log alternatives if they exist
+          const alternatives = candidateDomains.filter(c => c !== candidate).slice(0, 2);
+          if (alternatives.length > 0) {
+            console.log(`  Alternatives considered:`);
+            alternatives.forEach(alt => {
+              const altRelevance = alt.score - (10 - alt.rank + 1);
+              console.log(`    ${alt.domain} (score: ${alt.score}, relevance: ${altRelevance})`);
+            });
+          }
+          break;
+        }
+      }
+      
+      // If no candidate meets threshold, return null
+      if (!selectedCandidate) {
+        console.log(`✗ No domain found with sufficient relevance (min: ${MIN_RELEVANCE})`);
+        return { domain: null, emailPattern: null };
       }
     }
     
