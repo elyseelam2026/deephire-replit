@@ -49,7 +49,7 @@ Preferred communication style: Simple, everyday language.
   - Stage 2: Loose matching without quotes if Stage 1 finds nothing (handles company name variations)
   - Prevents "0 results" errors while maintaining quality through confidence scoring
 - **LinkedIn Profile Validation**: Multi-result scoring algorithm with confidence threshold using SerpAPI for accurate LinkedIn profile matching.
-- **Automated Biography Generation**: Full workflow from name+company to comprehensive structured biography using SerpAPI for LinkedIn discovery, Bright Data for scraping, and Grok AI for generation. Biographies include three sections: Executive Summary (current role and expertise), Career History (reverse chronological from most recent to first position), and Education Background (degrees, institutions, certifications).
+- **Automated Biography Generation**: Full workflow from name+company to comprehensive structured biography. Uses SerpAPI for LinkedIn/bio URL discovery, HTML scraping (same method as bio URLs like Bain Capital pages) for content extraction, and Grok AI for generation. Biographies include three sections: Executive Summary (current role and expertise), Career History (reverse chronological from most recent to first position), and Education Background (degrees, institutions, certifications). LinkedIn profiles are scraped directly as HTML (not via Bright Data) for maximum data extraction.
 - **Manual Biography Entry**: Allows human-verified biography input.
 - **QA Validation System**: Tools for manual validation of email, LinkedIn, and biography data.
 - **Boolean Search Functionality**: Advanced LinkedIn search for Quick Add using SerpAPI, displaying multiple selectable results.

@@ -1840,16 +1840,32 @@ export async function searchCandidateProfilesByName(
       }
     }
     
-    // If we have a LinkedIn URL but no bio URL OR bio URL failed, generate comprehensive profile
+    // If we have a LinkedIn URL but no bio URL OR bio URL failed, scrape LinkedIn and generate profile
     // This ensures EVERYONE gets detailed biographies, not just people with bio URLs
     if (!candidateData && normalizedLinkedinUrl) {
-      console.log(`Generating comprehensive profile from LinkedIn URL: ${normalizedLinkedinUrl}`);
-      candidateData = await generateComprehensiveProfileFromLinkedIn(
-        firstName,
-        lastName,
-        company,
-        normalizedLinkedinUrl
-      );
+      console.log(`Scraping LinkedIn page to generate comprehensive profile: ${normalizedLinkedinUrl}`);
+      try {
+        const linkedinContent = await fetchWebContent(normalizedLinkedinUrl);
+        console.log(`Fetched ${linkedinContent.length} characters from LinkedIn page`);
+        candidateData = await generateCandidateProfileFromContent(
+          firstName,
+          lastName,
+          company,
+          linkedinContent,  // Use scraped LinkedIn HTML
+          '',
+          normalizedLinkedinUrl,  // bioUrl
+          normalizedLinkedinUrl   // linkedinUrl
+        );
+      } catch (error) {
+        console.error(`Failed to scrape LinkedIn page: ${error}`);
+        // Fallback to minimal profile
+        candidateData = await generateComprehensiveProfileFromLinkedIn(
+          firstName,
+          lastName,
+          company,
+          normalizedLinkedinUrl
+        );
+      }
     }
     
     return {

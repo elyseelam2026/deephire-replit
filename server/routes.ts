@@ -1362,7 +1362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auto-generate biography from LinkedIn using Bright Data
+  // Auto-generate biography from LinkedIn by scraping the page HTML
   app.post("/api/admin/generate-biography/:candidateId", async (req, res) => {
     try {
       const candidateId = parseInt(req.params.candidateId);
@@ -1376,24 +1376,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Candidate must have a LinkedIn URL to generate biography" });
       }
       
-      const { scrapeLinkedInProfile, generateBiographyFromLinkedInData } = await import('./brightdata');
+      const { searchCandidateProfilesByName } = await import('./ai');
       
-      console.log(`[Auto-Bio] Scraping LinkedIn profile for candidate ${candidateId}: ${candidate.linkedinUrl}`);
-      const profileData = await scrapeLinkedInProfile(candidate.linkedinUrl);
+      console.log(`[Auto-Bio] Generating biography for candidate ${candidateId}: ${candidate.firstName} ${candidate.lastName}`);
+      console.log(`[Auto-Bio] LinkedIn URL: ${candidate.linkedinUrl}`);
       
-      console.log(`[Auto-Bio] Generating biography from profile data...`);
-      const biography = await generateBiographyFromLinkedInData(profileData);
+      // Use the same comprehensive profile generation that works for bio URLs
+      const result = await searchCandidateProfilesByName(
+        candidate.firstName,
+        candidate.lastName,
+        candidate.currentCompany || 'Unknown',
+        candidate.linkedinUrl,  // Use existing LinkedIn URL
+        null,  // No separate bio URL
+        candidate.currentTitle || null
+      );
+      
+      if (!result.candidateData || !result.candidateData.biography) {
+        return res.status(500).json({ 
+          error: "Failed to generate biography - no data extracted from LinkedIn profile" 
+        });
+      }
       
       const updated = await storage.updateCandidate(candidateId, {
-        biography: biography,
-        bioSource: 'brightdata',
+        biography: result.candidateData.biography,
+        bioSource: 'linkedin_scrape',
         bioStatus: 'verified'
       });
       
       res.json({
         success: true,
         candidate: updated,
-        message: "Biography generated successfully using Bright Data"
+        message: "Biography generated successfully from LinkedIn profile"
       });
       
     } catch (error) {
