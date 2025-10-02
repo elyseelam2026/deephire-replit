@@ -11,6 +11,7 @@ import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
+import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
 import { z } from "zod";
 
 // Robust file type detection
@@ -1068,9 +1069,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create the candidate record (duplicate detection will run automatically)
       // The duplicate detection service will flag this if it's a duplicate
-      const newCandidate = await storage.createCandidate(searchResult.candidateData);
+      let newCandidate = await storage.createCandidate(searchResult.candidateData);
       
       console.log(`Successfully created candidate ${newCandidate.id}: ${firstName} ${lastName}`);
+      
+      // AUTOMATIC BIOGRAPHY GENERATION: If LinkedIn URL exists, trigger Bright Data scraping
+      if (newCandidate.linkedinUrl) {
+        console.log(`[Auto Biography] Triggering automatic biography generation for candidate ${newCandidate.id}`);
+        
+        try {
+          // Step 1: Scrape LinkedIn profile using Bright Data
+          console.log(`[Auto Biography] Scraping LinkedIn profile: ${newCandidate.linkedinUrl}`);
+          const profileData = await scrapeLinkedInProfile(newCandidate.linkedinUrl);
+          
+          // Step 2: Generate biography from scraped data using Grok AI
+          console.log(`[Auto Biography] Generating biography from LinkedIn data`);
+          const biography = await generateBiographyFromLinkedInData(profileData);
+          
+          // Step 3: Save biography to candidate record
+          console.log(`[Auto Biography] Saving biography to candidate ${newCandidate.id}`);
+          const updatedCandidate = await storage.updateCandidate(newCandidate.id, {
+            biography,
+            bioSource: 'brightdata',
+            bioStatus: 'verified'
+          });
+          
+          if (updatedCandidate) {
+            newCandidate = updatedCandidate;
+            console.log(`[Auto Biography] ✓ Biography successfully auto-generated and saved`);
+          }
+        } catch (bioError) {
+          // Don't fail the entire request if biography generation fails
+          // Just log the error and continue
+          console.error(`[Auto Biography] Failed to auto-generate biography:`, bioError);
+          console.log(`[Auto Biography] Candidate created successfully but biography generation failed. User can try manually.`);
+        }
+      } else {
+        console.log(`[Auto Biography] No LinkedIn URL found, skipping automatic biography generation`);
+      }
       
       res.json({
         success: true,
