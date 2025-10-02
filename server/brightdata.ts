@@ -170,6 +170,30 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, 
 
 export async function generateBiographyFromLinkedInData(profileData: LinkedInProfileData): Promise<string> {
   try {
+    // DEBUG: Log the raw profile data received from Bright Data
+    console.log(`\n========================================`);
+    console.log(`[Biography Generator] RAW PROFILE DATA RECEIVED:`);
+    console.log(`========================================`);
+    console.log(`Name: ${profileData.name || 'NOT PROVIDED'}`);
+    console.log(`Position: ${profileData.position || 'NOT PROVIDED'}`);
+    console.log(`Current Company: ${profileData.current_company_name || profileData.current_company || 'NOT PROVIDED'}`);
+    console.log(`About: ${profileData.about ? profileData.about.substring(0, 100) + '...' : 'NOT PROVIDED'}`);
+    console.log(`\nExperience Records: ${profileData.experience?.length || 0}`);
+    if (profileData.experience && profileData.experience.length > 0) {
+      profileData.experience.forEach((exp, idx) => {
+        console.log(`  ${idx + 1}. ${exp.title || 'NO TITLE'} at ${exp.company || 'NO COMPANY'} (${exp.start_date || '?'} - ${exp.end_date || 'Present'})`);
+      });
+    }
+    console.log(`\nEducation Records: ${profileData.education?.length || 0}`);
+    if (profileData.education && profileData.education.length > 0) {
+      profileData.education.forEach((edu, idx) => {
+        console.log(`  ${idx + 1}. ${edu.degree || 'NO DEGREE'} from ${edu.school || 'NO SCHOOL'}`);
+      });
+    }
+    console.log(`\nCertifications: ${profileData.certifications?.length || 0}`);
+    console.log(`Languages: ${profileData.languages?.length || 0}`);
+    console.log(`========================================\n`);
+    
     const openai = await import('openai').then(mod => mod.default);
     
     if (!process.env.XAI_API_KEY) {
