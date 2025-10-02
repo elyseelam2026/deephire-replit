@@ -132,6 +132,13 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, 
         const profileData = data[0];
         if (profileData.id || profileData.name || profileData.experience) {
           console.log(`[Bright Data] Profile data ready! Found ${data.length} results (direct array format)`);
+          
+          // DEBUG: Log ALL field names in the raw data
+          console.log(`[Bright Data] RAW DATA STRUCTURE - All fields present:`);
+          console.log(JSON.stringify(Object.keys(profileData), null, 2));
+          console.log(`[Bright Data] SAMPLE RAW DATA (first 500 chars):`);
+          console.log(JSON.stringify(profileData, null, 2).substring(0, 500));
+          
           return profileData as LinkedInProfileData;
         } else {
           console.log(`[Bright Data] Response is array but lacks profile data, waiting... (attempt ${attempt}/${maxAttempts})`);
