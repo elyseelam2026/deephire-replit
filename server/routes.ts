@@ -1307,6 +1307,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Auto-generate biography from LinkedIn using Bright Data
+  app.post("/api/admin/generate-biography/:candidateId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      
+      const candidate = await storage.getCandidate(candidateId);
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+      
+      if (!candidate.linkedinUrl) {
+        return res.status(400).json({ error: "Candidate must have a LinkedIn URL to generate biography" });
+      }
+      
+      const { scrapeLinkedInProfile, generateBiographyFromLinkedInData } = await import('./brightdata');
+      
+      console.log(`[Auto-Bio] Scraping LinkedIn profile for candidate ${candidateId}: ${candidate.linkedinUrl}`);
+      const profileData = await scrapeLinkedInProfile(candidate.linkedinUrl);
+      
+      console.log(`[Auto-Bio] Generating biography from profile data...`);
+      const biography = await generateBiographyFromLinkedInData(profileData);
+      
+      const updated = await storage.updateCandidate(candidateId, {
+        biography: biography,
+        bioSource: 'brightdata',
+        bioStatus: 'verified'
+      });
+      
+      res.json({
+        success: true,
+        candidate: updated,
+        message: "Biography generated successfully using Bright Data"
+      });
+      
+    } catch (error) {
+      console.error("Error auto-generating biography:", error);
+      res.status(500).json({
+        error: "Failed to generate biography",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Background job control endpoints
   app.post("/api/admin/jobs/:id/pause", async (req, res) => {
     try {

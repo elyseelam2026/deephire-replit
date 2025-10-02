@@ -90,6 +90,27 @@ export default function Candidates() {
     },
   });
 
+  const generateBiographyMutation = useMutation({
+    mutationFn: async (candidateId: number) => {
+      const response = await apiRequest('POST', `/api/admin/generate-biography/${candidateId}`, null);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      toast({
+        title: "Biography Generated",
+        description: "The biography has been auto-generated from LinkedIn profile using Bright Data.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Generation Failed",
+        description: error.message || "Failed to generate biography",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-6" data-testid="candidates-page">
@@ -641,13 +662,35 @@ export default function Candidates() {
                     variant="default"
                     onClick={() => {
                       if (!selectedCandidate) return;
+                      if (!selectedCandidate.linkedinUrl) {
+                        toast({
+                          title: "LinkedIn URL Required",
+                          description: "Please add a LinkedIn URL first before auto-generating biography",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      generateBiographyMutation.mutate(selectedCandidate.id);
+                    }}
+                    disabled={generateBiographyMutation.isPending || !selectedCandidate.linkedinUrl}
+                    data-testid={`button-auto-generate-biography-${selectedCandidate.id}`}
+                  >
+                    <FileText className="h-3 w-3 mr-2" />
+                    {generateBiographyMutation.isPending ? "Generating..." : "Auto-Generate Biography"}
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!selectedCandidate) return;
                       setBioText(selectedCandidate.biography || "");
                       setBioDialogOpen(true);
                     }}
-                    data-testid={`button-generate-biography-${selectedCandidate.id}`}
+                    data-testid={`button-manual-biography-${selectedCandidate.id}`}
                   >
                     <FileText className="h-3 w-3 mr-2" />
-                    {selectedCandidate.biography ? "Edit Biography" : "Add Biography"}
+                    {selectedCandidate.biography ? "Edit Biography" : "Add Biography Manually"}
                   </Button>
                 </div>
               </div>
