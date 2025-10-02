@@ -122,9 +122,25 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, 
       
       console.log(`[Bright Data] Response:`, JSON.stringify(data).substring(0, 200));
       
-      if (data.status === 'ready') {
+      // IMPORTANT: Bright Data response format varies:
+      // Format 1: { status: 'ready', data: [...] }  <- wrapped format
+      // Format 2: [...] <- direct array format (THIS IS WHAT WE'RE GETTING)
+      
+      // Check if response is a direct array (Format 2)
+      if (Array.isArray(data) && data.length > 0) {
+        // Validate the data has actual LinkedIn profile content
+        const profileData = data[0];
+        if (profileData.id || profileData.name || profileData.experience) {
+          console.log(`[Bright Data] Profile data ready! Found ${data.length} results (direct array format)`);
+          return profileData as LinkedInProfileData;
+        } else {
+          console.log(`[Bright Data] Response is array but lacks profile data, waiting... (attempt ${attempt}/${maxAttempts})`);
+        }
+      }
+      // Check if response has status field (Format 1)
+      else if (data.status === 'ready') {
         if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-          console.log(`[Bright Data] Profile data ready! Found ${data.data.length} results`);
+          console.log(`[Bright Data] Profile data ready! Found ${data.data.length} results (wrapped format)`);
           return data.data[0] as LinkedInProfileData;
         } else {
           console.error(`[Bright Data] Status is 'ready' but no data found:`, data);

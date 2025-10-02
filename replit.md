@@ -9,6 +9,19 @@ The application features a multi-portal architecture with role-based interfaces,
 ## Recent Changes
 
 ### October 2, 2025
+- **Critical Fixes for Email and LinkedIn Accuracy**: Fixed domain selection and Bright Data parsing bugs
+  - **Fixed Email Domain Selection**: Now prefers root domains over subdomains (digitalchina.com NOT en.digitalchina.com)
+    - Added -15 point penalty for subdomains (en., www2., etc.) in scoring algorithm
+    - Prevents incorrect email generation like p.chen@en.digitalchina.com
+    - Correctly generates p.chen@digitalchina.com using company's primary domain
+  - **Fixed Bright Data Response Parsing**: Handles both response formats (array and wrapped)
+    - Bright Data returns direct array format: `[{id, name, experience...}]`
+    - Previous code only checked for wrapped format: `{status: 'ready', data: [...]}`
+    - Now correctly detects profile data and stops polling when data is ready
+  - **LinkedIn Search Accuracy**: Job title field improves matching for common names
+    - Quick Add form has optional "Job Title" field (e.g., CFO, Managing Director)
+    - Including job title makes LinkedIn search more accurate: "Ping Chen" + "Digital China" + "CFO"
+    - Without job title, system may find wrong person with same name at same company
 - **Fully Automated End-to-End Biography Generation**: Implemented complete workflow from name+company to generated biography
   - **Complete Automation Chain**: Quick Add (name + company) → SerpAPI finds LinkedIn URL → Bright Data scrapes profile → Grok AI generates biography → Saves automatically
   - Created `server/brightdata.ts` module with Bright Data API client for LinkedIn profile scraping

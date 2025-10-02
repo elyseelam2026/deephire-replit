@@ -124,7 +124,25 @@ export async function researchCompanyEmailPattern(companyName: string): Promise<
         // Score this domain
         const relevanceScore = scoreDomainRelevance(hostname, companyKeywords);
         const rankBonus = 10 - i; // Earlier results get bonus points
-        const totalScore = relevanceScore + rankBonus;
+        
+        // IMPORTANT: Penalize language/regional subdomains (en.domain.com, www2.domain.com, etc.)
+        // We want the root domain (digitalchina.com) not language/regional subdomains
+        // BUT preserve multi-part TLDs like co.uk, com.cn, com.au
+        const parts = hostname.split('.');
+        const knownSubdomainPrefixes = [
+          // Language codes
+          'en', 'de', 'fr', 'es', 'it', 'pt', 'ru', 'ja', 'ko', 'zh', 'cn', 'tw', 'hk',
+          // Common subdomains
+          'www', 'www2', 'www3', 'm', 'mobile', 'web', 'portal', 'app', 'apps',
+          'admin', 'support', 'help', 'blog', 'news', 'shop', 'store', 'mail',
+          // Department/function subdomains
+          'hr', 'jobs', 'career', 'careers', 'recruit', 'recruiting', 'corp',
+          'investor', 'investors', 'ir', 'media', 'press', 'about', 'company'
+        ];
+        const hasSubdomainPrefix = parts.length > 2 && knownSubdomainPrefixes.includes(parts[0].toLowerCase());
+        const subdomainPenalty = hasSubdomainPrefix ? -15 : 0; // Strong penalty for known subdomains
+        
+        const totalScore = relevanceScore + rankBonus + subdomainPenalty;
         
         candidateDomains.push({
           domain: hostname,
@@ -132,7 +150,7 @@ export async function researchCompanyEmailPattern(companyName: string): Promise<
           rank: i + 1
         });
         
-        console.log(`  Candidate: ${hostname} (rank #${i + 1}, relevance: ${relevanceScore}, total: ${totalScore})`);
+        console.log(`  Candidate: ${hostname} (rank #${i + 1}, relevance: ${relevanceScore}, subdomain penalty: ${subdomainPenalty}, total: ${totalScore})`);
         
       } catch (e) {
         continue;
