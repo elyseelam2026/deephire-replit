@@ -1,0 +1,63 @@
+DEEPHIRE LINKEDIN IMPORTER - QUICK START
+==========================================
+
+⚡ FAST SETUP (5 minutes)
+-------------------------
+
+STEP 1: SET API KEY SECRET
+  1. In Replit, go to Tools > Secrets
+  2. Add new secret:
+     Key: EXTENSION_API_KEY
+     Value: deephire_2024_secure_key
+     (or any random string you want)
+  3. Restart your application
+
+STEP 2: INSTALL EXTENSION
+  1. Open Chrome: chrome://extensions/
+  2. Enable "Developer mode" (top right)
+  3. Click "Load unpacked"
+  4. Select: browser-extension folder
+  5. Done! Extension is now active
+
+STEP 3: CONFIGURE EXTENSION
+  1. Click DeepHire icon in Chrome toolbar
+  2. Enter:
+     API URL: https://YOUR-APP-URL.replit.dev
+     API Key: deephire_2024_secure_key
+     (must match the secret from Step 1)
+  3. Click "Save Settings"
+
+STEP 4: USE IT!
+  1. Login to LinkedIn (your normal account)
+  2. Visit ANY profile: linkedin.com/in/someone
+  3. See blue button: "📥 Import to DeepHire"
+  4. Click it!
+  5. Profile imports + biography generates automatically
+
+✨ WHAT IT DOES
+---------------
+✓ Extracts name, headline, experience, education
+✓ Creates/updates candidate in DeepHire
+✓ Generates AI biography (3 sections)
+✓ Works with YOUR LinkedIn login
+✓ No scraping - just reads what you see
+✓ Legal approach (like Apollo, Lusha)
+
+🔧 TROUBLESHOOTING
+------------------
+"Invalid API key":
+  → Check secret matches extension config
+
+"Could not extract data":
+  → Wait for page to fully load
+  → Make sure you're on /in/ profile page
+
+Button not showing:
+  → Refresh LinkedIn page
+  → Check chrome://extensions/ shows extension enabled
+
+"Failed to import":
+  → Check Replit logs for error details
+  → Verify app is running (not sleeping)
+
+For support: Check Replit console logs

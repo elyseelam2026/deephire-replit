@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepHire LinkedIn Importer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 400px;
+      min-height: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 0;
+    }
+
+    .container {
+      background: white;
+      border-radius: 0;
+      padding: 24px;
+    }
+
+    .header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+
+    .tagline {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .helper-text {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    .instructions {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f9fafb;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .instructions-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 8px;
+    }
+
+    .instructions ol {
+      margin-left: 20px;
+      font-size: 12px;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+
+    .instructions li {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🚀 DeepHire</div>
+      <div class="tagline">LinkedIn Profile Importer</div>
+    </div>
+
+    <form id="settings-form">
+      <div class="form-group">
+        <label for="api-url">DeepHire API URL</label>
+        <input 
+          type="text" 
+          id="api-url" 
+          placeholder="https://your-app.replit.app"
+          required
+        >
+        <div class="helper-text">Your DeepHire application URL</div>
+      </div>
+
+      <div class="form-group">
+        <label for="api-key">API Key</label>
+        <input 
+          type="password" 
+          id="api-key" 
+          placeholder="Enter your API key"
+          required
+        >
+        <div class="helper-text">Get this from DeepHire settings</div>
+      </div>
+
+      <button type="submit" id="save-btn">Save Settings</button>
+    </form>
+
+    <div id="status" class="status"></div>
+
+    <div class="instructions">
+      <div class="instructions-title">📖 How to Use</div>
+      <ol>
+        <li>Configure your API URL and key above</li>
+        <li>Navigate to any LinkedIn profile</li>
+        <li>Click the "Import to DeepHire" button</li>
+        <li>Profile data will be sent to DeepHire for AI biography generation</li>
+      </ol>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

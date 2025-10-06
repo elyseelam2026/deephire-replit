@@ -1418,6 +1418,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Browser extension import endpoint
+  app.post("/api/extension/import-profile", async (req, res) => {
+    try {
+      // Simple API key validation (you can make this more sophisticated)
+      const apiKey = req.headers['x-deephire-api-key'];
+      if (!apiKey || apiKey !== process.env.EXTENSION_API_KEY) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+
+      const profileData = req.body;
+      
+      if (!profileData || !profileData.url) {
+        return res.status(400).json({ error: "Invalid profile data" });
+      }
+
+      console.log('[Extension] Received profile import request:', {
+        url: profileData.url,
+        name: profileData.name,
+        headline: profileData.headline
+      });
+
+      // Parse name from profile data
+      const nameParts = profileData.name?.trim().split(/\s+/) || [];
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      if (!firstName) {
+        return res.status(400).json({ error: "Could not parse candidate name from profile" });
+      }
+
+      // Extract company from headline (e.g., "Managing Director at Wellesley Partners")
+      let currentCompany = '';
+      let currentTitle = '';
+      
+      if (profileData.headline) {
+        const atMatch = profileData.headline.match(/\s+at\s+(.+?)(?:\s*\||$)/i);
+        const dashMatch = profileData.headline.match(/\s+-\s+(.+?)(?:\s*\||$)/i);
+        
+        if (atMatch) {
+          currentCompany = atMatch[1].trim();
+          currentTitle = profileData.headline.split(/\s+at\s+/i)[0].trim();
+        } else if (dashMatch) {
+          currentCompany = dashMatch[1].trim();
+          currentTitle = profileData.headline.split(/\s+-\s+/i)[0].trim();
+        } else if (profileData.experience && profileData.experience.length > 0) {
+          // Use first experience entry
+          currentCompany = profileData.experience[0].company || '';
+          currentTitle = profileData.experience[0].title || '';
+        }
+      }
+
+      // Try to find existing candidate by LinkedIn URL or name
+      const allCandidates = await storage.getCandidates();
+      let existingCandidate = allCandidates.find(c => 
+        c.linkedinUrl === profileData.url ||
+        (c.firstName.toLowerCase() === firstName.toLowerCase() && 
+         c.lastName.toLowerCase() === lastName.toLowerCase())
+      );
+
+      let candidateId: number;
+      let isNewCandidate = false;
+
+      if (existingCandidate) {
+        console.log('[Extension] Found existing candidate:', existingCandidate.id);
+        candidateId = existingCandidate.id;
+        
+        // Update with new data from extension
+        await storage.updateCandidate(candidateId, {
+          linkedinUrl: profileData.url,
+          currentCompany: currentCompany || existingCandidate.currentCompany,
+          currentTitle: currentTitle || existingCandidate.currentTitle,
+          location: profileData.location || existingCandidate.location,
+          skills: profileData.skills || existingCandidate.skills
+        });
+      } else {
+        console.log('[Extension] Creating new candidate');
+        isNewCandidate = true;
+        
+        // Create new candidate
+        const newCandidate = await storage.createCandidate({
+          firstName,
+          lastName,
+          linkedinUrl: profileData.url,
+          currentCompany: currentCompany || 'Unknown',
+          currentTitle: currentTitle || '',
+          location: profileData.location || '',
+          skills: profileData.skills || [],
+          bioSource: 'extension',
+          bioStatus: 'pending'
+        });
+        
+        candidateId = newCandidate.id;
+      }
+
+      // Generate biography using the extracted profile data
+      console.log('[Extension] Generating biography from profile data...');
+      
+      // Format the profile data for AI processing
+      const formattedProfile = {
+        name: profileData.name,
+        headline: profileData.headline,
+        location: profileData.location,
+        about: profileData.about,
+        experience: profileData.experience || [],
+        education: profileData.education || [],
+        skills: profileData.skills || []
+      };
+
+      // Convert to text format for AI
+      let profileText = `Name: ${formattedProfile.name}\n`;
+      if (formattedProfile.headline) profileText += `Headline: ${formattedProfile.headline}\n`;
+      if (formattedProfile.location) profileText += `Location: ${formattedProfile.location}\n`;
+      if (formattedProfile.about) profileText += `\nAbout:\n${formattedProfile.about}\n`;
+      
+      if (formattedProfile.experience.length > 0) {
+        profileText += `\nExperience:\n`;
+        formattedProfile.experience.forEach((exp: any) => {
+          profileText += `- ${exp.title || ''}${exp.company ? ' at ' + exp.company : ''}${exp.dates ? ' (' + exp.dates + ')' : ''}\n`;
+          if (exp.description) profileText += `  ${exp.description}\n`;
+        });
+      }
+      
+      if (formattedProfile.education.length > 0) {
+        profileText += `\nEducation:\n`;
+        formattedProfile.education.forEach((edu: any) => {
+          profileText += `- ${edu.school || ''}${edu.degree ? ': ' + edu.degree : ''}${edu.dates ? ' (' + edu.dates + ')' : ''}\n`;
+        });
+      }
+      
+      if (formattedProfile.skills.length > 0) {
+        profileText += `\nSkills: ${formattedProfile.skills.join(', ')}\n`;
+      }
+
+      // Use AI to generate biography from the profile text
+      const { default: OpenAI } = await import('openai');
+      const openai = new OpenAI({
+        apiKey: process.env.XAI_API_KEY,
+        baseURL: "https://api.x.ai/v1"
+      });
+
+      const response = await openai.chat.completions.create({
+        model: "grok-2-1212",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert recruiter writing professional biographies. Generate comprehensive, well-structured biographies from LinkedIn profile data. Always respond with valid JSON.`
+          },
+          {
+            role: "user",
+            content: `Create a professional biography for this candidate based on their LinkedIn profile data:
+
+${profileText}
+
+Generate a JSON response with this structure:
+{
+  "biography": "A comprehensive professional biography with THREE sections:\\n\\n**Executive Summary**\\nCurrent role, expertise, and key strengths (2-3 sentences)\\n\\n**Career History**\\nReverse chronological career progression from most recent to earliest positions, highlighting key achievements and responsibilities\\n\\n**Education Background**\\nDegrees, institutions, and relevant certifications"
+}
+
+Requirements:
+- Write in third person
+- Use professional tone suitable for executive profiles
+- Be specific about roles, companies, and achievements
+- Include actual details from the profile data
+- Do NOT fabricate information not in the profile data
+- Structure with clear section headers as shown above`
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const aiResult = JSON.parse(response.choices[0].message.content || "{}");
+
+      if (aiResult && aiResult.biography) {
+        await storage.updateCandidate(candidateId, {
+          biography: aiResult.biography,
+          bioSource: 'extension',
+          bioStatus: 'verified'
+        });
+        
+        console.log('[Extension] Biography generated successfully');
+      }
+
+      // Get final candidate data
+      const finalCandidate = await storage.getCandidate(candidateId);
+
+      res.json({
+        success: true,
+        candidate: finalCandidate,
+        message: isNewCandidate 
+          ? 'New candidate created and biography generated' 
+          : 'Existing candidate updated with new data and biography generated'
+      });
+
+    } catch (error) {
+      console.error('[Extension] Error importing profile:', error);
+      res.status(500).json({
+        error: "Failed to import profile",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Background job control endpoints
   app.post("/api/admin/jobs/:id/pause", async (req, res) => {
     try {

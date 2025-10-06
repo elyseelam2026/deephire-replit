@@ -1,0 +1,18 @@
+TO SHARE THIS EXTENSION WITH YOUR TEAM:
+========================================
+
+Option 1: Share the folder
+---------------------------
+1. Zip the browser-extension folder
+2. Share the zip file with team members
+3. They extract and load unpacked in Chrome
+4. Everyone uses the same API key
+
+Option 2: Publish to Chrome Web Store (for wider distribution)
+---------------------------------------------------------------
+1. Create developer account ($5 one-time fee)
+2. Package extension as .zip
+3. Submit to Chrome Web Store
+4. Users install like any Chrome extension
+
+For now, Option 1 (sharing folder) is fastest!

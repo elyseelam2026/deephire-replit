@@ -1,0 +1,69 @@
+DEEPHIRE LINKEDIN IMPORTER - INSTALLATION GUIDE
+================================================
+
+This Chrome extension allows you to import LinkedIn profiles directly into DeepHire
+for AI-powered biography generation.
+
+STEP 1: GENERATE API KEY
+-------------------------
+1. Open your DeepHire application
+2. Generate a secure API key (any random string, e.g., "dh_prod_abc123xyz")
+3. Add it as a secret in Replit:
+   - Go to Replit Secrets (Tools > Secrets)
+   - Add: EXTENSION_API_KEY = your_generated_key
+4. Restart your application
+
+STEP 2: INSTALL EXTENSION IN CHROME
+------------------------------------
+1. Open Chrome browser
+2. Go to: chrome://extensions/
+3. Enable "Developer mode" (toggle in top-right corner)
+4. Click "Load unpacked"
+5. Select the "browser-extension" folder from this project
+6. Extension installed! You'll see the DeepHire icon in your toolbar
+
+STEP 3: CONFIGURE EXTENSION
+----------------------------
+1. Click the DeepHire extension icon in Chrome toolbar
+2. Enter your settings:
+   - API URL: https://your-replit-app-url.replit.dev (or your published domain)
+   - API Key: The same key you set in EXTENSION_API_KEY secret
+3. Click "Save Settings"
+
+STEP 4: USE THE EXTENSION
+--------------------------
+1. Log into LinkedIn with your own account (as you normally would)
+2. Navigate to any LinkedIn profile page
+3. You'll see a blue "📥 Import to DeepHire" button in bottom-right corner
+4. Click the button to import the profile
+5. The extension will:
+   - Extract profile data from the page you're viewing
+   - Send it to DeepHire
+   - Generate a professional biography using AI
+   - Create or update the candidate in your database
+
+FEATURES
+--------
+✓ Works with your existing LinkedIn login (no scraping, no automation)
+✓ Extracts: name, headline, experience, education, skills, location
+✓ Auto-generates comprehensive 3-section biographies
+✓ Creates new candidates or updates existing ones
+✓ No rate limits (you control usage)
+✓ Legal gray area (similar to Apollo, Lusha, ZoomInfo)
+
+TROUBLESHOOTING
+---------------
+- "Invalid API key" error: Check EXTENSION_API_KEY secret matches your extension settings
+- "Failed to extract data": Make sure LinkedIn page is fully loaded before clicking import
+- Extension not visible on LinkedIn: Refresh the page or check that Developer mode is enabled
+- No button appears: Check browser console (F12) for errors
+
+NOTES
+-----
+- This is NOT automated scraping - it only reads pages you manually visit
+- Works while logged into LinkedIn with your own account
+- Each import requires manual button click (no automation)
+- Extension only works on linkedin.com/in/* profile pages
+- All data stays within your DeepHire system
+
+For support, check the Replit console logs when importing profiles.
