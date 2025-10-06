@@ -1563,26 +1563,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: [
           {
             role: "system",
-            content: `You are an expert recruiter writing professional biographies. Generate comprehensive, well-structured biographies from LinkedIn profile data. Always respond with valid JSON.`
+            content: `You are an expert recruiter writing professional biographies based STRICTLY on provided LinkedIn data. You must NEVER invent, assume, or fabricate any information. Always respond with valid JSON.`
           },
           {
             role: "user",
-            content: `Create a professional biography for this candidate based on their LinkedIn profile data:
+            content: `Create a professional biography for this candidate using ONLY the information provided below. Do not add any details, achievements, or descriptions that are not explicitly stated in the data.
 
+LINKEDIN PROFILE DATA:
 ${profileText}
 
 Generate a JSON response with this structure:
 {
-  "biography": "A comprehensive professional biography with THREE sections:\\n\\n**Executive Summary**\\nCurrent role, expertise, and key strengths (2-3 sentences)\\n\\n**Career History**\\nReverse chronological career progression from most recent to earliest positions, highlighting key achievements and responsibilities\\n\\n**Education Background**\\nDegrees, institutions, and relevant certifications"
+  "biography": "A professional biography with THREE sections:\\n\\n**Executive Summary**\\n[Based only on current role/headline from data]\\n\\n**Career History**\\n[List only positions explicitly mentioned with their actual titles, companies, and dates. If no description is provided for a role, only list: title, company, dates - do not add achievements or responsibilities]\\n\\n**Education Background**\\n[List only schools, degrees, and dates explicitly provided. If information is missing, omit it entirely]"
 }
 
-Requirements:
-- Write in third person
-- Use professional tone suitable for executive profiles
-- Be specific about roles, companies, and achievements
-- Include actual details from the profile data
-- Do NOT fabricate information not in the profile data
-- Structure with clear section headers as shown above`
+CRITICAL RULES - You MUST follow these strictly:
+1. Write in third person professional tone
+2. Use ONLY information explicitly provided in the profile data above
+3. If experience descriptions are missing, write ONLY: "[Title] at [Company] ([Dates])" - DO NOT add achievements
+4. If education details are missing, write ONLY: "[School]" or "[Degree], [School]" - DO NOT add descriptions
+5. DO NOT infer, assume, or create any details about:
+   - Achievements not mentioned
+   - Responsibilities not described
+   - Skills not listed
+   - Companies or roles not stated
+6. If a section has no data, state: "[No information provided]"
+7. Keep the biography factual and concise - quality over quantity`
           }
         ],
         response_format: { type: "json_object" }
