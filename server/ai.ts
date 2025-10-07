@@ -1192,17 +1192,22 @@ export async function parseCompanyData(companyText: string): Promise<{
 
 // Parse company data from website URL - Phase 1: Core fields with real web scraping!
 export async function parseCompanyFromUrl(url: string): Promise<any | null> {
+  console.log(`\n🔵 parseCompanyFromUrl called with URL: ${url}`);
+  
   try {
     // Use the new real extraction function
+    console.log(`🔵 Calling extractCompanyFromWebsite...`);
     const companyData = await extractCompanyFromWebsite(url);
     
     if (!companyData) {
-      console.log(`Failed to extract company data from ${url}`);
+      console.log(`❌ extractCompanyFromWebsite returned null for ${url}`);
       return null;
     }
 
+    console.log(`✅ extractCompanyFromWebsite returned data:`, JSON.stringify(companyData, null, 2));
+
     // Return ALL Phase 1 fields extracted from website
-    return {
+    const result = {
       name: companyData.name,
       website: companyData.website,
       industry: companyData.industry || null,
@@ -1218,8 +1223,11 @@ export async function parseCompanyFromUrl(url: string): Promise<any | null> {
       subsector: undefined,
       stage: "growth"
     };
+    
+    console.log(`🔵 parseCompanyFromUrl returning:`, JSON.stringify(result, null, 2));
+    return result;
   } catch (error) {
-    console.error("Error parsing company from URL:", error);
+    console.error("❌ Error in parseCompanyFromUrl:", error);
     return null;
   }
 }
