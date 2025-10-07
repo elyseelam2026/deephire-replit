@@ -1190,16 +1190,8 @@ export async function parseCompanyData(companyText: string): Promise<{
   }
 }
 
-// Parse company data from website URL - now uses real web scraping!
-export async function parseCompanyFromUrl(url: string): Promise<{
-  name: string;
-  parentCompany?: string;
-  location: string;
-  industry: string;
-  employeeSize?: number;
-  subsector?: string;
-  stage?: string;
-} | null> {
+// Parse company data from website URL - Phase 1: Core fields with real web scraping!
+export async function parseCompanyFromUrl(url: string): Promise<any | null> {
   try {
     // Use the new real extraction function
     const companyData = await extractCompanyFromWebsite(url);
@@ -1209,15 +1201,22 @@ export async function parseCompanyFromUrl(url: string): Promise<{
       return null;
     }
 
-    // Map the detailed extraction to the expected format
+    // Return ALL Phase 1 fields extracted from website
     return {
       name: companyData.name,
+      website: companyData.website,
+      industry: companyData.industry || null,
+      missionStatement: companyData.missionStatement || null,
+      primaryPhone: companyData.primaryPhone || null,
+      headquarters: companyData.headquarters || null, // JSON object
+      officeLocations: companyData.officeLocations || [], // JSON array
+      annualRevenue: companyData.annualRevenue || null,
+      location: companyData.location || null,
+      // Backward compatibility fields
       parentCompany: undefined,
-      location: companyData.location || "Unknown",
-      industry: companyData.industry || "Unknown",
-      employeeSize: companyData.annualRevenue ? Math.floor(companyData.annualRevenue / 100000) : undefined, // Rough employee estimate
+      employeeSize: undefined,
       subsector: undefined,
-      stage: "growth" // Default stage
+      stage: "growth"
     };
   } catch (error) {
     console.error("Error parsing company from URL:", error);
