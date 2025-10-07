@@ -2077,3 +2077,108 @@ Be thorough and professional. The biography should be well-written and suitable 
     };
   }
 }
+
+/**
+ * Extract company information from company website URL
+ * Phase 1: Core fields (name, location, phone, industry, description)
+ */
+export async function extractCompanyFromWebsite(websiteUrl: string): Promise<any | null> {
+  console.log(`\n========================================`);
+  console.log(`Extracting company data from: ${websiteUrl}`);
+  console.log(`========================================\n`);
+  
+  try {
+    // Step 1: Fetch company website content
+    console.log(`Fetching content from company website...`);
+    const websiteContent = await fetchWebContent(websiteUrl);
+    
+    if (!websiteContent || websiteContent.length < 100) {
+      console.log('Insufficient content from company website');
+      return null;
+    }
+    
+    console.log(`✓ Successfully fetched ${websiteContent.length} characters`);
+    
+    // Step 2: Extract company data using AI
+    const companyDataResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert business analyst. Extract structured company data from websites. Always respond with valid JSON. Extract ONLY information explicitly shown on the website."
+        },
+        {
+          role: "user",
+          content: `Extract company information from this website.
+
+Website URL: ${websiteUrl}
+Content: ${websiteContent.slice(0, 10000)}
+
+Return EXACTLY this JSON structure:
+{
+  "name": "official company name",
+  "industry": "primary industry/sector",
+  "missionStatement": "company description, about us, or mission statement (2-3 sentences)",
+  "primaryPhone": "phone number with country code if shown (e.g., +1 555-123-4567)",
+  "headquarters": {
+    "street": "street address if shown",
+    "city": "city",
+    "state": "state/province if applicable",
+    "country": "country",
+    "postalCode": "zip/postal code if shown"
+  },
+  "officeLocations": [
+    {
+      "city": "city name",
+      "country": "country",
+      "address": "full address if available"
+    }
+  ],
+  "annualRevenue": null,
+  "website": "${websiteUrl}"
+}
+
+STRICT RULES:
+1. Use ONLY information explicitly shown on the website
+2. For headquarters: Extract from "Contact," "About," or footer sections
+3. For offices: Look for "Locations," "Offices," or "Contact" pages
+4. For phone: Include country code if visible (e.g., +1, +44, +65)
+5. For description: Use "About Us" or mission statement text
+6. If data is missing: use null or empty array []
+7. DO NOT fabricate or assume anything
+8. Revenue is rarely on websites - leave as null unless explicitly stated`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+    
+    const result = JSON.parse(companyDataResponse.choices[0].message.content || "{}");
+    
+    if (!result.name) {
+      console.log('Could not extract company name from website');
+      return null;
+    }
+    
+    console.log(`✓ Successfully extracted company data:`);
+    console.log(`  - Name: ${result.name}`);
+    console.log(`  - Industry: ${result.industry || 'N/A'}`);
+    console.log(`  - Phone: ${result.primaryPhone || 'N/A'}`);
+    console.log(`  - HQ: ${result.headquarters?.city || 'N/A'}, ${result.headquarters?.country || 'N/A'}`);
+    console.log(`  - Offices: ${result.officeLocations?.length || 0} locations`);
+    
+    return {
+      name: result.name,
+      website: websiteUrl,
+      industry: result.industry || null,
+      missionStatement: result.missionStatement || null,
+      primaryPhone: result.primaryPhone || null,
+      headquarters: result.headquarters || null,
+      officeLocations: result.officeLocations || [],
+      annualRevenue: result.annualRevenue || null,
+      location: result.headquarters?.city ? `${result.headquarters.city}, ${result.headquarters.country || ''}`.trim() : null
+    };
+  } catch (error) {
+    console.error(`Error extracting company data: ${error}`);
+    return null;
+  }
+}
