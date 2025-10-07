@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Users, TrendingUp, X } from "lucide-react";
+import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Company } from "@shared/schema";
@@ -176,35 +176,115 @@ export default function Companies() {
           
           {selectedCompany && (
             <div className="space-y-6">
+              {/* Mission Statement */}
+              {selectedCompany.missionStatement && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2">About</h4>
+                  <p className="text-muted-foreground text-sm">{String(selectedCompany.missionStatement)}</p>
+                </div>
+              )}
+
+              {/* Basic Info Grid */}
               <div className="grid grid-cols-2 gap-4">
                 {selectedCompany.industry && (
                   <div>
-                    <h4 className="font-medium text-sm">Industry</h4>
-                    <p className="text-muted-foreground">{selectedCompany.industry}</p>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Industry
+                    </h4>
+                    <p className="text-muted-foreground mt-1">{selectedCompany.industry}</p>
                   </div>
                 )}
-                {selectedCompany.location && (
+                {selectedCompany.primaryPhone && (
                   <div>
-                    <h4 className="font-medium text-sm">Location</h4>
-                    <p className="text-muted-foreground">{selectedCompany.location}</p>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Phone
+                    </h4>
+                    <p className="text-muted-foreground mt-1">{String(selectedCompany.primaryPhone)}</p>
                   </div>
                 )}
-                {selectedCompany.employeeSize && (
+                {selectedCompany.website && (
                   <div>
-                    <h4 className="font-medium text-sm">Employee Size</h4>
-                    <p className="text-muted-foreground">{selectedCompany.employeeSize} employees</p>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      Website
+                    </h4>
+                    <a href={String(selectedCompany.website)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline mt-1 block text-sm">
+                      {String(selectedCompany.website)}
+                    </a>
                   </div>
                 )}
-                {selectedCompany.stage && (
+                {selectedCompany.annualRevenue && (
                   <div>
-                    <h4 className="font-medium text-sm">Stage</h4>
-                    <Badge variant="secondary" className={getStageColor(selectedCompany.stage)}>
-                      {selectedCompany.stage}
-                    </Badge>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Revenue
+                    </h4>
+                    <p className="text-muted-foreground mt-1">{String(selectedCompany.annualRevenue)}</p>
                   </div>
                 )}
               </div>
-              
+
+              {/* Headquarters */}
+              {selectedCompany.headquarters && typeof selectedCompany.headquarters === 'object' && (
+                <div>
+                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
+                    <Building2 className="h-4 w-4" />
+                    Headquarters
+                  </h4>
+                  <div className="text-muted-foreground text-sm">
+                    {(selectedCompany.headquarters as any).street && <p>{(selectedCompany.headquarters as any).street}</p>}
+                    <p>
+                      {[
+                        (selectedCompany.headquarters as any).city,
+                        (selectedCompany.headquarters as any).state,
+                        (selectedCompany.headquarters as any).postalCode
+                      ].filter(Boolean).join(', ')}
+                    </p>
+                    {(selectedCompany.headquarters as any).country && <p>{(selectedCompany.headquarters as any).country}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Office Locations */}
+              {selectedCompany.officeLocations && Array.isArray(selectedCompany.officeLocations) && selectedCompany.officeLocations.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
+                    <MapPin className="h-4 w-4" />
+                    Office Locations ({selectedCompany.officeLocations.length})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {(selectedCompany.officeLocations as any[]).map((office: any, idx: number) => (
+                      <div key={idx} className="text-sm p-2 bg-muted rounded-md">
+                        <p className="font-medium">{office.city}, {office.country}</p>
+                        {office.address && <p className="text-muted-foreground text-xs">{office.address}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Legacy fields */}
+              {selectedCompany.employeeSize && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Employees
+                    </h4>
+                    <p className="text-muted-foreground mt-1">{selectedCompany.employeeSize} employees</p>
+                  </div>
+                  {selectedCompany.stage && (
+                    <div>
+                      <h4 className="font-medium text-sm mb-1">Stage</h4>
+                      <Badge variant="secondary" className={getStageColor(selectedCompany.stage)}>
+                        {selectedCompany.stage}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
