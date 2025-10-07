@@ -2063,61 +2063,88 @@ export async function extractCompanyFromWebsite(websiteUrl: string): Promise<any
   console.log(`========================================\n`);
   
   try {
-    // Step 1: Fetch company website content
-    console.log(`Fetching content from company website...`);
-    const websiteContent = await fetchWebContent(websiteUrl);
+    // Step 1: Try to fetch contact/about pages first for better data
+    const baseUrl = new URL(websiteUrl).origin;
+    const pagesToTry = [
+      websiteUrl, // Homepage
+      `${baseUrl}/contact`,
+      `${baseUrl}/contact-us`,
+      `${baseUrl}/about`,
+      `${baseUrl}/about-us`,
+      `${baseUrl}/locations`,
+      `${baseUrl}/offices`
+    ];
     
-    if (!websiteContent || websiteContent.length < 100) {
+    let allContent = '';
+    for (const pageUrl of pagesToTry) {
+      try {
+        console.log(`Trying to fetch: ${pageUrl}`);
+        const content = await fetchWebContent(pageUrl);
+        if (content && content.length > 50) {
+          allContent += `\n\n=== Content from ${pageUrl} ===\n${content}`;
+          console.log(`✓ Fetched ${content.length} chars from ${pageUrl}`);
+        }
+      } catch (err) {
+        console.log(`⚠ Could not fetch ${pageUrl}`);
+      }
+    }
+    
+    if (!allContent || allContent.length < 100) {
       console.log('Insufficient content from company website');
       return null;
     }
     
-    console.log(`✓ Successfully fetched ${websiteContent.length} characters`);
+    console.log(`✓ Total content fetched: ${allContent.length} characters from multiple pages`);
     
-    // Step 2: Extract company data using AI
+    // Step 2: Extract company data using AI with aggressive extraction
     const companyDataResponse = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
         {
           role: "system",
-          content: "You are an expert business analyst. Extract structured company data from websites. Always respond with valid JSON. Extract ONLY information explicitly shown on the website."
+          content: "You are an expert business intelligence analyst. Extract ALL available structured company data from website content. Be thorough and search the entire content for phone numbers, addresses, locations, revenue info, and company details. ALWAYS respond with valid JSON."
         },
         {
           role: "user",
-          content: `Extract company information from this website.
+          content: `Extract ALL company information from this website. Search thoroughly for contact info, addresses, phone numbers, and company details.
 
-Website URL: ${websiteUrl}
-Content: ${websiteContent.slice(0, 10000)}
+Website: ${websiteUrl}
 
-Return EXACTLY this JSON structure:
+Content from multiple pages:
+${allContent.slice(0, 30000)}
+
+Return EXACTLY this JSON structure - extract EVERY piece of info you can find:
 {
-  "name": "official company name",
-  "industry": "primary industry/sector",
-  "missionStatement": "company description, about us, or mission statement (2-3 sentences)",
-  "primaryPhone": "phone number with country code if shown (e.g., +1 555-123-4567)",
+  "name": "official company name (search headers, titles, footer)",
+  "industry": "primary industry/sector (investment, tech, finance, etc.)",
+  "missionStatement": "company description or mission (search About section, hero text, meta description)",
+  "primaryPhone": "MAIN phone number with country code (search Contact, footer, header - format: +1-555-123-4567 or (555) 123-4567)",
   "headquarters": {
-    "street": "street address if shown",
-    "city": "city",
-    "state": "state/province if applicable",
-    "country": "country",
-    "postalCode": "zip/postal code if shown"
+    "street": "HQ street address (search Contact, About, footer)",
+    "city": "HQ city",
+    "state": "HQ state/province",
+    "country": "HQ country",
+    "postalCode": "HQ zip code"
   },
   "officeLocations": [
     {
-      "city": "city name",
-      "country": "country",
-      "address": "full address if available"
+      "city": "office city",
+      "country": "office country", 
+      "address": "full office address if available"
     }
   ],
-  "annualRevenue": null,
+  "annualRevenue": "revenue if mentioned (e.g., '$5B', '€2.3M', 'AUM $500B')",
   "website": "${websiteUrl}"
 }
 
-STRICT RULES:
-1. Use ONLY information explicitly shown on the website
-2. For headquarters: Extract from "Contact," "About," or footer sections
-3. For offices: Look for "Locations," "Offices," or "Contact" pages
-4. For phone: Include country code if visible (e.g., +1, +44, +65)
+CRITICAL EXTRACTION RULES:
+1. SEARCH EVERYWHERE: Headers, footers, contact pages, about sections, sidebars
+2. Phone numbers: Look for patterns like +1, (555), 1-800, international formats
+3. Addresses: Search "Contact", "Visit Us", "Headquarters", "HQ", footer sections
+4. Offices: Look for "Locations", "Global Offices", "Our Offices", city names with addresses
+5. Revenue: Search for "$", "AUM", "revenue", "billion", "assets under management"
+6. If headquarters has partial info (just city/country), that's OK - include what you find
+7. Extract ALL office locations mentioned, not just HQ
 5. For description: Use "About Us" or mission statement text
 6. If data is missing: use null or empty array []
 7. DO NOT fabricate or assume anything
