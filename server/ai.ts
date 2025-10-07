@@ -856,35 +856,43 @@ export async function parseEnhancedCandidateFromUrl(bioUrl: string): Promise<{
       return null;
     }
     
-    // Step 2: Extract candidate data from bio page first
+    // Step 2: Extract candidate data from bio page (handles both individual pages and team directories)
     const candidateDataResponse = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
         {
           role: "system",
-          content: "You are an expert candidate profile analyst. Extract structured candidate data from bio pages. Always respond with valid JSON."
+          content: "You are an expert candidate profile analyst. Extract structured candidate data from professional bio pages or team directory pages. If the page shows multiple people, extract the FIRST person listed. Always respond with valid JSON."
         },
         {
           role: "user",
-          content: `Extract candidate information from this Bain Capital bio page:
-          
-          Bio URL: ${bioUrl}
-          Content: ${bioContent}
-          
-          Extract in JSON format:
-          {
-            "firstName": "first name",
-            "lastName": "last name", 
-            "email": "professional email if found",
-            "phoneNumber": "contact phone number if explicitly shown (including country code if visible)",
-            "currentCompany": "current company name",
-            "currentTitle": "current job title",
-            "skills": ["relevant skills"],
-            "yearsExperience": estimated_years,
-            "location": "location if mentioned",
-            "biography": "comprehensive 2-3 paragraph professional biography",
-            "careerSummary": "structured career highlights and achievements"
-          }`
+          content: `Extract ONE candidate's information from this professional bio or team directory page.
+
+IMPORTANT: If this is a team directory showing multiple people, extract ONLY the FIRST person listed.
+
+Bio URL: ${bioUrl}
+Content: ${bioContent}
+
+Extract in JSON format:
+{
+  "firstName": "first name",
+  "lastName": "last name", 
+  "email": "professional email if found (look for mailto: links or email addresses)",
+  "phoneNumber": "contact phone number if explicitly shown (include country code like +65, +1, etc)",
+  "currentCompany": "company name from the page",
+  "currentTitle": "job title or position",
+  "skills": ["key skills or expertise areas if mentioned"],
+  "yearsExperience": estimated_years_if_calculable,
+  "location": "office location or city if mentioned",
+  "biography": "Write a comprehensive 2-3 paragraph professional biography in third person using ONLY information from the page. Focus on current role, background, expertise, and career highlights.",
+  "careerSummary": "Write a brief readable paragraph summarizing key career achievements, positions held, and areas of expertise. Use PLAIN TEXT, not JSON or structured data."
+}
+
+CRITICAL RULES:
+- Extract from FIRST person if page shows multiple people
+- Use ONLY information explicitly shown on the page
+- Write biography and careerSummary as READABLE TEXT PARAGRAPHS, not JSON arrays or objects
+- If data is missing, use null - DO NOT fabricate`
         }
       ],
       response_format: { type: "json_object" }
