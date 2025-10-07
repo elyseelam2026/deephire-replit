@@ -346,8 +346,8 @@ export default function Candidates() {
 
       {/* Candidate Detail Modal */}
       <Dialog open={!!selectedCandidate} onOpenChange={(open) => !open && setSelectedCandidate(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" data-testid={`candidate-profile-${selectedCandidate?.id}`}>
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col" data-testid={`candidate-profile-${selectedCandidate?.id}`}>
+          <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
             <DialogTitle className="flex items-center gap-3">
               <Avatar className="h-8 w-8">
                 <AvatarFallback>
@@ -362,7 +362,7 @@ export default function Candidates() {
           </DialogHeader>
           
           {selectedCandidate && (
-            <div className="space-y-6 overflow-y-auto pr-2 -mr-2">
+            <div className="space-y-6 overflow-y-auto px-6 py-4 flex-1">
               <div className="grid grid-cols-2 gap-4">
                 {selectedCandidate.email && (
                   <div>
