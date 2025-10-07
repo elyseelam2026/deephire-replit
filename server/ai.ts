@@ -750,12 +750,12 @@ async function fetchWebContent(url: string): Promise<string> {
   }
 }
 
-// Real LinkedIn discovery using web search - exactly as user suggested!
-async function findLinkedInProfile(firstName: string, lastName: string, company: string = 'Bain Capital'): Promise<string | null> {
+// Real LinkedIn discovery using web search - uses actual company name!
+async function findLinkedInProfile(firstName: string, lastName: string, company: string): Promise<string | null> {
   try {
     const fullName = `${firstName} ${lastName}`;
     
-    // Use the exact approach the user suggested: "First Name + Last Name" AND "Bain Capital" 
+    // Search for LinkedIn profile using the actual company name
     console.log(`Searching for LinkedIn profile: ${fullName} at ${company}`);
     
     // Simple approach: search for LinkedIn profiles directly using web search
@@ -875,8 +875,9 @@ export async function parseEnhancedCandidateFromUrl(bioUrl: string): Promise<{
           {
             "firstName": "first name",
             "lastName": "last name", 
-            "email": "professional email (use @baincapital.com if not found)",
-            "currentCompany": "current company",
+            "email": "professional email if found",
+            "phoneNumber": "contact phone number if explicitly shown (including country code if visible)",
+            "currentCompany": "current company name",
             "currentTitle": "current job title",
             "skills": ["relevant skills"],
             "yearsExperience": estimated_years,
@@ -896,9 +897,10 @@ export async function parseEnhancedCandidateFromUrl(bioUrl: string): Promise<{
       return null;
     }
     
-    // Step 3: Use your suggested approach to find LinkedIn profile!
-    console.log(`Using web search approach: "${result.firstName} ${result.lastName}" + "Bain Capital"`);
-    const discoveredLinkedInUrl = await findLinkedInProfile(result.firstName, result.lastName, 'Bain Capital');
+    // Step 3: Use the ACTUAL company to find LinkedIn profile (not hardcoded "Bain Capital"!)
+    const actualCompany = result.currentCompany || 'Unknown Company';
+    console.log(`Using web search approach: "${result.firstName} ${result.lastName}" + "${actualCompany}"`);
+    const discoveredLinkedInUrl = await findLinkedInProfile(result.firstName, result.lastName, actualCompany);
     
     if (!result.firstName || !result.lastName) {
       console.log('Could not extract valid candidate data from bio');
@@ -909,6 +911,7 @@ export async function parseEnhancedCandidateFromUrl(bioUrl: string): Promise<{
       firstName: result.firstName,
       lastName: result.lastName,
       email: result.email || `${result.firstName}.${result.lastName}@email.com`.toLowerCase(),
+      phoneNumber: result.phoneNumber || undefined,
       currentCompany: result.currentCompany || undefined,
       currentTitle: result.currentTitle || undefined,
       basicSalary: undefined,
