@@ -1190,7 +1190,7 @@ export async function parseCompanyData(companyText: string): Promise<{
   }
 }
 
-// Parse company data from website URL
+// Parse company data from website URL - now uses real web scraping!
 export async function parseCompanyFromUrl(url: string): Promise<{
   name: string;
   parentCompany?: string;
@@ -1201,55 +1201,23 @@ export async function parseCompanyFromUrl(url: string): Promise<{
   stage?: string;
 } | null> {
   try {
-    // Simulate URL content fetching (in a real app, you'd use a web scraper)
-    const mockUrlContent = `
-      Company Profile from ${url}
-      
-      This is a simulated company extraction from a website URL. In a production environment, 
-      this would scrape the actual content from company websites, about pages, etc.
-      
-      For demonstration purposes, we'll generate sample company data based on the URL pattern.
-    `;
-
-    const response = await openai.chat.completions.create({
-      model: "grok-2-1212",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert business analyst. Extract company data from website URLs. Generate realistic company data in JSON format based on the URL pattern."
-        },
-        {
-          role: "user",
-          content: `Based on this company URL, generate realistic company data in JSON format:
-          URL: ${url}
-          
-          Generate:
-          {
-            "name": "realistic company name based on URL",
-            "location": "realistic headquarters location",
-            "industry": "appropriate industry based on URL pattern",
-            "employeeSize": realistic_employee_count,
-            "stage": "startup|growth|enterprise based on URL pattern"
-          }`
-        }
-      ],
-      response_format: { type: "json_object" }
-    });
-
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+    // Use the new real extraction function
+    const companyData = await extractCompanyFromWebsite(url);
     
-    if (!result.name || !result.industry) {
+    if (!companyData) {
+      console.log(`Failed to extract company data from ${url}`);
       return null;
     }
 
+    // Map the detailed extraction to the expected format
     return {
-      name: result.name,
+      name: companyData.name,
       parentCompany: undefined,
-      location: result.location || "Unknown",
-      industry: result.industry,
-      employeeSize: typeof result.employeeSize === 'number' ? result.employeeSize : undefined,
+      location: companyData.location || "Unknown",
+      industry: companyData.industry || "Unknown",
+      employeeSize: companyData.annualRevenue ? Math.floor(companyData.annualRevenue / 100000) : undefined, // Rough employee estimate
       subsector: undefined,
-      stage: ["startup", "growth", "enterprise"].includes(result.stage) ? result.stage : "growth"
+      stage: "growth" // Default stage
     };
   } catch (error) {
     console.error("Error parsing company from URL:", error);
