@@ -856,43 +856,49 @@ export async function parseEnhancedCandidateFromUrl(bioUrl: string): Promise<{
       return null;
     }
     
-    // Step 2: Extract candidate data from bio page (handles both individual pages and team directories)
+    // Step 2: Detect if this is a team directory page with multiple people
+    const isTeamPage = bioContent.toLowerCase().includes('team') || bioContent.toLowerCase().includes('our people') || bioContent.toLowerCase().includes('leadership');
+    
+    // Extract candidate data from bio page
     const candidateDataResponse = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
         {
           role: "system",
-          content: "You are an expert candidate profile analyst. Extract structured candidate data from professional bio pages or team directory pages. If the page shows multiple people, extract the FIRST person listed. Always respond with valid JSON."
+          content: "You are an expert candidate profile analyst. Extract structured candidate data from professional bio pages. Always respond with valid JSON. Be precise and extract ONLY information explicitly shown."
         },
         {
           role: "user",
-          content: `Extract ONE candidate's information from this professional bio or team directory page.
+          content: `Extract candidate information from this professional bio page.
 
-IMPORTANT: If this is a team directory showing multiple people, extract ONLY the FIRST person listed.
+${isTeamPage ? 'NOTE: This appears to be a team directory page. Extract ONLY the FIRST complete profile you find with name, contact details, and description.' : ''}
 
 Bio URL: ${bioUrl}
 Content: ${bioContent}
 
-Extract in JSON format:
+Return EXACTLY this JSON structure (no additional fields, no nested objects in careerSummary):
 {
-  "firstName": "first name",
-  "lastName": "last name", 
-  "email": "professional email if found (look for mailto: links or email addresses)",
-  "phoneNumber": "contact phone number if explicitly shown (include country code like +65, +1, etc)",
-  "currentCompany": "company name from the page",
-  "currentTitle": "job title or position",
-  "skills": ["key skills or expertise areas if mentioned"],
-  "yearsExperience": estimated_years_if_calculable,
-  "location": "office location or city if mentioned",
-  "biography": "Write a comprehensive 2-3 paragraph professional biography in third person using ONLY information from the page. Focus on current role, background, expertise, and career highlights.",
-  "careerSummary": "Write a brief readable paragraph summarizing key career achievements, positions held, and areas of expertise. Use PLAIN TEXT, not JSON or structured data."
+  "firstName": "first name only",
+  "lastName": "last name only", 
+  "email": "exact email if shown (check mailto: links)",
+  "phoneNumber": "exact phone with country code if shown (e.g., +65 6823 1458)",
+  "currentCompany": "company name from page",
+  "currentTitle": "job title if shown",
+  "skills": ["skill1", "skill2"],
+  "yearsExperience": null,
+  "location": "city/country if shown",
+  "biography": "Write 2-3 paragraph biography in third person. Use ONLY facts from page. No assumptions.",
+  "careerSummary": "Write ONE readable paragraph about career highlights. Use PROSE format - NO JSON, NO brackets, NO structured lists. Just flowing text."
 }
 
-CRITICAL RULES:
-- Extract from FIRST person if page shows multiple people
-- Use ONLY information explicitly shown on the page
-- Write biography and careerSummary as READABLE TEXT PARAGRAPHS, not JSON arrays or objects
-- If data is missing, use null - DO NOT fabricate`
+STRICT RULES:
+1. Use ONLY explicitly shown information
+2. biography: Write as narrative paragraphs
+3. careerSummary: Write as ONE PARAGRAPH of flowing prose text (NOT JSON, NOT bullet points)
+4. Phone: Copy exactly including country code
+5. Email: Copy exactly from page
+6. If data missing: use null
+7. DO NOT fabricate or assume anything`
         }
       ],
       response_format: { type: "json_object" }
@@ -901,7 +907,8 @@ CRITICAL RULES:
     const result = JSON.parse(candidateDataResponse.choices[0].message.content || "{}");
     
     if (!result.firstName || !result.lastName) {
-      console.log('Could not extract valid candidate data from bio');
+      console.log('Could not extract valid candidate data from bio - missing name fields');
+      console.log('AI returned:', JSON.stringify(result, null, 2));
       return null;
     }
     
