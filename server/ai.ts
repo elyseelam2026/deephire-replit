@@ -1642,7 +1642,7 @@ async function extractCompanyFromRow(row: any): Promise<any | null> {
 
 /**
  * Generate comprehensive professional profile from LinkedIn URL
- * Creates detailed biographies like bio URL candidates get
+ * Creates detailed biographies like bio URL candidates get - SCRAPES REAL LINKEDIN CONTENT
  */
 async function generateComprehensiveProfileFromLinkedIn(
   firstName: string,
@@ -1650,7 +1650,11 @@ async function generateComprehensiveProfileFromLinkedIn(
   company: string,
   linkedinUrl: string
 ): Promise<any> {
-  console.log(`Creating profile for ${firstName} ${lastName} - LinkedIn URL only (NO biography generation)`);
+  console.log(`\n========================================`);
+  console.log(`[Quick Add Biography] Creating profile for ${firstName} ${lastName}`);
+  console.log(`[Quick Add Biography] Company: ${company}`);
+  console.log(`[Quick Add Biography] LinkedIn URL: ${linkedinUrl}`);
+  console.log(`========================================\n`);
   
   try {
     // First, research the company's actual domain and email pattern
@@ -1666,10 +1670,66 @@ async function generateComprehensiveProfileFromLinkedIn(
       console.log(`⚠ Using fallback email pattern: ${inferredEmail}`);
     }
     
-    // STOP GENERATING FAKE BIOGRAPHIES
-    // We cannot read LinkedIn profiles, so we should NOT fabricate biographies
-    // Return only the real data we have: LinkedIn URL and inferred email
-    console.log(`✓ Profile created with REAL data only - NO fabricated biography`);
+    // SCRAPE REAL LINKEDIN CONTENT (same as bio URL workflow!)
+    console.log(`[Quick Add Biography] Fetching LinkedIn content from: ${linkedinUrl}`);
+    const linkedinContent = await fetchWebContent(linkedinUrl);
+    
+    if (!linkedinContent || linkedinContent.length < 100) {
+      console.log(`⚠ Could not fetch LinkedIn content (blocked or empty) - creating profile without biography`);
+      return {
+        firstName,
+        lastName,
+        email: inferredEmail,
+        emailStatus: 'inferred',
+        emailSource: 'domain_pattern',
+        currentCompany: company,
+        linkedinUrl: linkedinUrl,
+        biography: null,
+        bioStatus: 'not_provided',
+        bioSource: null,
+        salaryCurrency: 'USD'
+      };
+    }
+    
+    console.log(`✓ Successfully fetched ${linkedinContent.length} characters from LinkedIn`);
+    console.log(`[Quick Add Biography] Generating AI biography from real LinkedIn content...`);
+    
+    // Generate biography using AI with REAL LinkedIn content
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert recruiter writing professional biographies based STRICTLY on provided LinkedIn data. You must NEVER invent, assume, or fabricate any information. Always respond with valid JSON.`
+        },
+        {
+          role: "user",
+          content: `Create a professional biography for this candidate using ONLY the information from their LinkedIn profile.
+
+LINKEDIN PROFILE CONTENT:
+${linkedinContent.slice(0, 8000)}
+
+Generate a JSON response with this structure:
+{
+  "biography": "A professional biography with THREE sections:\\n\\n**Executive Summary**\\n[2-3 sentences about current role and expertise]\\n\\n**Career History**\\n[Reverse chronological list of positions with titles, companies, and dates. Only include what's explicitly mentioned]\\n\\n**Education Background**\\n[List schools and degrees explicitly mentioned]",
+  "currentTitle": "current job title if found",
+  "location": "location if mentioned",
+  "skills": ["list of skills if mentioned"]
+}
+
+CRITICAL RULES:
+1. Write in third person professional tone
+2. Use ONLY information from the LinkedIn content above
+3. If information is missing, omit it - DO NOT fabricate
+4. Keep factual - no assumptions about achievements not stated
+5. If no clear biography can be created, return minimal structure`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const aiResult = JSON.parse(response.choices[0].message.content || "{}");
+    console.log(`✓ Biography generated successfully from LinkedIn content`);
     
     return {
       firstName,
@@ -1677,30 +1737,24 @@ async function generateComprehensiveProfileFromLinkedIn(
       email: inferredEmail,
       emailStatus: 'inferred',
       emailSource: 'domain_pattern',
-      phoneNumber: null,
-      currentTitle: null,
+      currentTitle: aiResult.currentTitle || null,
       currentCompany: company,
-      location: null,
-      skills: [],
-      yearsExperience: null,
-      education: null,
-      linkedinUrl: linkedinUrl || null,
-      biography: null, // NO FAKE BIOGRAPHY
-      bioStatus: 'not_provided',
-      bioSource: null,
+      location: aiResult.location || null,
+      skills: aiResult.skills || [],
+      linkedinUrl: linkedinUrl,
+      biography: aiResult.biography || null,
+      bioStatus: aiResult.biography ? 'verified' : 'not_provided',
+      bioSource: aiResult.biography ? 'linkedin_scrape' : null,
       careerSummary: null,
-      isAvailable: true,
-      isActivelyLooking: false,
-      isOpenToOpportunities: true,
       salaryCurrency: 'USD'
     };
   } catch (error) {
-    console.error(`Error creating profile: ${error}`);
+    console.error(`Error creating profile from LinkedIn: ${error}`);
     return {
       firstName,
       lastName,
       currentCompany: company,
-      linkedinUrl: linkedinUrl || null,
+      linkedinUrl: linkedinUrl,
       bioStatus: 'not_provided',
       emailStatus: 'inferred',
       salaryCurrency: 'USD'
