@@ -185,9 +185,30 @@ export default function Companies() {
       queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
     },
     onError: (error: any) => {
+      // Extract error message from the API response
+      let errorMessage = "Failed to delete company";
+      
+      if (error.message) {
+        // The error message format from apiRequest is "statusCode: {json}"
+        // Try to parse the JSON part
+        try {
+          const jsonStart = error.message.indexOf('{');
+          if (jsonStart !== -1) {
+            const jsonStr = error.message.substring(jsonStart);
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.error) {
+              errorMessage = parsed.error;
+            }
+          }
+        } catch (e) {
+          // If JSON parsing fails, just use the original error message
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to delete company",
+        description: errorMessage,
         variant: "destructive",
       });
       setShowDeleteConfirm(false);
