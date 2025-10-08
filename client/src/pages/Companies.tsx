@@ -32,9 +32,16 @@ export default function Companies() {
   // Convert company to hierarchy mutation
   const convertToHierarchy = useMutation({
     mutationFn: async (companyId: number) => {
-      return await apiRequest(`/api/companies/${companyId}/convert-to-hierarchy`, {
+      const response = await fetch(`/api/companies/${companyId}/convert-to-hierarchy`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+      if (!response.ok) {
+        throw new Error('Failed to convert company');
+      }
+      return await response.json();
     },
     onSuccess: (data) => {
       toast({
