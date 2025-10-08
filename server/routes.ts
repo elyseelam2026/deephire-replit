@@ -354,6 +354,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get child companies for a parent
+  app.get("/api/companies/:id/children", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const childCompanies = await storage.getChildCompanies(parseInt(id));
+      res.json(childCompanies);
+    } catch (error) {
+      console.error("Error fetching child companies:", error);
+      res.status(500).json({ error: "Failed to fetch child companies" });
+    }
+  });
+
+  // Get parent company for a child
+  app.get("/api/companies/:id/parent", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const parentCompany = await storage.getParentCompany(parseInt(id));
+      res.json(parentCompany || null);
+    } catch (error) {
+      console.error("Error fetching parent company:", error);
+      res.status(500).json({ error: "Failed to fetch parent company" });
+    }
+  });
+
   // Dashboard stats endpoint
   app.get("/api/stats", async (req, res) => {
     try {
@@ -696,8 +720,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
               );
               duplicateCount++;
             } else {
-              await storage.createCompany(companyData);
+              // Save parent company
+              const parentCompany = await storage.createCompany(companyData);
               successCount++;
+              
+              // Create child companies for each office location
+              if (companyData.officeLocations && Array.isArray(companyData.officeLocations)) {
+                console.log(`Creating ${companyData.officeLocations.length} child companies for ${parentCompany.name}`);
+                
+                for (const office of companyData.officeLocations) {
+                  try {
+                    const childCompanyData = {
+                      name: `${parentCompany.name} - ${office.city}`,
+                      parentCompanyId: parentCompany.id,
+                      isOfficeLocation: true,
+                      // Copy from parent
+                      industry: companyData.industry,
+                      website: companyData.website,
+                      missionStatement: companyData.missionStatement,
+                      // Office-specific data
+                      location: `${office.city}, ${office.country}`,
+                      headquarters: {
+                        street: office.address || null,
+                        city: office.city,
+                        state: null,
+                        country: office.country,
+                        postalCode: null
+                      },
+                      officeLocations: [], // Child offices don't have sub-offices
+                      stage: 'growth'
+                    };
+                    
+                    await storage.createCompany(childCompanyData);
+                    console.log(`✓ Created child company: ${childCompanyData.name}`);
+                  } catch (childError) {
+                    console.error(`Failed to create child company for ${office.city}:`, childError);
+                  }
+                }
+              }
             }
           } else {
             failedCount++;

@@ -21,6 +21,8 @@ export interface IStorage {
   getCompanies(): Promise<Company[]>;
   getCompany(id: number): Promise<Company | undefined>;
   updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined>;
+  getChildCompanies(parentCompanyId: number): Promise<Company[]>;
+  getParentCompany(childCompanyId: number): Promise<Company | undefined>;
   
   // Job management
   createJob(job: InsertJob): Promise<Job>;
@@ -125,6 +127,21 @@ export class DatabaseStorage implements IStorage {
       .where(eq(companies.id, id))
       .returning();
     return company || undefined;
+  }
+
+  async getChildCompanies(parentCompanyId: number): Promise<Company[]> {
+    return await db.select().from(companies)
+      .where(eq(companies.parentCompanyId, parentCompanyId))
+      .orderBy(companies.name);
+  }
+
+  async getParentCompany(childCompanyId: number): Promise<Company | undefined> {
+    const [child] = await db.select().from(companies).where(eq(companies.id, childCompanyId));
+    if (!child || !child.parentCompanyId) {
+      return undefined;
+    }
+    const [parent] = await db.select().from(companies).where(eq(companies.id, child.parentCompanyId));
+    return parent || undefined;
   }
 
   // Job management

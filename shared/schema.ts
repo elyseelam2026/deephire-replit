@@ -11,11 +11,13 @@ export const companies = pgTable("companies", {
   name: text("name").notNull(),
   legalName: text("legal_name"),
   tradingName: text("trading_name"), // DBA name
-  parentCompany: text("parent_company"),
+  parentCompany: text("parent_company"), // maintained for backward compatibility (text name)
+  parentCompanyId: integer("parent_company_id"), // FK to parent company for hierarchy
   subsidiaries: text("subsidiaries").array(),
   companyType: text("company_type"), // corporation, llc, partnership, nonprofit
   stockSymbol: text("stock_symbol"),
   isPublic: boolean("is_public").default(false),
+  isOfficeLocation: boolean("is_office_location").default(false), // true if this is a child office
   
   // Contact & Location (existing + enhanced)
   location: text("location"), // maintained for backward compatibility
@@ -379,9 +381,18 @@ export const dataReviewQueue = pgTable("data_review_queue", {
 });
 
 // Relations
-export const companiesRelations = relations(companies, ({ many }) => ({
+export const companiesRelations = relations(companies, ({ one, many }) => ({
   jobs: many(jobs),
   users: many(users),
+  // Hierarchical relations
+  parentCompany: one(companies, {
+    fields: [companies.parentCompanyId],
+    references: [companies.id],
+    relationName: "companyHierarchy"
+  }),
+  childCompanies: many(companies, {
+    relationName: "companyHierarchy"
+  }),
 }));
 
 export const jobsRelations = relations(jobs, ({ one, many }) => ({

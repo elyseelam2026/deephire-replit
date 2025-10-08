@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign } from "lucide-react";
+import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Company } from "@shared/schema";
@@ -12,6 +12,18 @@ export default function Companies() {
   
   const { data: companies, isLoading, error } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
+  });
+
+  // Fetch child companies when a company is selected
+  const { data: childCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/companies', selectedCompany?.id, 'children'],
+    enabled: !!selectedCompany,
+  });
+
+  // Fetch parent company when a company is selected
+  const { data: parentCompany } = useQuery<Company | null>({
+    queryKey: ['/api/companies', selectedCompany?.id, 'parent'],
+    enabled: !!selectedCompany && !!selectedCompany.parentCompanyId,
   });
 
   if (isLoading) {
@@ -176,6 +188,23 @@ export default function Companies() {
           
           {selectedCompany && (
             <div className="space-y-6">
+              {/* Parent Company Link */}
+              {parentCompany && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-1">Part of</p>
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-medium text-primary"
+                    onClick={() => setSelectedCompany(parentCompany)}
+                    data-testid={`link-parent-company-${parentCompany.id}`}
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    {parentCompany.name}
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
+              )}
+
               {/* Mission Statement */}
               {selectedCompany.missionStatement && (
                 <div>
@@ -247,19 +276,31 @@ export default function Companies() {
                 </div>
               )}
 
-              {/* Office Locations */}
-              {selectedCompany.officeLocations && Array.isArray(selectedCompany.officeLocations) && selectedCompany.officeLocations.length > 0 && (
+              {/* Child Companies / Office Locations */}
+              {childCompanies && childCompanies.length > 0 && (
                 <div>
-                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                    <MapPin className="h-4 w-4" />
-                    Office Locations ({selectedCompany.officeLocations.length})
+                  <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
+                    <Building2 className="h-4 w-4" />
+                    Office Locations ({childCompanies.length})
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {(selectedCompany.officeLocations as any[]).map((office: any, idx: number) => (
-                      <div key={idx} className="text-sm p-2 bg-muted rounded-md">
-                        <p className="font-medium">{office.city}, {office.country}</p>
-                        {office.address && <p className="text-muted-foreground text-xs">{office.address}</p>}
-                      </div>
+                    {childCompanies.map((childCompany) => (
+                      <button
+                        key={childCompany.id}
+                        onClick={() => setSelectedCompany(childCompany)}
+                        className="text-left p-3 bg-muted rounded-md hover-elevate active-elevate-2 transition-all"
+                        data-testid={`button-child-company-${childCompany.id}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{childCompany.location || childCompany.name}</p>
+                            {(childCompany.headquarters as any)?.street && (
+                              <p className="text-muted-foreground text-xs mt-1">{(childCompany.headquarters as any).street}</p>
+                            )}
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 ml-2" />
+                        </div>
+                      </button>
                     ))}
                   </div>
                 </div>
