@@ -277,7 +277,7 @@ export default function Companies() {
               )}
 
               {/* Child Companies / Office Locations */}
-              {childCompanies && childCompanies.length > 0 && (
+              {childCompanies && childCompanies.length > 0 ? (
                 <div>
                   <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
                     <Building2 className="h-4 w-4" />
@@ -304,7 +304,22 @@ export default function Companies() {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : selectedCompany.officeLocations && Array.isArray(selectedCompany.officeLocations) && selectedCompany.officeLocations.length > 0 ? (
+                <div>
+                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
+                    <MapPin className="h-4 w-4" />
+                    Office Locations ({selectedCompany.officeLocations.length})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {(selectedCompany.officeLocations as any[]).map((office: any, idx: number) => (
+                      <div key={idx} className="text-sm p-2 bg-muted rounded-md">
+                        <p className="font-medium">{office.city}, {office.country}</p>
+                        {office.address && <p className="text-muted-foreground text-xs">{office.address}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Legacy fields */}
               {selectedCompany.employeeSize && (
