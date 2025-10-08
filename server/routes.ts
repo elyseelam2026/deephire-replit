@@ -909,6 +909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         name: `${parentCompany.name} - ${office.city}`,
                         parentCompanyId: parentCompany.id,
                         isOfficeLocation: true,
+                        isHeadquarters: false, // Child companies should not appear on main list
                         // Copy minimal data from parent
                         industry: companyData.industry,
                         website: companyData.website,
