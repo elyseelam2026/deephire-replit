@@ -56,6 +56,9 @@ Preferred communication style: Simple, everyday language.
 - **Email Pattern Research**: `researchCompanyEmailPattern()` function researches company email patterns via SerpAPI.
 - **Subdomain Detection Improvements**: Enhanced handling of multi-part TLDs and known subdomain prefixes.
 - **Enhanced Domain Validation Logic**: Improved company email domain detection with relevance scoring.
+- **Company Hierarchy Fix** (Oct 8, 2025): Child office locations no longer inherit parent company descriptions. Set `missionStatement: null` for child companies to prevent duplication.
+- **Improved Company Descriptions** (Oct 8, 2025): AI extraction prioritizes "About Us" sections over first paragraph for richer, more accurate company descriptions.
+- **Enhanced Team Discovery** (Oct 8, 2025): Added `/our-team/` path support and increased content limit from 15K to 30K characters for better team member extraction.
 
 ## External Dependencies
 
