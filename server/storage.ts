@@ -165,6 +165,9 @@ export class DatabaseStorage implements IStorage {
 
     console.log(`Converting company ${parent.name} to hierarchy with ${officeLocations.length} offices`);
 
+    // Mark parent as headquarters
+    const updatedParent = await this.updateCompany(parent.id, { isHeadquarters: true });
+
     // Create child companies
     const children: Company[] = [];
     for (const office of officeLocations) {
@@ -172,6 +175,7 @@ export class DatabaseStorage implements IStorage {
         name: `${parent.name} - ${office.city}`,
         parentCompanyId: parent.id,
         isOfficeLocation: true,
+        isHeadquarters: false, // Child offices are not headquarters
         industry: parent.industry,
         website: parent.website,
         missionStatement: parent.missionStatement,
@@ -192,7 +196,7 @@ export class DatabaseStorage implements IStorage {
       console.log(`✓ Created child company: ${child.name}`);
     }
 
-    return { parent, children };
+    return { parent: updatedParent || parent, children };
   }
 
   // Job management

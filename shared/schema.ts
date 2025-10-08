@@ -18,6 +18,7 @@ export const companies = pgTable("companies", {
   stockSymbol: text("stock_symbol"),
   isPublic: boolean("is_public").default(false),
   isOfficeLocation: boolean("is_office_location").default(false), // true if this is a child office
+  isHeadquarters: boolean("is_headquarters").default(true), // true if this is a parent/HQ company
   
   // Contact & Location (existing + enhanced)
   location: text("location"), // maintained for backward compatibility
