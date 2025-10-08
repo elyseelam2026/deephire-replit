@@ -782,8 +782,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/upload-companies", upload.array('files', 50), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[] || [];
-      const urlsText = req.body.urls || "";
-      const urls = urlsText.split('\n').filter((url: string) => url.trim()).map((url: string) => url.trim());
+      const urlsInput = req.body.urls || "";
+      // Handle both string (newline-separated) and array formats
+      const urls = Array.isArray(urlsInput) 
+        ? urlsInput.filter((url: string) => url.trim()).map((url: string) => url.trim())
+        : urlsInput.split('\n').filter((url: string) => url.trim()).map((url: string) => url.trim());
       
       let successCount = 0;
       let failedCount = 0;
@@ -894,37 +897,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Create child companies for each office location
               if (companyData.officeLocations && Array.isArray(companyData.officeLocations)) {
-                console.log(`Creating ${companyData.officeLocations.length} child companies for ${parentCompany.name}`);
+                // Filter out offices that don't have city data
+                const validOffices = companyData.officeLocations.filter((office: any) => office.city && office.city !== 'null');
                 
-                for (const office of companyData.officeLocations) {
-                  try {
-                    const childCompanyData = {
-                      name: `${parentCompany.name} - ${office.city}`,
-                      parentCompanyId: parentCompany.id,
-                      isOfficeLocation: true,
-                      // Copy minimal data from parent
-                      industry: companyData.industry,
-                      website: companyData.website,
-                      // DON'T copy missionStatement - office locations should not inherit parent description
-                      missionStatement: null,
-                      // Office-specific data
-                      location: `${office.city}, ${office.country}`,
-                      headquarters: {
-                        street: office.address || null,
-                        city: office.city,
-                        state: null,
-                        country: office.country,
-                        postalCode: null
-                      },
-                      officeLocations: [], // Child offices don't have sub-offices
-                      stage: 'growth'
-                    };
-                    
-                    await storage.createCompany(childCompanyData);
-                    console.log(`✓ Created child company: ${childCompanyData.name}`);
-                  } catch (childError) {
-                    console.error(`Failed to create child company for ${office.city}:`, childError);
+                if (validOffices.length > 0) {
+                  console.log(`Creating ${validOffices.length} child companies for ${parentCompany.name} (skipped ${companyData.officeLocations.length - validOffices.length} offices without city data)`);
+                  
+                  for (const office of validOffices) {
+                    try {
+                      const childCompanyData = {
+                        name: `${parentCompany.name} - ${office.city}`,
+                        parentCompanyId: parentCompany.id,
+                        isOfficeLocation: true,
+                        // Copy minimal data from parent
+                        industry: companyData.industry,
+                        website: companyData.website,
+                        // DON'T copy missionStatement - office locations should not inherit parent description
+                        missionStatement: null,
+                        // Office-specific data
+                        location: `${office.city}, ${office.country}`,
+                        headquarters: {
+                          street: office.address || null,
+                          city: office.city,
+                          state: null,
+                          country: office.country,
+                          postalCode: null
+                        },
+                        officeLocations: [], // Child offices don't have sub-offices
+                        stage: 'growth'
+                      };
+                      
+                      await storage.createCompany(childCompanyData);
+                      console.log(`✓ Created child company: ${childCompanyData.name}`);
+                    } catch (childError) {
+                      console.error(`Failed to create child company for ${office.city}:`, childError);
+                    }
                   }
+                } else {
+                  console.log(`⚠ Skipped creating child companies for ${parentCompany.name} - no valid city data found in ${companyData.officeLocations.length} offices`);
                 }
               }
             }

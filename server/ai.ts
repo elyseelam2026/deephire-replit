@@ -2072,7 +2072,9 @@ export async function extractCompanyFromWebsite(websiteUrl: string): Promise<any
       `${baseUrl}/about`,
       `${baseUrl}/about-us`,
       `${baseUrl}/locations`,
-      `${baseUrl}/offices`
+      `${baseUrl}/offices`,
+      `${baseUrl}/about/offices`, // For sites like EQT that have offices under /about
+      `${baseUrl}/about/locations`
     ];
     
     let allContent = '';
