@@ -2,10 +2,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRight, Search } from "lucide-react";
+import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRight, Search, Pencil, Trash2, X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Company } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +31,9 @@ export default function Companies() {
   const [discoveredTeam, setDiscoveredTeam] = useState<TeamMember[]>([]);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<Set<number>>(new Set());
   const [showTeamPreview, setShowTeamPreview] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<Company>>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
   
   const { data: companies, isLoading, error } = useQuery<Company[]>({
@@ -137,10 +143,91 @@ export default function Companies() {
     },
   });
 
+  // Update company mutation
+  const updateCompany = useMutation({
+    mutationFn: async ({ id, updates }: { id: number; updates: Partial<Company> }) => {
+      const response = await apiRequest('PUT', `/api/companies/${id}`, updates);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success!",
+        description: "Company updated successfully",
+      });
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/companies', selectedCompany?.id, 'children'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update company",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete company mutation
+  const deleteCompany = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest('DELETE', `/api/companies/${id}`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success!",
+        description: "Company deleted successfully",
+      });
+      setSelectedCompany(null);
+      setShowDeleteConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete company",
+        variant: "destructive",
+      });
+      setShowDeleteConfirm(false);
+    },
+  });
+
   const handleImportSelected = () => {
     if (selectedCompany && selectedTeamMembers.size > 0) {
       const membersToImport = discoveredTeam.filter((_, index) => selectedTeamMembers.has(index));
       importTeamMembers.mutate({ companyId: selectedCompany.id, teamMembers: membersToImport });
+    }
+  };
+
+  const startEditing = () => {
+    if (selectedCompany) {
+      setEditFormData({
+        name: selectedCompany.name,
+        industry: selectedCompany.industry || '',
+        website: selectedCompany.website || '',
+        primaryPhone: selectedCompany.primaryPhone || '',
+        annualRevenue: selectedCompany.annualRevenue,
+        employeeSize: selectedCompany.employeeSize,
+        missionStatement: selectedCompany.missionStatement || '',
+      });
+      setIsEditing(true);
+    }
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditFormData({});
+  };
+
+  const handleSaveEdit = () => {
+    if (selectedCompany) {
+      updateCompany.mutate({ id: selectedCompany.id, updates: editFormData });
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedCompany) {
+      deleteCompany.mutate(selectedCompany.id);
     }
   };
 
@@ -345,203 +432,360 @@ export default function Companies() {
       )}
 
       {/* Company Detail Modal */}
-      <Dialog open={!!selectedCompany} onOpenChange={(open) => !open && setSelectedCompany(null)}>
+      <Dialog open={!!selectedCompany} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedCompany(null);
+          setIsEditing(false);
+          setEditFormData({});
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid={`company-profile-${selectedCompany?.id}`}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <Building2 className="h-6 w-6" />
-              {selectedCompany?.name}
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-3">
+                <Building2 className="h-6 w-6" />
+                {selectedCompany?.name}
+              </DialogTitle>
+              <div className="flex gap-2">
+                {!isEditing ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={startEditing}
+                      data-testid="button-edit-company"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      data-testid="button-delete-company"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={cancelEditing}
+                      data-testid="button-cancel-edit"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveEdit}
+                      disabled={updateCompany.isPending}
+                      data-testid="button-save-company"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {updateCompany.isPending ? 'Saving...' : 'Save'}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
             <DialogDescription>
-              Company details and information
+              {isEditing ? 'Edit company information' : 'Company details and information'}
             </DialogDescription>
           </DialogHeader>
           
           {selectedCompany && (
             <div className="space-y-6">
-              {/* Parent Company Link */}
-              {parentCompany && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Part of</p>
-                  <Button
-                    variant="ghost"
-                    className="p-0 h-auto font-medium text-primary"
-                    onClick={() => setSelectedCompany(parentCompany)}
-                    data-testid={`link-parent-company-${parentCompany.id}`}
-                  >
-                    <Building2 className="h-4 w-4 mr-2" />
-                    {parentCompany.name}
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </div>
-              )}
-
-              {/* Mission Statement */}
-              {selectedCompany.missionStatement && (
-                <div>
-                  <h4 className="font-medium text-sm mb-2">About</h4>
-                  <p className="text-muted-foreground text-sm">{String(selectedCompany.missionStatement)}</p>
-                </div>
-              )}
-
-              {/* Basic Info Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                {selectedCompany.industry && (
+              {/* Edit Form */}
+              {isEditing ? (
+                <div className="space-y-4">
                   <div>
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4" />
-                      Industry
-                    </h4>
-                    <p className="text-muted-foreground mt-1">{selectedCompany.industry}</p>
+                    <Label htmlFor="edit-name">Company Name</Label>
+                    <Input
+                      id="edit-name"
+                      value={editFormData.name || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                      data-testid="input-edit-name"
+                    />
                   </div>
-                )}
-                {selectedCompany.primaryPhone && (
                   <div>
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      Phone
-                    </h4>
-                    <p className="text-muted-foreground mt-1">{String(selectedCompany.primaryPhone)}</p>
+                    <Label htmlFor="edit-industry">Industry</Label>
+                    <Input
+                      id="edit-industry"
+                      value={editFormData.industry || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, industry: e.target.value })}
+                      data-testid="input-edit-industry"
+                    />
                   </div>
-                )}
-                {selectedCompany.website && (
                   <div>
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      Website
-                    </h4>
-                    <a href={String(selectedCompany.website)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline mt-1 block text-sm">
-                      {String(selectedCompany.website)}
-                    </a>
+                    <Label htmlFor="edit-website">Website</Label>
+                    <Input
+                      id="edit-website"
+                      value={editFormData.website || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, website: e.target.value })}
+                      placeholder="https://example.com"
+                      data-testid="input-edit-website"
+                    />
                   </div>
-                )}
-                {selectedCompany.annualRevenue && (
                   <div>
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <DollarSign className="h-4 w-4" />
-                      Revenue
-                    </h4>
-                    <p className="text-muted-foreground mt-1">{String(selectedCompany.annualRevenue)}</p>
+                    <Label htmlFor="edit-phone">Phone</Label>
+                    <Input
+                      id="edit-phone"
+                      value={editFormData.primaryPhone || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, primaryPhone: e.target.value })}
+                      data-testid="input-edit-phone"
+                    />
                   </div>
-                )}
-              </div>
-
-              {/* Headquarters */}
-              {selectedCompany.headquarters && typeof selectedCompany.headquarters === 'object' && (
-                <div>
-                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                    <Building2 className="h-4 w-4" />
-                    Headquarters
-                  </h4>
-                  <div className="text-muted-foreground text-sm">
-                    {(selectedCompany.headquarters as any).street && <p>{(selectedCompany.headquarters as any).street}</p>}
-                    <p>
-                      {[
-                        (selectedCompany.headquarters as any).city,
-                        (selectedCompany.headquarters as any).state,
-                        (selectedCompany.headquarters as any).postalCode
-                      ].filter(Boolean).join(', ')}
-                    </p>
-                    {(selectedCompany.headquarters as any).country && <p>{(selectedCompany.headquarters as any).country}</p>}
+                  <div>
+                    <Label htmlFor="edit-revenue">Annual Revenue</Label>
+                    <Input
+                      id="edit-revenue"
+                      type="number"
+                      value={editFormData.annualRevenue ?? ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, annualRevenue: e.target.value ? parseFloat(e.target.value) : null })}
+                      placeholder="1000000"
+                      data-testid="input-edit-revenue"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-employees">Employee Size</Label>
+                    <Input
+                      id="edit-employees"
+                      type="number"
+                      value={editFormData.employeeSize ?? ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, employeeSize: e.target.value ? parseInt(e.target.value) : null })}
+                      data-testid="input-edit-employees"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-mission">Mission Statement</Label>
+                    <Textarea
+                      id="edit-mission"
+                      value={editFormData.missionStatement || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, missionStatement: e.target.value })}
+                      rows={4}
+                      data-testid="input-edit-mission"
+                    />
                   </div>
                 </div>
-              )}
-
-              {/* Child Companies / Office Locations */}
-              {childCompanies && childCompanies.length > 0 ? (
-                <div>
-                  <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
-                    <Building2 className="h-4 w-4" />
-                    Office Locations ({childCompanies.length})
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {childCompanies.map((childCompany) => (
-                      <button
-                        key={childCompany.id}
-                        onClick={() => setSelectedCompany(childCompany)}
-                        className="text-left p-3 bg-muted rounded-md hover-elevate active-elevate-2 transition-all"
-                        data-testid={`button-child-company-${childCompany.id}`}
+              ) : (
+                <>
+                  {/* Parent Company Link */}
+                  {parentCompany && (
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">Part of</p>
+                      <Button
+                        variant="ghost"
+                        className="p-0 h-auto font-medium text-primary"
+                        onClick={() => setSelectedCompany(parentCompany)}
+                        data-testid={`link-parent-company-${parentCompany.id}`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{childCompany.location || childCompany.name}</p>
-                            {(childCompany.headquarters as any)?.street && (
-                              <p className="text-muted-foreground text-xs mt-1">{(childCompany.headquarters as any).street}</p>
-                            )}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 ml-2" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : selectedCompany.officeLocations && Array.isArray(selectedCompany.officeLocations) && selectedCompany.officeLocations.length > 0 ? (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      Office Locations ({selectedCompany.officeLocations.length})
-                    </h4>
-                    <Button
-                      size="sm"
-                      onClick={() => convertToHierarchy.mutate(selectedCompany.id)}
-                      disabled={convertToHierarchy.isPending}
-                      data-testid="button-convert-to-hierarchy"
-                    >
-                      <Building2 className="h-4 w-4 mr-2" />
-                      {convertToHierarchy.isPending ? 'Converting...' : 'Make Offices Clickable'}
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {(selectedCompany.officeLocations as any[]).map((office: any, idx: number) => (
-                      <div key={idx} className="text-sm p-2 bg-muted rounded-md">
-                        <p className="font-medium">{office.city}, {office.country}</p>
-                        {office.address && <p className="text-muted-foreground text-xs">{office.address}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Discover Team Members */}
-              {selectedCompany.website && (
-                <div className="pt-4 border-t">
-                  <Button
-                    onClick={() => discoverTeam.mutate(selectedCompany.id)}
-                    disabled={discoverTeam.isPending}
-                    className="w-full"
-                    data-testid="button-discover-team"
-                  >
-                    <Users className="h-4 w-4 mr-2" />
-                    {discoverTeam.isPending ? 'Discovering...' : 'Discover Team Members'}
-                  </Button>
-                </div>
-              )}
-
-              {/* Legacy fields */}
-              {selectedCompany.employeeSize && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Employees
-                    </h4>
-                    <p className="text-muted-foreground mt-1">{selectedCompany.employeeSize} employees</p>
-                  </div>
-                  {selectedCompany.stage && (
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">Stage</h4>
-                      <Badge variant="secondary" className={getStageColor(selectedCompany.stage)}>
-                        {selectedCompany.stage}
-                      </Badge>
+                        <Building2 className="h-4 w-4 mr-2" />
+                        {parentCompany.name}
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
                     </div>
                   )}
-                </div>
+
+                  {/* Mission Statement */}
+                  {selectedCompany.missionStatement && (
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">About</h4>
+                      <p className="text-muted-foreground text-sm">{String(selectedCompany.missionStatement)}</p>
+                    </div>
+                  )}
+
+                  {/* Basic Info Grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedCompany.industry && (
+                      <div>
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          Industry
+                        </h4>
+                        <p className="text-muted-foreground mt-1">{selectedCompany.industry}</p>
+                      </div>
+                    )}
+                    {selectedCompany.primaryPhone && (
+                      <div>
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          Phone
+                        </h4>
+                        <p className="text-muted-foreground mt-1">{String(selectedCompany.primaryPhone)}</p>
+                      </div>
+                    )}
+                    {selectedCompany.website && (
+                      <div>
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <Globe className="h-4 w-4" />
+                          Website
+                        </h4>
+                        <a href={String(selectedCompany.website)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline mt-1 block text-sm">
+                          {String(selectedCompany.website)}
+                        </a>
+                      </div>
+                    )}
+                    {selectedCompany.annualRevenue && (
+                      <div>
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Revenue
+                        </h4>
+                        <p className="text-muted-foreground mt-1">{String(selectedCompany.annualRevenue)}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Headquarters */}
+                  {selectedCompany.headquarters && typeof selectedCompany.headquarters === 'object' && (
+                    <div>
+                      <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
+                        <Building2 className="h-4 w-4" />
+                        Headquarters
+                      </h4>
+                      <div className="text-muted-foreground text-sm">
+                        {(selectedCompany.headquarters as any).street && <p>{(selectedCompany.headquarters as any).street}</p>}
+                        <p>
+                          {[
+                            (selectedCompany.headquarters as any).city,
+                            (selectedCompany.headquarters as any).state,
+                            (selectedCompany.headquarters as any).postalCode
+                          ].filter(Boolean).join(', ')}
+                        </p>
+                        {(selectedCompany.headquarters as any).country && <p>{(selectedCompany.headquarters as any).country}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Child Companies / Office Locations */}
+                  {childCompanies && childCompanies.length > 0 ? (
+                    <div>
+                      <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
+                        <Building2 className="h-4 w-4" />
+                        Office Locations ({childCompanies.length})
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {childCompanies.map((childCompany) => (
+                          <button
+                            key={childCompany.id}
+                            onClick={() => setSelectedCompany(childCompany)}
+                            className="text-left p-3 bg-muted rounded-md hover-elevate active-elevate-2 transition-all"
+                            data-testid={`button-child-company-${childCompany.id}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{childCompany.location || childCompany.name}</p>
+                                {(childCompany.headquarters as any)?.street && (
+                                  <p className="text-muted-foreground text-xs mt-1">{(childCompany.headquarters as any).street}</p>
+                                )}
+                              </div>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 ml-2" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : selectedCompany.officeLocations && Array.isArray(selectedCompany.officeLocations) && selectedCompany.officeLocations.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Office Locations ({selectedCompany.officeLocations.length})
+                        </h4>
+                        <Button
+                          size="sm"
+                          onClick={() => convertToHierarchy.mutate(selectedCompany.id)}
+                          disabled={convertToHierarchy.isPending}
+                          data-testid="button-convert-to-hierarchy"
+                        >
+                          <Building2 className="h-4 w-4 mr-2" />
+                          {convertToHierarchy.isPending ? 'Converting...' : 'Make Offices Clickable'}
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {(selectedCompany.officeLocations as any[]).map((office: any, idx: number) => (
+                          <div key={idx} className="text-sm p-2 bg-muted rounded-md">
+                            <p className="font-medium">{office.city}, {office.country}</p>
+                            {office.address && <p className="text-muted-foreground text-xs">{office.address}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Discover Team Members */}
+                  {selectedCompany.website && (
+                    <div className="pt-4 border-t">
+                      <Button
+                        onClick={() => discoverTeam.mutate(selectedCompany.id)}
+                        disabled={discoverTeam.isPending}
+                        className="w-full"
+                        data-testid="button-discover-team"
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        {discoverTeam.isPending ? 'Discovering...' : 'Discover Team Members'}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Legacy fields */}
+                  {selectedCompany.employeeSize && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Employees
+                        </h4>
+                        <p className="text-muted-foreground mt-1">{selectedCompany.employeeSize} employees</p>
+                      </div>
+                      {selectedCompany.stage && (
+                        <div>
+                          <h4 className="font-medium text-sm mb-1">Stage</h4>
+                          <Badge variant="secondary" className={getStageColor(selectedCompany.stage)}>
+                            {selectedCompany.stage}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent data-testid="delete-confirm-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Company</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this company? This action cannot be undone.
+              {childCompanies && childCompanies.length > 0 && (
+                <p className="text-destructive mt-2">
+                  This company has {childCompanies.length} office location(s). Please delete those first.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteCompany.isPending || (childCompanies && childCompanies.length > 0)}
+              className="bg-destructive hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteCompany.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Team Members Preview Modal */}
       <Dialog open={showTeamPreview} onOpenChange={setShowTeamPreview}>
