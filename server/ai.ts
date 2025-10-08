@@ -2365,6 +2365,9 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       '/our-team',
       '/our-team/', // Add trailing slash variant
       '/people',
+      '/about/people',
+      '/about/our-people',
+      '/about/our-people/', // Add trailing slash variant
       '/leadership',
       '/about/leadership',
       '/about-us/team',
