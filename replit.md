@@ -58,7 +58,7 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Domain Validation Logic**: Improved company email domain detection with relevance scoring.
 - **Company Hierarchy Fix** (Oct 8, 2025): Child office locations no longer inherit parent company descriptions. Set `missionStatement: null` for child companies to prevent duplication.
 - **Improved Company Descriptions** (Oct 8, 2025): AI extraction prioritizes "About Us" sections over first paragraph for richer, more accurate company descriptions.
-- **Enhanced Team Discovery** (Oct 8, 2025): Added `/our-team/`, `/about/people`, `/about/our-people`, and `/about/our-people/` path support. Increased content limit from 15K to 30K characters for better team member extraction.
+- **Enhanced Team Discovery** (Oct 8, 2025): Added `/our-team/`, `/about/people`, `/about/our-people`, and `/about/our-people/` path support. Increased content limit from 15K to 30K characters for better team member extraction. Implemented pagination support to scrape multi-page team listings (up to 100 pages per company, with safety cap). Detects pagination via HTML parsing, handles both query-based (?page=2) and path-based (/page/2) patterns, intelligently extracts actual query parameter names, and deduplicates results across all pages.
 - **Child Company List Filtering** (Oct 8, 2025): Fixed bug where child companies appeared on main list. All child companies now have `isHeadquarters = false` to ensure only parent companies show on main Companies page.
 
 ## External Dependencies

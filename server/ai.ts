@@ -2343,6 +2343,151 @@ CRITICAL EXTRACTION RULES:
 }
 
 /**
+ * Detect pagination on a team page and return pagination info
+ */
+async function detectPagination(html: string, baseUrl: string): Promise<{
+  hasPagination: boolean;
+  totalPages: number;
+  urlPattern: string | null;
+  paginationType: 'query' | 'path' | 'none';
+}> {
+  const $ = cheerio.load(html);
+  
+  // Look for pagination indicators
+  const paginationSelectors = [
+    'nav[aria-label*="pagination" i]',
+    '.pagination',
+    '[data-pagination]',
+    'ul.pager',
+    '.page-numbers',
+    'nav[class*="pagination" i]'
+  ];
+  
+  let paginationContainer = null;
+  for (const selector of paginationSelectors) {
+    const elem = $(selector);
+    if (elem.length > 0) {
+      paginationContainer = elem;
+      break;
+    }
+  }
+  
+  if (!paginationContainer) {
+    return { hasPagination: false, totalPages: 1, urlPattern: null, paginationType: 'none' };
+  }
+  
+  // Find all page links
+  const pageLinks = paginationContainer.find('a[href]');
+  const pageNumbers: number[] = [];
+  let sampleUrl: string | null = null;
+  
+  pageLinks.each((_, elem) => {
+    const href = $(elem).attr('href');
+    const text = $(elem).text().trim();
+    
+    // Try to extract page number from text
+    const pageNum = parseInt(text);
+    if (!isNaN(pageNum) && pageNum > 0) {
+      pageNumbers.push(pageNum);
+      if (!sampleUrl && href) sampleUrl = href;
+    }
+  });
+  
+  if (pageNumbers.length === 0) {
+    return { hasPagination: false, totalPages: 1, urlPattern: null, paginationType: 'none' };
+  }
+  
+  // Early return if no sample URL
+  if (!sampleUrl) {
+    return { hasPagination: false, totalPages: 1, urlPattern: null, paginationType: 'none' };
+  }
+  
+  // Look for "last" page link or ellipsis indicator for better max page detection
+  let maxPage = Math.max(...pageNumbers);
+  
+  // Check for ellipsis or "..." indicators followed by a number
+  paginationContainer.find('a[href], span, li').each((_, elem) => {
+    const text = $(elem).text().trim();
+    if (text === '...' || text === '…') {
+      // Look for next sibling or following elements with numbers
+      const next = $(elem).next();
+      const nextText = next.text().trim();
+      const nextNum = parseInt(nextText);
+      if (!isNaN(nextNum) && nextNum > maxPage) {
+        maxPage = nextNum;
+      }
+    }
+  });
+  
+  // Determine pagination type and pattern
+  const url: string = sampleUrl; // Explicitly type as string after null check
+  
+  // Check if it's query-based (?page=2, ?p=2)
+  if (url.includes('?') || url.includes('page=') || url.includes('p=')) {
+    return { 
+      hasPagination: true, 
+      totalPages: maxPage, 
+      urlPattern: url,
+      paginationType: 'query' 
+    };
+  }
+  
+  // Check if it's path-based (/page/2, /2)
+  if (/\/\d+\/?$/.test(url) || /\/page\/\d+/.test(url)) {
+    return { 
+      hasPagination: true, 
+      totalPages: maxPage, 
+      urlPattern: url,
+      paginationType: 'path' 
+    };
+  }
+  
+  return { hasPagination: false, totalPages: 1, urlPattern: null, paginationType: 'none' };
+}
+
+/**
+ * Construct pagination URL for a given page number
+ */
+function constructPaginationUrl(baseUrl: string, pageNum: number, paginationInfo: any): string {
+  if (!paginationInfo.hasPagination || !paginationInfo.urlPattern) {
+    return baseUrl;
+  }
+  
+  const { urlPattern, paginationType } = paginationInfo;
+  
+  if (paginationType === 'query') {
+    // Handle query-based pagination - extract actual param name from pattern
+    const url = new URL(baseUrl);
+    const patternUrl = new URL(urlPattern, baseUrl);
+    
+    // Find which query parameter contains a number
+    let pageParam = 'page'; // default
+    const params = Array.from(patternUrl.searchParams.entries());
+    for (const [key, value] of params) {
+      if (/^\d+$/.test(value)) {
+        pageParam = key;
+        break;
+      }
+    }
+    
+    // Set the page parameter
+    url.searchParams.set(pageParam, pageNum.toString());
+    return url.toString();
+    
+  } else if (paginationType === 'path') {
+    // Handle path-based pagination
+    if (urlPattern.includes('/page/')) {
+      return baseUrl.replace(/\/$/, '') + `/page/${pageNum}`;
+    } else {
+      // Assume numeric suffix
+      return baseUrl.replace(/\/$/, '') + `/${pageNum}`;
+    }
+  }
+  
+  return baseUrl;
+}
+
+/**
  * Discover team members from company website
  * Scrapes team/people pages and extracts employee names and bio URLs
  */
@@ -2414,7 +2559,7 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       return [];
     }
     
-    // Also fetch HTML to extract bio URLs
+    // Fetch HTML to detect pagination and extract bio URLs
     const htmlResponse = await fetch(teamPageUrl, {
       method: 'GET',
       headers: {
@@ -2425,20 +2570,57 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     
     const html = htmlResponse.ok ? await htmlResponse.text() : '';
     
-    // Use AI to extract team members from content
-    const teamMembersResponse = await openai.chat.completions.create({
-      model: "grok-2-1212",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert at extracting team member information from company websites. Extract all team members with their names and titles. Always respond with valid JSON."
-        },
-        {
-          role: "user",
-          content: `Extract all team members from this company page content.
+    // Detect pagination
+    const paginationInfo = await detectPagination(html, teamPageUrl);
+    console.log(`Pagination detected: ${paginationInfo.hasPagination ? `Yes (${paginationInfo.totalPages} pages, type: ${paginationInfo.paginationType})` : 'No'}`);
+    
+    // Collect all team members from all pages
+    const allTeamMembers: any[] = [];
+    const PAGE_LIMIT = 100; // Reasonable safety cap for pagination
+    const maxPagesToScrape = Math.min(paginationInfo.totalPages, PAGE_LIMIT);
+    
+    if (paginationInfo.totalPages > PAGE_LIMIT) {
+      console.log(`⚠ Found ${paginationInfo.totalPages} pages but limiting to ${PAGE_LIMIT} for safety`);
+    }
+    
+    console.log(`Will scrape ${maxPagesToScrape} page(s) to discover team members`);
+    
+    for (let pageNum = 1; pageNum <= maxPagesToScrape; pageNum++) {
+      try {
+        console.log(`\n📄 Scraping page ${pageNum}/${maxPagesToScrape}...`);
+        
+        let pageUrl = teamPageUrl;
+        let pageContent = teamPageContent;
+        
+        // Fetch subsequent pages
+        if (pageNum > 1) {
+          pageUrl = constructPaginationUrl(teamPageUrl, pageNum, paginationInfo);
+          console.log(`Fetching: ${pageUrl}`);
+          pageContent = await fetchWebContent(pageUrl);
+          
+          if (!pageContent || pageContent.length < 200) {
+            console.log(`⚠ Page ${pageNum} has no content, stopping pagination`);
+            break;
+          }
+          
+          // Polite delay between requests
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Use AI to extract team members from this page
+        const teamMembersResponse = await openai.chat.completions.create({
+          model: "grok-2-1212",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert at extracting team member information from company websites. Extract all team members with their names and titles. Always respond with valid JSON."
+            },
+            {
+              role: "user",
+              content: `Extract all team members from this company page content (Page ${pageNum}).
 
 Website Content:
-${teamPageContent.substring(0, 30000)}
+${pageContent.substring(0, 30000)}
 
 Return JSON in this exact format:
 {
@@ -2458,15 +2640,46 @@ RULES:
 5. Format names properly (First Last)
 6. Return empty array if no team members found
 7. DO NOT fabricate or assume information`
+            }
+          ],
+          response_format: { type: "json_object" }
+        });
+        
+        const aiResult = JSON.parse(teamMembersResponse.choices[0].message.content || '{"teamMembers":[]}');
+        const pageTeamMembers = aiResult.teamMembers || [];
+        
+        console.log(`✓ Extracted ${pageTeamMembers.length} team members from page ${pageNum}`);
+        
+        if (pageTeamMembers.length === 0 && pageNum > 1) {
+          console.log(`⚠ No team members found on page ${pageNum}, stopping pagination`);
+          break;
         }
-      ],
-      response_format: { type: "json_object" }
-    });
+        
+        allTeamMembers.push(...pageTeamMembers);
+        
+      } catch (pageError) {
+        console.error(`Error scraping page ${pageNum}:`, pageError);
+        // Continue to next page even if one fails
+        if (pageNum === 1) {
+          // If first page fails, stop completely
+          throw pageError;
+        }
+      }
+    }
     
-    const aiResult = JSON.parse(teamMembersResponse.choices[0].message.content || '{"teamMembers":[]}');
-    const teamMembers = aiResult.teamMembers || [];
+    console.log(`\n✅ Total team members extracted from all pages: ${allTeamMembers.length}`);
     
-    console.log(`✓ AI extracted ${teamMembers.length} team members`);
+    // Deduplicate by name (case-insensitive)
+    const uniqueMembers = new Map<string, any>();
+    for (const member of allTeamMembers) {
+      const key = member.name.toLowerCase().trim();
+      if (!uniqueMembers.has(key)) {
+        uniqueMembers.set(key, member);
+      }
+    }
+    
+    const teamMembers = Array.from(uniqueMembers.values());
+    console.log(`After deduplication: ${teamMembers.length} unique team members`);
     
     // Try to find bio URLs in HTML for each team member
     const $ = cheerio.load(html);
