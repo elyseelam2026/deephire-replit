@@ -23,6 +23,7 @@ export interface IStorage {
   updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined>;
   getChildCompanies(parentCompanyId: number): Promise<Company[]>;
   getParentCompany(childCompanyId: number): Promise<Company | undefined>;
+  convertCompanyToHierarchy(companyId: number): Promise<{ parent: Company; children: Company[] }>;
   
   // Job management
   createJob(job: InsertJob): Promise<Job>;
@@ -142,6 +143,56 @@ export class DatabaseStorage implements IStorage {
     }
     const [parent] = await db.select().from(companies).where(eq(companies.id, child.parentCompanyId));
     return parent || undefined;
+  }
+
+  async convertCompanyToHierarchy(companyId: number): Promise<{ parent: Company; children: Company[] }> {
+    const parent = await this.getCompany(companyId);
+    if (!parent) {
+      throw new Error('Company not found');
+    }
+
+    // Check if already has child companies
+    const existingChildren = await this.getChildCompanies(companyId);
+    if (existingChildren.length > 0) {
+      return { parent, children: existingChildren };
+    }
+
+    // Get office locations from JSON
+    const officeLocations = parent.officeLocations as any[];
+    if (!officeLocations || !Array.isArray(officeLocations) || officeLocations.length === 0) {
+      return { parent, children: [] };
+    }
+
+    console.log(`Converting company ${parent.name} to hierarchy with ${officeLocations.length} offices`);
+
+    // Create child companies
+    const children: Company[] = [];
+    for (const office of officeLocations) {
+      const childData = {
+        name: `${parent.name} - ${office.city}`,
+        parentCompanyId: parent.id,
+        isOfficeLocation: true,
+        industry: parent.industry,
+        website: parent.website,
+        missionStatement: parent.missionStatement,
+        location: `${office.city}, ${office.country}`,
+        headquarters: {
+          street: office.address || null,
+          city: office.city,
+          state: null,
+          country: office.country,
+          postalCode: null
+        },
+        officeLocations: [],
+        stage: 'growth'
+      };
+
+      const child = await this.createCompany(childData);
+      children.push(child);
+      console.log(`✓ Created child company: ${child.name}`);
+    }
+
+    return { parent, children };
   }
 
   // Job management

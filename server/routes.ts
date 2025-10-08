@@ -378,6 +378,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Convert company to hierarchy (create child companies from office locations)
+  app.post("/api/companies/:id/convert-to-hierarchy", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await storage.convertCompanyToHierarchy(parseInt(id));
+      res.json({ 
+        success: true, 
+        parent: result.parent, 
+        childrenCreated: result.children.length,
+        children: result.children 
+      });
+    } catch (error) {
+      console.error("Error converting company to hierarchy:", error);
+      res.status(500).json({ error: "Failed to convert company to hierarchy" });
+    }
+  });
+
   // Dashboard stats endpoint
   app.get("/api/stats", async (req, res) => {
     try {

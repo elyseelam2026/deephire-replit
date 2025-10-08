@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,16 +6,19 @@ import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRi
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Company } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Companies() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const { toast } = useToast();
   
   const { data: companies, isLoading, error } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
   });
 
   // Fetch child companies when a company is selected
-  const { data: childCompanies } = useQuery<Company[]>({
+  const { data: childCompanies, refetch: refetchChildren } = useQuery<Company[]>({
     queryKey: ['/api/companies', selectedCompany?.id, 'children'],
     enabled: !!selectedCompany,
   });
@@ -24,6 +27,30 @@ export default function Companies() {
   const { data: parentCompany } = useQuery<Company | null>({
     queryKey: ['/api/companies', selectedCompany?.id, 'parent'],
     enabled: !!selectedCompany && !!selectedCompany.parentCompanyId,
+  });
+
+  // Convert company to hierarchy mutation
+  const convertToHierarchy = useMutation({
+    mutationFn: async (companyId: number) => {
+      return await apiRequest(`/api/companies/${companyId}/convert-to-hierarchy`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success!",
+        description: `Created ${data.childrenCreated} office locations as clickable companies`,
+      });
+      refetchChildren();
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to convert company to hierarchy",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -306,10 +333,21 @@ export default function Companies() {
                 </div>
               ) : selectedCompany.officeLocations && Array.isArray(selectedCompany.officeLocations) && selectedCompany.officeLocations.length > 0 ? (
                 <div>
-                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                    <MapPin className="h-4 w-4" />
-                    Office Locations ({selectedCompany.officeLocations.length})
-                  </h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Office Locations ({selectedCompany.officeLocations.length})
+                    </h4>
+                    <Button
+                      size="sm"
+                      onClick={() => convertToHierarchy.mutate(selectedCompany.id)}
+                      disabled={convertToHierarchy.isPending}
+                      data-testid="button-convert-to-hierarchy"
+                    >
+                      <Building2 className="h-4 w-4 mr-2" />
+                      {convertToHierarchy.isPending ? 'Converting...' : 'Make Offices Clickable'}
+                    </Button>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {(selectedCompany.officeLocations as any[]).map((office: any, idx: number) => (
                       <div key={idx} className="text-sm p-2 bg-muted rounded-md">
