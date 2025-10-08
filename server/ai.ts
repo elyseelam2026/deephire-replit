@@ -2559,36 +2559,17 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       return [];
     }
     
-    // Use Playwright to get fully rendered HTML (including JavaScript-rendered pagination)
-    console.log('Loading page with Playwright to detect pagination...');
-    let html = '';
-    try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      
-      await page.goto(teamPageUrl, { waitUntil: 'networkidle', timeout: 30000 });
-      
-      // Wait a bit for any dynamic content to load
-      await page.waitForTimeout(2000);
-      
-      // Get the full HTML after JavaScript execution
-      html = await page.content();
-      
-      await browser.close();
-      console.log('✓ Page loaded with Playwright');
-    } catch (playwrightError) {
-      console.error('Playwright failed, falling back to regular fetch:', playwrightError);
-      // Fallback to regular fetch
-      const htmlResponse = await fetch(teamPageUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
-        },
-        signal: AbortSignal.timeout(30000)
-      });
-      html = htmlResponse.ok ? await htmlResponse.text() : '';
-    }
+    // Fetch full HTML for pagination detection and content extraction
+    console.log('Fetching full HTML for pagination detection...');
+    const htmlResponse = await fetch(teamPageUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
+      },
+      signal: AbortSignal.timeout(30000)
+    });
+    const html = htmlResponse.ok ? await htmlResponse.text() : '';
+    console.log(`Fetched ${html.length} characters of HTML`);
     
     // Detect pagination
     const paginationInfo = await detectPagination(html, teamPageUrl);
@@ -2610,15 +2591,24 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
         console.log(`\n📄 Scraping page ${pageNum}/${maxPagesToScrape}...`);
         
         let pageUrl = teamPageUrl;
-        let pageContent = teamPageContent;
+        let pageHtml = html; // Use full HTML for first page
         
         // Fetch subsequent pages
         if (pageNum > 1) {
           pageUrl = constructPaginationUrl(teamPageUrl, pageNum, paginationInfo);
           console.log(`Fetching: ${pageUrl}`);
-          pageContent = await fetchWebContent(pageUrl);
           
-          if (!pageContent || pageContent.length < 200) {
+          const response = await fetch(pageUrl, {
+            method: 'GET',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
+            },
+            signal: AbortSignal.timeout(30000)
+          });
+          
+          pageHtml = response.ok ? await response.text() : '';
+          
+          if (!pageHtml || pageHtml.length < 1000) {
             console.log(`⚠ Page ${pageNum} has no content, stopping pagination`);
             break;
           }
@@ -2626,6 +2616,11 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
           // Polite delay between requests
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        
+        // Extract text content from HTML for AI processing
+        const $ = cheerio.load(pageHtml);
+        $('script, style, nav, header, footer').remove();
+        const pageContent = $('body').text().replace(/\s+/g, ' ').trim();
         
         // Use AI to extract team members from this page
         const teamMembersResponse = await openai.chat.completions.create({
