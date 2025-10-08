@@ -4,6 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["playwright-driver"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -25,6 +26,10 @@ externalPort = 6000
 [[ports]]
 localPort = 36075
 externalPort = 3001
+
+[[ports]]
+localPort = 38893
+externalPort = 8008
 
 [[ports]]
 localPort = 41615

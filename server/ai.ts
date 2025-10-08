@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import * as XLSX from 'xlsx';
 import csvToJson from 'csvtojson';
 import * as cheerio from 'cheerio';
+import { chromium } from 'playwright';
 
 if (!process.env.XAI_API_KEY) {
   throw new Error("XAI_API_KEY must be set");
@@ -11,6 +12,123 @@ const openai = new OpenAI({
   baseURL: "https://api.x.ai/v1", 
   apiKey: process.env.XAI_API_KEY 
 });
+
+/**
+ * Use Playwright browser automation to extract office locations from JavaScript-heavy pages
+ * This handles sites where office data is loaded dynamically via JavaScript
+ */
+export async function extractOfficesWithPlaywright(websiteUrl: string): Promise<Array<{city: string, country?: string, address?: string}>> {
+  let browser;
+  try {
+    console.log(`🎭 Launching Playwright browser to extract offices from: ${websiteUrl}`);
+    
+    browser = await chromium.launch({ 
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'] // For Replit environment
+    });
+    
+    const page = await browser.newPage();
+    await page.goto(websiteUrl, { timeout: 60000, waitUntil: 'networkidle' });
+    
+    // Wait for content to load - try common selectors for office lists
+    const officeSelectors = [
+      'a[href*="/offices/"]',
+      'a[href*="/locations/"]', 
+      'a[class*="office"]',
+      'a[class*="location"]',
+      'div[class*="office"]',
+      'div[class*="location"]'
+    ];
+    
+    let officeLinks: any[] = [];
+    for (const selector of officeSelectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 5000 });
+        officeLinks = await page.$$(selector);
+        if (officeLinks.length > 0) {
+          console.log(`✓ Found ${officeLinks.length} office elements using selector: ${selector}`);
+          break;
+        }
+      } catch (e) {
+        // Try next selector
+      }
+    }
+    
+    if (officeLinks.length === 0) {
+      console.log('⚠ No office links found with Playwright');
+      await browser.close();
+      return [];
+    }
+    
+    const offices: Array<{city: string, country?: string, address?: string}> = [];
+    
+    // Extract office info from each link
+    for (let i = 0; i < Math.min(officeLinks.length, 50); i++) { // Limit to 50 offices
+      try {
+        const link = officeLinks[i];
+        const cityName = await link.textContent();
+        const href = await link.getAttribute('href');
+        
+        if (!cityName || !href) continue;
+        
+        const cleanCity = cityName.trim();
+        if (cleanCity.length < 2) continue;
+        
+        // Navigate to office detail page
+        const fullUrl = href.startsWith('http') ? href : `${new URL(websiteUrl).origin}${href}`;
+        const detailPage = await browser.newPage();
+        
+        try {
+          await detailPage.goto(fullUrl, { timeout: 30000, waitUntil: 'networkidle' });
+          
+          // Extract address from the page - try multiple selectors
+          let address = '';
+          const addressSelectors = [
+            'div[class*="address"]',
+            'div[class*="contact"]', 
+            'div[class*="location"]',
+            'p[class*="address"]',
+            'address'
+          ];
+          
+          for (const addrSelector of addressSelectors) {
+            const elements = await detailPage.$$(addrSelector);
+            if (elements.length > 0) {
+              const text = await elements[0].textContent();
+              if (text && text.trim().length > 10) {
+                address = text.trim();
+                break;
+              }
+            }
+          }
+          
+          offices.push({
+            city: cleanCity,
+            address: address || undefined
+          });
+          
+          console.log(`✓ Extracted office: ${cleanCity}${address ? ' - ' + address.substring(0, 50) : ''}`);
+        } catch (err) {
+          console.log(`⚠ Could not extract details for ${cleanCity}`);
+          offices.push({ city: cleanCity });
+        } finally {
+          await detailPage.close();
+        }
+      } catch (err) {
+        console.log(`⚠ Error processing office link ${i}: ${err}`);
+      }
+    }
+    
+    await browser.close();
+    console.log(`🎭 Playwright extracted ${offices.length} offices`);
+    return offices;
+    
+  } catch (error) {
+    console.error(`Playwright extraction failed: ${error}`);
+    if (browser) await browser.close();
+    return [];
+  }
+}
 
 /**
  * Extract keywords from company name for domain validation
@@ -2170,6 +2288,37 @@ CRITICAL EXTRACTION RULES:
     console.log(`  - HQ: ${result.headquarters?.city || 'N/A'}, ${result.headquarters?.country || 'N/A'}`);
     console.log(`  - Offices: ${result.officeLocations?.length || 0} locations`);
     
+    // Step 3: If we got few/no offices but an offices page exists, try Playwright
+    let finalOfficeLocations = result.officeLocations || [];
+    
+    if (finalOfficeLocations.length <= 1) {
+      // Check if we found an offices page
+      const officesPages = [
+        `${baseUrl}/offices`,
+        `${baseUrl}/locations`,
+        `${baseUrl}/about/offices`,
+        `${baseUrl}/about/locations`
+      ];
+      
+      for (const officesUrl of officesPages) {
+        try {
+          const response = await fetch(officesUrl);
+          if (response.ok) {
+            console.log(`📍 Found offices page but got only ${finalOfficeLocations.length} office(s). Trying Playwright...`);
+            const playwrightOffices = await extractOfficesWithPlaywright(officesUrl);
+            
+            if (playwrightOffices.length > finalOfficeLocations.length) {
+              console.log(`✓ Playwright found ${playwrightOffices.length} offices (better than ${finalOfficeLocations.length})`);
+              finalOfficeLocations = playwrightOffices;
+            }
+            break; // Only try first offices page that exists
+          }
+        } catch (e) {
+          // Page doesn't exist, try next
+        }
+      }
+    }
+    
     return {
       name: result.name,
       website: websiteUrl,
@@ -2177,7 +2326,7 @@ CRITICAL EXTRACTION RULES:
       missionStatement: result.missionStatement || null,
       primaryPhone: result.primaryPhone || null,
       headquarters: result.headquarters || null,
-      officeLocations: result.officeLocations || [],
+      officeLocations: finalOfficeLocations,
       annualRevenue: result.annualRevenue || null,
       location: result.headquarters?.city ? `${result.headquarters.city}, ${result.headquarters.country || ''}`.trim() : null
     };
