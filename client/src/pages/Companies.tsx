@@ -149,12 +149,14 @@ export default function Companies() {
       const response = await apiRequest('PUT', `/api/companies/${id}`, updates);
       return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (updatedCompany) => {
       toast({
         title: "Success!",
         description: "Company updated successfully",
       });
       setIsEditing(false);
+      // Update the selected company with the returned data
+      setSelectedCompany(updatedCompany);
       queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
       queryClient.invalidateQueries({ queryKey: ['/api/companies', selectedCompany?.id, 'children'] });
     },
