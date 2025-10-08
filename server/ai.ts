@@ -2194,7 +2194,9 @@ export async function extractCompanyFromWebsite(websiteUrl: string): Promise<any
       `${baseUrl}/locations`,
       `${baseUrl}/offices`,
       `${baseUrl}/about/offices`, // For sites like EQT that have offices under /about
-      `${baseUrl}/about/locations`
+      `${baseUrl}/about/locations`,
+      `${baseUrl}/about/our-network`, // For sites like CVC
+      `${baseUrl}/our-network`
     ];
     
     let allContent = '';
@@ -2299,7 +2301,9 @@ CRITICAL EXTRACTION RULES:
         `${baseUrl}/offices`,
         `${baseUrl}/locations`,
         `${baseUrl}/about/offices`,
-        `${baseUrl}/about/locations`
+        `${baseUrl}/about/locations`,
+        `${baseUrl}/about/our-network`,
+        `${baseUrl}/our-network`
       ];
       
       for (const officesUrl of officesPages) {
