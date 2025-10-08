@@ -2559,8 +2559,8 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       return [];
     }
     
-    // Fetch full HTML for pagination detection and content extraction
-    console.log('Fetching full HTML for pagination detection...');
+    // Fetch initial HTML
+    console.log('Fetching HTML from team page...');
     const htmlResponse = await fetch(teamPageUrl, {
       method: 'GET',
       headers: {
@@ -2571,115 +2571,61 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     const html = htmlResponse.ok ? await htmlResponse.text() : '';
     console.log(`Fetched ${html.length} characters of HTML`);
     
-    // Detect pagination
-    const paginationInfo = await detectPagination(html, teamPageUrl);
-    console.log(`Pagination detected: ${paginationInfo.hasPagination ? `Yes (${paginationInfo.totalPages} pages, type: ${paginationInfo.paginationType})` : 'No'}`);
+    // Parse HTML with cheerio
+    const $ = cheerio.load(html);
     
-    // Collect all team members from all pages
+    // Extract team members using CSS selectors
+    console.log('Extracting team members from HTML using CSS selectors...');
+    const teamMemberCards = $('a.js-people-link');
+    console.log(`Found ${teamMemberCards.length} person cards in initial HTML`);
+    
     const allTeamMembers: any[] = [];
-    const PAGE_LIMIT = 100; // Reasonable safety cap for pagination
-    const maxPagesToScrape = Math.min(paginationInfo.totalPages, PAGE_LIMIT);
     
-    if (paginationInfo.totalPages > PAGE_LIMIT) {
-      console.log(`⚠ Found ${paginationInfo.totalPages} pages but limiting to ${PAGE_LIMIT} for safety`);
-    }
-    
-    console.log(`Will scrape ${maxPagesToScrape} page(s) to discover team members`);
-    
-    for (let pageNum = 1; pageNum <= maxPagesToScrape; pageNum++) {
-      try {
-        console.log(`\n📄 Scraping page ${pageNum}/${maxPagesToScrape}...`);
-        
-        let pageUrl = teamPageUrl;
-        let pageHtml = html; // Use full HTML for first page
-        
-        // Fetch subsequent pages
-        if (pageNum > 1) {
-          pageUrl = constructPaginationUrl(teamPageUrl, pageNum, paginationInfo);
-          console.log(`Fetching: ${pageUrl}`);
-          
-          const response = await fetch(pageUrl, {
-            method: 'GET',
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
-            },
-            signal: AbortSignal.timeout(30000)
-          });
-          
-          pageHtml = response.ok ? await response.text() : '';
-          
-          if (!pageHtml || pageHtml.length < 1000) {
-            console.log(`⚠ Page ${pageNum} has no content, stopping pagination`);
-            break;
-          }
-          
-          // Polite delay between requests
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
-        // Extract text content from HTML for AI processing
-        const $ = cheerio.load(pageHtml);
-        $('script, style, nav, header, footer').remove();
-        const pageContent = $('body').text().replace(/\s+/g, ' ').trim();
-        
-        // Use AI to extract team members from this page
-        const teamMembersResponse = await openai.chat.completions.create({
-          model: "grok-2-1212",
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert at extracting team member information from company websites. Extract all team members with their names and titles. Always respond with valid JSON."
-            },
-            {
-              role: "user",
-              content: `Extract all team members from this company page content (Page ${pageNum}).
-
-Website Content:
-${pageContent.substring(0, 30000)}
-
-Return JSON in this exact format:
-{
-  "teamMembers": [
-    {
-      "name": "Full Name",
-      "title": "Job Title/Position"
-    }
-  ]
-}
-
-RULES:
-1. Extract ALL people mentioned with names and titles/positions
-2. Include executives, partners, team members, leadership
-3. If title is not clear, use "Team Member" 
-4. Only include real people with names (not company names)
-5. Format names properly (First Last)
-6. Return empty array if no team members found
-7. DO NOT fabricate or assume information`
-            }
-          ],
-          response_format: { type: "json_object" }
+    teamMemberCards.each((index, element) => {
+      const $card = $(element);
+      const href = $card.attr('href');
+      const firstName = $card.find('.people__name').contents().filter(function() {
+        return this.type === 'text';
+      }).text().trim();
+      const lastName = $card.find('.people__last-name').text().trim();
+      const title = $card.find('.people__job').text().trim();
+      
+      const fullName = `${firstName} ${lastName}`.trim();
+      
+      if (fullName && fullName.length > 1) {
+        allTeamMembers.push({
+          name: fullName,
+          title: title || 'Team Member',
+          bioUrl: href ? new URL(href, teamPageUrl).toString() : undefined
         });
-        
-        const aiResult = JSON.parse(teamMembersResponse.choices[0].message.content || '{"teamMembers":[]}');
-        const pageTeamMembers = aiResult.teamMembers || [];
-        
-        console.log(`✓ Extracted ${pageTeamMembers.length} team members from page ${pageNum}`);
-        
-        if (pageTeamMembers.length === 0 && pageNum > 1) {
-          console.log(`⚠ No team members found on page ${pageNum}, stopping pagination`);
-          break;
-        }
-        
-        allTeamMembers.push(...pageTeamMembers);
-        
-      } catch (pageError) {
-        console.error(`Error scraping page ${pageNum}:`, pageError);
-        // Continue to next page even if one fails
-        if (pageNum === 1) {
-          // If first page fails, stop completely
-          throw pageError;
-        }
       }
+    });
+    
+    console.log(`✓ Extracted ${allTeamMembers.length} team members from initial HTML`);
+    
+    // Check for JavaScript-rendered pagination
+    const paginationButtons = $('button[data-page]');
+    const hasPagination = paginationButtons.length > 0;
+    
+    if (hasPagination) {
+      // Find max page number
+      let maxPage = 1;
+      paginationButtons.each((i, btn) => {
+        const pageNum = parseInt($(btn).attr('data-page') || '1');
+        if (!isNaN(pageNum) && pageNum > maxPage) {
+          maxPage = pageNum;
+        }
+      });
+      
+      console.log(`\n⚠️ Detected JavaScript pagination: ${maxPage} pages total`);
+      console.log(`Initial HTML contains only ${allTeamMembers.length} people`);
+      console.log(`Estimated total: ${maxPage * allTeamMembers.length} people`);
+      console.log(`\n❌ LIMITATION: Cannot scrape JavaScript-paginated pages from Replit`);
+      console.log(`Reason: Playwright requires system dependencies not available in Replit`);
+      console.log(`\nOPTIONS:`);
+      console.log(`1. Accept the ${allTeamMembers.length} people from page 1 only`);
+      console.log(`2. Use Bright Data API to scrape all ${maxPage} pages (costs credits)`);
+      console.log(`3. Manual export: Ask CVC for a team roster CSV`);
     }
     
     console.log(`\n✅ Total team members extracted from all pages: ${allTeamMembers.length}`);
@@ -2696,8 +2642,7 @@ RULES:
     const teamMembers = Array.from(uniqueMembers.values());
     console.log(`After deduplication: ${teamMembers.length} unique team members`);
     
-    // Try to find bio URLs in HTML for each team member
-    const $ = cheerio.load(html);
+    // Try to find bio URLs in HTML for each team member ($ already loaded above)
     const links = $('a[href]');
     const bioUrlMap = new Map<string, string>();
     
