@@ -8,7 +8,7 @@ import {
   type DataReviewQueue, type InsertDataReviewQueue
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // User management
@@ -18,12 +18,13 @@ export interface IStorage {
   
   // Company management
   createCompany(company: InsertCompany): Promise<Company>;
-  getCompanies(): Promise<Company[]>;
+  getCompanies(onlyHeadquarters?: boolean): Promise<Company[]>;
   getCompany(id: number): Promise<Company | undefined>;
   updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined>;
   getChildCompanies(parentCompanyId: number): Promise<Company[]>;
   getParentCompany(childCompanyId: number): Promise<Company | undefined>;
   convertCompanyToHierarchy(companyId: number): Promise<{ parent: Company; children: Company[] }>;
+  searchCompanies(query: string): Promise<Array<{ parent: Company; matchedOffices: Company[]; matchType: 'parent' | 'office' | 'both' }>>;
   
   // Job management
   createJob(job: InsertJob): Promise<Job>;
@@ -113,7 +114,12 @@ export class DatabaseStorage implements IStorage {
     return company;
   }
 
-  async getCompanies(): Promise<Company[]> {
+  async getCompanies(onlyHeadquarters: boolean = true): Promise<Company[]> {
+    if (onlyHeadquarters) {
+      return await db.select().from(companies)
+        .where(eq(companies.isHeadquarters, true))
+        .orderBy(desc(companies.createdAt));
+    }
     return await db.select().from(companies).orderBy(desc(companies.createdAt));
   }
 
@@ -197,6 +203,69 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { parent: updatedParent || parent, children };
+  }
+
+  async searchCompanies(query: string): Promise<Array<{ parent: Company; matchedOffices: Company[]; matchType: 'parent' | 'office' | 'both' }>> {
+    const searchPattern = `%${query}%`;
+    
+    // Search for matching companies (both HQ and offices)
+    const allMatches = await db.select().from(companies)
+      .where(
+        or(
+          ilike(companies.name, searchPattern),
+          ilike(companies.location, searchPattern)
+        )
+      );
+    
+    // Group results by parent company
+    const results = new Map<number, { parent: Company; matchedOffices: Company[]; matchType: 'parent' | 'office' | 'both' }>();
+    
+    for (const match of allMatches) {
+      if (match.isHeadquarters) {
+        // This is a headquarters match
+        const existing = results.get(match.id);
+        if (existing) {
+          existing.matchType = existing.matchType === 'office' ? 'both' : 'parent';
+        } else {
+          results.set(match.id, {
+            parent: match,
+            matchedOffices: [],
+            matchType: 'parent'
+          });
+        }
+      } else if (match.parentCompanyId) {
+        // This is an office match - get its parent
+        const parent = await this.getCompany(match.parentCompanyId);
+        if (parent) {
+          const existing = results.get(parent.id);
+          if (existing) {
+            existing.matchedOffices.push(match);
+            existing.matchType = existing.matchType === 'parent' ? 'both' : 'office';
+          } else {
+            results.set(parent.id, {
+              parent,
+              matchedOffices: [match],
+              matchType: 'office'
+            });
+          }
+        }
+      }
+    }
+    
+    // If searching for "KKR London", prioritize office matches
+    // If searching for just "KKR", prioritize parent matches
+    return Array.from(results.values()).sort((a, b) => {
+      // Prioritize results where the query matches an office city
+      const aHasOfficeMatch = a.matchedOffices.length > 0;
+      const bHasOfficeMatch = b.matchedOffices.length > 0;
+      
+      if (aHasOfficeMatch && !bHasOfficeMatch) return -1;
+      if (!aHasOfficeMatch && bHasOfficeMatch) return 1;
+      
+      // Otherwise sort by match type (both > parent > office)
+      const typeOrder = { both: 0, parent: 1, office: 2 };
+      return typeOrder[a.matchType] - typeOrder[b.matchType];
+    });
   }
 
   // Job management

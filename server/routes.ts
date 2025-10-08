@@ -346,11 +346,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get companies endpoint
   app.get("/api/companies", async (req, res) => {
     try {
-      const companies = await storage.getCompanies();
+      const { showAll } = req.query;
+      const onlyHeadquarters = showAll !== 'true'; // Default to showing only headquarters
+      const companies = await storage.getCompanies(onlyHeadquarters);
       res.json(companies);
     } catch (error) {
       console.error("Error fetching companies:", error);
       res.status(500).json({ error: "Failed to fetch companies" });
+    }
+  });
+
+  // Search companies endpoint - smart search with office matching
+  app.get("/api/companies/search", async (req, res) => {
+    try {
+      const { q } = req.query;
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({ error: "Search query required" });
+      }
+      const results = await storage.searchCompanies(q);
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching companies:", error);
+      res.status(500).json({ error: "Failed to search companies" });
     }
   });
 
