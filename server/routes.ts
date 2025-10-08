@@ -6,7 +6,7 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 import { storage } from "./storage";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers } from "./ai";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { duplicateDetectionService } from "./duplicate-detection";
@@ -409,6 +409,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error converting company to hierarchy:", error);
       res.status(500).json({ error: "Failed to convert company to hierarchy" });
+    }
+  });
+
+  // Discover team members from company website
+  app.post("/api/companies/:id/discover-team", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const company = await storage.getCompanies();
+      const targetCompany = company.find(c => c.id === parseInt(id));
+      
+      if (!targetCompany) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      if (!targetCompany.website) {
+        return res.status(400).json({ error: "Company website not available" });
+      }
+
+      console.log(`Discovering team members for ${targetCompany.name} from ${targetCompany.website}`);
+      const teamMembers = await discoverTeamMembers(targetCompany.website);
+      
+      res.json({ 
+        success: true,
+        companyId: parseInt(id),
+        companyName: targetCompany.name,
+        teamMembers 
+      });
+    } catch (error) {
+      console.error("Error discovering team members:", error);
+      res.status(500).json({ error: "Failed to discover team members" });
+    }
+  });
+
+  // Import selected team members as candidates
+  app.post("/api/companies/:id/import-team-members", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { teamMembers } = req.body;
+
+      if (!Array.isArray(teamMembers) || teamMembers.length === 0) {
+        return res.status(400).json({ error: "No team members provided" });
+      }
+
+      const company = await storage.getCompanies();
+      const targetCompany = company.find(c => c.id === parseInt(id));
+      
+      if (!targetCompany) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      const createdCandidates = [];
+      const errors = [];
+
+      for (const member of teamMembers) {
+        try {
+          // Split name into first and last
+          const nameParts = member.name.trim().split(' ');
+          const firstName = nameParts[0];
+          const lastName = nameParts.slice(1).join(' ') || nameParts[0]; // Use first name as last if only one name
+
+          // Create candidate record
+          const candidateData = {
+            firstName,
+            lastName,
+            email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${targetCompany.website?.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}`, // placeholder email
+            currentCompany: targetCompany.name,
+            currentTitle: member.title || 'Team Member',
+            skills: [],
+            isAvailable: true,
+            bioUrl: member.bioUrl || null,
+            companyId: parseInt(id)
+          };
+
+          const candidate = await storage.createCandidate(candidateData);
+          createdCandidates.push(candidate);
+        } catch (error) {
+          console.error(`Error creating candidate for ${member.name}:`, error);
+          errors.push({ name: member.name, error: String(error) });
+        }
+      }
+
+      res.json({
+        success: true,
+        imported: createdCandidates.length,
+        candidates: createdCandidates,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("Error importing team members:", error);
+      res.status(500).json({ error: "Failed to import team members" });
     }
   });
 
