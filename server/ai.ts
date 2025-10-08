@@ -2559,16 +2559,36 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       return [];
     }
     
-    // Fetch HTML to detect pagination and extract bio URLs
-    const htmlResponse = await fetch(teamPageUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
-      },
-      signal: AbortSignal.timeout(30000)
-    });
-    
-    const html = htmlResponse.ok ? await htmlResponse.text() : '';
+    // Use Playwright to get fully rendered HTML (including JavaScript-rendered pagination)
+    console.log('Loading page with Playwright to detect pagination...');
+    let html = '';
+    try {
+      const { chromium } = await import('playwright');
+      const browser = await chromium.launch({ headless: true });
+      const page = await browser.newPage();
+      
+      await page.goto(teamPageUrl, { waitUntil: 'networkidle', timeout: 30000 });
+      
+      // Wait a bit for any dynamic content to load
+      await page.waitForTimeout(2000);
+      
+      // Get the full HTML after JavaScript execution
+      html = await page.content();
+      
+      await browser.close();
+      console.log('✓ Page loaded with Playwright');
+    } catch (playwrightError) {
+      console.error('Playwright failed, falling back to regular fetch:', playwrightError);
+      // Fallback to regular fetch
+      const htmlResponse = await fetch(teamPageUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
+        },
+        signal: AbortSignal.timeout(30000)
+      });
+      html = htmlResponse.ok ? await htmlResponse.text() : '';
+    }
     
     // Detect pagination
     const paginationInfo = await detectPagination(html, teamPageUrl);
