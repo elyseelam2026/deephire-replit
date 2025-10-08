@@ -534,8 +534,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.deleteCompany(parseInt(id));
       res.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting company:", error);
+      
+      // Check if it's a foreign key constraint error (company has jobs)
+      if (error.code === '23503' && error.constraint === 'jobs_company_id_companies_id_fk') {
+        return res.status(400).json({ error: "Cannot delete company with linked jobs. Delete all jobs for this company first." });
+      }
+      
       res.status(500).json({ error: "Failed to delete company" });
     }
   });
