@@ -902,10 +902,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       name: `${parentCompany.name} - ${office.city}`,
                       parentCompanyId: parentCompany.id,
                       isOfficeLocation: true,
-                      // Copy from parent
+                      // Copy minimal data from parent
                       industry: companyData.industry,
                       website: companyData.website,
-                      missionStatement: companyData.missionStatement,
+                      // DON'T copy missionStatement - office locations should not inherit parent description
+                      missionStatement: null,
                       // Office-specific data
                       location: `${office.city}, ${office.country}`,
                       headquarters: {

@@ -2117,7 +2117,7 @@ Return EXACTLY this JSON structure - extract EVERY piece of info you can find:
 {
   "name": "official company name (search headers, titles, footer)",
   "industry": "primary industry/sector (investment, tech, finance, etc.)",
-  "missionStatement": "company description or mission (search About section, hero text, meta description)",
+  "missionStatement": "DETAILED company description - PRIORITIZE content from 'About Us' or 'About' section. Look for comprehensive description that explains what the company does, their mission, values, and expertise. DO NOT just use the first paragraph - search specifically for 'About Us', 'About', 'Who We Are', 'Our Story' sections. If no dedicated About section exists, then use hero text or meta description as fallback.",
   "primaryPhone": "MAIN phone number with country code (search Contact, footer, header - format: +1-555-123-4567 or (555) 123-4567)",
   "headquarters": {
     "street": "HQ street address (search Contact, About, footer)",
@@ -2206,6 +2206,7 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       '/team',
       '/about/team',
       '/our-team',
+      '/our-team/', // Add trailing slash variant
       '/people',
       '/leadership',
       '/about/leadership',
@@ -2277,7 +2278,7 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
           content: `Extract all team members from this company page content.
 
 Website Content:
-${teamPageContent.substring(0, 15000)}
+${teamPageContent.substring(0, 30000)}
 
 Return JSON in this exact format:
 {
