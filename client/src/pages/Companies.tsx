@@ -2,19 +2,38 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRight } from "lucide-react";
+import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Company } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+type SearchResult = {
+  parent: Company;
+  matchedOffices: Company[];
+  matchType: 'parent' | 'office' | 'both';
+};
+
 export default function Companies() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
   
   const { data: companies, isLoading, error } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
+  });
+
+  // Smart search query
+  const { data: searchResults, isLoading: isSearching } = useQuery<SearchResult[]>({
+    queryKey: ['/api/companies/search', searchQuery],
+    queryFn: async () => {
+      const response = await fetch(`/api/companies/search?q=${encodeURIComponent(searchQuery)}`);
+      if (!response.ok) throw new Error('Search failed');
+      return response.json();
+    },
+    enabled: searchQuery.length > 0,
   });
 
   // Fetch child companies when a company is selected
@@ -116,13 +135,17 @@ export default function Companies() {
     }
   };
 
+  // Determine which companies to display
+  const displayCompanies = searchQuery && searchResults ? searchResults : 
+    companies?.map(c => ({ parent: c, matchedOffices: [], matchType: 'parent' as const })) || [];
+
   return (
     <div className="space-y-6 p-6" data-testid="companies-page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Companies</h1>
           <p className="text-muted-foreground">
-            Manage your client companies ({companies?.length || 0} total)
+            {searchQuery ? `Search results for "${searchQuery}"` : `Manage your client companies (${companies?.length || 0} headquarters)`}
           </p>
         </div>
         <Button data-testid="button-add-company">
@@ -131,64 +154,95 @@ export default function Companies() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {companies?.map((company) => (
-          <Card key={company.id} className="hover-elevate" data-testid={`company-card-${company.id}`}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Building2 className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg" data-testid={`company-name-${company.id}`}>
-                      {company.name}
-                    </CardTitle>
-                    {company.stage && (
-                      <Badge variant="secondary" className={getStageColor(company.stage)}>
-                        {company.stage}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {company.industry && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <TrendingUp className="h-4 w-4" />
-                  <span data-testid={`company-industry-${company.id}`}>{company.industry}</span>
-                </div>
-              )}
-              
-              {company.location && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  <span data-testid={`company-location-${company.id}`}>{company.location}</span>
-                </div>
-              )}
-              
-              {company.employeeSize && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span data-testid={`company-employees-${company.id}`}>{company.employeeSize} employees</span>
-                </div>
-              )}
+      {/* Search input */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search companies or cities (e.g., 'KKR London')..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+          data-testid="input-search-companies"
+        />
+      </div>
 
-              <div className="pt-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full" 
-                  onClick={() => setSelectedCompany(company)}
-                  data-testid={`button-view-company-${company.id}`}
-                >
-                  View Details
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {displayCompanies.map((result) => {
+          const company = result.parent;
+          return (
+            <Card key={company.id} className="hover-elevate" data-testid={`company-card-${company.id}`}>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg" data-testid={`company-name-${company.id}`}>
+                        {company.name}
+                      </CardTitle>
+                      {company.stage && (
+                        <Badge variant="secondary" className={getStageColor(company.stage)}>
+                          {company.stage}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {/* Show office count and matched offices if searching */}
+                {result.matchedOffices.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {result.matchedOffices.map((office) => (
+                      <Badge 
+                        key={office.id} 
+                        variant="outline" 
+                        className="text-xs cursor-pointer hover-elevate"
+                        onClick={() => setSelectedCompany(office)}
+                        data-testid={`badge-office-${office.id}`}
+                      >
+                        📍 {office.location}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {company.industry && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <TrendingUp className="h-4 w-4" />
+                    <span data-testid={`company-industry-${company.id}`}>{company.industry}</span>
+                  </div>
+                )}
+                
+                {company.location && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4" />
+                    <span data-testid={`company-location-${company.id}`}>{company.location}</span>
+                  </div>
+                )}
+                
+                {company.employeeSize && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    <span data-testid={`company-employees-${company.id}`}>{company.employeeSize} employees</span>
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full" 
+                    onClick={() => setSelectedCompany(company)}
+                    data-testid={`button-view-company-${company.id}`}
+                  >
+                    View Details
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {companies?.length === 0 && (
