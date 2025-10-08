@@ -2184,3 +2184,177 @@ CRITICAL EXTRACTION RULES:
     return null;
   }
 }
+
+/**
+ * Discover team members from company website
+ * Scrapes team/people pages and extracts employee names and bio URLs
+ */
+export async function discoverTeamMembers(websiteUrl: string): Promise<{
+  name: string;
+  title?: string;
+  bioUrl?: string;
+}[]> {
+  try {
+    console.log(`\n🔍 Discovering team members from: ${websiteUrl}`);
+    
+    // Parse base URL
+    const baseUrl = new URL(websiteUrl);
+    const baseUrlStr = `${baseUrl.protocol}//${baseUrl.hostname}`;
+    
+    // Potential team page URLs to check
+    const teamPagePaths = [
+      '/team',
+      '/about/team',
+      '/our-team',
+      '/people',
+      '/leadership',
+      '/about/leadership',
+      '/about-us/team',
+      '/company/team',
+      '/our-people',
+      '/about',
+      '/about-us'
+    ];
+    
+    let teamPageContent = '';
+    let teamPageUrl = websiteUrl;
+    
+    // Try to find team page
+    for (const path of teamPagePaths) {
+      const url = baseUrlStr + path;
+      console.log(`Checking for team page: ${url}`);
+      const content = await fetchWebContent(url);
+      
+      if (content && content.length > 500) {
+        // Check if page contains team-related keywords
+        const lowerContent = content.toLowerCase();
+        if (lowerContent.includes('team') || 
+            lowerContent.includes('people') || 
+            lowerContent.includes('leadership') ||
+            lowerContent.includes('partner') ||
+            lowerContent.includes('executive')) {
+          teamPageContent = content;
+          teamPageUrl = url;
+          console.log(`✓ Found team page at: ${url}`);
+          break;
+        }
+      }
+    }
+    
+    // If no dedicated team page found, use homepage
+    if (!teamPageContent) {
+      console.log('No dedicated team page found, using homepage');
+      teamPageContent = await fetchWebContent(websiteUrl);
+      teamPageUrl = websiteUrl;
+    }
+    
+    if (!teamPageContent) {
+      console.log('Could not fetch any content from website');
+      return [];
+    }
+    
+    // Also fetch HTML to extract bio URLs
+    const htmlResponse = await fetch(teamPageUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
+      },
+      signal: AbortSignal.timeout(30000)
+    });
+    
+    const html = htmlResponse.ok ? await htmlResponse.text() : '';
+    
+    // Use AI to extract team members from content
+    const teamMembersResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at extracting team member information from company websites. Extract all team members with their names and titles. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: `Extract all team members from this company page content.
+
+Website Content:
+${teamPageContent.substring(0, 15000)}
+
+Return JSON in this exact format:
+{
+  "teamMembers": [
+    {
+      "name": "Full Name",
+      "title": "Job Title/Position"
+    }
+  ]
+}
+
+RULES:
+1. Extract ALL people mentioned with names and titles/positions
+2. Include executives, partners, team members, leadership
+3. If title is not clear, use "Team Member" 
+4. Only include real people with names (not company names)
+5. Format names properly (First Last)
+6. Return empty array if no team members found
+7. DO NOT fabricate or assume information`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+    
+    const aiResult = JSON.parse(teamMembersResponse.choices[0].message.content || '{"teamMembers":[]}');
+    const teamMembers = aiResult.teamMembers || [];
+    
+    console.log(`✓ AI extracted ${teamMembers.length} team members`);
+    
+    // Try to find bio URLs in HTML for each team member
+    const $ = cheerio.load(html);
+    const links = $('a[href]');
+    const bioUrlMap = new Map<string, string>();
+    
+    links.each((_, element) => {
+      const href = $(element).attr('href');
+      const text = $(element).text().trim().toLowerCase();
+      const linkText = text.replace(/\s+/g, ' ');
+      
+      if (!href) return;
+      
+      // Look for links that might be bio pages
+      for (const member of teamMembers) {
+        const memberNameLower = member.name.toLowerCase();
+        const firstNameLower = member.name.split(' ')[0].toLowerCase();
+        const lastNameLower = member.name.split(' ').slice(-1)[0].toLowerCase();
+        
+        // Check if link text matches team member name
+        if (linkText.includes(memberNameLower) || 
+            linkText.includes(firstNameLower + ' ' + lastNameLower)) {
+          
+          // Make URL absolute
+          let bioUrl = href;
+          if (href.startsWith('/')) {
+            bioUrl = baseUrlStr + href;
+          } else if (!href.startsWith('http')) {
+            bioUrl = baseUrlStr + '/' + href;
+          }
+          
+          bioUrlMap.set(member.name, bioUrl);
+          console.log(`Found bio URL for ${member.name}: ${bioUrl}`);
+        }
+      }
+    });
+    
+    // Combine results
+    const result = teamMembers.map((member: any) => ({
+      name: member.name,
+      title: member.title || 'Team Member',
+      bioUrl: bioUrlMap.get(member.name) || undefined
+    }));
+    
+    console.log(`✅ Discovered ${result.length} team members`);
+    return result;
+    
+  } catch (error) {
+    console.error(`Error discovering team members: ${error}`);
+    return [];
+  }
+}
