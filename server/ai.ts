@@ -1333,7 +1333,9 @@ export async function parseCompanyFromUrl(url: string): Promise<any | null> {
       primaryPhone: companyData.primaryPhone || null,
       headquarters: companyData.headquarters || null, // JSON object
       officeLocations: companyData.officeLocations || [], // JSON array
-      annualRevenue: companyData.annualRevenue || null,
+      // annualRevenue must be numeric or null - AI often returns strings like "K16 billion AUM"
+      // For now, set to null - we can add parsing logic later if needed
+      annualRevenue: null,
       location: companyData.location || null,
       // Backward compatibility fields
       parentCompany: undefined,
