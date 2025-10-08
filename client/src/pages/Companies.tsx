@@ -16,9 +16,18 @@ type SearchResult = {
   matchType: 'parent' | 'office' | 'both';
 };
 
+type TeamMember = {
+  name: string;
+  title?: string;
+  bioUrl?: string;
+};
+
 export default function Companies() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [discoveredTeam, setDiscoveredTeam] = useState<TeamMember[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Set<number>>(new Set());
+  const [showTeamPreview, setShowTeamPreview] = useState(false);
   const { toast } = useToast();
   
   const { data: companies, isLoading, error } = useQuery<Company[]>({
@@ -78,6 +87,80 @@ export default function Companies() {
       });
     },
   });
+
+  // Discover team members mutation
+  const discoverTeam = useMutation({
+    mutationFn: async (companyId: number) => {
+      const response = await apiRequest('POST', `/api/companies/${companyId}/discover-team`);
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      setDiscoveredTeam(data.teamMembers || []);
+      setSelectedTeamMembers(new Set());
+      setShowTeamPreview(true);
+      toast({
+        title: "Team Members Discovered!",
+        description: `Found ${data.teamMembers?.length || 0} team members`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to discover team members. Make sure the company has a website.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Import team members mutation
+  const importTeamMembers = useMutation({
+    mutationFn: async ({ companyId, teamMembers }: { companyId: number; teamMembers: TeamMember[] }) => {
+      const response = await apiRequest('POST', `/api/companies/${companyId}/import-team-members`, { teamMembers });
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Success!",
+        description: `Imported ${data.imported} team members as candidates`,
+      });
+      setShowTeamPreview(false);
+      setDiscoveredTeam([]);
+      setSelectedTeamMembers(new Set());
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to import team members",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleImportSelected = () => {
+    if (selectedCompany && selectedTeamMembers.size > 0) {
+      const membersToImport = discoveredTeam.filter((_, index) => selectedTeamMembers.has(index));
+      importTeamMembers.mutate({ companyId: selectedCompany.id, teamMembers: membersToImport });
+    }
+  };
+
+  const toggleTeamMember = (index: number) => {
+    const newSelected = new Set(selectedTeamMembers);
+    if (newSelected.has(index)) {
+      newSelected.delete(index);
+    } else {
+      newSelected.add(index);
+    }
+    setSelectedTeamMembers(newSelected);
+  };
+
+  const selectAllTeamMembers = () => {
+    if (selectedTeamMembers.size === discoveredTeam.length) {
+      setSelectedTeamMembers(new Set());
+    } else {
+      setSelectedTeamMembers(new Set(discoveredTeam.map((_, i) => i)));
+    }
+  };
 
   if (isLoading) {
     return (
@@ -281,7 +364,7 @@ export default function Companies() {
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground mb-1">Part of</p>
                   <Button
-                    variant="link"
+                    variant="ghost"
                     className="p-0 h-auto font-medium text-primary"
                     onClick={() => setSelectedCompany(parentCompany)}
                     data-testid={`link-parent-company-${parentCompany.id}`}
@@ -420,6 +503,21 @@ export default function Companies() {
                 </div>
               ) : null}
 
+              {/* Discover Team Members */}
+              {selectedCompany.website && (
+                <div className="pt-4 border-t">
+                  <Button
+                    onClick={() => discoverTeam.mutate(selectedCompany.id)}
+                    disabled={discoverTeam.isPending}
+                    className="w-full"
+                    data-testid="button-discover-team"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    {discoverTeam.isPending ? 'Discovering...' : 'Discover Team Members'}
+                  </Button>
+                </div>
+              )}
+
               {/* Legacy fields */}
               {selectedCompany.employeeSize && (
                 <div className="grid grid-cols-2 gap-4">
@@ -440,6 +538,99 @@ export default function Companies() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Team Members Preview Modal */}
+      <Dialog open={showTeamPreview} onOpenChange={setShowTeamPreview}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="team-preview-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <Users className="h-6 w-6" />
+              Discovered Team Members ({discoveredTeam.length})
+            </DialogTitle>
+            <DialogDescription>
+              Select team members to import as candidates
+            </DialogDescription>
+          </DialogHeader>
+
+          {discoveredTeam.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No team members found on this website</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllTeamMembers}
+                  data-testid="button-select-all-team"
+                >
+                  {selectedTeamMembers.size === discoveredTeam.length ? 'Deselect All' : 'Select All'}
+                </Button>
+                <p className="text-sm text-muted-foreground">
+                  {selectedTeamMembers.size} of {discoveredTeam.length} selected
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {discoveredTeam.map((member, index) => (
+                  <div
+                    key={index}
+                    className="flex items-start gap-3 p-3 border rounded-lg hover-elevate cursor-pointer"
+                    onClick={() => toggleTeamMember(index)}
+                    data-testid={`team-member-${index}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTeamMembers.has(index)}
+                      onChange={() => toggleTeamMember(index)}
+                      className="mt-1"
+                      data-testid={`checkbox-team-member-${index}`}
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium">{member.name}</p>
+                      {member.title && (
+                        <p className="text-sm text-muted-foreground">{member.title}</p>
+                      )}
+                      {member.bioUrl && (
+                        <a
+                          href={member.bioUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View Bio →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTeamPreview(false)}
+                  className="flex-1"
+                  data-testid="button-cancel-import"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleImportSelected}
+                  disabled={selectedTeamMembers.size === 0 || importTeamMembers.isPending}
+                  className="flex-1"
+                  data-testid="button-import-selected"
+                >
+                  {importTeamMembers.isPending ? 'Importing...' : `Import ${selectedTeamMembers.size} Selected`}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
