@@ -502,6 +502,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update company
+  app.put("/api/companies/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+
+      const updated = await storage.updateCompany(parseInt(id), updates);
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating company:", error);
+      res.status(500).json({ error: "Failed to update company" });
+    }
+  });
+
+  // Delete company
+  app.delete("/api/companies/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if company has child offices
+      const children = await storage.getChildCompanies(parseInt(id));
+      if (children.length > 0) {
+        return res.status(400).json({ error: "Cannot delete company with office locations. Delete offices first." });
+      }
+
+      await storage.deleteCompany(parseInt(id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      res.status(500).json({ error: "Failed to delete company" });
+    }
+  });
+
   // Dashboard stats endpoint
   app.get("/api/stats", async (req, res) => {
     try {

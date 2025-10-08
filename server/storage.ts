@@ -21,6 +21,7 @@ export interface IStorage {
   getCompanies(onlyHeadquarters?: boolean): Promise<Company[]>;
   getCompany(id: number): Promise<Company | undefined>;
   updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined>;
+  deleteCompany(id: number): Promise<void>;
   getChildCompanies(parentCompanyId: number): Promise<Company[]>;
   getParentCompany(childCompanyId: number): Promise<Company | undefined>;
   convertCompanyToHierarchy(companyId: number): Promise<{ parent: Company; children: Company[] }>;
@@ -134,6 +135,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(companies.id, id))
       .returning();
     return company || undefined;
+  }
+
+  async deleteCompany(id: number): Promise<void> {
+    await db.delete(companies).where(eq(companies.id, id));
   }
 
   async getChildCompanies(parentCompanyId: number): Promise<Company[]> {
