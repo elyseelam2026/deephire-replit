@@ -2605,32 +2605,67 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     // Parse HTML with cheerio
     const $ = cheerio.load(html);
     
-    // Extract team members using CSS selectors
+    // Extract team members using CSS selectors with multiple fallback patterns
     console.log('Extracting team members from HTML using CSS selectors...');
-    const teamMemberCards = $('a.js-people-link');
-    console.log(`Found ${teamMemberCards.length} person cards in initial HTML`);
     
     const allTeamMembers: any[] = [];
     
-    teamMemberCards.each((index, element) => {
-      const $card = $(element);
-      const href = $card.attr('href');
-      const firstName = $card.find('.people__name').contents().filter(function() {
-        return this.type === 'text';
-      }).text().trim();
-      const lastName = $card.find('.people__last-name').text().trim();
-      const title = $card.find('.people__job').text().trim();
+    // Try multiple selector patterns
+    const selectorPatterns = [
+      // Pattern 1: CVC-style selectors
+      { card: 'a.js-people-link', name: '.people__name', lastName: '.people__last-name', title: '.people__job' },
+      // Pattern 2: PAG-style selectors
+      { card: '.team-member, .team-grid-item', name: '.team-member__name, .member-name, h3, h4', title: '.team-member__title, .member-title, .team-member__job, p' },
+      // Pattern 3: Generic team member divs
+      { card: '[data-teamid], [class*="team"][class*="member"], [class*="person"], [class*="profile"]', name: 'h2, h3, h4, .name', title: '.title, .role, .position, p' },
+    ];
+    
+    let extractedCount = 0;
+    
+    for (const pattern of selectorPatterns) {
+      const teamMemberCards = $(pattern.card);
+      console.log(`Trying pattern ${selectorPatterns.indexOf(pattern) + 1}: Found ${teamMemberCards.length} cards with selector "${pattern.card}"`);
       
-      const fullName = `${firstName} ${lastName}`.trim();
+      if (teamMemberCards.length === 0) continue;
       
-      if (fullName && fullName.length > 1) {
-        allTeamMembers.push({
-          name: fullName,
-          title: title || 'Team Member',
-          bioUrl: href ? new URL(href, teamPageUrl).toString() : undefined
-        });
+      teamMemberCards.each((index, element) => {
+        const $card = $(element);
+        const href = $card.attr('href') || $card.find('a').attr('href');
+        
+        // Try to extract name
+        let fullName = '';
+        if (pattern.lastName) {
+          const firstName = $card.find(pattern.name).contents().filter(function() {
+            return this.type === 'text';
+          }).text().trim();
+          const lastName = $card.find(pattern.lastName).text().trim();
+          fullName = `${firstName} ${lastName}`.trim();
+        } else {
+          fullName = $card.find(pattern.name).first().text().trim();
+          // If no name found in name selector, try getting from data attributes
+          if (!fullName) {
+            fullName = $card.attr('data-name') || $card.attr('aria-label') || '';
+          }
+        }
+        
+        const title = $card.find(pattern.title).first().text().trim();
+        
+        if (fullName && fullName.length > 1 && !/^\d+$/.test(fullName)) {
+          allTeamMembers.push({
+            name: fullName,
+            title: title || 'Team Member',
+            bioUrl: href ? new URL(href, teamPageUrl).toString() : undefined
+          });
+          extractedCount++;
+        }
+      });
+      
+      // If we found team members with this pattern, stop trying others
+      if (extractedCount > 0) {
+        console.log(`✓ Successfully extracted ${extractedCount} team members using pattern ${selectorPatterns.indexOf(pattern) + 1}`);
+        break;
       }
-    });
+    }
     
     console.log(`✓ Extracted ${allTeamMembers.length} team members from initial HTML`);
     

@@ -60,6 +60,8 @@ Preferred communication style: Simple, everyday language.
 - **Improved Company Descriptions** (Oct 8, 2025): AI extraction prioritizes "About Us" sections over first paragraph for richer, more accurate company descriptions.
 - **Enhanced Team Discovery** (Oct 8, 2025): Added `/our-team/`, `/about/people`, `/about/our-people`, and `/about/our-people/` path support. Increased content limit from 15K to 30K characters for better team member extraction. Implemented pagination support to scrape multi-page team listings (up to 100 pages per company, with safety cap). Detects pagination via HTML parsing, handles both query-based (?page=2) and path-based (/page/2) patterns, intelligently extracts actual query parameter names, and deduplicates results across all pages.
 - **Child Company List Filtering** (Oct 8, 2025): Fixed bug where child companies appeared on main list. All child companies now have `isHeadquarters = false` to ensure only parent companies show on main Companies page.
+- **Language-Aware Team Discovery** (Oct 9, 2025): Enhanced team discovery to support internationalized websites with language-prefixed URLs (e.g., `/en/about/`, `/fr/team/`). System now checks 10 language variants (en, fr, de, es, zh, ja, pt, it, nl) combined with all base team paths (~150 URL combinations) for comprehensive coverage of localized sites.
+- **Null City Protection** (Oct 9, 2025): Fixed child company creation to skip office locations with null/empty city data. Previously created malformed "Company - null" child companies. System now logs warnings and skips invalid offices while preserving legitimate data.
 
 ## External Dependencies
 
