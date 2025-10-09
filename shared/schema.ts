@@ -277,6 +277,13 @@ export const candidates = pgTable("candidates", {
   gdprConsent: boolean("gdpr_consent"),
   dataRetentionUntil: timestamp("data_retention_until"),
   
+  // Verification & Data Quality (new - for production candidates)
+  verificationStatus: text("verification_status").default("unverified"), // verified, unverified, needs_review
+  confidenceScore: real("confidence_score"), // 0-1 score from verification
+  verificationDate: timestamp("verification_date"),
+  dataQualityScore: real("data_quality_score"), // Overall data completeness/quality (0-1)
+  stagingCandidateId: integer("staging_candidate_id"), // Track origin from staging (no FK to avoid circular ref)
+  
   // System fields (existing)
   cvText: text("cv_text"), // extracted CV text
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
@@ -556,6 +563,98 @@ export const insertDataReviewQueueSchema = createInsertSchema(dataReviewQueue).o
   reviewedAt: true,
 });
 
+// Staging Candidates - unverified scraped data (ChatGPT's "Raw/Staging Database")
+export const stagingCandidates = pgTable("staging_candidates", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Basic Information (minimal data from scraping)
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  fullName: text("full_name").notNull(), // as scraped
+  currentTitle: text("current_title"),
+  currentCompany: text("current_company"),
+  
+  // Discovered URLs
+  bioUrl: text("bio_url"), // Company bio page
+  linkedinUrl: text("linkedin_url"), // If found during scraping
+  
+  // Source Tracking
+  sourceUrl: text("source_url").notNull(), // Where we found them
+  sourceType: text("source_type").notNull(), // team_discovery, bio_upload, quick_add
+  companyId: integer("company_id").references(() => companies.id), // Associated company
+  
+  // Verification Status
+  verificationStatus: text("verification_status").default("pending").notNull(), 
+  // pending, verified, rejected, needs_review
+  
+  confidenceScore: real("confidence_score"), // 0-1 overall confidence
+  
+  // Timestamps
+  scrapedAt: timestamp("scraped_at").default(sql`now()`).notNull(),
+  verifiedAt: timestamp("verified_at"),
+  movedToProductionAt: timestamp("moved_to_production_at"),
+  productionCandidateId: integer("production_candidate_id").references(() => candidates.id),
+});
+
+// Verification Results - tracks all verification checks (ChatGPT's "Verification Layer")
+export const verificationResults = pgTable("verification_results", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  stagingCandidateId: integer("staging_candidate_id")
+    .references(() => stagingCandidates.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(), // Ensure one verification result per staging candidate
+  
+  // Individual Check Results
+  linkedinExists: boolean("linkedin_exists").default(false),
+  linkedinCompanyMatch: boolean("linkedin_company_match").default(false),
+  linkedinCurrentRole: boolean("linkedin_current_role").default(false),
+  linkedinUrl: text("linkedin_url"), // Found LinkedIn URL
+  
+  bioUrlValid: boolean("bio_url_valid").default(false),
+  bioUrlHttpStatus: integer("bio_url_http_status"),
+  
+  titleConsistent: boolean("title_consistent").default(false),
+  titleFromLinkedIn: text("title_from_linkedin"),
+  titleFromBio: text("title_from_bio"),
+  titleFromSource: text("title_from_source"),
+  titleSimilarityScore: real("title_similarity_score"), // 0-1
+  
+  webMentionsFound: boolean("web_mentions_found").default(false),
+  webMentionCount: integer("web_mention_count").default(0),
+  
+  emailPatternMatch: boolean("email_pattern_match").default(false),
+  inferredEmail: text("inferred_email"),
+  
+  isDuplicate: boolean("is_duplicate").default(false),
+  duplicateOfCandidateId: integer("duplicate_of_candidate_id")
+    .references(() => candidates.id, { onDelete: 'set null' }),
+  duplicateMatchScore: real("duplicate_match_score"), // How similar to duplicate
+  
+  // Employment Status Check
+  employmentStatus: text("employment_status"), // current, former, unknown
+  employmentStatusSource: text("employment_status_source"), // linkedin, bio, web_search
+  
+  // Overall Assessment
+  confidenceScore: real("confidence_score").notNull(), // 0-1 calculated score
+  recommendedAction: text("recommended_action").notNull(), // approve, review, reject
+  flags: text("flags").array(), // Array of warning/issue messages
+  
+  // AI Reasoning (for transparency)
+  aiReasoning: text("ai_reasoning"), // Why this confidence score?
+  
+  // Verification Metadata
+  verificationMethod: text("verification_method").default("automated"), // automated, manual, hybrid
+  verifiedBy: text("verified_by"), // AI or user ID
+  verifiedAt: timestamp("verified_at").default(sql`now()`).notNull(),
+});
+
+// Add verification fields to existing candidates table (for production data quality tracking)
+// Note: These will be added via migration, documenting here for reference
+// - verificationStatus: text // verified, unverified, needs_review
+// - confidenceScore: real // 0-1 score from verification
+// - verificationDate: timestamp
+// - dataQualityScore: real // Overall data completeness/quality
+
 // Type exports
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type Company = typeof companies.$inferSelect;
@@ -586,3 +685,21 @@ export type DuplicateDetection = typeof duplicateDetections.$inferSelect;
 
 export type InsertDataReviewQueue = z.infer<typeof insertDataReviewQueueSchema>;
 export type DataReviewQueue = typeof dataReviewQueue.$inferSelect;
+
+// Staging Candidates schemas
+export const insertStagingCandidateSchema = createInsertSchema(stagingCandidates).omit({
+  id: true,
+  scrapedAt: true,
+  verifiedAt: true,
+  movedToProductionAt: true,
+});
+export type InsertStagingCandidate = z.infer<typeof insertStagingCandidateSchema>;
+export type StagingCandidate = typeof stagingCandidates.$inferSelect;
+
+// Verification Results schemas
+export const insertVerificationResultSchema = createInsertSchema(verificationResults).omit({
+  id: true,
+  verifiedAt: true,
+});
+export type InsertVerificationResult = z.infer<typeof insertVerificationResultSchema>;
+export type VerificationResult = typeof verificationResults.$inferSelect;

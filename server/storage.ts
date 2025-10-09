@@ -1,11 +1,12 @@
 import { 
   companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
-  dataIngestionJobs, duplicateDetections, dataReviewQueue,
+  dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
   type Company, type Job, type Candidate, type JobMatch, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
   type DataIngestionJob, type InsertDataIngestionJob, type DuplicateDetection, type InsertDuplicateDetection,
-  type DataReviewQueue, type InsertDataReviewQueue
+  type DataReviewQueue, type InsertDataReviewQueue, type StagingCandidate, type InsertStagingCandidate,
+  type VerificationResult, type InsertVerificationResult
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
@@ -90,6 +91,20 @@ export interface IStorage {
   getReviewTasks(status?: string): Promise<DataReviewQueue[]>;
   getReviewTask(id: number): Promise<DataReviewQueue | undefined>;
   updateReviewTask(id: number, updates: Partial<InsertDataReviewQueue>): Promise<DataReviewQueue | undefined>;
+  
+  // Staging Candidates (ChatGPT's "Raw/Staging Database")
+  createStagingCandidate(candidate: InsertStagingCandidate): Promise<StagingCandidate>;
+  getStagingCandidates(filters?: { status?: string; companyId?: number }): Promise<StagingCandidate[]>;
+  getStagingCandidate(id: number): Promise<StagingCandidate | undefined>;
+  updateStagingCandidate(id: number, updates: Partial<InsertStagingCandidate>): Promise<StagingCandidate | undefined>;
+  deleteStagingCandidate(id: number): Promise<void>;
+  
+  // Verification Results (ChatGPT's "Verification Layer")
+  createVerificationResult(result: InsertVerificationResult): Promise<VerificationResult>;
+  getVerificationResult(stagingCandidateId: number): Promise<VerificationResult | undefined>;
+  
+  // Move verified candidate from staging to production
+  promoteToProduction(stagingCandidateId: number): Promise<Candidate>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -820,6 +835,110 @@ export class DatabaseStorage implements IStorage {
       }
     }
     // If action is 'skip', we don't create or merge anything, just mark as resolved
+  }
+  
+  // Staging Candidates Management (ChatGPT's "Raw/Staging Database")
+  async createStagingCandidate(insertStagingCandidate: InsertStagingCandidate): Promise<StagingCandidate> {
+    const [candidate] = await db.insert(stagingCandidates).values(insertStagingCandidate).returning();
+    return candidate;
+  }
+  
+  async getStagingCandidates(filters?: { status?: string; companyId?: number }): Promise<StagingCandidate[]> {
+    let query = db.select().from(stagingCandidates);
+    
+    if (filters?.status) {
+      query = query.where(eq(stagingCandidates.verificationStatus, filters.status)) as any;
+    }
+    if (filters?.companyId) {
+      const condition = eq(stagingCandidates.companyId, filters.companyId);
+      query = filters?.status 
+        ? query.where(and(eq(stagingCandidates.verificationStatus, filters.status), condition)) as any
+        : query.where(condition) as any;
+    }
+    
+    return await query.orderBy(desc(stagingCandidates.scrapedAt));
+  }
+  
+  async getStagingCandidate(id: number): Promise<StagingCandidate | undefined> {
+    const [candidate] = await db.select().from(stagingCandidates).where(eq(stagingCandidates.id, id));
+    return candidate || undefined;
+  }
+  
+  async updateStagingCandidate(id: number, updates: Partial<InsertStagingCandidate>): Promise<StagingCandidate | undefined> {
+    const [candidate] = await db.update(stagingCandidates)
+      .set(updates)
+      .where(eq(stagingCandidates.id, id))
+      .returning();
+    return candidate || undefined;
+  }
+  
+  async deleteStagingCandidate(id: number): Promise<void> {
+    await db.delete(stagingCandidates).where(eq(stagingCandidates.id, id));
+  }
+  
+  // Verification Results (ChatGPT's "Verification Layer")
+  async createVerificationResult(insertResult: InsertVerificationResult): Promise<VerificationResult> {
+    const [result] = await db.insert(verificationResults).values(insertResult).returning();
+    return result;
+  }
+  
+  async getVerificationResult(stagingCandidateId: number): Promise<VerificationResult | undefined> {
+    const [result] = await db.select().from(verificationResults)
+      .where(eq(verificationResults.stagingCandidateId, stagingCandidateId))
+      .orderBy(desc(verificationResults.verifiedAt))
+      .limit(1);
+    return result || undefined;
+  }
+  
+  // Promote Verified Candidate to Production (ChatGPT's Staging → Production flow)
+  async promoteToProduction(stagingCandidateId: number): Promise<Candidate> {
+    // Use transaction to ensure atomicity
+    return await db.transaction(async (tx) => {
+      const [stagingCandidate] = await tx.select().from(stagingCandidates)
+        .where(eq(stagingCandidates.id, stagingCandidateId));
+      
+      if (!stagingCandidate) {
+        throw new Error('Staging candidate not found');
+      }
+      
+      const [verificationResult] = await tx.select().from(verificationResults)
+        .where(eq(verificationResults.stagingCandidateId, stagingCandidateId))
+        .limit(1);
+      
+      // Create production candidate with data from staging
+      const productionCandidate: InsertCandidate = {
+        firstName: stagingCandidate.firstName,
+        lastName: stagingCandidate.lastName,
+        currentTitle: stagingCandidate.currentTitle || undefined,
+        currentCompany: stagingCandidate.currentCompany || undefined,
+        bioUrl: stagingCandidate.bioUrl || undefined,
+        linkedinUrl: verificationResult?.linkedinUrl || stagingCandidate.linkedinUrl || undefined,
+        email: verificationResult?.inferredEmail || undefined,
+        
+        // Verification metadata
+        verificationStatus: 'verified',
+        confidenceScore: stagingCandidate.confidenceScore || undefined,
+        verificationDate: sql`now()`,
+        stagingCandidateId: stagingCandidateId,
+        
+        // Source tracking
+        sourceChannel: stagingCandidate.sourceType,
+        sourceDetails: stagingCandidate.sourceUrl,
+      };
+      
+      const [candidate] = await tx.insert(candidates).values(productionCandidate).returning();
+      
+      // Update staging candidate to track promotion
+      await tx.update(stagingCandidates)
+        .set({
+          verificationStatus: 'verified',
+          movedToProductionAt: sql`now()`,
+          productionCandidateId: candidate.id,
+        })
+        .where(eq(stagingCandidates.id, stagingCandidateId));
+      
+      return candidate;
+    });
   }
 }
 
