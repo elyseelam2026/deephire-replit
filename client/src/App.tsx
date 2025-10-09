@@ -15,6 +15,7 @@ import CandidatePortal from "@/pages/CandidatePortal";
 import Companies from "@/pages/Companies";
 import Jobs from "@/pages/Jobs";
 import Candidates from "@/pages/Candidates";
+import Staging from "@/pages/Staging";
 import Conversations from "@/pages/Conversations";
 import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
@@ -58,6 +59,7 @@ function RecruitingApp() {
               <Route path="/recruiting/companies" component={Companies} />
               <Route path="/recruiting/jobs" component={Jobs} />
               <Route path="/recruiting/candidates" component={Candidates} />
+              <Route path="/recruiting/staging" component={Staging} />
               <Route path="/recruiting/conversations" component={Conversations} />
               <Route path="/recruiting/outreach" component={Outreach} />
               <Route path="/recruiting/settings" component={Settings} />
