@@ -485,6 +485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const stagingData = {
             firstName,
             lastName,
+            fullName: `${firstName} ${lastName}`,
             currentCompany: targetCompany.name,
             currentTitle: member.title || 'Team Member',
             bioUrl: member.bioUrl || null,
@@ -492,7 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             companyDomain,
             companyId: parseInt(id),
             sourceType: 'team_discovery',
-            sourceUrl: targetCompany.website || null,
+            sourceUrl: targetCompany.website || '',
             verificationStatus: 'pending',
             scrapedAt: new Date(),
           };
@@ -501,13 +502,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // STEP 2: Run AI verification (ChatGPT's "Verification Layer")
           console.log(`🔍 Running verification for ${firstName} ${lastName}...`);
-          const verificationResult = await verifyStagingCandidate(stagingCandidate, existingCandidates);
+          const verificationResult = await verifyStagingCandidate({
+            ...stagingCandidate,
+            currentCompany: stagingCandidate.currentCompany || targetCompany.name
+          }, existingCandidates);
           
           // STEP 3: Save verification results
           await storage.createVerificationResult({
             stagingCandidateId: stagingCandidate.id,
             ...verificationResult,
-            verifiedAt: new Date(),
+            recommendedAction: verificationResult.verificationStatus === 'verified' ? 'approve' : 
+                               verificationResult.verificationStatus === 'duplicate' ? 'reject' :
+                               verificationResult.verificationStatus === 'rejected' ? 'reject' : 'review',
           });
           
           // Update staging candidate with confidence score
@@ -523,11 +529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const productionCandidate = await storage.promoteToProduction(stagingCandidate.id);
             
             // Add promoted candidate to existingCandidates to prevent duplicates in same batch
-            existingCandidates.push({
-              firstName: productionCandidate.firstName,
-              lastName: productionCandidate.lastName,
-              currentCompany: productionCandidate.currentCompany
-            });
+            existingCandidates.push(productionCandidate);
             
             stagingCandidates.push({ 
               ...stagingCandidate, 
@@ -631,7 +633,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Run verification
       console.log(`🔍 Running manual verification for ${stagingCandidate.firstName} ${stagingCandidate.lastName}...`);
-      const verificationResult = await verifyStagingCandidate(stagingCandidate, existingCandidates);
+      const verificationResult = await verifyStagingCandidate({
+        ...stagingCandidate,
+        currentCompany: stagingCandidate.currentCompany || ''
+      }, existingCandidates);
       
       // Check if verification result already exists
       const existingVerification = await storage.getVerificationResult(stagingCandidate.id);
@@ -645,7 +650,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createVerificationResult({
         stagingCandidateId: stagingCandidate.id,
         ...verificationResult,
-        verifiedAt: new Date(),
+        recommendedAction: verificationResult.verificationStatus === 'verified' ? 'approve' : 
+                           verificationResult.verificationStatus === 'duplicate' ? 'reject' :
+                           verificationResult.verificationStatus === 'rejected' ? 'reject' : 'review',
       });
       
       // Update staging candidate with status from verification result
@@ -1684,19 +1691,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Search for LinkedIn profile to verify
-      const suggestedUrl = await searchLinkedInProfile(
+      const searchResult = await searchLinkedInProfile(
         candidate.firstName,
         candidate.lastName,
         candidate.currentCompany || '',
         candidate.currentTitle
       );
       
+      const suggestedUrl = searchResult?.url || null;
+      
       res.json({
         success: true,
         currentLinkedinUrl: candidate.linkedinUrl,
         suggestedLinkedinUrl: suggestedUrl,
         isMatch: candidate.linkedinUrl === suggestedUrl,
-        confidence: suggestedUrl ? "high" : "low"
+        confidence: suggestedUrl ? "high" : "low",
+        searchDetails: searchResult
       });
       
     } catch (error) {
