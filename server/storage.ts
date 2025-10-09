@@ -9,7 +9,7 @@ import {
   type VerificationResult, type InsertVerificationResult
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
+import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
 
 export interface IStorage {
   // User management
@@ -94,7 +94,7 @@ export interface IStorage {
   
   // Staging Candidates (ChatGPT's "Raw/Staging Database")
   createStagingCandidate(candidate: InsertStagingCandidate): Promise<StagingCandidate>;
-  getStagingCandidates(filters?: { status?: string; companyId?: number }): Promise<StagingCandidate[]>;
+  getStagingCandidates(filters?: { verificationStatus?: string; companyId?: number; excludeVerified?: boolean }): Promise<StagingCandidate[]>;
   getStagingCandidate(id: number): Promise<StagingCandidate | undefined>;
   updateStagingCandidate(id: number, updates: Partial<InsertStagingCandidate>): Promise<StagingCandidate | undefined>;
   deleteStagingCandidate(id: number): Promise<void>;
@@ -849,17 +849,23 @@ export class DatabaseStorage implements IStorage {
     return candidate;
   }
   
-  async getStagingCandidates(filters?: { status?: string; companyId?: number }): Promise<StagingCandidate[]> {
+  async getStagingCandidates(filters?: { verificationStatus?: string; companyId?: number; excludeVerified?: boolean }): Promise<StagingCandidate[]> {
     let query = db.select().from(stagingCandidates);
     
-    if (filters?.status) {
-      query = query.where(eq(stagingCandidates.verificationStatus, filters.status)) as any;
+    const conditions = [];
+    
+    if (filters?.verificationStatus) {
+      conditions.push(eq(stagingCandidates.verificationStatus, filters.verificationStatus));
     }
     if (filters?.companyId) {
-      const condition = eq(stagingCandidates.companyId, filters.companyId);
-      query = filters?.status 
-        ? query.where(and(eq(stagingCandidates.verificationStatus, filters.status), condition)) as any
-        : query.where(condition) as any;
+      conditions.push(eq(stagingCandidates.companyId, filters.companyId));
+    }
+    if (filters?.excludeVerified) {
+      conditions.push(ne(stagingCandidates.verificationStatus, 'verified'));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions)) as any;
     }
     
     return await query.orderBy(desc(stagingCandidates.scrapedAt));

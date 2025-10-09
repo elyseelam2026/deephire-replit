@@ -590,11 +590,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all staging candidates with optional filters
   app.get("/api/staging-candidates", async (req, res) => {
     try {
-      const { status, companyId } = req.query;
+      const { status, companyId, includeVerified } = req.query;
       
       const filters: any = {};
       if (status) filters.verificationStatus = status as string; // Fix: use verificationStatus not status
       if (companyId) filters.companyId = parseInt(companyId as string);
+      
+      // By default, exclude verified candidates (already in production)
+      // Only include them if explicitly requested
+      if (!includeVerified && !status) {
+        filters.excludeVerified = true;
+      }
       
       const stagingCandidates = await storage.getStagingCandidates(filters);
       
