@@ -197,6 +197,12 @@ export class DatabaseStorage implements IStorage {
     // Create child companies
     const children: Company[] = [];
     for (const office of officeLocations) {
+      // Skip offices with no valid city data
+      if (!office.city || office.city.trim() === '') {
+        console.log(`⚠ Skipping office with no city data:`, office);
+        continue;
+      }
+
       const childData = {
         name: `${parent.name} - ${office.city}`,
         parentCompanyId: parent.id,
@@ -204,7 +210,7 @@ export class DatabaseStorage implements IStorage {
         isHeadquarters: false, // Child offices are not headquarters
         industry: parent.industry,
         website: parent.website,
-        missionStatement: parent.missionStatement,
+        missionStatement: null, // Don't inherit parent description
         location: `${office.city}, ${office.country}`,
         headquarters: {
           street: office.address || null,

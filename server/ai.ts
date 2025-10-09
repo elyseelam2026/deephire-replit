@@ -2526,16 +2526,19 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     const baseUrl = new URL(websiteUrl);
     const baseUrlStr = `${baseUrl.protocol}//${baseUrl.hostname}`;
     
-    // Potential team page URLs to check
-    const teamPagePaths = [
+    // Common language prefixes
+    const languagePrefixes = ['', '/en', '/fr', '/de', '/es', '/zh', '/ja', '/pt', '/it', '/nl'];
+    
+    // Base team page paths
+    const baseTeamPaths = [
       '/team',
       '/about/team',
       '/our-team',
-      '/our-team/', // Add trailing slash variant
+      '/our-team/',
       '/people',
       '/about/people',
       '/about/our-people',
-      '/about/our-people/', // Add trailing slash variant
+      '/about/our-people/',
       '/leadership',
       '/about/leadership',
       '/about-us/team',
@@ -2544,6 +2547,11 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       '/about',
       '/about-us'
     ];
+    
+    // Generate all combinations of language prefixes + team paths
+    const teamPagePaths = languagePrefixes.flatMap(prefix => 
+      baseTeamPaths.map(path => prefix + path)
+    );
     
     let teamPageContent = '';
     let teamPageUrl = websiteUrl;
