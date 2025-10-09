@@ -6,9 +6,11 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 import { storage } from "./storage";
+import { db } from "./db";
 import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate } from "./ai";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
@@ -558,6 +560,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing team members:", error);
       res.status(500).json({ error: "Failed to import team members" });
+    }
+  });
+
+  // Staging Candidates API Routes (ChatGPT's Verification Pipeline)
+  
+  // Get all staging candidates with optional filters
+  app.get("/api/staging-candidates", async (req, res) => {
+    try {
+      const { status, companyId } = req.query;
+      
+      const filters: any = {};
+      if (status) filters.verificationStatus = status as string; // Fix: use verificationStatus not status
+      if (companyId) filters.companyId = parseInt(companyId as string);
+      
+      const stagingCandidates = await storage.getStagingCandidates(filters);
+      
+      // Enrich with verification results
+      const enriched = await Promise.all(
+        stagingCandidates.map(async (candidate) => {
+          const verificationResult = await storage.getVerificationResult(candidate.id);
+          return {
+            ...candidate,
+            verificationResult
+          };
+        })
+      );
+      
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching staging candidates:", error);
+      res.status(500).json({ error: "Failed to fetch staging candidates" });
+    }
+  });
+  
+  // Get single staging candidate with verification details
+  app.get("/api/staging-candidates/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const stagingCandidate = await storage.getStagingCandidate(parseInt(id));
+      
+      if (!stagingCandidate) {
+        return res.status(404).json({ error: "Staging candidate not found" });
+      }
+      
+      const verificationResult = await storage.getVerificationResult(stagingCandidate.id);
+      
+      res.json({
+        ...stagingCandidate,
+        verificationResult
+      });
+    } catch (error) {
+      console.error("Error fetching staging candidate:", error);
+      res.status(500).json({ error: "Failed to fetch staging candidate" });
+    }
+  });
+  
+  // Manually trigger verification for a staging candidate
+  app.post("/api/staging-candidates/:id/verify", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const stagingCandidate = await storage.getStagingCandidate(parseInt(id));
+      
+      if (!stagingCandidate) {
+        return res.status(404).json({ error: "Staging candidate not found" });
+      }
+      
+      // Get existing candidates for duplicate detection
+      const existingCandidates = await storage.getCandidates();
+      
+      // Run verification
+      console.log(`🔍 Running manual verification for ${stagingCandidate.firstName} ${stagingCandidate.lastName}...`);
+      const verificationResult = await verifyStagingCandidate(stagingCandidate, existingCandidates);
+      
+      // Check if verification result already exists
+      const existingVerification = await storage.getVerificationResult(stagingCandidate.id);
+      
+      if (existingVerification) {
+        // Update existing verification result (delete and recreate due to unique constraint)
+        await db.delete(verificationResults).where(eq(verificationResults.stagingCandidateId, stagingCandidate.id));
+      }
+      
+      // Create new verification result
+      await storage.createVerificationResult({
+        stagingCandidateId: stagingCandidate.id,
+        ...verificationResult,
+        verifiedAt: new Date(),
+      });
+      
+      // Update staging candidate with status from verification result
+      await storage.updateStagingCandidate(stagingCandidate.id, {
+        confidenceScore: verificationResult.confidenceScore,
+        verificationStatus: verificationResult.verificationStatus, // Use status from AI verification
+      });
+      
+      res.json({
+        success: true,
+        verificationResult
+      });
+    } catch (error) {
+      console.error("Error verifying staging candidate:", error);
+      res.status(500).json({ error: "Failed to verify staging candidate" });
+    }
+  });
+  
+  // Approve staging candidate and promote to production
+  app.post("/api/staging-candidates/:id/approve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const stagingCandidate = await storage.getStagingCandidate(parseInt(id));
+      
+      if (!stagingCandidate) {
+        return res.status(404).json({ error: "Staging candidate not found" });
+      }
+      
+      if (stagingCandidate.verificationStatus === 'verified' && stagingCandidate.movedToProductionAt) {
+        return res.status(400).json({ error: "Candidate already promoted to production" });
+      }
+      
+      // Promote to production
+      console.log(`✅ Manual approval: Promoting ${stagingCandidate.firstName} ${stagingCandidate.lastName} to production`);
+      const productionCandidate = await storage.promoteToProduction(stagingCandidate.id);
+      
+      res.json({
+        success: true,
+        productionCandidate
+      });
+    } catch (error) {
+      console.error("Error approving staging candidate:", error);
+      res.status(500).json({ error: "Failed to approve staging candidate" });
+    }
+  });
+  
+  // Reject staging candidate (delete from staging)
+  app.post("/api/staging-candidates/:id/reject", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      const stagingCandidate = await storage.getStagingCandidate(parseInt(id));
+      
+      if (!stagingCandidate) {
+        return res.status(404).json({ error: "Staging candidate not found" });
+      }
+      
+      // Update status to rejected before deletion (for audit trail if needed)
+      await storage.updateStagingCandidate(parseInt(id), {
+        verificationStatus: 'rejected',
+      });
+      
+      // Delete staging candidate
+      console.log(`❌ Rejecting ${stagingCandidate.firstName} ${stagingCandidate.lastName}. Reason: ${reason || 'Not specified'}`);
+      await storage.deleteStagingCandidate(parseInt(id));
+      
+      res.json({
+        success: true,
+        message: "Staging candidate rejected"
+      });
+    } catch (error) {
+      console.error("Error rejecting staging candidate:", error);
+      res.status(500).json({ error: "Failed to reject staging candidate" });
     }
   });
 

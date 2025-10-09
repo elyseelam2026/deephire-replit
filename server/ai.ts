@@ -2754,6 +2754,7 @@ export async function verifyStagingCandidate(stagingCandidate: {
   
   confidenceScore: number; // 0-1
   verificationNotes: string;
+  verificationStatus: string; // 'verified', 'duplicate', 'rejected', 'pending_review'
 }> {
   console.log(`\n🔍 [AI Verification] Starting verification for: ${stagingCandidate.firstName} ${stagingCandidate.lastName} at ${stagingCandidate.currentCompany}`);
   
@@ -2952,10 +2953,25 @@ export async function verifyStagingCandidate(stagingCandidate: {
   checks.confidenceScore = Math.max(0, Math.min(1, scorePoints / maxPoints));
   checks.verificationNotes = notes.join(' | ');
   
-  console.log(`[AI Verification] ✅ Verification complete. Score: ${(checks.confidenceScore * 100).toFixed(1)}%`);
-  console.log(`[AI Verification] Notes: ${checks.verificationNotes}`);
+  // Determine verification status based on all checks
+  let verificationStatus = 'pending_review'; // default
+  if (checks.isDuplicate) {
+    verificationStatus = 'duplicate';
+  } else if (checks.confidenceScore >= 0.85) {
+    verificationStatus = 'verified';
+  } else if (checks.confidenceScore < 0.3) {
+    verificationStatus = 'rejected';
+  }
   
-  return checks;
+  const result = {
+    ...checks,
+    verificationStatus
+  };
+  
+  console.log(`[AI Verification] ✅ Verification complete. Score: ${(result.confidenceScore * 100).toFixed(1)}%, Status: ${verificationStatus}`);
+  console.log(`[AI Verification] Notes: ${result.verificationNotes}`);
+  
+  return result;
 }
 
 /**
