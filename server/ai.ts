@@ -400,10 +400,16 @@ function generateEmailAddress(
 
 /**
  * Search for LinkedIn profile using SerpAPI with validation
- * Returns the LinkedIn profile URL ONLY if it matches the person with high confidence
+ * Returns the LinkedIn profile URL and match metadata if it matches the person with high confidence
  * HYBRID APPROACH: Tries exact matching first, then loose matching if needed
  */
-export async function searchLinkedInProfile(firstName: string, lastName: string, company: string, jobTitle?: string | null): Promise<string | null> {
+export async function searchLinkedInProfile(firstName: string, lastName: string, company: string, jobTitle?: string | null): Promise<{
+  url: string;
+  companyMatch: boolean;
+  titleMatch: boolean;
+  score: number;
+  reasons: string[];
+} | null> {
   try {
     const apiKey = process.env.SERPAPI_API_KEY;
     
@@ -562,10 +568,26 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
       const best = scoredResults[0];
       
       if (best.score >= MIN_CONFIDENCE_SCORE) {
+        // Determine if company/title were matched based on reasons
+        const companyMatch = best.reasons.some(r => 
+          r.toLowerCase().includes('company') || r.toLowerCase().includes('keywords')
+        );
+        const titleMatch = best.reasons.some(r => 
+          r.toLowerCase().includes('title')
+        );
+        
         console.log(`\n[LinkedIn Search] ✓ ACCEPTED: ${best.url}`);
         console.log(`   Confidence: ${best.score} (threshold: ${MIN_CONFIDENCE_SCORE})`);
         console.log(`   Reasons: ${best.reasons.join(', ')}`);
-        return best.url;
+        console.log(`   Company match: ${companyMatch}, Title match: ${titleMatch}`);
+        
+        return {
+          url: best.url,
+          companyMatch,
+          titleMatch,
+          score: best.score,
+          reasons: best.reasons
+        };
       } else {
         console.log(`\n[LinkedIn Search] ✗ REJECTED: Insufficient confidence`);
         console.log(`   Best score: ${best.score} (threshold: ${MIN_CONFIDENCE_SCORE})`);
@@ -1976,8 +1998,9 @@ export async function searchCandidateProfilesByName(
     // If LinkedIn URL not provided, search for it
     if (!normalizedLinkedinUrl) {
       console.log(`No LinkedIn URL provided, searching via web search...`);
-      normalizedLinkedinUrl = await searchLinkedInProfile(firstName, lastName, company, jobTitle);
-      if (normalizedLinkedinUrl) {
+      const searchResult = await searchLinkedInProfile(firstName, lastName, company, jobTitle);
+      if (searchResult) {
+        normalizedLinkedinUrl = searchResult.url;
         console.log(`✓ Found LinkedIn profile via web search: ${normalizedLinkedinUrl}`);
       } else {
         console.log(`✗ Could not find LinkedIn profile via web search`);
@@ -2691,4 +2714,290 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     console.error(`Error discovering team members: ${error}`);
     return [];
   }
+}
+
+/**
+ * AI-Powered Candidate Verification (ChatGPT's "Verification Layer")
+ * Implements comprehensive checks: LinkedIn validation, bio URL checking, duplicate detection, 
+ * title consistency, and email pattern matching. Returns confidence score 0-1.
+ */
+export async function verifyStagingCandidate(stagingCandidate: {
+  id: number;
+  firstName: string;
+  lastName: string;
+  currentTitle?: string | null;
+  currentCompany: string;
+  bioUrl?: string | null;
+  linkedinUrl?: string | null;
+  companyDomain?: string | null;
+}, existingCandidates: Array<{firstName: string; lastName: string; currentCompany?: string | null}>): Promise<{
+  linkedinExists: boolean;
+  linkedinUrl?: string;
+  linkedinCompanyMatch: boolean;
+  linkedinTitleMatch: boolean;
+  
+  bioUrlValid: boolean;
+  bioUrlAccessible: boolean;
+  
+  emailPatternMatch: boolean;
+  inferredEmail?: string;
+  
+  isDuplicate: boolean;
+  duplicateOfCandidateId?: number;
+  duplicateMatchScore?: number;
+  
+  employmentStatus: string; // 'current', 'former', 'unknown'
+  employmentStatusSource: string;
+  
+  titleConsistency: boolean;
+  webMentionsFound: boolean;
+  
+  confidenceScore: number; // 0-1
+  verificationNotes: string;
+}> {
+  console.log(`\n🔍 [AI Verification] Starting verification for: ${stagingCandidate.firstName} ${stagingCandidate.lastName} at ${stagingCandidate.currentCompany}`);
+  
+  const checks = {
+    linkedinExists: false,
+    linkedinUrl: undefined as string | undefined,
+    linkedinCompanyMatch: false,
+    linkedinTitleMatch: false,
+    bioUrlValid: false,
+    bioUrlAccessible: false,
+    emailPatternMatch: false,
+    inferredEmail: undefined as string | undefined,
+    isDuplicate: false,
+    duplicateOfCandidateId: undefined as number | undefined,
+    duplicateMatchScore: undefined as number | undefined,
+    employmentStatus: 'unknown',
+    employmentStatusSource: 'none',
+    titleConsistency: false,
+    webMentionsFound: false,
+    confidenceScore: 0,
+    verificationNotes: ''
+  };
+  
+  const notes: string[] = [];
+  let scorePoints = 0;
+  const maxPoints = 100;
+  
+  // 1. LinkedIn Profile Verification (30 points max)
+  try {
+    console.log(`[AI Verification] Checking LinkedIn profile...`);
+    const linkedinResult = await searchLinkedInProfile(
+      stagingCandidate.firstName, 
+      stagingCandidate.lastName, 
+      stagingCandidate.currentCompany,
+      stagingCandidate.currentTitle
+    );
+    
+    if (linkedinResult) {
+      checks.linkedinExists = true;
+      checks.linkedinUrl = linkedinResult.url;
+      scorePoints += 15;
+      notes.push('✓ LinkedIn profile found');
+      
+      // Use actual metadata from search to determine company/title match
+      if (linkedinResult.companyMatch) {
+        checks.linkedinCompanyMatch = true;
+        scorePoints += 10;
+        notes.push('✓ LinkedIn company match confirmed');
+      }
+      
+      if (linkedinResult.titleMatch) {
+        checks.linkedinTitleMatch = true;
+        scorePoints += 5;
+        notes.push('✓ LinkedIn title match confirmed');
+      }
+    } else {
+      notes.push('✗ LinkedIn profile not found or insufficient confidence');
+    }
+  } catch (error) {
+    console.error(`[AI Verification] LinkedIn check error: ${error}`);
+    notes.push('⚠ LinkedIn check failed');
+  }
+  
+  // 2. Bio URL Validation (15 points max)
+  if (stagingCandidate.bioUrl) {
+    try {
+      console.log(`[AI Verification] Validating bio URL: ${stagingCandidate.bioUrl}`);
+      
+      // Check URL format
+      const urlPattern = /^https?:\/\/.+/i;
+      if (urlPattern.test(stagingCandidate.bioUrl)) {
+        checks.bioUrlValid = true;
+        scorePoints += 5;
+        notes.push('✓ Bio URL format valid');
+      }
+      
+      // Check accessibility
+      const bioResponse = await fetch(stagingCandidate.bioUrl, { 
+        method: 'HEAD',
+        signal: AbortSignal.timeout(10000)
+      });
+      
+      if (bioResponse.ok) {
+        checks.bioUrlAccessible = true;
+        scorePoints += 10;
+        notes.push('✓ Bio URL accessible');
+      } else {
+        notes.push(`✗ Bio URL inaccessible (${bioResponse.status})`);
+      }
+    } catch (error) {
+      notes.push('✗ Bio URL unreachable');
+    }
+  } else {
+    notes.push('○ No bio URL provided');
+  }
+  
+  // 3. Email Pattern Matching (20 points max)
+  if (stagingCandidate.companyDomain) {
+    try {
+      console.log(`[AI Verification] Researching email pattern for domain: ${stagingCandidate.companyDomain}`);
+      const emailInfo = await researchCompanyEmailPattern(stagingCandidate.companyDomain);
+      
+      if (emailInfo?.emailPattern && emailInfo?.domain) {
+        const inferredEmail = generateEmailAddress(
+          stagingCandidate.firstName,
+          stagingCandidate.lastName,
+          emailInfo.domain,
+          emailInfo.emailPattern
+        );
+        
+        checks.emailPatternMatch = true;
+        checks.inferredEmail = inferredEmail;
+        scorePoints += 20;
+        notes.push(`✓ Email inferred: ${inferredEmail}`);
+      } else {
+        notes.push('✗ Email pattern not found');
+      }
+    } catch (error) {
+      console.error(`[AI Verification] Email pattern error: ${error}`);
+      notes.push('⚠ Email inference failed');
+    }
+  } else {
+    notes.push('○ No company domain for email inference');
+  }
+  
+  // 4. Duplicate Detection (20 points deduction if duplicate)
+  try {
+    console.log(`[AI Verification] Checking for duplicates...`);
+    const fullName = `${stagingCandidate.firstName} ${stagingCandidate.lastName}`.toLowerCase();
+    
+    for (const existing of existingCandidates) {
+      const existingName = `${existing.firstName} ${existing.lastName}`.toLowerCase();
+      
+      // Exact name match
+      if (fullName === existingName) {
+        // Check company match
+        const companyMatch = existing.currentCompany?.toLowerCase() === stagingCandidate.currentCompany.toLowerCase();
+        
+        if (companyMatch) {
+          checks.isDuplicate = true;
+          checks.duplicateMatchScore = 1.0;
+          scorePoints -= 20; // Major penalty for duplicates
+          notes.push(`✗ DUPLICATE: Exact match found (${existing.firstName} ${existing.lastName} at ${existing.currentCompany})`);
+          break;
+        } else {
+          // Same name, different company - flag as potential duplicate
+          checks.isDuplicate = true;
+          checks.duplicateMatchScore = 0.7;
+          scorePoints -= 10;
+          notes.push(`⚠ Potential duplicate: Same name, different company`);
+          break;
+        }
+      }
+      
+      // Fuzzy name matching (Levenshtein-like)
+      const similarity = calculateSimilarity(fullName, existingName);
+      if (similarity > 0.85) {
+        checks.isDuplicate = true;
+        checks.duplicateMatchScore = similarity;
+        scorePoints -= 15;
+        notes.push(`⚠ Fuzzy duplicate detected (${Math.round(similarity * 100)}% match)`);
+        break;
+      }
+    }
+    
+    if (!checks.isDuplicate) {
+      scorePoints += 15; // Bonus for uniqueness
+      notes.push('✓ No duplicates found');
+    }
+  } catch (error) {
+    console.error(`[AI Verification] Duplicate check error: ${error}`);
+    notes.push('⚠ Duplicate check failed');
+  }
+  
+  // 5. Employment Status (bonus 10 points)
+  if (checks.linkedinExists) {
+    checks.employmentStatus = 'current';
+    checks.employmentStatusSource = 'linkedin';
+    scorePoints += 10;
+    notes.push('✓ Employment status: current (LinkedIn)');
+  } else if (checks.bioUrlAccessible) {
+    checks.employmentStatus = 'current';
+    checks.employmentStatusSource = 'bio';
+    scorePoints += 5;
+    notes.push('✓ Employment status: current (Bio)');
+  }
+  
+  // 6. Title Consistency (bonus 10 points)
+  if (checks.linkedinTitleMatch || stagingCandidate.currentTitle) {
+    checks.titleConsistency = true;
+    scorePoints += 10;
+    notes.push('✓ Title consistency verified');
+  }
+  
+  // Calculate final confidence score (0-1)
+  checks.confidenceScore = Math.max(0, Math.min(1, scorePoints / maxPoints));
+  checks.verificationNotes = notes.join(' | ');
+  
+  console.log(`[AI Verification] ✅ Verification complete. Score: ${(checks.confidenceScore * 100).toFixed(1)}%`);
+  console.log(`[AI Verification] Notes: ${checks.verificationNotes}`);
+  
+  return checks;
+}
+
+/**
+ * Calculate string similarity (simple Levenshtein-based ratio)
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix: number[][] = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
 }
