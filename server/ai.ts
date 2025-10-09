@@ -14,6 +14,141 @@ const openai = new OpenAI({
 });
 
 /**
+ * Use Playwright browser automation to scrape paginated team pages
+ * This handles JavaScript-rendered pagination that static HTML scraping can't reach
+ */
+export async function scrapeTeamMembersWithPlaywright(
+  teamPageUrl: string,
+  maxPages: number = 100
+): Promise<Array<{name: string; title?: string; bioUrl?: string}>> {
+  let browser;
+  try {
+    console.log(`🎭 Launching Playwright to scrape paginated team page: ${teamPageUrl}`);
+    
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    
+    const page = await browser.newPage();
+    await page.goto(teamPageUrl, { timeout: 60000, waitUntil: 'networkidle' });
+    
+    const allMembers: Array<{name: string; title?: string; bioUrl?: string}> = [];
+    
+    // Try multiple selector patterns (same as static scraping)
+    const selectorPatterns = [
+      { container: 'div.team-member, div.team-member-card, li.team-member', name: 'h3, h4, .name', title: '.title, .position, .role' },
+      { container: '.team-grid-item, .team-card, .person-card', name: 'h3, h4, .name, .person-name', title: '.title, .position, .job-title' },
+      { container: '[data-teamid], [class*="team"], [class*="member"]', name: 'h2, h3, h4, .name', title: '.title, .position' }
+    ];
+    
+    let currentPage = 1;
+    let hasMorePages = true;
+    
+    while (hasMorePages && currentPage <= maxPages) {
+      console.log(`📄 Scraping page ${currentPage}...`);
+      
+      // Wait for content to load
+      await page.waitForTimeout(2000);
+      
+      // Extract team members from current page
+      for (const pattern of selectorPatterns) {
+        const containers = await page.$$(pattern.container);
+        
+        if (containers.length > 0) {
+          console.log(`✓ Found ${containers.length} team member containers on page ${currentPage}`);
+          
+          for (const container of containers) {
+            try {
+              const nameElement = await container.$(pattern.name);
+              const titleElement = await container.$(pattern.title);
+              const linkElement = await container.$('a[href]');
+              
+              const name = nameElement ? (await nameElement.textContent())?.trim() : null;
+              const title = titleElement ? (await titleElement.textContent())?.trim() : null;
+              const bioUrl = linkElement ? await linkElement.getAttribute('href') : null;
+              
+              if (name && name.length > 2) {
+                const fullBioUrl = bioUrl 
+                  ? (bioUrl.startsWith('http') ? bioUrl : new URL(bioUrl, teamPageUrl).toString())
+                  : undefined;
+                
+                allMembers.push({
+                  name,
+                  title: title || 'Team Member',
+                  bioUrl: fullBioUrl
+                });
+              }
+            } catch (err) {
+              // Skip problematic containers
+            }
+          }
+          
+          break; // Found working pattern, stop trying others
+        }
+      }
+      
+      // Try to navigate to next page
+      const nextButtonSelectors = [
+        'button[data-page]',
+        'a.next',
+        'button.next',
+        'a[aria-label*="next" i]',
+        'button[aria-label*="next" i]',
+        '.pagination a.next',
+        '.pagination button.next'
+      ];
+      
+      let clickedNext = false;
+      for (const selector of nextButtonSelectors) {
+        try {
+          const nextButton = await page.$(selector);
+          if (nextButton) {
+            const isDisabled = await nextButton.getAttribute('disabled');
+            const ariaDisabled = await nextButton.getAttribute('aria-disabled');
+            
+            if (isDisabled !== 'true' && ariaDisabled !== 'true') {
+              console.log(`Clicking next page button: ${selector}`);
+              await nextButton.click();
+              await page.waitForTimeout(2000); // Wait for page load
+              clickedNext = true;
+              currentPage++;
+              break;
+            }
+          }
+        } catch (err) {
+          // Try next selector
+        }
+      }
+      
+      if (!clickedNext) {
+        console.log(`No more pages found after page ${currentPage}`);
+        hasMorePages = false;
+      }
+    }
+    
+    await browser.close();
+    console.log(`🎭 Playwright scraped ${allMembers.length} total team members from ${currentPage} pages`);
+    
+    // Deduplicate
+    const uniqueMembers = new Map<string, any>();
+    for (const member of allMembers) {
+      const key = member.name.toLowerCase().trim();
+      if (!uniqueMembers.has(key)) {
+        uniqueMembers.set(key, member);
+      }
+    }
+    
+    return Array.from(uniqueMembers.values());
+    
+  } catch (error) {
+    console.error(`Error in Playwright team scraping: ${error}`);
+    if (browser) await browser.close();
+    return [];
+  }
+}
+
+/**
  * Use Playwright browser automation to extract office locations from JavaScript-heavy pages
  * This handles sites where office data is loaded dynamically via JavaScript
  */
@@ -2608,7 +2743,7 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     // Extract team members using CSS selectors with multiple fallback patterns
     console.log('Extracting team members from HTML using CSS selectors...');
     
-    const allTeamMembers: any[] = [];
+    let allTeamMembers: any[] = [];
     
     // Try multiple selector patterns
     const selectorPatterns = [
@@ -2683,15 +2818,20 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
         }
       });
       
-      console.log(`\n⚠️ Detected JavaScript pagination: ${maxPage} pages total`);
+      console.log(`\n🚀 Detected JavaScript pagination: ${maxPage} pages total`);
       console.log(`Initial HTML contains only ${allTeamMembers.length} people`);
       console.log(`Estimated total: ${maxPage * allTeamMembers.length} people`);
-      console.log(`\n❌ LIMITATION: Cannot scrape JavaScript-paginated pages from Replit`);
-      console.log(`Reason: Playwright requires system dependencies not available in Replit`);
-      console.log(`\nOPTIONS:`);
-      console.log(`1. Accept the ${allTeamMembers.length} people from page 1 only`);
-      console.log(`2. Use Bright Data API to scrape all ${maxPage} pages (costs credits)`);
-      console.log(`3. Manual export: Ask CVC for a team roster CSV`);
+      console.log(`\n✅ Using Playwright to scrape all ${maxPage} pages...`);
+      
+      // Use Playwright to scrape all pages
+      const playwrightMembers = await scrapeTeamMembersWithPlaywright(teamPageUrl, maxPage);
+      
+      if (playwrightMembers.length > allTeamMembers.length) {
+        console.log(`✓ Playwright found ${playwrightMembers.length} members (vs ${allTeamMembers.length} from static HTML)`);
+        allTeamMembers = playwrightMembers;
+      } else {
+        console.log(`⚠ Playwright found ${playwrightMembers.length} members, keeping static HTML results (${allTeamMembers.length})`);
+      }
     }
     
     console.log(`\n✅ Total team members extracted from all pages: ${allTeamMembers.length}`);
