@@ -508,12 +508,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }, existingCandidates);
           
           // STEP 3: Save verification results
+          // Map verificationStatus to recommendedAction
+          const recommendedAction = 
+            verificationResult.verificationStatus === 'verified' ? 'approve' :
+            verificationResult.verificationStatus === 'duplicate' ? 'reject' :
+            verificationResult.verificationStatus === 'rejected' ? 'reject' : 'review';
+          
           await storage.createVerificationResult({
             stagingCandidateId: stagingCandidate.id,
-            ...verificationResult,
-            recommendedAction: verificationResult.verificationStatus === 'verified' ? 'approve' : 
-                               verificationResult.verificationStatus === 'duplicate' ? 'reject' :
-                               verificationResult.verificationStatus === 'rejected' ? 'reject' : 'review',
+            linkedinExists: verificationResult.linkedinExists,
+            linkedinUrl: verificationResult.linkedinUrl || null,
+            linkedinCompanyMatch: verificationResult.linkedinCompanyMatch,
+            linkedinTitleMatch: verificationResult.linkedinTitleMatch,
+            bioUrlValid: verificationResult.bioUrlValid,
+            bioUrlAccessible: verificationResult.bioUrlAccessible,
+            emailPatternMatch: verificationResult.emailPatternMatch,
+            inferredEmail: verificationResult.inferredEmail || null,
+            isDuplicate: verificationResult.isDuplicate,
+            duplicateOfCandidateId: verificationResult.duplicateOfCandidateId || null,
+            duplicateMatchScore: verificationResult.duplicateMatchScore || null,
+            employmentStatus: verificationResult.employmentStatus || null,
+            employmentStatusSource: verificationResult.employmentStatusSource || null,
+            titleConsistent: verificationResult.titleConsistency,
+            webMentionsFound: verificationResult.webMentionsFound,
+            confidenceScore: verificationResult.confidenceScore,
+            recommendedAction,
+            aiReasoning: verificationResult.verificationNotes,
           });
           
           // Update staging candidate with confidence score
@@ -647,12 +667,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create new verification result
+      const recommendedAction = 
+        verificationResult.verificationStatus === 'verified' ? 'approve' :
+        verificationResult.verificationStatus === 'duplicate' ? 'reject' :
+        verificationResult.verificationStatus === 'rejected' ? 'reject' : 'review';
+      
       await storage.createVerificationResult({
         stagingCandidateId: stagingCandidate.id,
-        ...verificationResult,
-        recommendedAction: verificationResult.verificationStatus === 'verified' ? 'approve' : 
-                           verificationResult.verificationStatus === 'duplicate' ? 'reject' :
-                           verificationResult.verificationStatus === 'rejected' ? 'reject' : 'review',
+        linkedinExists: verificationResult.linkedinExists,
+        linkedinUrl: verificationResult.linkedinUrl || null,
+        linkedinCompanyMatch: verificationResult.linkedinCompanyMatch,
+        linkedinTitleMatch: verificationResult.linkedinTitleMatch,
+        bioUrlValid: verificationResult.bioUrlValid,
+        bioUrlAccessible: verificationResult.bioUrlAccessible,
+        emailPatternMatch: verificationResult.emailPatternMatch,
+        inferredEmail: verificationResult.inferredEmail || null,
+        isDuplicate: verificationResult.isDuplicate,
+        duplicateOfCandidateId: verificationResult.duplicateOfCandidateId || null,
+        duplicateMatchScore: verificationResult.duplicateMatchScore || null,
+        employmentStatus: verificationResult.employmentStatus || null,
+        employmentStatusSource: verificationResult.employmentStatusSource || null,
+        titleConsistent: verificationResult.titleConsistency,
+        webMentionsFound: verificationResult.webMentionsFound,
+        confidenceScore: verificationResult.confidenceScore,
+        recommendedAction,
+        aiReasoning: verificationResult.verificationNotes,
       });
       
       // Update staging candidate with status from verification result
