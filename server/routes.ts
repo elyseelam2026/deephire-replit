@@ -6,7 +6,7 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 import { storage } from "./storage";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate } from "./ai";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema } from "@shared/schema";
 import { duplicateDetectionService } from "./duplicate-detection";
@@ -442,7 +442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Import selected team members as candidates
+  // Import selected team members as candidates (ChatGPT's Staging → Verification → Production pipeline)
   app.post("/api/companies/:id/import-team-members", async (req, res) => {
     try {
       const { id } = req.params;
@@ -459,8 +459,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Company not found" });
       }
 
-      const createdCandidates = [];
+      const stagingCandidates = [];
       const errors = [];
+
+      // Get existing candidates for duplicate detection
+      const existingCandidates = await storage.getCandidates();
 
       for (const member of teamMembers) {
         try {
@@ -469,31 +472,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const firstName = nameParts[0];
           const lastName = nameParts.slice(1).join(' ') || nameParts[0]; // Use first name as last if only one name
 
-          // Create candidate record
-          const candidateData = {
+          // Extract domain from company website
+          let companyDomain = null;
+          if (targetCompany.website) {
+            const domainMatch = targetCompany.website.match(/^https?:\/\/(?:www\.)?([^\/]+)/);
+            companyDomain = domainMatch ? domainMatch[1] : null;
+          }
+
+          // STEP 1: Save to staging_candidates (ChatGPT's "Raw/Staging Database")
+          const stagingData = {
             firstName,
             lastName,
-            email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${targetCompany.website?.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}`, // placeholder email
             currentCompany: targetCompany.name,
             currentTitle: member.title || 'Team Member',
-            skills: [],
-            isAvailable: true,
             bioUrl: member.bioUrl || null,
-            companyId: parseInt(id)
+            linkedinUrl: member.linkedinUrl || null,
+            companyDomain,
+            companyId: parseInt(id),
+            sourceType: 'team_discovery',
+            sourceUrl: targetCompany.website || null,
+            verificationStatus: 'pending',
+            scrapedAt: new Date(),
           };
 
-          const candidate = await storage.createCandidate(candidateData);
-          createdCandidates.push(candidate);
+          const stagingCandidate = await storage.createStagingCandidate(stagingData);
+          
+          // STEP 2: Run AI verification (ChatGPT's "Verification Layer")
+          console.log(`🔍 Running verification for ${firstName} ${lastName}...`);
+          const verificationResult = await verifyStagingCandidate(stagingCandidate, existingCandidates);
+          
+          // STEP 3: Save verification results
+          await storage.createVerificationResult({
+            stagingCandidateId: stagingCandidate.id,
+            ...verificationResult,
+            verifiedAt: new Date(),
+          });
+          
+          // Update staging candidate with confidence score
+          await storage.updateStagingCandidate(stagingCandidate.id, {
+            confidenceScore: verificationResult.confidenceScore,
+            verificationStatus: verificationResult.confidenceScore >= 0.85 ? 'verified' : 'pending_review',
+          });
+          
+          // STEP 4: Auto-promote high-confidence candidates (≥85%)
+          const AUTO_PROMOTE_THRESHOLD = 0.85;
+          if (verificationResult.confidenceScore >= AUTO_PROMOTE_THRESHOLD && !verificationResult.isDuplicate) {
+            console.log(`✅ Auto-promoting ${firstName} ${lastName} (confidence: ${(verificationResult.confidenceScore * 100).toFixed(1)}%)`);
+            const productionCandidate = await storage.promoteToProduction(stagingCandidate.id);
+            
+            // Add promoted candidate to existingCandidates to prevent duplicates in same batch
+            existingCandidates.push({
+              firstName: productionCandidate.firstName,
+              lastName: productionCandidate.lastName,
+              currentCompany: productionCandidate.currentCompany
+            });
+            
+            stagingCandidates.push({ 
+              ...stagingCandidate, 
+              promoted: true, 
+              productionId: productionCandidate.id,
+              confidenceScore: verificationResult.confidenceScore 
+            });
+          } else {
+            console.log(`⏸ Holding ${firstName} ${lastName} for review (confidence: ${(verificationResult.confidenceScore * 100).toFixed(1)}%)`);
+            stagingCandidates.push({ 
+              ...stagingCandidate, 
+              promoted: false,
+              confidenceScore: verificationResult.confidenceScore 
+            });
+          }
         } catch (error) {
-          console.error(`Error creating candidate for ${member.name}:`, error);
+          console.error(`Error processing ${member.name}:`, error);
           errors.push({ name: member.name, error: String(error) });
         }
       }
 
       res.json({
         success: true,
-        imported: createdCandidates.length,
-        candidates: createdCandidates,
+        imported: stagingCandidates.length,
+        autoPromoted: stagingCandidates.filter(c => c.promoted).length,
+        pendingReview: stagingCandidates.filter(c => !c.promoted).length,
+        stagingCandidates,
         errors: errors.length > 0 ? errors : undefined
       });
     } catch (error) {
