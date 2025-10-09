@@ -62,6 +62,7 @@ Preferred communication style: Simple, everyday language.
 - **Child Company List Filtering** (Oct 8, 2025): Fixed bug where child companies appeared on main list. All child companies now have `isHeadquarters = false` to ensure only parent companies show on main Companies page.
 - **Language-Aware Team Discovery** (Oct 9, 2025): Enhanced team discovery to support internationalized websites with language-prefixed URLs (e.g., `/en/about/`, `/fr/team/`). System now checks 10 language variants (en, fr, de, es, zh, ja, pt, it, nl) combined with all base team paths (~150 URL combinations) for comprehensive coverage of localized sites.
 - **Null City Protection** (Oct 9, 2025): Fixed child company creation to skip office locations with null/empty city data. Previously created malformed "Company - null" child companies. System now logs warnings and skips invalid offices while preserving legitimate data.
+- **Flexible Team Extraction** (Oct 9, 2025): Replaced rigid CSS selectors with multi-pattern fallback system. Team discovery now tries 3 selector patterns: CVC-style (legacy), PAG-style (`.team-member`, `.team-grid-item`), and generic (`[data-teamid]`, `[class*="team"]`). System stops at first successful match, ensuring broad website compatibility while maintaining performance.
 
 ## External Dependencies
 
