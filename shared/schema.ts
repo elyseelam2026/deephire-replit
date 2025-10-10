@@ -207,6 +207,17 @@ export const candidates = pgTable("candidates", {
   budgetManaged: real("largest_budget_managed"),
   workHistory: jsonb("work_history"), // [{company, title, startDate, endDate, description, achievements}]
   
+  // Career History - Structured timeline from LinkedIn with optional company linking
+  careerHistory: jsonb("career_history").$type<Array<{
+    company: string;              // Company name (always present)
+    companyId?: number | null;    // Optional FK to companies table (null if no match)
+    title: string;                // Job title
+    startDate: string;            // Format: "YYYY-MM" or "YYYY"
+    endDate?: string | null;      // Format: "YYYY-MM" or "YYYY", null if current
+    description?: string;         // Role description/achievements
+    location?: string;            // Work location
+  }>>(),
+  
   // Skills & Education (existing + enhanced)
   skills: text("skills").array(), // maintained for backward compatibility
   technicalSkills: jsonb("technical_skills"), // [{skill, proficiency, yearsUsed}]
@@ -654,6 +665,17 @@ export const verificationResults = pgTable("verification_results", {
 // - confidenceScore: real // 0-1 score from verification
 // - verificationDate: timestamp
 // - dataQualityScore: real // Overall data completeness/quality
+
+// Career History TypeScript type for strong typing
+export type CareerHistoryEntry = {
+  company: string;              // Company name (always present)
+  companyId?: number | null;    // Optional FK to companies table (null if no match)
+  title: string;                // Job title
+  startDate: string;            // Format: "YYYY-MM" or "YYYY"
+  endDate?: string | null;      // Format: "YYYY-MM" or "YYYY", null if current
+  description?: string;         // Role description/achievements
+  location?: string;            // Work location
+};
 
 // Type exports
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
