@@ -54,11 +54,7 @@ export async function scrapeLinkedInProfile(linkedinUrl: string): Promise<Linked
   const endpoint = `${BRIGHTDATA_BASE_URL}/trigger`;
   
   const requestBody = [{
-    url: linkedinUrl,
-    include_skills: true,
-    include_certifications: true,
-    include_accomplishments: true,
-    include_people_also_viewed: false
+    url: linkedinUrl
   }];
 
   console.log(`[Bright Data] Scraping LinkedIn profile: ${linkedinUrl}`);
@@ -113,6 +109,17 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, 
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[Bright Data] Poll Error (${response.status}):`, errorText);
+        
+        // Fail immediately for account/auth issues (don't waste 3 minutes polling)
+        if (response.status === 422) {
+          if (errorText.toLowerCase().includes('suspended')) {
+            throw new Error('Bright Data account is suspended. Please check your subscription and billing in the Bright Data dashboard.');
+          } else {
+            throw new Error(`Bright Data validation error: ${errorText}`);
+          }
+        } else if (response.status === 401 || response.status === 403) {
+          throw new Error('Bright Data authentication failed. Please check your BRIGHTDATA_API_KEY environment variable.');
+        }
         
         if (attempt === maxAttempts) {
           throw new Error(`Failed to poll snapshot after ${maxAttempts} attempts: ${response.status}`);

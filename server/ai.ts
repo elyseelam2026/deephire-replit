@@ -3200,3 +3200,118 @@ function levenshteinDistance(str1: string, str2: string): number {
   
   return matrix[str2.length][str1.length];
 }
+
+/**
+ * Generate a comprehensive professional biography from LinkedIn data scraped via Bright Data
+ */
+export async function generateBiographyFromLinkedInData(
+  firstName: string,
+  lastName: string,
+  linkedinData: any
+): Promise<string> {
+  console.log(`[Biography Gen] Generating biography for ${firstName} ${lastName} from LinkedIn data`);
+  
+  try {
+    // Extract key information from LinkedIn data
+    const about = linkedinData.about || '';
+    const position = linkedinData.position || '';
+    const currentCompany = linkedinData.current_company_name || linkedinData.current_company || '';
+    const experience = linkedinData.experience || [];
+    const education = linkedinData.education || [];
+    const skills = linkedinData.skills || [];
+    
+    // Build a structured content summary for the AI
+    let contentSummary = `Professional Profile for ${firstName} ${lastName}\n\n`;
+    
+    if (about) {
+      contentSummary += `About:\n${about}\n\n`;
+    }
+    
+    if (position && currentCompany) {
+      contentSummary += `Current Position: ${position} at ${currentCompany}\n\n`;
+    }
+    
+    if (experience.length > 0) {
+      contentSummary += `Career History:\n`;
+      experience.slice(0, 5).forEach((exp: any) => {
+        const title = exp.title || 'Unknown';
+        const company = exp.company || 'Unknown';
+        const dates = exp.start_date && exp.end_date 
+          ? `${exp.start_date} - ${exp.end_date}` 
+          : exp.start_date || '';
+        contentSummary += `- ${title} at ${company}${dates ? ` (${dates})` : ''}\n`;
+        if (exp.description) {
+          contentSummary += `  ${exp.description}\n`;
+        }
+      });
+      contentSummary += '\n';
+    }
+    
+    if (education.length > 0) {
+      contentSummary += `Education:\n`;
+      education.forEach((edu: any) => {
+        const school = edu.school || 'Unknown';
+        const degree = edu.degree || '';
+        const field = edu.field_of_study || '';
+        contentSummary += `- ${degree}${field ? ` in ${field}` : ''} from ${school}\n`;
+      });
+      contentSummary += '\n';
+    }
+    
+    if (skills.length > 0) {
+      contentSummary += `Key Skills: ${skills.slice(0, 10).join(', ')}\n`;
+    }
+    
+    // Use AI to generate a comprehensive professional biography
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert executive recruiter writing professional biographies. Create comprehensive, well-structured biographies that highlight career achievements, expertise, and professional journey. Write in third person. Be professional and engaging.`
+        },
+        {
+          role: "user",
+          content: `Based on the following LinkedIn profile data, write a comprehensive professional biography for ${firstName} ${lastName}.
+
+The biography should be structured in THREE clear sections:
+
+**EXECUTIVE SUMMARY** (2-3 sentences)
+- Current role and company
+- Core expertise and value proposition
+- Key areas of specialization
+
+**CAREER HISTORY** (chronological, reverse order - most recent first)
+- List each significant position with company name, title, and key achievements
+- Focus on progression and impact
+- Highlight major accomplishments and responsibilities
+
+**EDUCATION BACKGROUND**
+- Academic credentials with institutions
+- Professional certifications
+- Additional relevant training
+
+LinkedIn Profile Data:
+${contentSummary}
+
+Write a polished, professional biography suitable for executive recruiting. Be specific about roles and accomplishments. Use the actual data provided.`
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 1500
+    });
+    
+    const biography = response.choices[0]?.message?.content?.trim() || '';
+    
+    if (!biography) {
+      throw new Error('AI failed to generate biography');
+    }
+    
+    console.log(`[Biography Gen] ✓ Generated ${biography.length} character biography`);
+    return biography;
+    
+  } catch (error) {
+    console.error(`[Biography Gen] Error generating biography:`, error);
+    throw error;
+  }
+}

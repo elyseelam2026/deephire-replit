@@ -93,10 +93,13 @@ export default function Candidates() {
 
   const generateBiographyMutation = useMutation({
     mutationFn: async (candidateId: number) => {
+      console.log('[Biography Gen] Starting mutation for candidate:', candidateId);
       const response = await apiRequest('POST', `/api/admin/generate-biography/${candidateId}`, null);
+      console.log('[Biography Gen] Got response, parsing JSON...');
       return response.json();
     },
     onSuccess: () => {
+      console.log('[Biography Gen] Success!');
       queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
       toast({
         title: "Biography Generated",
@@ -104,6 +107,8 @@ export default function Candidates() {
       });
     },
     onError: (error: any) => {
+      console.error('[Biography Gen] Error:', error);
+      console.error('[Biography Gen] Error message:', error.message);
       toast({
         title: "Generation Failed",
         description: error.message || "Failed to generate biography",

@@ -1878,7 +1878,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auto-generate biography from LinkedIn by scraping the page HTML
+  // Auto-generate biography from LinkedIn using Bright Data scraping
   app.post("/api/admin/generate-biography/:candidateId", async (req, res) => {
     try {
       const candidateId = parseInt(req.params.candidateId);
@@ -1892,31 +1892,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Candidate must have a LinkedIn URL to generate biography" });
       }
       
-      const { searchCandidateProfilesByName } = await import('./ai');
+      const { scrapeLinkedInProfile } = await import('./brightdata');
+      const { generateBiographyFromLinkedInData } = await import('./ai');
       
       console.log(`[Auto-Bio] Generating biography for candidate ${candidateId}: ${candidate.firstName} ${candidate.lastName}`);
       console.log(`[Auto-Bio] LinkedIn URL: ${candidate.linkedinUrl}`);
       
-      // Use the same comprehensive profile generation that works for bio URLs
-      const result = await searchCandidateProfilesByName(
+      // Use Bright Data to scrape LinkedIn profile
+      console.log(`[Auto-Bio] Scraping LinkedIn profile with Bright Data...`);
+      const linkedinData = await scrapeLinkedInProfile(candidate.linkedinUrl);
+      
+      // Generate comprehensive biography from the scraped data
+      console.log(`[Auto-Bio] Generating biography from scraped LinkedIn data...`);
+      const biography = await generateBiographyFromLinkedInData(
         candidate.firstName,
         candidate.lastName,
-        candidate.currentCompany || 'Unknown',
-        candidate.linkedinUrl,  // Use existing LinkedIn URL
-        null,  // No separate bio URL
-        candidate.currentTitle || null
+        linkedinData
       );
       
-      if (!result.candidateData || !result.candidateData.biography) {
+      if (!biography || !biography.trim()) {
         return res.status(500).json({ 
-          error: "Failed to generate biography - no data extracted from LinkedIn profile" 
+          error: "Failed to generate biography from LinkedIn profile" 
         });
       }
       
       const updated = await storage.updateCandidate(candidateId, {
-        biography: result.candidateData.biography,
-        bioSource: 'linkedin_scrape',
-        bioStatus: 'verified'
+        biography: biography.trim(),
+        bioSource: 'linkedin_brightdata',
+        bioStatus: 'inferred'
       });
       
       res.json({
@@ -1927,9 +1930,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
     } catch (error) {
       console.error("Error auto-generating biography:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({
-        error: "Failed to generate biography",
-        details: error instanceof Error ? error.message : "Unknown error"
+        error: errorMessage  // Put the actual error message here for the frontend
       });
     }
   });
