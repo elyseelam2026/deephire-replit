@@ -363,19 +363,19 @@ export default function Candidates() {
           </DialogHeader>
           
           {selectedCandidate && (
-            <Tabs defaultValue="career" className="flex-1 flex flex-col overflow-hidden">
+            <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
               <TabsList className="mx-6 mt-2">
+                <TabsTrigger value="overview" data-testid={`tab-overview-${selectedCandidate.id}`}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Overview
+                </TabsTrigger>
                 <TabsTrigger value="career" data-testid={`tab-career-${selectedCandidate.id}`}>
                   <Briefcase className="h-4 w-4 mr-2" />
                   Career History
                 </TabsTrigger>
                 <TabsTrigger value="biography" data-testid={`tab-biography-${selectedCandidate.id}`}>
                   <FileText className="h-4 w-4 mr-2" />
-                  Biography
-                </TabsTrigger>
-                <TabsTrigger value="overview" data-testid={`tab-overview-${selectedCandidate.id}`}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Overview
+                  Executive Biography
                 </TabsTrigger>
               </TabsList>
 
