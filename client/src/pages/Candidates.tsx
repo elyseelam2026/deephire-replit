@@ -476,6 +476,80 @@ export default function Candidates() {
                     </div>
                   </div>
                 )}
+
+                {/* Biography Management Actions */}
+                <div className="border-t pt-6">
+                  <h4 className="font-medium text-sm mb-4">Biography Management</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (!selectedCandidate) return;
+                        try {
+                          const response = await fetch(`/api/admin/validate-biography/${selectedCandidate.id}`, {
+                            method: 'POST',
+                          });
+                          const result = await response.json();
+                          
+                          if (result.success) {
+                            window.open(result.linkedinUrl, '_blank');
+                            toast({
+                              title: "Manual Verification Required",
+                              description: result.note || "Please manually compare biography with LinkedIn profile",
+                            });
+                          }
+                        } catch (error) {
+                          toast({
+                            title: "Validation Failed",
+                            description: "Failed to validate biography",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      data-testid={`button-verify-biography-${selectedCandidate.id}`}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-2" />
+                      Verify Biography
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => {
+                        if (!selectedCandidate) return;
+                        if (!selectedCandidate.linkedinUrl) {
+                          toast({
+                            title: "LinkedIn URL Required",
+                            description: "Please add a LinkedIn URL first before auto-generating biography",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        generateBiographyMutation.mutate(selectedCandidate.id);
+                      }}
+                      disabled={generateBiographyMutation.isPending || !selectedCandidate.linkedinUrl}
+                      data-testid={`button-auto-generate-biography-${selectedCandidate.id}`}
+                    >
+                      <FileText className="h-3 w-3 mr-2" />
+                      {generateBiographyMutation.isPending ? "Generating..." : "Auto-Generate Biography"}
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (!selectedCandidate) return;
+                        setBioText(selectedCandidate.biography || "");
+                        setBioDialogOpen(true);
+                      }}
+                      data-testid={`button-manual-biography-${selectedCandidate.id}`}
+                    >
+                      <FileText className="h-3 w-3 mr-2" />
+                      {selectedCandidate.biography ? "Edit Biography" : "Add Biography Manually"}
+                    </Button>
+                  </div>
+                </div>
               </TabsContent>
 
               <TabsContent value="overview" className="flex-1 overflow-y-auto px-6 py-4 space-y-6 m-0">
@@ -700,74 +774,6 @@ export default function Candidates() {
                   >
                     <Linkedin className="h-3 w-3 mr-2" />
                     Verify LinkedIn URL
-                  </Button>
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      if (!selectedCandidate) return;
-                      try {
-                        const response = await fetch(`/api/admin/validate-biography/${selectedCandidate.id}`, {
-                          method: 'POST',
-                        });
-                        const result = await response.json();
-                        
-                        if (result.success) {
-                          window.open(result.linkedinUrl, '_blank');
-                          toast({
-                            title: "Manual Verification Required",
-                            description: result.note || "Please manually compare biography with LinkedIn profile",
-                          });
-                        }
-                      } catch (error) {
-                        toast({
-                          title: "Validation Failed",
-                          description: "Failed to validate biography",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                    data-testid={`button-verify-biography-${selectedCandidate.id}`}
-                  >
-                    <ExternalLink className="h-3 w-3 mr-2" />
-                    Verify Biography
-                  </Button>
-                  
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => {
-                      if (!selectedCandidate) return;
-                      if (!selectedCandidate.linkedinUrl) {
-                        toast({
-                          title: "LinkedIn URL Required",
-                          description: "Please add a LinkedIn URL first before auto-generating biography",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      generateBiographyMutation.mutate(selectedCandidate.id);
-                    }}
-                    disabled={generateBiographyMutation.isPending || !selectedCandidate.linkedinUrl}
-                    data-testid={`button-auto-generate-biography-${selectedCandidate.id}`}
-                  >
-                    <FileText className="h-3 w-3 mr-2" />
-                    {generateBiographyMutation.isPending ? "Generating..." : "Auto-Generate Biography"}
-                  </Button>
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (!selectedCandidate) return;
-                      setBioText(selectedCandidate.biography || "");
-                      setBioDialogOpen(true);
-                    }}
-                    data-testid={`button-manual-biography-${selectedCandidate.id}`}
-                  >
-                    <FileText className="h-3 w-3 mr-2" />
-                    {selectedCandidate.biography ? "Edit Biography" : "Add Biography Manually"}
                   </Button>
                 </div>
               </div>
