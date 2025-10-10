@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText } from "lucide-react";
+import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText, Building2, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Candidate } from "@shared/schema";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Candidate, CareerHistoryEntry } from "@shared/schema";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -362,142 +363,218 @@ export default function Candidates() {
           </DialogHeader>
           
           {selectedCandidate && (
-            <div className="space-y-6 overflow-y-auto px-6 py-4 flex-1">
-              <div className="grid grid-cols-2 gap-4">
-                {selectedCandidate.email && (
-                  <div>
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      Email
-                      {(selectedCandidate as any).emailStatus === 'inferred' && (
-                        <Badge variant="secondary" className="text-xs">Inferred</Badge>
-                      )}
-                      {(selectedCandidate as any).emailStatus === 'verified' && (
-                        <Badge variant="default" className="text-xs">Verified</Badge>
-                      )}
-                    </h4>
-                    <p className="text-muted-foreground">{selectedCandidate.email}</p>
-                  </div>
-                )}
-                {selectedCandidate.phoneNumber && (
-                  <div>
-                    <h4 className="font-medium text-sm">Phone</h4>
-                    <p className="text-muted-foreground">{selectedCandidate.phoneNumber}</p>
-                  </div>
-                )}
-                {selectedCandidate.location && (
-                  <div>
-                    <h4 className="font-medium text-sm">Location</h4>
-                    <p className="text-muted-foreground">{selectedCandidate.location}</p>
-                  </div>
-                )}
-                {selectedCandidate.currentTitle && (
-                  <div>
-                    <h4 className="font-medium text-sm">Current Role</h4>
-                    <p className="text-muted-foreground">{selectedCandidate.currentTitle}</p>
-                  </div>
-                )}
-              </div>
-              
-              {selectedCandidate.salaryExpectations && (
-                <div>
-                  <h4 className="font-medium text-sm mb-2">Salary Expectations</h4>
-                  <p className="text-muted-foreground">{formatSalary(selectedCandidate.salaryExpectations)}</p>
-                </div>
-              )}
-              
-              {selectedCandidate.skills && selectedCandidate.skills.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-sm mb-2">Skills</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedCandidate.skills.map((skill, index) => (
-                      <Badge key={index} variant="outline">
-                        {skill}
-                      </Badge>
+            <Tabs defaultValue="career" className="flex-1 flex flex-col overflow-hidden">
+              <TabsList className="mx-6 mt-2">
+                <TabsTrigger value="career" data-testid={`tab-career-${selectedCandidate.id}`}>
+                  <Briefcase className="h-4 w-4 mr-2" />
+                  Career History
+                </TabsTrigger>
+                <TabsTrigger value="biography" data-testid={`tab-biography-${selectedCandidate.id}`}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Biography
+                </TabsTrigger>
+                <TabsTrigger value="overview" data-testid={`tab-overview-${selectedCandidate.id}`}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Overview
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="career" className="flex-1 overflow-y-auto px-6 py-4 space-y-6 m-0">
+                {/* Career History Timeline */}
+                {selectedCandidate.careerHistory && (selectedCandidate.careerHistory as CareerHistoryEntry[]).length > 0 ? (
+                  <div className="space-y-4">
+                    {(selectedCandidate.careerHistory as CareerHistoryEntry[]).map((entry, index) => (
+                      <div 
+                        key={index} 
+                        className="border-l-2 border-primary/20 pl-4 pb-4"
+                        data-testid={`career-entry-${index}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-base">{entry.title}</h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Building2 className="h-3 w-3 text-muted-foreground" />
+                              <p className="text-muted-foreground">{entry.company}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>
+                              {entry.startDate} - {entry.endDate || 'Present'}
+                            </span>
+                          </div>
+                        </div>
+                        {entry.location && (
+                          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            <span>{entry.location}</span>
+                          </div>
+                        )}
+                        {entry.description && (
+                          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                            {entry.description}
+                          </p>
+                        )}
+                      </div>
                     ))}
                   </div>
-                </div>
-              )}
-              
-              {/* Profile Links */}
-              <div className="flex gap-4">
-                {selectedCandidate.linkedinUrl && (
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">LinkedIn Profile</h4>
-                    <a 
-                      href={selectedCandidate.linkedinUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                      data-testid={`link-linkedin-${selectedCandidate.id}`}
-                    >
-                      View LinkedIn Profile
-                    </a>
-                  </div>
-                )}
-                {selectedCandidate.bioUrl && (
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Bio Page</h4>
-                    <a 
-                      href={selectedCandidate.bioUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                      data-testid={`link-bio-${selectedCandidate.id}`}
-                    >
-                      View Bio Profile
-                    </a>
-                  </div>
-                )}
-              </div>
-              
-              {/* Professional Biography */}
-              <div>
-                <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                  Professional Biography
-                  {(selectedCandidate as any).bioStatus === 'not_provided' && (
-                    <Badge variant="secondary" className="text-xs">Not Provided</Badge>
-                  )}
-                  {(selectedCandidate as any).bioStatus === 'inferred' && (
-                    <Badge variant="secondary" className="text-xs">AI Generated</Badge>
-                  )}
-                  {(selectedCandidate as any).bioStatus === 'verified' && (
-                    <Badge variant="default" className="text-xs">Verified</Badge>
-                  )}
-                </h4>
-                {selectedCandidate.biography ? (
-                  <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-biography-${selectedCandidate.id}`}>
-                    {selectedCandidate.biography}
-                  </div>
                 ) : (
-                  <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed">
-                    <p className="text-muted-foreground text-sm mb-2">
-                      No biography available. 
+                  <div className="p-8 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                    <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground text-sm">
+                      No career history available yet.
                       {selectedCandidate.linkedinUrl && (
-                        <span> Click the LinkedIn link above to view their full profile and manually add biographical information if needed.</span>
+                        <span className="block mt-2">
+                          Career data will be extracted when LinkedIn profile is scraped.
+                        </span>
                       )}
                     </p>
                   </div>
                 )}
-              </div>
-              
-              {/* Career Summary */}
-              {selectedCandidate.careerSummary && (
+              </TabsContent>
+
+              <TabsContent value="biography" className="flex-1 overflow-y-auto px-6 py-4 space-y-6 m-0">
+                {/* Professional Biography */}
                 <div>
-                  <h4 className="font-medium text-sm mb-2">Career Highlights</h4>
-                  <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-career-summary-${selectedCandidate.id}`}>
-                    {selectedCandidate.careerSummary}
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      Professional Biography
+                      {(selectedCandidate as any).bioStatus === 'not_provided' && (
+                        <Badge variant="secondary" className="text-xs">Not Provided</Badge>
+                      )}
+                      {(selectedCandidate as any).bioStatus === 'inferred' && (
+                        <Badge variant="secondary" className="text-xs">AI Generated</Badge>
+                      )}
+                      {(selectedCandidate as any).bioStatus === 'verified' && (
+                        <Badge variant="default" className="text-xs">Verified</Badge>
+                      )}
+                    </h4>
                   </div>
+                  {selectedCandidate.biography ? (
+                    <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-biography-${selectedCandidate.id}`}>
+                      {selectedCandidate.biography}
+                    </div>
+                  ) : (
+                    <div className="p-8 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                      <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground text-sm mb-2">
+                        No biography available.
+                        {selectedCandidate.linkedinUrl && (
+                          <span className="block mt-2">Click the LinkedIn link to view their full profile.</span>
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-              
-              {selectedCandidate.isAvailable !== undefined && (
-                <div>
-                  <h4 className="font-medium text-sm mb-2">Availability</h4>
-                  <Badge variant={selectedCandidate.isAvailable ? "default" : "secondary"}>
-                    {selectedCandidate.isAvailable ? "Available" : "Not Available"}
-                  </Badge>
+
+                {/* Career Summary */}
+                {selectedCandidate.careerSummary && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Career Highlights</h4>
+                    <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-career-summary-${selectedCandidate.id}`}>
+                      {selectedCandidate.careerSummary}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="overview" className="flex-1 overflow-y-auto px-6 py-4 space-y-6 m-0">
+                {/* Basic Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedCandidate.email && (
+                    <div>
+                      <h4 className="font-medium text-sm flex items-center gap-2">
+                        Email
+                        {(selectedCandidate as any).emailStatus === 'inferred' && (
+                          <Badge variant="secondary" className="text-xs">Inferred</Badge>
+                        )}
+                        {(selectedCandidate as any).emailStatus === 'verified' && (
+                          <Badge variant="default" className="text-xs">Verified</Badge>
+                        )}
+                      </h4>
+                      <p className="text-muted-foreground">{selectedCandidate.email}</p>
+                    </div>
+                  )}
+                  {selectedCandidate.phoneNumber && (
+                    <div>
+                      <h4 className="font-medium text-sm">Phone</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.phoneNumber}</p>
+                    </div>
+                  )}
+                  {selectedCandidate.location && (
+                    <div>
+                      <h4 className="font-medium text-sm">Location</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.location}</p>
+                    </div>
+                  )}
+                  {selectedCandidate.currentTitle && (
+                    <div>
+                      <h4 className="font-medium text-sm">Current Role</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.currentTitle}</p>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {selectedCandidate.salaryExpectations && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Salary Expectations</h4>
+                    <p className="text-muted-foreground">{formatSalary(selectedCandidate.salaryExpectations)}</p>
+                  </div>
+                )}
+
+                {selectedCandidate.skills && selectedCandidate.skills.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Skills</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCandidate.skills.map((skill, index) => (
+                        <Badge key={index} variant="outline">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Profile Links */}
+                <div className="flex gap-4">
+                  {selectedCandidate.linkedinUrl && (
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">LinkedIn Profile</h4>
+                      <a 
+                        href={selectedCandidate.linkedinUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline"
+                        data-testid={`link-linkedin-${selectedCandidate.id}`}
+                      >
+                        View LinkedIn Profile
+                      </a>
+                    </div>
+                  )}
+                  {selectedCandidate.bioUrl && (
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">Bio Page</h4>
+                      <a 
+                        href={selectedCandidate.bioUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline"
+                        data-testid={`link-bio-${selectedCandidate.id}`}
+                      >
+                        View Bio Profile
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {selectedCandidate.isAvailable !== undefined && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Availability</h4>
+                    <Badge variant={selectedCandidate.isAvailable ? "default" : "secondary"}>
+                      {selectedCandidate.isAvailable ? "Available" : "Not Available"}
+                    </Badge>
+                  </div>
+                )}
               
               {/* QA Validation Section */}
               <div className="border-t pt-6">
@@ -694,7 +771,8 @@ export default function Candidates() {
                   </Button>
                 </div>
               </div>
-            </div>
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
