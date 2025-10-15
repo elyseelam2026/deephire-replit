@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography } from './ai';
+import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography, categorizeCompany, discoverTeamMembers, analyzeCompanyHiringPatterns, analyzeRoleLevel } from './ai';
 import { duplicateDetectionService } from './duplicate-detection';
 import type { DataIngestionJob } from '@shared/schema';
 
@@ -265,4 +265,134 @@ export function getJobControls(jobId: number): { paused: boolean; stopped: boole
 // Get queue length
 export function getQueueLength(): number {
   return jobQueue.length;
+}
+
+/**
+ * COMPANY INTELLIGENCE PROCESSING
+ * Processes a company through the AI intelligence pipeline:
+ * 1. Auto-categorization (industry, stage, funding, etc.)
+ * 2. Team discovery & org chart population
+ * 3. Hiring pattern analysis
+ */
+export async function processCompanyIntelligence(companyId: number): Promise<void> {
+  try {
+    console.log(`\n[Company Intelligence] Starting processing for company ID ${companyId}...`);
+    
+    // Get company data
+    const company = await storage.getCompany(companyId);
+    if (!company || !company.website) {
+      console.log(`[Company Intelligence] Company ${companyId} not found or has no website`);
+      return;
+    }
+    
+    console.log(`[Company Intelligence] Processing: ${company.name} (${company.website})`);
+    
+    // STEP 1: Auto-categorization
+    console.log(`[Company Intelligence] Step 1/3: Auto-categorizing...`);
+    const categorization = await categorizeCompany(company.website);
+    
+    if (categorization) {
+      // Save tags to companyTags table
+      await storage.saveCompanyTags({
+        companyId: company.id,
+        companyName: company.name,
+        industryTags: categorization.industryTags,
+        stageTags: categorization.stageTags,
+        fundingTags: categorization.fundingTags,
+        geographyTags: categorization.geographyTags,
+        sizeTags: categorization.sizeTags,
+        companyType: categorization.companyType,
+        confidence: categorization.confidence
+      });
+      console.log(`[Company Intelligence] ✓ Auto-categorization complete (${categorization.industryTags?.join(', ')})`);
+    }
+    
+    // STEP 2: Team discovery & org chart population
+    console.log(`[Company Intelligence] Step 2/3: Discovering team members...`);
+    const teamMembers = await discoverTeamMembers(company.website);
+    
+    if (teamMembers && teamMembers.length > 0) {
+      console.log(`[Company Intelligence] Found ${teamMembers.length} team members, populating org chart...`);
+      
+      for (const member of teamMembers) {
+        // Split name into first and last
+        const nameParts = member.name.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
+        // Analyze role level (C-level, VP, etc.)
+        const roleAnalysis = analyzeRoleLevel(member.title || '');
+        
+        // Save to organization chart
+        await storage.saveToOrgChart({
+          companyId: company.id,
+          firstName,
+          lastName,
+          title: member.title || '',
+          linkedinUrl: null, // Team discovery doesn't find LinkedIn
+          bioUrl: member.bioUrl || null,
+          level: roleAnalysis.level,
+          department: roleAnalysis.department,
+          isCLevel: roleAnalysis.isCLevel,
+          isExecutive: roleAnalysis.isExecutive,
+          discoverySource: 'team_discovery',
+          discoveryUrl: company.website
+        });
+      }
+      console.log(`[Company Intelligence] ✓ Organization chart populated with ${teamMembers.length} members`);
+      
+      // STEP 3: Hiring pattern analysis
+      console.log(`[Company Intelligence] Step 3/3: Analyzing hiring patterns...`);
+      const orgChartData = teamMembers.map(m => {
+        const nameParts = m.name.trim().split(' ');
+        return {
+          id: 0, // Will be set by database
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(' ') || '',
+          title: m.title || '',
+          linkedinUrl: null,
+          bioUrl: m.bioUrl || null
+        };
+      });
+      
+      const patterns = await analyzeCompanyHiringPatterns(company.id, orgChartData);
+      
+      if (patterns && patterns.preferredSourceCompanies.length > 0) {
+        // Save hiring patterns
+        await storage.saveHiringPatterns({
+          companyId: company.id,
+          companyName: company.name,
+          preferredSourceCompanies: patterns.preferredSourceCompanies,
+          sampleSize: patterns.sampleSize,
+          confidenceScore: patterns.confidenceScore
+        });
+        console.log(`[Company Intelligence] ✓ Hiring patterns learned: ${patterns.talentSource}`);
+      } else {
+        console.log(`[Company Intelligence] ⚠ Insufficient data for pattern learning (need career history data)`);
+      }
+    } else {
+      console.log(`[Company Intelligence] ⚠ No team members found on website`);
+    }
+    
+    console.log(`[Company Intelligence] ✓ Processing complete for ${company.name}\n`);
+    
+  } catch (error) {
+    console.error(`[Company Intelligence] Error processing company ${companyId}:`, error);
+  }
+}
+
+/**
+ * Process multiple companies in background
+ */
+export async function processBulkCompanyIntelligence(companyIds: number[]): Promise<void> {
+  console.log(`[Company Intelligence] Starting bulk processing for ${companyIds.length} companies...`);
+  
+  for (const companyId of companyIds) {
+    await processCompanyIntelligence(companyId);
+    
+    // Add small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  console.log(`[Company Intelligence] Bulk processing complete for ${companyIds.length} companies`);
 }

@@ -1,7 +1,7 @@
 import { 
   companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
-  organizationChart,
+  organizationChart, companyTags, companyHiringPatterns,
   type Company, type Job, type Candidate, type JobMatch, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
@@ -986,6 +986,103 @@ export class DatabaseStorage implements IStorage {
       .where(eq(organizationChart.id, id))
       .returning();
     return updated || undefined;
+  }
+  
+  // Company Intelligence Methods
+  async saveCompanyTags(data: {
+    companyId: number;
+    companyName: string;
+    industryTags?: string[];
+    stageTags?: string[];
+    fundingTags?: string[];
+    geographyTags?: string[];
+    sizeTags?: string[];
+    companyType?: string;
+    confidence?: number;
+  }): Promise<void> {
+    await db.insert(companyTags).values({
+      companyId: data.companyId,
+      companyName: data.companyName,
+      industryTags: data.industryTags || [],
+      stageTags: data.stageTags || [],
+      fundingTags: data.fundingTags || [],
+      geographyTags: data.geographyTags || [],
+      sizeTags: data.sizeTags || [],
+      companyType: data.companyType || null,
+      confidence: data.confidence || 0
+    }).onConflictDoUpdate({
+      target: companyTags.companyId,
+      set: {
+        industryTags: data.industryTags || [],
+        stageTags: data.stageTags || [],
+        fundingTags: data.fundingTags || [],
+        geographyTags: data.geographyTags || [],
+        sizeTags: data.sizeTags || [],
+        companyType: data.companyType || null,
+        confidence: data.confidence || 0,
+        updatedAt: sql`now()`
+      }
+    });
+  }
+  
+  async saveToOrgChart(data: {
+    companyId: number;
+    firstName: string;
+    lastName: string;
+    title: string;
+    linkedinUrl?: string | null;
+    bioUrl?: string | null;
+    level?: string | null;
+    department?: string | null;
+    isCLevel?: boolean;
+    isExecutive?: boolean;
+    discoverySource?: string | null;
+    discoveryUrl?: string | null;
+  }): Promise<OrganizationChart> {
+    const [entry] = await db.insert(organizationChart).values({
+      companyId: data.companyId,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      title: data.title,
+      linkedinUrl: data.linkedinUrl || null,
+      bioUrl: data.bioUrl || null,
+      level: data.level || null,
+      department: data.department || null,
+      isCLevel: data.isCLevel || false,
+      isExecutive: data.isExecutive || false,
+      discoverySource: data.discoverySource || null,
+      discoveryUrl: data.discoveryUrl || null
+    }).returning();
+    return entry;
+  }
+  
+  async saveHiringPatterns(data: {
+    companyId: number;
+    companyName: string;
+    preferredSourceCompanies: Array<{
+      company: string;
+      frequency: number;
+      percentage: number;
+      commonTitles: string[];
+    }>;
+    sampleSize: number;
+    confidenceScore: number;
+  }): Promise<void> {
+    await db.insert(companyHiringPatterns).values({
+      companyId: data.companyId,
+      companyName: data.companyName,
+      preferredSourceCompanies: data.preferredSourceCompanies,
+      sampleSize: data.sampleSize,
+      confidenceScore: data.confidenceScore
+    }).onConflictDoUpdate({
+      target: companyHiringPatterns.companyId,
+      set: {
+        preferredSourceCompanies: data.preferredSourceCompanies,
+        sampleSize: data.sampleSize,
+        confidenceScore: data.confidenceScore,
+        lastAnalyzed: sql`now()`
+      }
+    });
   }
 }
 

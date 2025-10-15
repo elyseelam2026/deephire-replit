@@ -3414,7 +3414,7 @@ export function analyzeRoleLevel(title: string): {
  */
 export async function categorizeCompany(
   websiteUrl: string, 
-  websiteContent: string,
+  websiteContent?: string,
   companyName?: string
 ): Promise<{
   industryTags: string[];
@@ -3425,6 +3425,30 @@ export async function categorizeCompany(
   companyType: string;
   confidence: number;
 } | null> {
+  // If content not provided, fetch it
+  if (!websiteContent) {
+    console.log(`[Auto-Categorization] Fetching content from ${websiteUrl}...`);
+    try {
+      const response = await fetch(websiteUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; DeepHire/1.0)'
+        }
+      });
+      websiteContent = await response.text();
+      
+      // Extract text content from HTML (simple extraction)
+      const textContent = websiteContent
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      websiteContent = textContent.substring(0, 50000); // Limit to 50K chars
+    } catch (error) {
+      console.error(`[Auto-Categorization] Error fetching website:`, error);
+      return null;
+    }
+  }
   try {
     console.log(`\n[Auto-Categorization] Analyzing company: ${companyName || websiteUrl}`);
     
