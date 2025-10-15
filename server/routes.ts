@@ -8,6 +8,7 @@ interface MulterRequest extends Request {
 import { storage } from "./storage";
 import { db } from "./db";
 import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel } from "./ai";
+import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -1085,6 +1086,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let failedCount = 0;
       let duplicateCount = 0;
       const errors: string[] = [];
+      const companyIds: number[] = []; // Track saved company IDs for intelligence processing
       
       // Create ingestion job for tracking
       let ingestionJob;
@@ -1147,7 +1149,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 console.log(`Found ${duplicates.length} potential duplicates for company ${companyData.name}`);
               } else {
                 // No duplicates found, save the company
-                await storage.createCompany(companyData);
+                const savedCompany = await storage.createCompany(companyData);
+                companyIds.push(savedCompany.id); // Track for intelligence processing
                 successCount++;
               }
             } catch (dbError) {
@@ -1186,6 +1189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else {
               // Save parent company
               const parentCompany = await storage.createCompany(companyData);
+              companyIds.push(parentCompany.id); // Track for intelligence processing
               successCount++;
               
               // Create child companies for each office location
@@ -1254,12 +1258,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Trigger AI intelligence processing in background for successfully saved companies
+      if (companyIds.length > 0) {
+        console.log(`\n🚀 Triggering AI intelligence processing for ${companyIds.length} companies...`);
+        console.log(`   Pipeline: Auto-categorization → Team Discovery → Hiring Patterns`);
+        
+        // Process in background (don't await)
+        setImmediate(() => {
+          processBulkCompanyIntelligence(companyIds)
+            .catch(error => {
+              console.error('Background company intelligence processing error:', error);
+            });
+        });
+      }
+
       res.json({
         success: successCount,
         duplicates: duplicateCount,
         failed: failedCount,
         total: files.length + urls.length,
-        message: `Processed ${successCount + duplicateCount + failedCount} companies: ${successCount} saved, ${duplicateCount} duplicates detected, ${failedCount} failed`,
+        processingIntelligence: companyIds.length,
+        message: `Processed ${successCount + duplicateCount + failedCount} companies: ${successCount} saved, ${duplicateCount} duplicates detected, ${failedCount} failed. AI intelligence processing started for ${companyIds.length} companies.`,
         errors: errors.slice(0, 10) // Limit error messages
       });
     } catch (error) {
