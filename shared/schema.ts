@@ -677,6 +677,129 @@ export type CareerHistoryEntry = {
   location?: string;            // Work location
 };
 
+// Career Transitions - Track company-to-company movement patterns
+export const careerTransitions = pgTable("career_transitions", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  fromCompany: text("from_company").notNull(),
+  fromCompanyId: integer("from_company_id"), // FK to companies
+  toCompany: text("to_company").notNull(),
+  toCompanyId: integer("to_company_id"), // FK to companies
+  fromTitle: text("from_title"),
+  toTitle: text("to_title"),
+  frequency: integer("frequency").default(1), // How many times this transition occurred
+  avgYearsAtFromCompany: real("avg_years_at_from_company"),
+  commonIndustry: text("common_industry"),
+  lastObserved: timestamp("last_observed").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Company Hiring Patterns - Learned preferences from career analysis
+export const companyHiringPatterns = pgTable("company_hiring_patterns", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  companyName: text("company_name").notNull(),
+  
+  // Preferred source companies (where they hire FROM)
+  preferredSourceCompanies: jsonb("preferred_source_companies").$type<Array<{
+    company: string;
+    companyId?: number;
+    frequency: number;      // How many people came from this company
+    percentage: number;     // % of total hires
+    avgYearsExperience: number;
+    commonTitles: string[]; // Titles they hired for this company
+  }>>(),
+  
+  // Career path patterns
+  commonCareerPaths: jsonb("common_career_paths").$type<Array<{
+    path: string;           // "Goldman Analyst → Blackstone Associate → PAG VP"
+    frequency: number;
+    percentage: number;
+    avgTimelineYears: number;
+  }>>(),
+  
+  // Title patterns
+  preferredTitles: text("preferred_titles").array(),
+  preferredSeniority: text("preferred_seniority").array(), // Analyst, Associate, VP, Director
+  
+  // Education patterns
+  preferredEducation: jsonb("preferred_education").$type<Array<{
+    degree: string;         // "MBA", "BA Economics"
+    institution: string;    // "Wharton", "Harvard"
+    frequency: number;
+    percentage: number;
+  }>>(),
+  
+  // Experience patterns
+  avgYearsExperience: real("avg_years_experience"),
+  minYearsExperience: integer("min_years_experience"),
+  maxYearsExperience: integer("max_years_experience"),
+  
+  // Industry patterns
+  preferredIndustries: text("preferred_industries").array(),
+  
+  // Skills patterns
+  topSkills: jsonb("top_skills").$type<Array<{
+    skill: string;
+    frequency: number;
+    percentage: number;
+  }>>(),
+  
+  // Metadata
+  sampleSize: integer("sample_size").notNull(), // Number of candidates analyzed
+  confidenceScore: real("confidence_score"), // 0-1, based on sample size
+  lastAnalyzed: timestamp("last_analyzed").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Career Path Insights - Discovered industry-wide patterns
+export const careerPathInsights = pgTable("career_path_insights", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  pathPattern: text("path_pattern").notNull(), // "Investment Banking → Private Equity"
+  specificPath: text("specific_path"), // "Goldman IB Analyst → Blackstone PE Associate"
+  frequency: integer("frequency").default(1),
+  
+  // Path details
+  avgPathDuration: real("avg_path_duration_years"),
+  successRate: real("success_rate"), // % who successfully made this transition
+  
+  // Common characteristics
+  commonTitles: text("common_titles").array(),
+  commonCompanies: text("common_companies").array(),
+  commonEducation: text("common_education").array(),
+  commonSkills: text("common_skills").array(),
+  
+  // Industry/role info
+  sourceIndustry: text("source_industry"),
+  targetIndustry: text("target_industry"),
+  sourceRole: text("source_role"),
+  targetRole: text("target_role"),
+  
+  // Metadata
+  sampleSize: integer("sample_size").notNull(),
+  confidenceScore: real("confidence_score"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Zod schemas for new tables
+export const insertCareerTransitionSchema = createInsertSchema(careerTransitions).omit({
+  id: true,
+  lastObserved: true,
+  createdAt: true,
+});
+
+export const insertCompanyHiringPatternSchema = createInsertSchema(companyHiringPatterns).omit({
+  id: true,
+  lastAnalyzed: true,
+  createdAt: true,
+});
+
+export const insertCareerPathInsightSchema = createInsertSchema(careerPathInsights).omit({
+  id: true,
+  lastUpdated: true,
+  createdAt: true,
+});
+
 // Type exports
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type Company = typeof companies.$inferSelect;
@@ -725,3 +848,13 @@ export const insertVerificationResultSchema = createInsertSchema(verificationRes
 });
 export type InsertVerificationResult = z.infer<typeof insertVerificationResultSchema>;
 export type VerificationResult = typeof verificationResults.$inferSelect;
+
+// Career learning schemas
+export type InsertCareerTransition = z.infer<typeof insertCareerTransitionSchema>;
+export type CareerTransition = typeof careerTransitions.$inferSelect;
+
+export type InsertCompanyHiringPattern = z.infer<typeof insertCompanyHiringPatternSchema>;
+export type CompanyHiringPattern = typeof companyHiringPatterns.$inferSelect;
+
+export type InsertCareerPathInsight = z.infer<typeof insertCareerPathInsightSchema>;
+export type CareerPathInsight = typeof careerPathInsights.$inferSelect;
