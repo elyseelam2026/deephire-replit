@@ -7,7 +7,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel } from "./ai";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -540,6 +540,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateStagingCandidate(stagingCandidate.id, {
             confidenceScore: verificationResult.confidenceScore,
             verificationStatus: verificationResult.confidenceScore >= 0.85 ? 'verified' : 'pending_review',
+          });
+          
+          // TASK 3: Save to organization chart (for org intelligence)
+          const roleAnalysis = analyzeRoleLevel(member.title || 'Team Member');
+          await storage.createOrgChartEntry({
+            companyId: parseInt(id),
+            candidateId: null, // Will be linked when promoted to production
+            firstName,
+            lastName,
+            fullName: `${firstName} ${lastName}`,
+            title: member.title || 'Team Member',
+            department: roleAnalysis.department,
+            level: roleAnalysis.level,
+            isCLevel: roleAnalysis.isCLevel,
+            isExecutive: roleAnalysis.isExecutive,
+            discoveredFrom: 'team_page',
+            linkedinUrl: member.linkedinUrl || verificationResult.linkedinUrl || null,
+            bioUrl: member.bioUrl || null,
+            email: verificationResult.inferredEmail || null,
+            isActive: true,
           });
           
           // STEP 4: Auto-promote high-confidence candidates (≥85%)

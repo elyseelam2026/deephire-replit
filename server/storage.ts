@@ -1,12 +1,13 @@
 import { 
   companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
+  organizationChart,
   type Company, type Job, type Candidate, type JobMatch, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
   type DataIngestionJob, type InsertDataIngestionJob, type DuplicateDetection, type InsertDuplicateDetection,
   type DataReviewQueue, type InsertDataReviewQueue, type StagingCandidate, type InsertStagingCandidate,
-  type VerificationResult, type InsertVerificationResult
+  type VerificationResult, type InsertVerificationResult, type OrganizationChart, type InsertOrganizationChart
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -105,6 +106,12 @@ export interface IStorage {
   
   // Move verified candidate from staging to production
   promoteToProduction(stagingCandidateId: number): Promise<Candidate>;
+  
+  // Organization Chart (TASK 3: Org chart population)
+  createOrgChartEntry(entry: InsertOrganizationChart): Promise<OrganizationChart>;
+  getOrgChartForCompany(companyId: number): Promise<OrganizationChart[]>;
+  getOrgChartEntry(id: number): Promise<OrganizationChart | undefined>;
+  updateOrgChartEntry(id: number, updates: Partial<InsertOrganizationChart>): Promise<OrganizationChart | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -951,6 +958,34 @@ export class DatabaseStorage implements IStorage {
       
       return candidate;
     });
+  }
+  
+  // TASK 3: Organization Chart Methods
+  async createOrgChartEntry(entry: InsertOrganizationChart): Promise<OrganizationChart> {
+    const [orgEntry] = await db.insert(organizationChart).values(entry).returning();
+    return orgEntry;
+  }
+  
+  async getOrgChartForCompany(companyId: number): Promise<OrganizationChart[]> {
+    return await db.select()
+      .from(organizationChart)
+      .where(eq(organizationChart.companyId, companyId))
+      .orderBy(desc(organizationChart.isCLevel), desc(organizationChart.isExecutive));
+  }
+  
+  async getOrgChartEntry(id: number): Promise<OrganizationChart | undefined> {
+    const [entry] = await db.select()
+      .from(organizationChart)
+      .where(eq(organizationChart.id, id));
+    return entry || undefined;
+  }
+  
+  async updateOrgChartEntry(id: number, updates: Partial<InsertOrganizationChart>): Promise<OrganizationChart | undefined> {
+    const [updated] = await db.update(organizationChart)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(organizationChart.id, id))
+      .returning();
+    return updated || undefined;
   }
 }
 

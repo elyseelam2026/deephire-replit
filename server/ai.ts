@@ -3317,6 +3317,97 @@ Write a polished, professional biography suitable for executive recruiting. Be s
 }
 
 /**
+ * TASK 3: C-Level and Executive Role Detection
+ * Analyzes job titles to identify organizational hierarchy
+ */
+export function analyzeRoleLevel(title: string): {
+  isCLevel: boolean;
+  isExecutive: boolean;
+  level: string;
+  department?: string;
+} {
+  const titleLower = title.toLowerCase().trim();
+  
+  // C-Level detection (CEO, CFO, COO, CTO, CMO, etc.)
+  const cLevelPatterns = [
+    /\b(ceo|chief executive officer)\b/,
+    /\b(cfo|chief financial officer)\b/,
+    /\b(coo|chief operating officer)\b/,
+    /\b(cto|chief technology officer)\b/,
+    /\b(cmo|chief marketing officer)\b/,
+    /\b(cio|chief information officer)\b/,
+    /\b(cpo|chief product officer)\b/,
+    /\b(chro|chief hr officer|chief people officer)\b/,
+    /\b(cco|chief compliance officer)\b/,
+    /\b(cso|chief strategy officer|chief sales officer)\b/,
+    /\b(cdo|chief data officer|chief digital officer)\b/,
+    /\bchief\s+\w+\s+officer\b/
+  ];
+  
+  const isCLevel = cLevelPatterns.some(pattern => pattern.test(titleLower));
+  
+  // Executive detection (includes C-level + VPs, Presidents, Partners, Managing Directors)
+  const executivePatterns = [
+    /\bpresident\b/,
+    /\bvice president\b|\bvp\b/,
+    /\bsvp\b|\bsenior vice president\b/,
+    /\bevp\b|\bexecutive vice president\b/,
+    /\bmanaging director\b/,
+    /\bpartner\b/,
+    /\bmanaging partner\b/,
+    /\bsenior partner\b/,
+    /\bgeneral partner\b/,
+    /\bprincipal\b/,
+    /\bhead of\b/
+  ];
+  
+  const isExecutive = isCLevel || executivePatterns.some(pattern => pattern.test(titleLower));
+  
+  // Determine level
+  let level = 'Individual Contributor';
+  if (isCLevel) {
+    level = 'C-Suite';
+  } else if (titleLower.includes('vice president') || titleLower.includes(' vp') || titleLower.match(/\bvp\b/)) {
+    level = 'VP';
+  } else if (titleLower.includes('director')) {
+    level = 'Director';
+  } else if (titleLower.includes('manager')) {
+    level = 'Manager';
+  } else if (titleLower.includes('partner') || titleLower.includes('principal') || titleLower.includes('managing director')) {
+    level = 'Executive';
+  }
+  
+  // Detect department
+  let department: string | undefined;
+  if (titleLower.includes('engineer') || titleLower.includes('technology') || titleLower.includes('tech')) {
+    department = 'Engineering';
+  } else if (titleLower.includes('sales') || titleLower.includes('revenue')) {
+    department = 'Sales';
+  } else if (titleLower.includes('marketing')) {
+    department = 'Marketing';
+  } else if (titleLower.includes('finance') || titleLower.includes('financial')) {
+    department = 'Finance';
+  } else if (titleLower.includes('hr') || titleLower.includes('people') || titleLower.includes('talent')) {
+    department = 'Human Resources';
+  } else if (titleLower.includes('product')) {
+    department = 'Product';
+  } else if (titleLower.includes('operations') || titleLower.includes('operating')) {
+    department = 'Operations';
+  } else if (titleLower.includes('legal') || titleLower.includes('compliance')) {
+    department = 'Legal';
+  } else if (titleLower.includes('executive') || isCLevel) {
+    department = 'Executive';
+  }
+  
+  return {
+    isCLevel,
+    isExecutive,
+    level,
+    department
+  };
+}
+
+/**
  * TASK 2: Auto-categorization AI Engine
  * Analyzes company website content and automatically categorizes by multiple dimensions
  * Returns structured tags for: industry, stage, funding, geography, size
