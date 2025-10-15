@@ -825,19 +825,27 @@ export const companyTags = pgTable("company_tags", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   companyId: integer("company_id").references(() => companies.id).notNull(),
   
-  // Auto-categorization dimensions
+  // Auto-categorization dimensions (from website scraping)
   industryTags: text("industry_tags").array(), // ["Private Equity", "Financial Services", "Investment"]
   stageTags: text("stage_tags").array(), // ["Growth", "Mature", "Enterprise"]
   fundingTags: text("funding_tags").array(), // ["Series C", "Well-Funded", "Venture-Backed"]
   geographyTags: text("geography_tags").array(), // ["US", "New York", "Multi-National"]
   sizeTags: text("size_tags").array(), // ["200-500", "Mid-Size", "Scaling"]
-  cultureTags: text("culture_tags").array(), // ["High-Growth", "Prestigious", "Competitive"]
   
-  // AI-generated insights
+  // Learned insights (from org chart analysis - NOT from website scraping)
   companyType: text("company_type"), // "Top-tier PE Firm", "Bulge Bracket Bank", "Tech Unicorn"
   competitorSet: text("competitor_set").array(), // Similar companies
-  talentSource: text("talent_source"), // "Hires from Goldman, Blackstone, KKR"
-  talentDestination: text("talent_destination"), // "Alumni go to PAG, Carlyle"
+  talentSource: text("talent_source"), // "Hires from Goldman, Blackstone, KKR" - learned from org chart
+  talentDestination: text("talent_destination"), // "Alumni go to PAG, Carlyle" - learned from career transitions
+  
+  // Culture insights (from recruiter/candidate conversations - added manually)
+  cultureNotes: text("culture_notes"), // Free-form text from meetings/conversations
+  cultureInsights: jsonb("culture_insights").$type<Array<{
+    insight: string;           // "Very competitive environment"
+    source: string;            // "Candidate interview - Sarah J"
+    date: string;             // When this was learned
+    recruiterName?: string;   // Who learned this
+  }>>(),
   
   // Metadata
   confidence: real("confidence"), // 0-1, how confident we are in these tags

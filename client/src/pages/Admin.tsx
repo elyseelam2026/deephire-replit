@@ -1254,13 +1254,32 @@ export default function Admin() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
-                Bulk Company Upload
+                Bulk Company Intelligence Upload
               </CardTitle>
               <CardDescription>
-                Upload company documents or provide website URLs. Our AI will automatically extract company information and profiles.
+                Upload 1000+ company websites to build the AI intelligence system. System will auto-categorize, discover team members, and learn hiring patterns.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* CSV Format Guide */}
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h3 className="font-semibold text-sm flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  📋 CSV Format for Bulk Upload
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  For uploading 1000+ companies, use a CSV file with the following format:
+                </p>
+                <div className="bg-white dark:bg-gray-900 rounded border p-3 font-mono text-xs">
+                  <div className="text-muted-foreground">company_name,website_url,industry_hint</div>
+                  <div>PAG,https://www.pagasia.com,Private Equity</div>
+                  <div>Blackstone,https://www.blackstone.com,Private Equity</div>
+                  <div>Goldman Sachs,https://www.goldmansachs.com,Investment Banking</div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  <strong>What the AI will do:</strong> Visit each website → Extract company data → Auto-categorize (industry, stage, funding, geography, size) → Discover team members (CEO, CFO, executives) → Build organization charts → Learn hiring patterns
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* File Upload */}
                 <div className="space-y-4">

@@ -2,7 +2,15 @@
 
 ## Overview
 
-DeepHire is an enterprise-grade B2B recruiting platform that uses AI to revolutionize talent acquisition. It offers intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows for recruiting firms and their clients. The platform supports three user types: admin (recruiters), client companies, and candidates, featuring a multi-portal architecture, AI-powered candidate longlisting, and comprehensive management systems for candidates and jobs. The project emphasizes enterprise-level design, professional aesthetics, and data-heavy interfaces optimized for recruitment.
+DeepHire is an enterprise-grade B2B recruiting platform that uses AI to revolutionize talent acquisition. The system mimics a 20-year executive search consultant by learning hiring patterns, understanding career trajectories, and matching candidates based on semantic meaning rather than keyword matching. It offers intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows for recruiting firms and their clients. The platform supports three user types: admin (recruiters), client companies, and candidates, featuring a multi-portal architecture, AI-powered candidate longlisting, and comprehensive management systems for candidates and jobs. The project emphasizes enterprise-level design, professional aesthetics, and data-heavy interfaces optimized for recruitment.
+
+### V1.0 Intelligence System Vision
+**Bottom-Up Learning Approach:**
+1. **Company Intelligence Foundation**: Upload 1000+ company websites → AI extracts data → auto-categorize by industry, stage, funding, geography, size
+2. **Organization Chart Mapping**: Discover team members gradually (CEO, CFO, COO, executives) → build org charts over time as people become visible
+3. **Pattern Learning**: Analyze org charts to discover hiring patterns (e.g., "PAG hires 42% from Blackstone, 30% from Goldman")
+4. **Semantic Matching**: Match candidates using learned patterns + career path similarity (not keyword matching)
+5. **Culture Insights**: Learn company culture through recruiter/candidate conversations (NOT auto-generated from website keywords)
 
 ## User Preferences
 
