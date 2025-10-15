@@ -781,6 +781,70 @@ export const careerPathInsights = pgTable("career_path_insights", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Organization Chart - Maps people to companies with their roles
+export const organizationChart = pgTable("organization_chart", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  candidateId: integer("candidate_id").references(() => candidates.id), // null if person not yet in candidates table
+  
+  // Person info (stored here until moved to candidates table)
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  fullName: text("full_name"),
+  
+  // Role information
+  title: text("title").notNull(), // CEO, CFO, COO, VP Engineering, etc.
+  department: text("department"), // Executive, Engineering, Sales, Finance, etc.
+  level: text("level"), // C-Suite, VP, Director, Manager, Individual Contributor
+  isCLevel: boolean("is_c_level").default(false),
+  isExecutive: boolean("is_executive").default(false),
+  
+  // Reporting structure
+  reportsToId: integer("reports_to_id"), // FK to another org_chart entry (their manager)
+  
+  // Discovery metadata
+  discoveredFrom: text("discovered_from"), // team_page, linkedin, news, manual
+  discoveryDate: timestamp("discovery_date").defaultNow(),
+  lastVerified: timestamp("last_verified"),
+  isActive: boolean("is_active").default(true), // false if person left the company
+  
+  // Contact info (if available)
+  linkedinUrl: text("linkedin_url"),
+  bioUrl: text("bio_url"),
+  email: text("email"),
+  
+  // Timestamps
+  startDate: text("start_date"), // When they joined this role
+  endDate: text("end_date"), // null if current
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Company Intelligence Tags - Multi-dimensional categorization
+export const companyTags = pgTable("company_tags", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  
+  // Auto-categorization dimensions
+  industryTags: text("industry_tags").array(), // ["Private Equity", "Financial Services", "Investment"]
+  stageTags: text("stage_tags").array(), // ["Growth", "Mature", "Enterprise"]
+  fundingTags: text("funding_tags").array(), // ["Series C", "Well-Funded", "Venture-Backed"]
+  geographyTags: text("geography_tags").array(), // ["US", "New York", "Multi-National"]
+  sizeTags: text("size_tags").array(), // ["200-500", "Mid-Size", "Scaling"]
+  cultureTags: text("culture_tags").array(), // ["High-Growth", "Prestigious", "Competitive"]
+  
+  // AI-generated insights
+  companyType: text("company_type"), // "Top-tier PE Firm", "Bulge Bracket Bank", "Tech Unicorn"
+  competitorSet: text("competitor_set").array(), // Similar companies
+  talentSource: text("talent_source"), // "Hires from Goldman, Blackstone, KKR"
+  talentDestination: text("talent_destination"), // "Alumni go to PAG, Carlyle"
+  
+  // Metadata
+  confidence: real("confidence"), // 0-1, how confident we are in these tags
+  lastAnalyzed: timestamp("last_analyzed").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod schemas for new tables
 export const insertCareerTransitionSchema = createInsertSchema(careerTransitions).omit({
   id: true,
@@ -797,6 +861,19 @@ export const insertCompanyHiringPatternSchema = createInsertSchema(companyHiring
 export const insertCareerPathInsightSchema = createInsertSchema(careerPathInsights).omit({
   id: true,
   lastUpdated: true,
+  createdAt: true,
+});
+
+export const insertOrganizationChartSchema = createInsertSchema(organizationChart).omit({
+  id: true,
+  discoveryDate: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCompanyTagsSchema = createInsertSchema(companyTags).omit({
+  id: true,
+  lastAnalyzed: true,
   createdAt: true,
 });
 
@@ -858,3 +935,9 @@ export type CompanyHiringPattern = typeof companyHiringPatterns.$inferSelect;
 
 export type InsertCareerPathInsight = z.infer<typeof insertCareerPathInsightSchema>;
 export type CareerPathInsight = typeof careerPathInsights.$inferSelect;
+
+export type InsertOrganizationChart = z.infer<typeof insertOrganizationChartSchema>;
+export type OrganizationChart = typeof organizationChart.$inferSelect;
+
+export type InsertCompanyTags = z.infer<typeof insertCompanyTagsSchema>;
+export type CompanyTags = typeof companyTags.$inferSelect;
