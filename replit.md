@@ -72,6 +72,10 @@ Preferred communication style: Simple, everyday language.
 - **Null City Protection** (Oct 9, 2025): Fixed child company creation to skip office locations with null/empty city data. Previously created malformed "Company - null" child companies. System now logs warnings and skips invalid offices while preserving legitimate data.
 - **Flexible Team Extraction** (Oct 9, 2025): Replaced rigid CSS selectors with multi-pattern fallback system. Team discovery now tries 3 selector patterns: CVC-style (legacy), PAG-style (`.team-member`, `.team-grid-item`), and generic (`[data-teamid]`, `[class*="team"]`). System stops at first successful match, ensuring broad website compatibility while maintaining performance.
 - **Staging Management UI** (Oct 9, 2025): Complete staging candidate management interface at `/recruiting/staging`. Features include real-time stats dashboard, status filtering (pending/pending_review/approved/rejected), confidence score displays, verification details dialog, and approve/reject workflows. Backend automatically excludes verified candidates from default view to prevent UI clutter after approval. Supports full staging → verification → production pipeline with manual review capabilities.
+- **Company Intelligence Engine** (Oct 15, 2025): Built v1.0 intelligence system with three core engines:
+  - **Auto-Categorization Engine**: `categorizeCompany()` function analyzes company websites using Grok AI to tag by industry, stage, funding, geography, and size. Saves structured tags to `companyTags` table for filtering and search.
+  - **Organization Chart Population**: `analyzeRoleLevel()` detects C-level (CEO, CFO, etc.) and executive roles. Team discovery automatically populates `organization_chart` table with role hierarchy (C-Suite, VP, Director), department classification, and discovery metadata.
+  - **Pattern Learning Engine**: `analyzeCompanyHiringPatterns()` foundation ready to analyze org charts and discover hiring patterns (e.g., "PAG hires 42% from Blackstone"). Will track career transitions and preferred source companies when LinkedIn career history data is integrated.
 
 ## External Dependencies
 
