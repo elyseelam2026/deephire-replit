@@ -3315,3 +3315,97 @@ Write a polished, professional biography suitable for executive recruiting. Be s
     throw error;
   }
 }
+
+/**
+ * TASK 2: Auto-categorization AI Engine
+ * Analyzes company website content and automatically categorizes by multiple dimensions
+ * Returns structured tags for: industry, stage, funding, geography, size
+ */
+export async function categorizeCompany(
+  websiteUrl: string, 
+  websiteContent: string,
+  companyName?: string
+): Promise<{
+  industryTags: string[];
+  stageTags: string[];
+  fundingTags: string[];
+  geographyTags: string[];
+  sizeTags: string[];
+  companyType: string;
+  confidence: number;
+} | null> {
+  try {
+    console.log(`\n[Auto-Categorization] Analyzing company: ${companyName || websiteUrl}`);
+    
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert business analyst specializing in company categorization and market intelligence. 
+Analyze website content and categorize companies across multiple dimensions with high precision. 
+Always respond with valid JSON.`
+        },
+        {
+          role: "user",
+          content: `Analyze this company's website and categorize it across multiple dimensions.
+
+Company: ${companyName || 'Unknown'}
+Website: ${websiteUrl}
+
+Website Content:
+${websiteContent.slice(0, 30000)}
+
+Return EXACTLY this JSON structure:
+{
+  "industryTags": ["Primary Industry", "Secondary Industry", "Sector"],
+  "stageTags": ["Startup|Growth|Mature|Enterprise"],
+  "fundingTags": ["Bootstrap|Seed|Series A-F|IPO|PE-Backed|Public"],
+  "geographyTags": ["Primary HQ Location", "Operating Regions", "Countries"],
+  "sizeTags": ["1-10|11-50|51-200|201-500|501-1000|1001-5000|5000+", "Small|Mid-Size|Large|Enterprise"],
+  "companyType": "Brief descriptor like 'Top-tier PE Firm', 'Growth-stage SaaS', 'Fortune 500 Bank'",
+  "confidence": 0.85
+}
+
+Guidelines:
+- industryTags: Be specific (e.g., "Private Equity", "Investment Banking", "Enterprise SaaS", "Healthcare Technology")
+- stageTags: Maturity level based on language, employee count, funding
+- fundingTags: Extract funding stage if mentioned, or infer from company stage
+- geographyTags: HQ location and operating regions (e.g., ["New York", "US", "North America", "Global"])
+- sizeTags: Employee range if mentioned, plus qualitative descriptor
+- companyType: Single-line descriptor for quick identification
+- confidence: 0-1 score based on clarity of website content
+
+Be precise and use industry-standard terminology.`
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    // Validate and normalize the response
+    const categorization = {
+      industryTags: Array.isArray(result.industryTags) ? result.industryTags : [],
+      stageTags: Array.isArray(result.stageTags) ? result.stageTags : [],
+      fundingTags: Array.isArray(result.fundingTags) ? result.fundingTags : [],
+      geographyTags: Array.isArray(result.geographyTags) ? result.geographyTags : [],
+      sizeTags: Array.isArray(result.sizeTags) ? result.sizeTags : [],
+      companyType: result.companyType || 'Unknown',
+      confidence: typeof result.confidence === 'number' ? result.confidence : 0.5
+    };
+
+    console.log(`[Auto-Categorization] ✓ Categorized successfully:`);
+    console.log(`  Industry: ${categorization.industryTags.join(', ')}`);
+    console.log(`  Stage: ${categorization.stageTags.join(', ')}`);
+    console.log(`  Type: ${categorization.companyType}`);
+    console.log(`  Confidence: ${(categorization.confidence * 100).toFixed(0)}%`);
+    
+    return categorization;
+    
+  } catch (error) {
+    console.error(`[Auto-Categorization] Error:`, error);
+    return null;
+  }
+}
