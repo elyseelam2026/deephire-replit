@@ -76,6 +76,7 @@ Preferred communication style: Simple, everyday language.
   - **Auto-Categorization Engine**: `categorizeCompany()` function analyzes company websites using Grok AI to tag by industry, stage, funding, geography, and size. Saves structured tags to `companyTags` table for filtering and search.
   - **Organization Chart Population**: `analyzeRoleLevel()` detects C-level (CEO, CFO, etc.) and executive roles. Team discovery automatically populates `organization_chart` table with role hierarchy (C-Suite, VP, Director), department classification, and discovery metadata.
   - **Pattern Learning Engine**: `analyzeCompanyHiringPatterns()` foundation ready to analyze org charts and discover hiring patterns (e.g., "PAG hires 42% from Blackstone"). Will track career transitions and preferred source companies when LinkedIn career history data is integrated.
+  - **Automated Processing Pipeline**: Upload workflow connected to background jobs. After CSV upload, system automatically: (1) saves companies to database, (2) triggers background intelligence processing via `processBulkCompanyIntelligence()`, (3) runs categorization → team discovery → pattern learning pipeline for each company. User sees "AI intelligence processing started for X companies" confirmation.
 
 ## External Dependencies
 
