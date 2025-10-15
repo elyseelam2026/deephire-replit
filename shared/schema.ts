@@ -824,6 +824,7 @@ export const organizationChart = pgTable("organization_chart", {
 export const companyTags = pgTable("company_tags", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   companyId: integer("company_id").references(() => companies.id).notNull(),
+  companyName: text("company_name"), // Cached for quick reference
   
   // Auto-categorization dimensions (from website scraping)
   industryTags: text("industry_tags").array(), // ["Private Equity", "Financial Services", "Investment"]
@@ -851,6 +852,7 @@ export const companyTags = pgTable("company_tags", {
   confidence: real("confidence"), // 0-1, how confident we are in these tags
   lastAnalyzed: timestamp("last_analyzed").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Zod schemas for new tables
@@ -883,6 +885,7 @@ export const insertCompanyTagsSchema = createInsertSchema(companyTags).omit({
   id: true,
   lastAnalyzed: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 // Type exports
