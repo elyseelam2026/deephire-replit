@@ -93,7 +93,7 @@ export async function scrapeLinkedInProfile(linkedinUrl: string): Promise<Linked
   }
 }
 
-async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, delayMs: number = 3000): Promise<LinkedInProfileData> {
+async function pollForProfileData(snapshotId: string, maxAttempts: number = 20, delayMs: number = 30000): Promise<LinkedInProfileData> {
   const endpoint = `${BRIGHTDATA_BASE_URL}/snapshot/${snapshotId}`;
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -132,13 +132,15 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, 
 
       const data: any = await response.json();
       
-      console.log(`[Bright Data] Response:`, JSON.stringify(data).substring(0, 200));
+      console.log(`[Bright Data] Response type: ${Array.isArray(data) ? 'array' : 'object'}, keys: ${Array.isArray(data) ? `length=${data.length}` : Object.keys(data).join(',')}`);
+      console.log(`[Bright Data] Response preview:`, JSON.stringify(data).substring(0, 300));
       
       // IMPORTANT: Bright Data response format varies:
-      // Format 1: { status: 'ready', data: [...] }  <- wrapped format
-      // Format 2: [...] <- direct array format (THIS IS WHAT WE'RE GETTING)
+      // Format 1: { status: 'ready', data: [...] }  <- wrapped status format
+      // Format 2: { status: 'running', message: '...' } <- still processing
+      // Format 3: [...] <- direct array format (READY!)
       
-      // Check if response is a direct array (Format 2)
+      // Check if response is a direct array (Format 3 - DATA IS READY!)
       if (Array.isArray(data) && data.length > 0) {
         // Validate the data has actual LinkedIn profile content
         const profileData = data[0];
