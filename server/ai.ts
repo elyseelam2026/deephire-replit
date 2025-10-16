@@ -3263,6 +3263,100 @@ Write a polished, professional biography suitable for executive recruiting. Be s
 }
 
 /**
+ * Extract structured career history from raw LinkedIn HTML using AI
+ * This bypasses Bright Data's censorship by parsing HTML directly
+ */
+export async function extractCareerHistoryFromRawHTML(html: string): Promise<Array<{
+  company: string;
+  companyId?: number | null;
+  title: string;
+  startDate: string;
+  endDate?: string | null;
+  description?: string;
+  location?: string;
+}>> {
+  console.log(`[Career History HTML] Extracting career history from raw HTML using AI...`);
+  
+  try {
+    // Truncate HTML to first 50K characters (focus on main content)
+    const truncatedHTML = html.substring(0, 50000);
+    
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert at extracting structured data from HTML. Extract LinkedIn career history (Experience section) from the provided HTML and return it as a JSON array.`
+        },
+        {
+          role: "user",
+          content: `Extract all career history entries from this LinkedIn profile HTML. Return ONLY a valid JSON array with this exact structure:
+
+[
+  {
+    "company": "Company Name",
+    "title": "Job Title",
+    "startDate": "YYYY-MM or YYYY",
+    "endDate": "YYYY-MM or YYYY" or null if current,
+    "description": "Role description if available",
+    "location": "Location if available"
+  }
+]
+
+CRITICAL RULES:
+1. Extract ALL experience entries, not just recent ones
+2. startDate and endDate must be in "YYYY-MM" or "YYYY" format
+3. Set endDate to null if the role is current (indicated by "Present", "Current", etc.)
+4. Return ONLY the JSON array, no markdown, no explanations
+5. If no experience found, return []
+
+HTML:
+${truncatedHTML}
+
+JSON array:`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 3000
+    });
+    
+    const aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
+    console.log(`[Career History HTML] AI response:`, aiResponse.substring(0, 200));
+    
+    // Parse the AI response as JSON
+    const careerHistory = JSON.parse(aiResponse);
+    
+    if (!Array.isArray(careerHistory)) {
+      console.error(`[Career History HTML] AI did not return an array`);
+      return [];
+    }
+    
+    console.log(`[Career History HTML] ✓ Extracted ${careerHistory.length} career entries from HTML`);
+    
+    // Normalize and validate entries
+    const normalized = careerHistory.map((entry: any, index: number) => {
+      console.log(`[Career History HTML] [${index}] ${entry.title || 'Unknown'} at ${entry.company || 'Unknown'} (${entry.startDate} - ${entry.endDate || 'present'})`);
+      
+      return {
+        company: entry.company || 'Unknown Company',
+        companyId: null,
+        title: entry.title || 'Unknown Title',
+        startDate: entry.startDate || '',
+        endDate: entry.endDate || null,
+        description: entry.description || '',
+        location: entry.location || ''
+      };
+    });
+    
+    return normalized;
+    
+  } catch (error) {
+    console.error(`[Career History HTML] Error extracting from HTML:`, error);
+    return [];
+  }
+}
+
+/**
  * Extract structured career history from LinkedIn data for pattern learning
  */
 export function extractCareerHistoryFromLinkedInData(linkedinData: any): Array<{

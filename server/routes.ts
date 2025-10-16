@@ -1931,34 +1931,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Candidate must have a LinkedIn URL to generate biography" });
       }
       
-      const { scrapeLinkedInProfile } = await import('./brightdata');
-      const { generateBiographyFromLinkedInData, extractCareerHistoryFromLinkedInData } = await import('./ai');
+      const { scrapeLinkedInRawHTML } = await import('./brightdata');
+      const { extractCareerHistoryFromRawHTML } = await import('./ai');
       
       console.log(`[Auto-Bio] Generating biography for candidate ${candidateId}: ${candidate.firstName} ${candidate.lastName}`);
       console.log(`[Auto-Bio] LinkedIn URL: ${candidate.linkedinUrl}`);
       
-      // Use Bright Data to scrape LinkedIn profile
-      console.log(`[Auto-Bio] Scraping LinkedIn profile with Bright Data...`);
-      const linkedinData = await scrapeLinkedInProfile(candidate.linkedinUrl);
+      // Use Bright Data Web Unlocker to get raw HTML (bypasses censorship)
+      console.log(`[Auto-Bio] Scraping LinkedIn profile HTML with Bright Data Web Unlocker...`);
+      const rawHTML = await scrapeLinkedInRawHTML(candidate.linkedinUrl);
       
-      // Generate comprehensive biography from the scraped data
-      console.log(`[Auto-Bio] Generating biography from scraped LinkedIn data...`);
-      const biography = await generateBiographyFromLinkedInData(
-        candidate.firstName,
-        candidate.lastName,
-        linkedinData
-      );
+      // Extract structured career history from raw HTML using AI
+      console.log(`[Auto-Bio] Extracting career history from raw HTML using AI...`);
+      const careerHistory = await extractCareerHistoryFromRawHTML(rawHTML);
+      console.log(`[Auto-Bio] Extracted ${careerHistory.length} career entries`);
+      
+      // Generate biography text from career history
+      const biographySections = [];
+      
+      // Executive Summary
+      if (careerHistory.length > 0) {
+        const currentRole = careerHistory[0];
+        biographySections.push(`**Executive Summary**\n\n${candidate.firstName} ${candidate.lastName} currently serves as ${currentRole.title} at ${currentRole.company}.`);
+      }
+      
+      // Career History
+      if (careerHistory.length > 0) {
+        let careerText = '**Career History**\n\n';
+        careerHistory.forEach((entry) => {
+          const period = entry.startDate && entry.endDate 
+            ? `${entry.startDate} - ${entry.endDate}` 
+            : entry.startDate 
+              ? `${entry.startDate} - Present`
+              : '';
+          careerText += `${candidate.firstName} ${candidate.lastName} ${entry.endDate ? 'served' : 'serves'} as ${entry.title} at ${entry.company}${period ? ` (${period})` : ''}.`;
+          if (entry.description) {
+            careerText += ` ${entry.description}`;
+          }
+          careerText += '\n\n';
+        });
+        biographySections.push(careerText.trim());
+      }
+      
+      // Education (placeholder)
+      biographySections.push('**Education Background**\n\nEducation details to be added.');
+      
+      const biography = biographySections.join('\n\n');
       
       if (!biography || !biography.trim()) {
         return res.status(500).json({ 
           error: "Failed to generate biography from LinkedIn profile" 
         });
       }
-      
-      // Extract structured career history for pattern learning
-      console.log(`[Auto-Bio] Extracting structured career history...`);
-      const careerHistory = extractCareerHistoryFromLinkedInData(linkedinData);
-      console.log(`[Auto-Bio] Extracted ${careerHistory.length} career entries`);
       
       const updated = await storage.updateCandidate(candidateId, {
         biography: biography.trim(),
