@@ -3263,6 +3263,85 @@ Write a polished, professional biography suitable for executive recruiting. Be s
 }
 
 /**
+ * Extract structured career history from biography text
+ * Fallback when structured data is censored
+ */
+export async function extractCareerHistoryFromBiography(biography: string): Promise<Array<{
+  company: string;
+  companyId?: number | null;
+  title: string;
+  startDate: string;
+  endDate?: string | null;
+  description?: string;
+  location?: string;
+}>> {
+  console.log(`[Career History Bio] Extracting career history from biography text...`);
+  
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert at extracting structured career data from professional biographies. Extract all career positions mentioned in chronological order.`
+        },
+        {
+          role: "user",
+          content: `Extract all career history from this biography. Return ONLY a valid JSON array:
+
+[
+  {
+    "company": "Company Name",
+    "title": "Job Title",
+    "startDate": "YYYY-MM or YYYY",
+    "endDate": "YYYY-MM or YYYY" or null if current
+  }
+]
+
+Rules:
+1. Extract ALL positions mentioned (current and previous)
+2. If dates aren't explicit, infer from context (e.g., "currently serves" = endDate: null)
+3. Return ONLY the JSON array, no markdown, no explanations
+4. If no career data found, return []
+
+Biography:
+${biography}
+
+JSON array:`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 2000
+    });
+    
+    const aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
+    console.log(`[Career History Bio] AI response:`, aiResponse.substring(0, 200));
+    
+    const careerHistory = JSON.parse(aiResponse);
+    
+    if (!Array.isArray(careerHistory)) {
+      return [];
+    }
+    
+    console.log(`[Career History Bio] ✓ Extracted ${careerHistory.length} entries from biography`);
+    
+    return careerHistory.map((entry: any) => ({
+      company: entry.company || 'Unknown Company',
+      companyId: null,
+      title: entry.title || 'Unknown Title',
+      startDate: entry.startDate || '',
+      endDate: entry.endDate || null,
+      description: entry.description || '',
+      location: entry.location || ''
+    }));
+    
+  } catch (error) {
+    console.error(`[Career History Bio] Error:`, error);
+    return [];
+  }
+}
+
+/**
  * Extract structured career history from raw LinkedIn HTML using AI
  * This bypasses Bright Data's censorship by parsing HTML directly
  */
