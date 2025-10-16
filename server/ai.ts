@@ -2646,8 +2646,87 @@ function constructPaginationUrl(baseUrl: string, pageNum: number, paginationInfo
 }
 
 /**
+ * AI-powered team member extraction from HTML
+ * Uses Grok AI to intelligently understand website structure and extract team data
+ */
+async function aiExtractTeamMembers(html: string, baseUrl: string): Promise<{
+  name: string;
+  title?: string;
+  bioUrl?: string;
+}[]> {
+  try {
+    console.log('\n🤖 Using AI to intelligently extract team members from HTML...');
+    
+    // Truncate HTML if too long (keep first 50K chars which usually contains the team list)
+    const truncatedHtml = html.length > 50000 ? html.substring(0, 50000) : html;
+    
+    const prompt = `You are analyzing a company website's team/people page to extract employee information.
+
+HTML Content (truncated):
+\`\`\`html
+${truncatedHtml}
+\`\`\`
+
+Base URL: ${baseUrl}
+
+Your task:
+1. Identify the HTML pattern where team members are listed (look for repeated structures with names/titles)
+2. Extract ALL team members with their:
+   - Full name (first + last name)
+   - Job title/role (if available)
+   - Bio/profile URL (if available - make it absolute using base URL)
+
+Requirements:
+- Extract REAL data only (no placeholders, no examples)
+- If a person's name appears multiple times, include them only once
+- Return EMPTY array if you cannot find any team members
+- For bio URLs: convert relative URLs (e.g., "/people/john-smith") to absolute (e.g., "${baseUrl}/people/john-smith")
+
+Return ONLY a JSON array with this exact structure:
+[
+  {"name": "John Smith", "title": "CEO", "bioUrl": "${baseUrl}/people/john-smith"},
+  {"name": "Jane Doe", "title": "CFO", "bioUrl": "${baseUrl}/people/jane-doe"}
+]
+
+If NO team members found, return: []`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are a precise web scraping AI that extracts structured data from HTML. You ONLY return valid JSON arrays, nothing else."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 16000,
+    });
+
+    const content = response.choices[0]?.message?.content?.trim() || '[]';
+    
+    // Extract JSON from response (handle cases where AI adds explanation text)
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    const jsonStr = jsonMatch ? jsonMatch[0] : '[]';
+    
+    const teamMembers = JSON.parse(jsonStr);
+    
+    console.log(`✅ AI extracted ${teamMembers.length} team members`);
+    
+    return Array.isArray(teamMembers) ? teamMembers : [];
+    
+  } catch (error) {
+    console.error('AI extraction error:', error);
+    return [];
+  }
+}
+
+/**
  * Discover team members from company website
- * Scrapes team/people pages and extracts employee names and bio URLs
+ * Uses AI-powered intelligent extraction instead of static CSS selectors
  */
 export async function discoverTeamMembers(websiteUrl: string): Promise<{
   name: string;
@@ -2728,8 +2807,8 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       return [];
     }
     
-    // Fetch initial HTML
-    console.log('Fetching HTML from team page...');
+    // Fetch HTML for AI extraction
+    console.log('Fetching HTML from team page for AI analysis...');
     const htmlResponse = await fetch(teamPageUrl, {
       method: 'GET',
       headers: {
@@ -2740,113 +2819,8 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     const html = htmlResponse.ok ? await htmlResponse.text() : '';
     console.log(`Fetched ${html.length} characters of HTML`);
     
-    // Parse HTML with cheerio
-    const $ = cheerio.load(html);
-    
-    // Extract team members using CSS selectors with multiple fallback patterns
-    console.log('Extracting team members from HTML using CSS selectors...');
-    
-    let allTeamMembers: any[] = [];
-    
-    // Try multiple selector patterns
-    const selectorPatterns = [
-      // Pattern 1: CVC-style selectors
-      { card: 'a.js-people-link', name: '.people__name', lastName: '.people__last-name', title: '.people__job' },
-      // Pattern 2: PAG-style selectors
-      { card: '.team-member, .team-grid-item', name: '.team-member__name, .member-name, h3, h4', title: '.team-member__title, .member-title, .team-member__job, p' },
-      // Pattern 3: Permira-style (links to profile pages with name/title inside)
-      { card: 'a[href*="/people/"], a[href*="/team/"], a[href*="/leadership/"]', name: 'strong, b, .name', title: 'span, p, .title, .role' },
-      // Pattern 4: Generic team member divs
-      { card: '[data-teamid], [class*="team"][class*="member"], [class*="person"], [class*="profile"]', name: 'h2, h3, h4, .name', title: '.title, .role, .position, p' },
-    ];
-    
-    let extractedCount = 0;
-    
-    for (const pattern of selectorPatterns) {
-      const teamMemberCards = $(pattern.card);
-      console.log(`Trying pattern ${selectorPatterns.indexOf(pattern) + 1}: Found ${teamMemberCards.length} cards with selector "${pattern.card}"`);
-      
-      if (teamMemberCards.length === 0) continue;
-      
-      teamMemberCards.each((index, element) => {
-        const $card = $(element);
-        const href = $card.attr('href') || $card.find('a').attr('href');
-        
-        // Try to extract name
-        let fullName = '';
-        if (pattern.lastName) {
-          const firstName = $card.find(pattern.name).contents().filter(function() {
-            return this.type === 'text';
-          }).text().trim();
-          const lastName = $card.find(pattern.lastName).text().trim();
-          fullName = `${firstName} ${lastName}`.trim();
-        } else {
-          fullName = $card.find(pattern.name).first().text().trim();
-          // If no name found in name selector, try getting from data attributes
-          if (!fullName) {
-            fullName = $card.attr('data-name') || $card.attr('aria-label') || '';
-          }
-        }
-        
-        let title = $card.find(pattern.title).first().text().trim();
-        
-        // If no title found with selector, try to extract from full card text
-        if (!title) {
-          const fullText = $card.text().trim();
-          // Remove the name from the text to get the title
-          title = fullText.replace(fullName, '').trim();
-          // Clean up any extra whitespace or newlines
-          title = title.replace(/\s+/g, ' ').trim();
-        }
-        
-        if (fullName && fullName.length > 1 && !/^\d+$/.test(fullName)) {
-          allTeamMembers.push({
-            name: fullName,
-            title: title || 'Team Member',
-            bioUrl: href ? new URL(href, teamPageUrl).toString() : undefined
-          });
-          extractedCount++;
-        }
-      });
-      
-      // If we found team members with this pattern, stop trying others
-      if (extractedCount > 0) {
-        console.log(`✓ Successfully extracted ${extractedCount} team members using pattern ${selectorPatterns.indexOf(pattern) + 1}`);
-        break;
-      }
-    }
-    
-    console.log(`✓ Extracted ${allTeamMembers.length} team members from initial HTML`);
-    
-    // Check for JavaScript-rendered pagination
-    const paginationButtons = $('button[data-page]');
-    const hasPagination = paginationButtons.length > 0;
-    
-    if (hasPagination) {
-      // Find max page number
-      let maxPage = 1;
-      paginationButtons.each((i, btn) => {
-        const pageNum = parseInt($(btn).attr('data-page') || '1');
-        if (!isNaN(pageNum) && pageNum > maxPage) {
-          maxPage = pageNum;
-        }
-      });
-      
-      console.log(`\n🚀 Detected JavaScript pagination: ${maxPage} pages total`);
-      console.log(`Initial HTML contains only ${allTeamMembers.length} people`);
-      console.log(`Estimated total: ${maxPage * allTeamMembers.length} people`);
-      console.log(`\n✅ Using Playwright to scrape all ${maxPage} pages...`);
-      
-      // Use Playwright to scrape all pages
-      const playwrightMembers = await scrapeTeamMembersWithPlaywright(teamPageUrl, maxPage);
-      
-      if (playwrightMembers.length > allTeamMembers.length) {
-        console.log(`✓ Playwright found ${playwrightMembers.length} members (vs ${allTeamMembers.length} from static HTML)`);
-        allTeamMembers = playwrightMembers;
-      } else {
-        console.log(`⚠ Playwright found ${playwrightMembers.length} members, keeping static HTML results (${allTeamMembers.length})`);
-      }
-    }
+    // Use AI to intelligently extract team members from any website structure
+    const allTeamMembers = await aiExtractTeamMembers(html, teamPageUrl);
     
     console.log(`\n✅ Total team members extracted from all pages: ${allTeamMembers.length}`);
     
@@ -2861,51 +2835,9 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     
     const teamMembers = Array.from(uniqueMembers.values());
     console.log(`After deduplication: ${teamMembers.length} unique team members`);
+    console.log(`✅ Discovered ${teamMembers.length} team members`);
     
-    // Try to find bio URLs in HTML for each team member ($ already loaded above)
-    const links = $('a[href]');
-    const bioUrlMap = new Map<string, string>();
-    
-    links.each((_, element) => {
-      const href = $(element).attr('href');
-      const text = $(element).text().trim().toLowerCase();
-      const linkText = text.replace(/\s+/g, ' ');
-      
-      if (!href) return;
-      
-      // Look for links that might be bio pages
-      for (const member of teamMembers) {
-        const memberNameLower = member.name.toLowerCase();
-        const firstNameLower = member.name.split(' ')[0].toLowerCase();
-        const lastNameLower = member.name.split(' ').slice(-1)[0].toLowerCase();
-        
-        // Check if link text matches team member name
-        if (linkText.includes(memberNameLower) || 
-            linkText.includes(firstNameLower + ' ' + lastNameLower)) {
-          
-          // Make URL absolute
-          let bioUrl = href;
-          if (href.startsWith('/')) {
-            bioUrl = baseUrlStr + href;
-          } else if (!href.startsWith('http')) {
-            bioUrl = baseUrlStr + '/' + href;
-          }
-          
-          bioUrlMap.set(member.name, bioUrl);
-          console.log(`Found bio URL for ${member.name}: ${bioUrl}`);
-        }
-      }
-    });
-    
-    // Combine results
-    const result = teamMembers.map((member: any) => ({
-      name: member.name,
-      title: member.title || 'Team Member',
-      bioUrl: bioUrlMap.get(member.name) || undefined
-    }));
-    
-    console.log(`✅ Discovered ${result.length} team members`);
-    return result;
+    return teamMembers;
     
   } catch (error) {
     console.error(`Error discovering team members: ${error}`);
