@@ -3263,6 +3263,80 @@ Write a polished, professional biography suitable for executive recruiting. Be s
 }
 
 /**
+ * Extract structured career history from LinkedIn data for pattern learning
+ */
+export function extractCareerHistoryFromLinkedInData(linkedinData: any): Array<{
+  company: string;
+  companyId?: number | null;
+  title: string;
+  startDate: string;
+  endDate?: string | null;
+  description?: string;
+  location?: string;
+}> {
+  console.log(`[Career History] Extracting structured career history from LinkedIn data`);
+  
+  try {
+    const experience = linkedinData.experience || [];
+    
+    if (!Array.isArray(experience) || experience.length === 0) {
+      console.log(`[Career History] No experience data found`);
+      return [];
+    }
+    
+    const careerHistory = experience.map((exp: any, index: number) => {
+      const company = exp.company || exp.company_name || 'Unknown Company';
+      const title = exp.title || exp.position || 'Unknown Title';
+      
+      // Parse dates - LinkedIn data might use different formats
+      let startDate = '';
+      let endDate: string | null = null;
+      
+      if (exp.start_date) {
+        // Format: "Jan 2020" or "2020" or "2020-01"
+        startDate = exp.start_date;
+      } else if (exp.started_on) {
+        const started = exp.started_on;
+        if (started.year) {
+          startDate = started.month ? `${started.year}-${String(started.month).padStart(2, '0')}` : `${started.year}`;
+        }
+      }
+      
+      if (exp.end_date) {
+        endDate = exp.end_date;
+      } else if (exp.finished_on) {
+        const finished = exp.finished_on;
+        if (finished.year) {
+          endDate = finished.month ? `${finished.year}-${String(finished.month).padStart(2, '0')}` : `${finished.year}`;
+        }
+      }
+      
+      const description = exp.description || '';
+      const location = exp.location || '';
+      
+      console.log(`[Career History] [${index}] ${title} at ${company} (${startDate} - ${endDate || 'present'})`);
+      
+      return {
+        company,
+        companyId: null, // Will be matched later against companies table
+        title,
+        startDate,
+        endDate,
+        description,
+        location
+      };
+    });
+    
+    console.log(`[Career History] ✓ Extracted ${careerHistory.length} career entries`);
+    return careerHistory;
+    
+  } catch (error) {
+    console.error(`[Career History] Error extracting career history:`, error);
+    return [];
+  }
+}
+
+/**
  * TASK 3: C-Level and Executive Role Detection
  * Analyzes job titles to identify organizational hierarchy
  */
