@@ -1932,7 +1932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { scrapeLinkedInProfile } = await import('./brightdata');
-      const { generateBiographyFromLinkedInData } = await import('./ai');
+      const { generateBiographyFromLinkedInData, extractCareerHistoryFromLinkedInData } = await import('./ai');
       
       console.log(`[Auto-Bio] Generating biography for candidate ${candidateId}: ${candidate.firstName} ${candidate.lastName}`);
       console.log(`[Auto-Bio] LinkedIn URL: ${candidate.linkedinUrl}`);
@@ -1955,10 +1955,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Extract structured career history for pattern learning
+      console.log(`[Auto-Bio] Extracting structured career history...`);
+      const careerHistory = extractCareerHistoryFromLinkedInData(linkedinData);
+      console.log(`[Auto-Bio] Extracted ${careerHistory.length} career entries`);
+      
       const updated = await storage.updateCandidate(candidateId, {
         biography: biography.trim(),
         bioSource: 'linkedin_brightdata',
-        bioStatus: 'inferred'
+        bioStatus: 'inferred',
+        careerHistory: careerHistory as any
       });
       
       res.json({
