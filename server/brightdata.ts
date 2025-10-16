@@ -1,5 +1,6 @@
 const BRIGHTDATA_API_KEY = process.env.BRIGHTDATA_API_KEY;
 const BRIGHTDATA_BASE_URL = 'https://api.brightdata.com/datasets/v3';
+const BRIGHTDATA_PROXY_URL = 'brd.superproxy.io:22225';
 
 export interface LinkedInProfileData {
   linkedin_id?: string;
@@ -186,6 +187,73 @@ async function pollForProfileData(snapshotId: string, maxAttempts: number = 60, 
   }
   
   throw new Error(`Bright Data scraping timed out after ${maxAttempts} polling attempts (${Math.round(maxAttempts * delayMs / 1000)}s)`);
+}
+
+/**
+ * Fetch raw HTML from LinkedIn using Bright Data Web Unlocker
+ * This bypasses the censorship in structured datasets
+ */
+export async function scrapeLinkedInRawHTML(linkedinUrl: string): Promise<string> {
+  if (!BRIGHTDATA_API_KEY) {
+    throw new Error('BRIGHTDATA_API_KEY is not configured');
+  }
+
+  if (!linkedinUrl || !linkedinUrl.includes('linkedin.com')) {
+    throw new Error('Invalid LinkedIn URL provided');
+  }
+
+  console.log(`[Bright Data Raw HTML] Scraping: ${linkedinUrl}`);
+
+  try {
+    // Use Web Unlocker proxy to get raw HTML
+    const { HttpsProxyAgent } = await import('https-proxy-agent');
+    const https = await import('https');
+    
+    const proxyAuth = `${BRIGHTDATA_API_KEY}:`;
+    const proxyUrl = `http://${proxyAuth}@${BRIGHTDATA_PROXY_URL}`;
+    const agent = new HttpsProxyAgent(proxyUrl);
+
+    console.log(`[Bright Data Raw HTML] Using Web Unlocker proxy...`);
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(linkedinUrl, {
+        method: 'GET',
+        agent: agent,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        }
+      }, (res) => {
+        let html = '';
+        
+        res.on('data', (chunk) => {
+          html += chunk;
+        });
+        
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            console.log(`[Bright Data Raw HTML] ✓ Fetched ${html.length} characters of HTML`);
+            resolve(html);
+          } else {
+            console.error(`[Bright Data Raw HTML] HTTP Error (${res.statusCode})`);
+            reject(new Error(`Failed to fetch raw HTML: ${res.statusCode}`));
+          }
+        });
+      });
+      
+      req.on('error', (error) => {
+        console.error('[Bright Data Raw HTML] Request error:', error);
+        reject(error);
+      });
+      
+      req.end();
+    });
+
+  } catch (error) {
+    console.error('[Bright Data Raw HTML] Scraping failed:', error);
+    throw error;
+  }
 }
 
 export async function generateBiographyFromLinkedInData(profileData: LinkedInProfileData): Promise<string> {
