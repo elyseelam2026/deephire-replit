@@ -2754,7 +2754,9 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       { card: 'a.js-people-link', name: '.people__name', lastName: '.people__last-name', title: '.people__job' },
       // Pattern 2: PAG-style selectors
       { card: '.team-member, .team-grid-item', name: '.team-member__name, .member-name, h3, h4', title: '.team-member__title, .member-title, .team-member__job, p' },
-      // Pattern 3: Generic team member divs
+      // Pattern 3: Permira-style (links to profile pages with name/title inside)
+      { card: 'a[href*="/people/"], a[href*="/team/"], a[href*="/leadership/"]', name: 'strong, b, .name', title: 'span, p, .title, .role' },
+      // Pattern 4: Generic team member divs
       { card: '[data-teamid], [class*="team"][class*="member"], [class*="person"], [class*="profile"]', name: 'h2, h3, h4, .name', title: '.title, .role, .position, p' },
     ];
     
@@ -2786,7 +2788,16 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
           }
         }
         
-        const title = $card.find(pattern.title).first().text().trim();
+        let title = $card.find(pattern.title).first().text().trim();
+        
+        // If no title found with selector, try to extract from full card text
+        if (!title) {
+          const fullText = $card.text().trim();
+          // Remove the name from the text to get the title
+          title = fullText.replace(fullName, '').trim();
+          // Clean up any extra whitespace or newlines
+          title = title.replace(/\s+/g, ' ').trim();
+        }
         
         if (fullName && fullName.length > 1 && !/^\d+$/.test(fullName)) {
           allTeamMembers.push({
