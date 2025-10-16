@@ -1955,13 +1955,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           if (bioResponse.ok) {
             const bioHTML = await bioResponse.text();
-            const cheerio = (await import('cheerio')).default;
+            const cheerio = await import('cheerio');
             const $ = cheerio.load(bioHTML);
             
             // Extract text content (remove scripts, styles)
             $('script, style, nav, header, footer').remove();
-            bioContent = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 10000);
-            console.log(`[Auto-Bio] ✓ Fetched ${bioContent.length} chars from bio URL`);
+            const extractedText = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 10000);
+            if (extractedText) {
+              bioContent = extractedText;
+              console.log(`[Auto-Bio] ✓ Fetched ${bioContent.length} chars from bio URL`);
+            }
           }
         } catch (error) {
           console.log(`[Auto-Bio] Could not fetch bio URL: ${error}`);
