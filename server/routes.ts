@@ -1932,21 +1932,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { scrapeLinkedInProfile } = await import('./brightdata');
-      const { generateBiographyFromLinkedInData, extractCareerHistoryFromLinkedInData } = await import('./ai');
+      const { generateBiographyAndCareerHistory } = await import('./ai');
       
-      console.log(`[Auto-Bio] Generating biography for candidate ${candidateId}: ${candidate.firstName} ${candidate.lastName}`);
+      console.log(`[Auto-Bio] Starting auto-biography for candidate ${candidateId}: ${candidate.firstName} ${candidate.lastName}`);
       console.log(`[Auto-Bio] LinkedIn URL: ${candidate.linkedinUrl}`);
       
-      // Use Bright Data to scrape LinkedIn profile
+      // Step 1: Scrape LinkedIn profile
       console.log(`[Auto-Bio] Scraping LinkedIn profile with Bright Data...`);
       const linkedinData = await scrapeLinkedInProfile(candidate.linkedinUrl);
       
-      // Generate comprehensive biography from the scraped data
-      console.log(`[Auto-Bio] Generating biography from scraped LinkedIn data...`);
-      const biography = await generateBiographyFromLinkedInData(
+      // Step 2: Fetch bio URL content if available (for Layer 1 comprehension)
+      let bioContent: string | undefined;
+      if (candidate.bioUrl) {
+        try {
+          console.log(`[Auto-Bio] Fetching bio URL content: ${candidate.bioUrl}`);
+          const bioResponse = await fetch(candidate.bioUrl, { 
+            signal: AbortSignal.timeout(15000),
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; DeepHire/1.0; +http://deephire.com/bot)'
+            }
+          });
+          
+          if (bioResponse.ok) {
+            const bioHTML = await bioResponse.text();
+            const cheerio = (await import('cheerio')).default;
+            const $ = cheerio.load(bioHTML);
+            
+            // Extract text content (remove scripts, styles)
+            $('script, style, nav, header, footer').remove();
+            bioContent = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 10000);
+            console.log(`[Auto-Bio] ✓ Fetched ${bioContent.length} chars from bio URL`);
+          }
+        } catch (error) {
+          console.log(`[Auto-Bio] Could not fetch bio URL: ${error}`);
+        }
+      }
+      
+      // Step 3: Run 3-layer AI pipeline (Comprehension → Synthesis → Mapping)
+      console.log(`[Auto-Bio] Running 3-layer AI pipeline...`);
+      const { biography, careerHistory } = await generateBiographyAndCareerHistory(
         candidate.firstName,
         candidate.lastName,
-        linkedinData
+        linkedinData,
+        bioContent
       );
       
       if (!biography || !biography.trim()) {
@@ -1955,26 +1983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Extract structured career history - use both structured data AND biography text
-      console.log(`[Auto-Bio] Extracting structured career history...`);
-      let careerHistory = extractCareerHistoryFromLinkedInData(linkedinData);
-      
-      // If career history is censored (contains asterisks), try to extract from biography text
-      const hasCensoredData = careerHistory.some(entry => 
-        entry.company.includes('*') || entry.title.includes('*')
-      );
-      
-      if (hasCensoredData || careerHistory.length === 0) {
-        console.log(`[Auto-Bio] Detected censored data, extracting from biography text...`);
-        const { extractCareerHistoryFromBiography } = await import('./ai');
-        const biographyCareerHistory = await extractCareerHistoryFromBiography(biography);
-        if (biographyCareerHistory.length > 0) {
-          console.log(`[Auto-Bio] ✓ Extracted ${biographyCareerHistory.length} entries from biography`);
-          careerHistory = biographyCareerHistory;
-        }
-      }
-      
-      console.log(`[Auto-Bio] Extracted ${careerHistory.length} career entries`);
+      console.log(`[Auto-Bio] ✓ Generated biography (${biography.length} chars) and career history (${careerHistory.length} positions)`);
       
       const updated = await storage.updateCandidate(candidateId, {
         biography: biography.trim(),

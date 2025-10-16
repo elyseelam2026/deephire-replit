@@ -3148,117 +3148,359 @@ function levenshteinDistance(str1: string, str2: string): number {
 }
 
 /**
- * Generate a comprehensive professional biography from LinkedIn data scraped via Bright Data
+ * LAYER 1: AI Deep Comprehension
+ * Analyzes all source materials to build deep understanding of candidate's career
+ */
+async function comprehendCareerStory(
+  firstName: string,
+  lastName: string,
+  linkedinData: any,
+  bioContent?: string
+): Promise<{
+  careerNarrative: string;
+  keyInsights: string[];
+  careerProgression: string;
+}> {
+  console.log(`[Layer 1: Comprehension] Deep analysis of ${firstName} ${lastName}'s career...`);
+  
+  // Build comprehensive source material
+  let sourceMaterial = `LINKEDIN PROFILE DATA:\n\n`;
+  
+  if (linkedinData.about) {
+    sourceMaterial += `About Section:\n${linkedinData.about}\n\n`;
+  }
+  
+  if (linkedinData.position && linkedinData.current_company) {
+    sourceMaterial += `Current Role: ${linkedinData.position} at ${linkedinData.current_company}\n\n`;
+  }
+  
+  if (linkedinData.experience?.length > 0) {
+    sourceMaterial += `Experience History:\n`;
+    linkedinData.experience.forEach((exp: any) => {
+      sourceMaterial += `- ${exp.title} at ${exp.company}`;
+      if (exp.start_date || exp.end_date) {
+        sourceMaterial += ` (${exp.start_date || '?'} - ${exp.end_date || 'Present'})`;
+      }
+      if (exp.description) {
+        sourceMaterial += `\n  Description: ${exp.description}`;
+      }
+      sourceMaterial += '\n';
+    });
+    sourceMaterial += '\n';
+  }
+  
+  if (linkedinData.education?.length > 0) {
+    sourceMaterial += `Education:\n`;
+    linkedinData.education.forEach((edu: any) => {
+      sourceMaterial += `- ${edu.degree || 'Degree'} ${edu.field_of_study ? `in ${edu.field_of_study}` : ''} from ${edu.school}\n`;
+    });
+    sourceMaterial += '\n';
+  }
+  
+  if (bioContent) {
+    sourceMaterial += `\nBIO URL CONTENT:\n${bioContent}\n\n`;
+  }
+  
+  // AI comprehension - understand the career story deeply
+  const response = await openai.chat.completions.create({
+    model: "grok-2-1212",
+    messages: [
+      {
+        role: "system",
+        content: `You are a senior executive recruiter with 20 years of experience analyzing career trajectories. Your task is to COMPREHEND and UNDERSTAND a professional's career story - not just summarize it. Analyze patterns, progression, achievements, and strategic career moves.`
+      },
+      {
+        role: "user",
+        content: `Deeply analyze ${firstName} ${lastName}'s career based on the source materials below. Focus on UNDERSTANDING, not just listing facts.
+
+Your analysis should reveal:
+1. Career narrative and strategic progression
+2. Key career patterns (e.g., moved from Blackstone to PAG - a common path in PE)
+3. Areas of expertise and specialization evolution
+4. Impact and achievements context
+5. Educational foundation and how it shaped career
+
+Return your analysis as JSON:
+{
+  "careerNarrative": "A comprehensive understanding of their career story and progression",
+  "keyInsights": ["Insight 1", "Insight 2", "Insight 3"],
+  "careerProgression": "Clear description of how their career evolved strategically"
+}
+
+Source Materials:
+${sourceMaterial}
+
+Return ONLY the JSON object, no markdown.`
+      }
+    ],
+    temperature: 0.4,
+    max_tokens: 2000
+  });
+  
+  const aiResponse = response.choices[0]?.message?.content?.trim() || '{}';
+  const comprehension = JSON.parse(aiResponse);
+  
+  console.log(`[Layer 1: Comprehension] ✓ Deep understanding established`);
+  console.log(`[Layer 1: Comprehension] Career Narrative: ${comprehension.careerNarrative?.substring(0, 150)}...`);
+  
+  return {
+    careerNarrative: comprehension.careerNarrative || '',
+    keyInsights: comprehension.keyInsights || [],
+    careerProgression: comprehension.careerProgression || ''
+  };
+}
+
+/**
+ * LAYER 2: AI Intelligent Synthesis
+ * Uses comprehension to WRITE (not copy) a professional biography
+ */
+async function synthesizeBiography(
+  firstName: string,
+  lastName: string,
+  comprehension: {
+    careerNarrative: string;
+    keyInsights: string[];
+    careerProgression: string;
+  },
+  linkedinData: any
+): Promise<string> {
+  console.log(`[Layer 2: Synthesis] Writing biography from deep understanding...`);
+  
+  const response = await openai.chat.completions.create({
+    model: "grok-2-1212",
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert executive recruiter writing professional biographies. You have deep understanding of this person's career - now WRITE a compelling biography that tells their story. Do not copy data - synthesize and create a narrative. Write in third person.`
+      },
+      {
+        role: "user",
+        content: `Based on your deep comprehension of ${firstName} ${lastName}'s career, write a comprehensive professional biography.
+
+Your Understanding:
+- Career Narrative: ${comprehension.careerNarrative}
+- Career Progression: ${comprehension.careerProgression}
+- Key Insights: ${comprehension.keyInsights.join('; ')}
+
+Reference Data:
+- Current: ${linkedinData.position || ''} at ${linkedinData.current_company || ''}
+- Education: ${linkedinData.education?.map((e: any) => `${e.degree || ''} from ${e.school || ''}`).join(', ') || 'N/A'}
+
+Structure your biography in THREE sections:
+
+**EXECUTIVE SUMMARY**
+Write 2-3 compelling sentences about their current role, expertise, and value proposition. Make it engaging and specific.
+
+**CAREER HISTORY**
+Tell the story of their career progression. For each major role, explain:
+- What they did and achieved (not just title)
+- How it contributed to their expertise
+- Why this move made strategic sense
+Write in narrative form, not bullet points.
+
+**EDUCATION BACKGROUND**
+Describe their academic foundation and how it shaped their career path.
+
+Write a polished, narrative-driven biography that tells a story - not a data dump.`
+      }
+    ],
+    temperature: 0.7,
+    max_tokens: 2000
+  });
+  
+  const biography = response.choices[0]?.message?.content?.trim() || '';
+  
+  console.log(`[Layer 2: Synthesis] ✓ Biography written (${biography.length} chars)`);
+  
+  return biography;
+}
+
+/**
+ * Generate a comprehensive professional biography using multi-layer AI pipeline
+ * LAYER 1: Comprehension → LAYER 2: Synthesis → LAYER 3: Mapping
  */
 export async function generateBiographyFromLinkedInData(
   firstName: string,
   lastName: string,
-  linkedinData: any
-): Promise<string> {
-  console.log(`[Biography Gen] Generating biography for ${firstName} ${lastName} from LinkedIn data`);
+  linkedinData: any,
+  bioContent?: string
+): Promise<{
+  biography: string;
+  comprehension: {
+    careerNarrative: string;
+    keyInsights: string[];
+    careerProgression: string;
+  };
+}> {
+  console.log(`[Biography Gen] Starting 3-layer AI pipeline for ${firstName} ${lastName}`);
   
   try {
-    // Extract key information from LinkedIn data
-    const about = linkedinData.about || '';
-    const position = linkedinData.position || '';
-    const currentCompany = linkedinData.current_company_name || linkedinData.current_company || '';
-    const experience = linkedinData.experience || [];
-    const education = linkedinData.education || [];
-    const skills = linkedinData.skills || [];
+    // LAYER 1: Deep Comprehension
+    const comprehension = await comprehendCareerStory(firstName, lastName, linkedinData, bioContent);
     
-    // Build a structured content summary for the AI
-    let contentSummary = `Professional Profile for ${firstName} ${lastName}\n\n`;
+    // LAYER 2: Intelligent Synthesis
+    const biography = await synthesizeBiography(firstName, lastName, comprehension, linkedinData);
     
-    if (about) {
-      contentSummary += `About:\n${about}\n\n`;
+    if (!biography || !biography.trim()) {
+      throw new Error('AI failed to generate biography');
     }
     
-    if (position && currentCompany) {
-      contentSummary += `Current Position: ${position} at ${currentCompany}\n\n`;
-    }
+    console.log(`[Biography Gen] ✓ Multi-layer pipeline complete`);
+    return { biography, comprehension };
     
-    if (experience.length > 0) {
-      contentSummary += `Career History:\n`;
-      experience.slice(0, 5).forEach((exp: any) => {
-        const title = exp.title || 'Unknown';
-        const company = exp.company || 'Unknown';
-        const dates = exp.start_date && exp.end_date 
-          ? `${exp.start_date} - ${exp.end_date}` 
-          : exp.start_date || '';
-        contentSummary += `- ${title} at ${company}${dates ? ` (${dates})` : ''}\n`;
-        if (exp.description) {
-          contentSummary += `  ${exp.description}\n`;
-        }
-      });
-      contentSummary += '\n';
-    }
+  } catch (error) {
+    console.error(`[Biography Gen] Error in multi-layer pipeline:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Complete 3-layer AI pipeline: Comprehension → Synthesis → Mapping
+ * Returns both biography and structured career history
+ */
+export async function generateBiographyAndCareerHistory(
+  firstName: string,
+  lastName: string,
+  linkedinData: any,
+  bioContent?: string
+): Promise<{
+  biography: string;
+  careerHistory: Array<{
+    company: string;
+    companyId?: number | null;
+    title: string;
+    startDate: string;
+    endDate?: string | null;
+    description?: string;
+    location?: string;
+  }>;
+}> {
+  console.log(`\n🎯 [3-Layer Pipeline] Starting for ${firstName} ${lastName}\n`);
+  
+  try {
+    // LAYER 1: Deep Comprehension
+    const comprehension = await comprehendCareerStory(firstName, lastName, linkedinData, bioContent);
     
-    if (education.length > 0) {
-      contentSummary += `Education:\n`;
-      education.forEach((edu: any) => {
-        const school = edu.school || 'Unknown';
-        const degree = edu.degree || '';
-        const field = edu.field_of_study || '';
-        contentSummary += `- ${degree}${field ? ` in ${field}` : ''} from ${school}\n`;
-      });
-      contentSummary += '\n';
-    }
+    // LAYER 2: Intelligent Synthesis
+    const biography = await synthesizeBiography(firstName, lastName, comprehension, linkedinData);
     
-    if (skills.length > 0) {
-      contentSummary += `Key Skills: ${skills.slice(0, 10).join(', ')}\n`;
-    }
+    // LAYER 3: Intelligent Career Mapping
+    const careerHistory = await intelligentlyMapCareerHistory(
+      firstName,
+      lastName,
+      comprehension,
+      biography,
+      linkedinData
+    );
     
-    // Use AI to generate a comprehensive professional biography
+    console.log(`\n✅ [3-Layer Pipeline] Complete! Biography: ${biography.length} chars, Career: ${careerHistory.length} positions\n`);
+    
+    return { biography, careerHistory };
+    
+  } catch (error) {
+    console.error(`[3-Layer Pipeline] Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * LAYER 3: AI Intelligent Career Mapping
+ * Maps career history with deep understanding and context
+ */
+async function intelligentlyMapCareerHistory(
+  firstName: string,
+  lastName: string,
+  comprehension: {
+    careerNarrative: string;
+    keyInsights: string[];
+    careerProgression: string;
+  },
+  biography: string,
+  linkedinData: any
+): Promise<Array<{
+  company: string;
+  companyId?: number | null;
+  title: string;
+  startDate: string;
+  endDate?: string | null;
+  description?: string;
+  location?: string;
+}>> {
+  console.log(`[Layer 3: Mapping] Intelligently mapping career history...`);
+  
+  try {
     const response = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
         {
           role: "system",
-          content: `You are an expert executive recruiter writing professional biographies. Create comprehensive, well-structured biographies that highlight career achievements, expertise, and professional journey. Write in third person. Be professional and engaging.`
+          content: `You are an expert at mapping career histories with deep understanding. Don't just extract data - intelligently structure career progression based on your comprehension of the person's journey.`
         },
         {
           role: "user",
-          content: `Based on the following LinkedIn profile data, write a comprehensive professional biography for ${firstName} ${lastName}.
+          content: `Based on your deep understanding of ${firstName} ${lastName}'s career, map their complete career history.
 
-The biography should be structured in THREE clear sections:
+Your Understanding:
+${comprehension.careerNarrative}
 
-**EXECUTIVE SUMMARY** (2-3 sentences)
-- Current role and company
-- Core expertise and value proposition
-- Key areas of specialization
+Career Progression Pattern:
+${comprehension.careerProgression}
 
-**CAREER HISTORY** (chronological, reverse order - most recent first)
-- List each significant position with company name, title, and key achievements
-- Focus on progression and impact
-- Highlight major accomplishments and responsibilities
+Biography (for context):
+${biography}
 
-**EDUCATION BACKGROUND**
-- Academic credentials with institutions
-- Professional certifications
-- Additional relevant training
+Raw LinkedIn Data (for dates/details):
+${JSON.stringify(linkedinData.experience || [], null, 2)}
 
-LinkedIn Profile Data:
-${contentSummary}
+Map their career history intelligently. Return a JSON array with ALL positions:
 
-Write a polished, professional biography suitable for executive recruiting. Be specific about roles and accomplishments. Use the actual data provided.`
+[
+  {
+    "company": "Full company name",
+    "title": "Complete job title",
+    "startDate": "YYYY-MM or YYYY",
+    "endDate": "YYYY-MM or YYYY" or null if current,
+    "description": "1-2 sentence summary of achievements and impact in this role",
+    "location": "City, Country if available"
+  }
+]
+
+Rules:
+1. Include ALL positions from most recent to earliest
+2. Use your understanding to fill in missing context
+3. If raw data has asterisks or is censored, extract from biography
+4. Add meaningful descriptions that show progression and impact
+5. Return ONLY valid JSON array, no markdown
+
+JSON array:`
         }
       ],
-      temperature: 0.7,
-      max_tokens: 1500
+      temperature: 0.3,
+      max_tokens: 3000
     });
     
-    const biography = response.choices[0]?.message?.content?.trim() || '';
+    const aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
+    const careerHistory = JSON.parse(aiResponse);
     
-    if (!biography) {
-      throw new Error('AI failed to generate biography');
+    if (!Array.isArray(careerHistory)) {
+      return [];
     }
     
-    console.log(`[Biography Gen] ✓ Generated ${biography.length} character biography`);
-    return biography;
+    console.log(`[Layer 3: Mapping] ✓ Mapped ${careerHistory.length} career positions`);
+    
+    return careerHistory.map((entry: any) => ({
+      company: entry.company || 'Unknown Company',
+      companyId: null,
+      title: entry.title || 'Unknown Title',
+      startDate: entry.startDate || '',
+      endDate: entry.endDate || null,
+      description: entry.description || '',
+      location: entry.location || ''
+    }));
     
   } catch (error) {
-    console.error(`[Biography Gen] Error generating biography:`, error);
-    throw error;
+    console.error(`[Layer 3: Mapping] Error:`, error);
+    return [];
   }
 }
 
