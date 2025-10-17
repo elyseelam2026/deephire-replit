@@ -4233,11 +4233,15 @@ Return ONLY valid JSON in this exact format:
       });
     }
 
+    // Strictly enforce maxResults limit
+    const maxCompanies = params.maxResults || 50;
+    const limitedCompanies = enrichedCompanies.slice(0, maxCompanies);
+    
     const totalTime = Date.now() - startTime;
-    console.log(`✅ [AI Research] Complete: ${enrichedCompanies.length} companies found in ${totalTime}ms`);
+    console.log(`✅ [AI Research] Complete: ${limitedCompanies.length} companies found (limit: ${maxCompanies}) in ${totalTime}ms`);
 
     return {
-      companies: enrichedCompanies,
+      companies: limitedCompanies,
       searchQueries,
       metadata: {
         totalResults: allResults.length,
