@@ -1648,21 +1648,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       for (const url of validUrls) {
         try {
-          const result = await parseCompanyFromUrl(url);
+          // Extract company data from URL
+          const companyData = await parseCompanyFromUrl(url);
           
-          if (result && result.id) {
-            createdCompanies.push(result.id);
-            results.success++;
-            
+          if (!companyData || !companyData.name) {
+            results.failed++;
+            results.errors.push(`Failed to extract data from ${url}`);
+            continue;
+          }
+          
+          // Check for duplicates
+          const existingCompanies = await storage.getCompanies(false); // Get all companies including child offices
+          const isDuplicate = existingCompanies.some(
+            c => c.name.toLowerCase() === companyData.name.toLowerCase()
+          );
+          
+          if (isDuplicate) {
+            results.duplicates++;
+            console.log(`⚠️ Skipping duplicate: ${companyData.name}`);
             await storage.updateIngestionJob(job.id, {
               processedRecords: results.success + results.duplicates + results.failed,
               successfulRecords: results.success,
               duplicateRecords: results.duplicates
             });
-          } else {
-            results.failed++;
-            results.errors.push(`Failed to process ${url}: No company data returned`);
+            continue;
           }
+          
+          // Save company to database
+          const savedCompany = await storage.createCompany({
+            name: companyData.name,
+            website: companyData.website || url,
+            industry: companyData.industry,
+            missionStatement: companyData.missionStatement,
+            primaryPhone: companyData.primaryPhone,
+            headquarters: companyData.headquarters,
+            officeLocations: companyData.officeLocations,
+            annualRevenue: companyData.annualRevenue,
+            location: companyData.location,
+            parentCompany: companyData.parentCompany,
+            employeeSize: companyData.employeeSize,
+            subsector: companyData.subsector,
+            stage: companyData.stage || 'growth',
+            isHeadquarters: true
+          });
+          
+          createdCompanies.push(savedCompany.id);
+          results.success++;
+          console.log(`✅ Created company: ${savedCompany.name} (ID: ${savedCompany.id})`);
+          
+          await storage.updateIngestionJob(job.id, {
+            processedRecords: results.success + results.duplicates + results.failed,
+            successfulRecords: results.success,
+            duplicateRecords: results.duplicates
+          });
         } catch (error) {
           results.failed++;
           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
