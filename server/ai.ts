@@ -2977,26 +2977,40 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     
     // If no team members found and we have SerpAPI, try Google Search fallback
     if (teamMembers.length === 0 && process.env.SERPAPI_API_KEY) {
-      console.log(`\n🔍 No team members found via direct scraping. Trying Google Search fallback...`);
+      console.log(`\n🔍 [GOOGLE FALLBACK] No team members found via direct scraping. Trying Google Search fallback...`);
+      console.log(`[GOOGLE FALLBACK] Domain: ${domain}, Has SERPAPI_API_KEY: ${!!process.env.SERPAPI_API_KEY}`);
       try {
         const searchQuery = `site:${domain} (team OR people OR leadership OR executives OR "our people")`;
-        console.log(`Searching Google: ${searchQuery}`);
+        console.log(`[GOOGLE FALLBACK] Searching Google: ${searchQuery}`);
         
         const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${process.env.SERPAPI_API_KEY}&num=20`;
         const searchResponse = await fetch(serpApiUrl);
         const searchData: any = await searchResponse.json();
         
+        console.log(`[GOOGLE FALLBACK] SerpAPI response status: ${searchResponse.status}`);
+        console.log(`[GOOGLE FALLBACK] Organic results count: ${searchData.organic_results?.length || 0}`);
+        
         let searchSnippets = '';
         if (searchData.organic_results) {
-          for (const result of searchData.organic_results.slice(0, 10)) {
-            searchSnippets += `\nTitle: ${result.title}\n`;
-            searchSnippets += `Snippet: ${result.snippet}\n`;
+          for (const result of searchData.organic_results.slice(0, 15)) {
+            searchSnippets += `\n---\n`;
+            searchSnippets += `Title: ${result.title}\n`;
             searchSnippets += `URL: ${result.link}\n`;
+            searchSnippets += `Snippet: ${result.snippet || ''}\n`;
+            if (result.rich_snippet?.top?.detected_extensions) {
+              searchSnippets += `Additional Info: ${result.rich_snippet.top.detected_extensions}\n`;
+            }
+            if (result.sitelinks?.inline) {
+              searchSnippets += `Related Links: ${result.sitelinks.inline.map((s: any) => s.title).join(', ')}\n`;
+            }
           }
         }
+        searchSnippets += `\n---\n`;
+        
+        console.log(`[GOOGLE FALLBACK] Total snippet length: ${searchSnippets.length} chars`);
         
         if (searchSnippets.length > 100) {
-          console.log(`Found ${searchData.organic_results?.length || 0} Google results. Extracting team members with AI...`);
+          console.log(`[GOOGLE FALLBACK] Found ${searchData.organic_results?.length || 0} Google results. Extracting team members with AI...`);
           
           // Use AI to extract team members from search snippets
           const openai = await import('openai').then(mod => mod.default);
@@ -3005,25 +3019,34 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
             apiKey: process.env.XAI_API_KEY
           });
           
-          const extractionPrompt = `Extract team member names from these Google search results for ${domain}. Return ONLY valid team members with their titles if mentioned.
+          const extractionPrompt = `Extract team member names from these Google search results for ${domain}.
 
 Google Search Results:
 ${searchSnippets}
 
-Extract ALL team member names you can find. For each person, return their:
-- name: Full name (required)
-- title: Job title if mentioned (optional)
-- bioUrl: Profile URL if available (optional)
+Look for REAL PEOPLE with full names (first and last names). Extract their information:
+- name: Full name (e.g., "Harvey Schwartz", "Kewsong Lee")
+- title: Job title if mentioned (e.g., "CEO", "Managing Director")
+- bioUrl: Profile URL from search result link if available
 
-Return as JSON array: [{ "name": "John Doe", "title": "CEO", "bioUrl": "https://..." }, ...]
+IMPORTANT:
+- Only extract names with BOTH first and last names
+- Skip partial names like "Harvey" alone - need full name
+- Skip generic terms like "our people", "leadership team"
+- Look in snippets and titles for names
+- DO NOT invent names
 
-IMPORTANT RULES:
-- Only extract REAL PEOPLE with actual names
-- Skip generic titles without names ("our team", "leadership", etc.)
-- Include title if mentioned in snippet
-- Return empty array [] if no valid names found
-- DO NOT invent or fabricate names`;
+Return JSON object with "members" array:
+{
+  "members": [
+    { "name": "Harvey Schwartz", "title": "CEO", "bioUrl": "https://..." },
+    { "name": "John Smith", "title": "CFO" }
+  ]
+}
 
+If no valid full names found, return: { "members": [] }`;
+
+          console.log(`[GOOGLE FALLBACK] Calling Grok AI for extraction...`);
           const aiResponse = await client.chat.completions.create({
             model: "grok-2-1212",
             messages: [{ role: "user", content: extractionPrompt }],
@@ -3032,18 +3055,28 @@ IMPORTANT RULES:
           });
           
           const aiContent = aiResponse.choices[0].message.content?.trim() || '{}';
+          console.log(`[GOOGLE FALLBACK] AI response: ${aiContent.substring(0, 500)}...`);
+          
           const extracted = JSON.parse(aiContent);
           const membersFromSearch = Array.isArray(extracted.members) ? extracted.members : 
                                     Array.isArray(extracted) ? extracted : [];
           
+          console.log(`[GOOGLE FALLBACK] Extracted ${membersFromSearch.length} members from AI response`);
+          
           if (membersFromSearch.length > 0) {
-            console.log(`✅ Google Search fallback found ${membersFromSearch.length} team members`);
+            console.log(`✅ [GOOGLE FALLBACK] Google Search fallback found ${membersFromSearch.length} team members:`, membersFromSearch.map(m => m.name).join(', '));
             return membersFromSearch;
+          } else {
+            console.log(`⚠️ [GOOGLE FALLBACK] AI extraction returned 0 members`);
           }
+        } else {
+          console.log(`⚠️ [GOOGLE FALLBACK] Not enough snippet data (${searchSnippets.length} chars < 100)`);
         }
       } catch (searchError) {
-        console.error(`Google Search fallback error:`, searchError);
+        console.error(`[GOOGLE FALLBACK] Error:`, searchError);
       }
+    } else {
+      console.log(`[GOOGLE FALLBACK] Skipped: teamMembers.length=${teamMembers.length}, has_SERPAPI=${!!process.env.SERPAPI_API_KEY}`);
     }
     
     console.log(`✅ Discovered ${teamMembers.length} team members`);
