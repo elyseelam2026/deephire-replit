@@ -932,7 +932,7 @@ export async function parseCandidateData(cvText: string): Promise<{
   }
 }
 
-// Fetch web content from URL with real HTTP requests
+// Fetch web content from URL with real HTTP requests (with Bright Data fallback)
 async function fetchWebContent(url: string): Promise<string> {
   try {
     console.log(`Fetching real content from: ${url}`);
@@ -943,29 +943,150 @@ async function fetchWebContent(url: string): Promise<string> {
       return '';
     }
     
-    // Fetch the actual web page
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      // 30 second timeout for slow pages
-      signal: AbortSignal.timeout(30000)
-    });
+    // Try direct fetch first
+    let html = '';
+    let usedBrightData = false;
     
-    if (!response.ok) {
-      console.log(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-      return '';
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+        },
+        // 30 second timeout for slow pages
+        signal: AbortSignal.timeout(30000)
+      });
+      
+      if (!response.ok) {
+        console.log(`⚠️ Direct fetch failed (${response.status}), trying Bright Data Web Unlocker...`);
+        
+        // Fallback to Bright Data for blocked sites
+        if (process.env.BRIGHTDATA_API_KEY) {
+          const { HttpsProxyAgent } = await import('https-proxy-agent');
+          const https = await import('https');
+          
+          const proxyAuth = `${process.env.BRIGHTDATA_API_KEY}:`;
+          const proxyUrl = `http://${proxyAuth}@brd.superproxy.io:22225`;
+          const agent = new HttpsProxyAgent(proxyUrl);
+          
+          console.log(`🔓 Using Bright Data Web Unlocker to bypass blocks...`);
+          
+          html = await new Promise((resolve, reject) => {
+            const req = https.request(url, {
+              method: 'GET',
+              agent: agent,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+              }
+            }, (res) => {
+              let data = '';
+              
+              res.on('data', (chunk) => {
+                data += chunk;
+              });
+              
+              res.on('end', () => {
+                if (res.statusCode === 200) {
+                  console.log(`✅ Bright Data: Fetched ${data.length} characters`);
+                  resolve(data);
+                } else {
+                  console.error(`❌ Bright Data failed: ${res.statusCode}`);
+                  reject(new Error(`Bright Data failed: ${res.statusCode}`));
+                }
+              });
+            });
+            
+            req.on('error', (error) => {
+              console.error('❌ Bright Data request error:', error);
+              reject(error);
+            });
+            
+            req.setTimeout(30000, () => {
+              req.destroy();
+              reject(new Error('Bright Data request timeout'));
+            });
+            
+            req.end();
+          });
+          
+          usedBrightData = true;
+        } else {
+          console.log('❌ BRIGHTDATA_API_KEY not configured, cannot retry');
+          return '';
+        }
+      } else {
+        html = await response.text();
+        console.log(`Successfully fetched ${html.length} characters from ${url}`);
+      }
+    } catch (fetchError) {
+      // Try Bright Data if direct fetch throws error
+      if (process.env.BRIGHTDATA_API_KEY && !usedBrightData) {
+        console.log(`⚠️ Direct fetch error, trying Bright Data Web Unlocker...`);
+        
+        const { HttpsProxyAgent } = await import('https-proxy-agent');
+        const https = await import('https');
+        
+        const proxyAuth = `${process.env.BRIGHTDATA_API_KEY}:`;
+        const proxyUrl = `http://${proxyAuth}@brd.superproxy.io:22225`;
+        const agent = new HttpsProxyAgent(proxyUrl);
+        
+        html = await new Promise((resolve, reject) => {
+          const req = https.request(url, {
+            method: 'GET',
+            agent: agent,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+            }
+          }, (res) => {
+            let data = '';
+            
+            res.on('data', (chunk) => {
+              data += chunk;
+            });
+            
+            res.on('end', () => {
+              if (res.statusCode === 200) {
+                console.log(`✅ Bright Data: Fetched ${data.length} characters`);
+                resolve(data);
+              } else {
+                console.error(`❌ Bright Data failed: ${res.statusCode}`);
+                reject(new Error(`Bright Data failed: ${res.statusCode}`));
+              }
+            });
+          });
+          
+          req.on('error', (error) => {
+            console.error('❌ Bright Data request error:', error);
+            reject(error);
+          });
+          
+          req.setTimeout(30000, () => {
+            req.destroy();
+            reject(new Error('Bright Data request timeout'));
+          });
+          
+          req.end();
+        });
+        
+        usedBrightData = true;
+      } else {
+        throw fetchError;
+      }
     }
     
-    const html = await response.text();
-    console.log(`Successfully fetched ${html.length} characters from ${url}`);
+    if (!html) {
+      return '';
+    }
     
     // Parse HTML and extract text content using Cheerio
     const $ = cheerio.load(html);
@@ -1012,7 +1133,7 @@ async function fetchWebContent(url: string): Promise<string> {
       textContent = textContent.substring(0, 10000) + '...';
     }
     
-    console.log(`Extracted ${textContent.length} characters of clean text from ${url}`);
+    console.log(`Extracted ${textContent.length} characters of clean text from ${url}${usedBrightData ? ' (via Bright Data)' : ''}`);
     return textContent;
     
   } catch (error) {
