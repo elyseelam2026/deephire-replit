@@ -4037,6 +4037,18 @@ export async function analyzeCompanyHiringPatterns(
 }
 
 /**
+ * Helper function to parse AI JSON responses that might be wrapped in markdown code blocks
+ */
+function parseAIJson(text: string): any {
+  let cleaned = text.trim();
+  // Remove markdown code block wrapper if present (e.g., ```json ... ```)
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+  return JSON.parse(cleaned);
+}
+
+/**
  * AI Research Engine: Intelligent company discovery using natural language queries
  * 
  * Examples:
@@ -4099,7 +4111,7 @@ Your response (JSON array only):`;
     });
 
     const queriesText = queryGenResponse.choices[0]?.message?.content?.trim() || '[]';
-    const searchQueries: string[] = JSON.parse(queriesText);
+    const searchQueries: string[] = parseAIJson(queriesText);
     const aiGenerationTime = Date.now() - aiStartTime;
     
     console.log(`✓ AI generated ${searchQueries.length} search queries in ${aiGenerationTime}ms`);
@@ -4182,7 +4194,7 @@ Return ONLY valid JSON in this exact format:
     });
 
     const extractedText = extractionResponse.choices[0]?.message?.content?.trim() || '{}';
-    const extracted = JSON.parse(extractedText);
+    const extracted = parseAIJson(extractedText);
     
     console.log(`✓ AI extracted ${extracted.companies?.length || 0} companies`);
 
