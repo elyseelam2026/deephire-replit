@@ -969,14 +969,15 @@ async function fetchWebContent(url: string): Promise<string> {
         // Fallback to Bright Data for blocked sites
         if (process.env.BRIGHTDATA_API_KEY) {
           const { HttpsProxyAgent } = await import('https-proxy-agent');
-          const https = await import('https');
           
+          // Use the same format as scrapeLinkedInRawHTML() - proven to work
           const proxyAuth = `${process.env.BRIGHTDATA_API_KEY}:`;
           const proxyUrl = `http://${proxyAuth}@brd.superproxy.io:22225`;
           const agent = new HttpsProxyAgent(proxyUrl);
           
           console.log(`🔓 Using Bright Data Web Unlocker to bypass blocks...`);
           
+          const https = await import('https');
           html = await new Promise((resolve, reject) => {
             const req = https.request(url, {
               method: 'GET',
@@ -1032,12 +1033,13 @@ async function fetchWebContent(url: string): Promise<string> {
         console.log(`⚠️ Direct fetch error, trying Bright Data Web Unlocker...`);
         
         const { HttpsProxyAgent } = await import('https-proxy-agent');
-        const https = await import('https');
         
+        // Use the same format as scrapeLinkedInRawHTML() - proven to work
         const proxyAuth = `${process.env.BRIGHTDATA_API_KEY}:`;
         const proxyUrl = `http://${proxyAuth}@brd.superproxy.io:22225`;
         const agent = new HttpsProxyAgent(proxyUrl);
         
+        const https = await import('https');
         html = await new Promise((resolve, reject) => {
           const req = https.request(url, {
             method: 'GET',
@@ -2860,6 +2862,7 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     // Parse base URL
     const baseUrl = new URL(websiteUrl);
     const baseUrlStr = `${baseUrl.protocol}//${baseUrl.hostname}`;
+    const domain = baseUrl.hostname.replace('www.', '');
     
     // Common language prefixes
     const languagePrefixes = ['', '/en', '/fr', '/de', '/es', '/zh', '/ja', '/pt', '/it', '/nl'];
@@ -2956,8 +2959,79 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     
     const teamMembers = Array.from(uniqueMembers.values());
     console.log(`After deduplication: ${teamMembers.length} unique team members`);
-    console.log(`✅ Discovered ${teamMembers.length} team members`);
     
+    // If no team members found and we have SerpAPI, try Google Search fallback
+    if (teamMembers.length === 0 && process.env.SERPAPI_API_KEY) {
+      console.log(`\n🔍 No team members found via direct scraping. Trying Google Search fallback...`);
+      try {
+        const searchQuery = `site:${domain} (team OR people OR leadership OR executives OR "our people")`;
+        console.log(`Searching Google: ${searchQuery}`);
+        
+        const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${process.env.SERPAPI_API_KEY}&num=20`;
+        const searchResponse = await fetch(serpApiUrl);
+        const searchData: any = await searchResponse.json();
+        
+        let searchSnippets = '';
+        if (searchData.organic_results) {
+          for (const result of searchData.organic_results.slice(0, 10)) {
+            searchSnippets += `\nTitle: ${result.title}\n`;
+            searchSnippets += `Snippet: ${result.snippet}\n`;
+            searchSnippets += `URL: ${result.link}\n`;
+          }
+        }
+        
+        if (searchSnippets.length > 100) {
+          console.log(`Found ${searchData.organic_results?.length || 0} Google results. Extracting team members with AI...`);
+          
+          // Use AI to extract team members from search snippets
+          const openai = await import('openai').then(mod => mod.default);
+          const client = new openai({
+            baseURL: "https://api.x.ai/v1",
+            apiKey: process.env.XAI_API_KEY
+          });
+          
+          const extractionPrompt = `Extract team member names from these Google search results for ${domain}. Return ONLY valid team members with their titles if mentioned.
+
+Google Search Results:
+${searchSnippets}
+
+Extract ALL team member names you can find. For each person, return their:
+- name: Full name (required)
+- title: Job title if mentioned (optional)
+- bioUrl: Profile URL if available (optional)
+
+Return as JSON array: [{ "name": "John Doe", "title": "CEO", "bioUrl": "https://..." }, ...]
+
+IMPORTANT RULES:
+- Only extract REAL PEOPLE with actual names
+- Skip generic titles without names ("our team", "leadership", etc.)
+- Include title if mentioned in snippet
+- Return empty array [] if no valid names found
+- DO NOT invent or fabricate names`;
+
+          const aiResponse = await client.chat.completions.create({
+            model: "grok-2-1212",
+            messages: [{ role: "user", content: extractionPrompt }],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+          });
+          
+          const aiContent = aiResponse.choices[0].message.content?.trim() || '{}';
+          const extracted = JSON.parse(aiContent);
+          const membersFromSearch = Array.isArray(extracted.members) ? extracted.members : 
+                                    Array.isArray(extracted) ? extracted : [];
+          
+          if (membersFromSearch.length > 0) {
+            console.log(`✅ Google Search fallback found ${membersFromSearch.length} team members`);
+            return membersFromSearch;
+          }
+        }
+      } catch (searchError) {
+        console.error(`Google Search fallback error:`, searchError);
+      }
+    }
+    
+    console.log(`✅ Discovered ${teamMembers.length} team members`);
     return teamMembers;
     
   } catch (error) {
