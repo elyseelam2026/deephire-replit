@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -318,6 +319,7 @@ export default function Admin() {
   const [researchMaxResults, setResearchMaxResults] = useState(50);
   const [researchSaveCampaign, setResearchSaveCampaign] = useState("no");
   const [researchResults, setResearchResults] = useState<any>(null);
+  const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
   
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
@@ -1579,13 +1581,78 @@ export default function Admin() {
                       </Card>
                     </div>
 
+                    {/* Selection Actions */}
+                    <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          id="select-all-companies"
+                          checked={selectedCompanies.length === researchResults.companies?.length && selectedCompanies.length > 0}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedCompanies(researchResults.companies?.map((_: any, idx: number) => idx) || []);
+                            } else {
+                              setSelectedCompanies([]);
+                            }
+                          }}
+                          data-testid="checkbox-select-all-companies"
+                        />
+                        <label htmlFor="select-all-companies" className="text-sm font-medium cursor-pointer">
+                          Select All ({selectedCompanies.length} selected)
+                        </label>
+                      </div>
+                      <Button
+                        onClick={async () => {
+                          const selected = selectedCompanies.map(idx => researchResults.companies[idx]);
+                          console.log('Adding companies to system:', selected);
+                          
+                          try {
+                            const response = await apiRequest('/api/admin/bulk-import-companies', {
+                              method: 'POST',
+                              body: JSON.stringify({ companies: selected }),
+                              headers: { 'Content-Type': 'application/json' }
+                            });
+                            
+                            toast({
+                              title: "Companies Added Successfully",
+                              description: `${selected.length} companies added to the system. Background processing started.`,
+                            });
+                            
+                            setSelectedCompanies([]);
+                            queryClient.invalidateQueries({ queryKey: ['/api/admin/upload-history'] });
+                          } catch (error) {
+                            toast({
+                              title: "Error Adding Companies",
+                              description: error instanceof Error ? error.message : "Failed to add companies",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                        disabled={selectedCompanies.length === 0}
+                        data-testid="button-add-selected-companies"
+                      >
+                        <Database className="h-4 w-4 mr-2" />
+                        Add Selected to System ({selectedCompanies.length})
+                      </Button>
+                    </div>
+
                     {/* Company Results Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {researchResults.companies?.map((company: any, idx: number) => (
                         <Card key={idx} className="hover-elevate">
                           <CardHeader>
-                            <CardTitle className="text-base flex items-center justify-between">
-                              <span className="truncate">{company.companyName}</span>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Checkbox
+                                checked={selectedCompanies.includes(idx)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedCompanies([...selectedCompanies, idx]);
+                                  } else {
+                                    setSelectedCompanies(selectedCompanies.filter(i => i !== idx));
+                                  }
+                                }}
+                                data-testid={`checkbox-company-${idx}`}
+                              />
+                              <span className="truncate flex-1">{company.companyName}</span>
                               <Badge variant="outline" className="ml-2">
                                 {(company.confidence * 100).toFixed(0)}%
                               </Badge>
