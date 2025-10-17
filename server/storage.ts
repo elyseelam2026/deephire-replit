@@ -1,13 +1,14 @@
 import { 
   companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
-  organizationChart, companyTags, companyHiringPatterns,
+  organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
   type Company, type Job, type Candidate, type JobMatch, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
   type DataIngestionJob, type InsertDataIngestionJob, type DuplicateDetection, type InsertDuplicateDetection,
   type DataReviewQueue, type InsertDataReviewQueue, type StagingCandidate, type InsertStagingCandidate,
-  type VerificationResult, type InsertVerificationResult, type OrganizationChart, type InsertOrganizationChart
+  type VerificationResult, type InsertVerificationResult, type OrganizationChart, type InsertOrganizationChart,
+  type IndustryCampaign, type InsertIndustryCampaign, type CompanyResearchResult, type InsertCompanyResearchResult
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -112,6 +113,20 @@ export interface IStorage {
   getOrgChartForCompany(companyId: number): Promise<OrganizationChart[]>;
   getOrgChartEntry(id: number): Promise<OrganizationChart | undefined>;
   updateOrgChartEntry(id: number, updates: Partial<InsertOrganizationChart>): Promise<OrganizationChart | undefined>;
+  
+  // Industry Campaigns (Market Intelligence)
+  createIndustryCampaign(campaign: InsertIndustryCampaign): Promise<IndustryCampaign>;
+  getIndustryCampaigns(filters?: { status?: string; industry?: string }): Promise<IndustryCampaign[]>;
+  getIndustryCampaign(id: number): Promise<IndustryCampaign | undefined>;
+  updateIndustryCampaign(id: number, updates: Partial<InsertIndustryCampaign>): Promise<IndustryCampaign | undefined>;
+  deleteIndustryCampaign(id: number): Promise<void>;
+  
+  // Company Research Results (Research Cache)
+  createCompanyResearchResult(result: InsertCompanyResearchResult): Promise<CompanyResearchResult>;
+  getCompanyResearchResults(filters?: { campaignId?: number; isStale?: boolean }): Promise<CompanyResearchResult[]>;
+  getCompanyResearchResult(id: number): Promise<CompanyResearchResult | undefined>;
+  getCompanyResearchByQuery(normalizedQuery: string): Promise<CompanyResearchResult | undefined>;
+  updateCompanyResearchResult(id: number, updates: Partial<InsertCompanyResearchResult>): Promise<CompanyResearchResult | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1083,6 +1098,92 @@ export class DatabaseStorage implements IStorage {
         lastAnalyzed: sql`now()`
       }
     });
+  }
+  
+  // Industry Campaign management
+  async createIndustryCampaign(campaign: InsertIndustryCampaign): Promise<IndustryCampaign> {
+    const [created] = await db.insert(industryCampaigns).values(campaign).returning();
+    return created;
+  }
+  
+  async getIndustryCampaigns(filters?: { status?: string; industry?: string }): Promise<IndustryCampaign[]> {
+    let query = db.select().from(industryCampaigns);
+    
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(industryCampaigns.status, filters.status));
+    }
+    if (filters?.industry) {
+      conditions.push(eq(industryCampaigns.industry, filters.industry));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    
+    return query.orderBy(desc(industryCampaigns.createdAt));
+  }
+  
+  async getIndustryCampaign(id: number): Promise<IndustryCampaign | undefined> {
+    const [campaign] = await db.select().from(industryCampaigns).where(eq(industryCampaigns.id, id));
+    return campaign || undefined;
+  }
+  
+  async updateIndustryCampaign(id: number, updates: Partial<InsertIndustryCampaign>): Promise<IndustryCampaign | undefined> {
+    const [updated] = await db.update(industryCampaigns)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(industryCampaigns.id, id))
+      .returning();
+    return updated || undefined;
+  }
+  
+  async deleteIndustryCampaign(id: number): Promise<void> {
+    await db.delete(industryCampaigns).where(eq(industryCampaigns.id, id));
+  }
+  
+  // Company Research Results management
+  async createCompanyResearchResult(result: InsertCompanyResearchResult): Promise<CompanyResearchResult> {
+    const [created] = await db.insert(companyResearchResults).values(result).returning();
+    return created;
+  }
+  
+  async getCompanyResearchResults(filters?: { campaignId?: number; isStale?: boolean }): Promise<CompanyResearchResult[]> {
+    let query = db.select().from(companyResearchResults);
+    
+    const conditions = [];
+    if (filters?.campaignId) {
+      conditions.push(eq(companyResearchResults.campaignId, filters.campaignId));
+    }
+    if (filters?.isStale !== undefined) {
+      conditions.push(eq(companyResearchResults.isStale, filters.isStale));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    
+    return query.orderBy(desc(companyResearchResults.createdAt));
+  }
+  
+  async getCompanyResearchResult(id: number): Promise<CompanyResearchResult | undefined> {
+    const [result] = await db.select().from(companyResearchResults).where(eq(companyResearchResults.id, id));
+    return result || undefined;
+  }
+  
+  async getCompanyResearchByQuery(normalizedQuery: string): Promise<CompanyResearchResult | undefined> {
+    const [result] = await db.select().from(companyResearchResults)
+      .where(eq(companyResearchResults.normalizedQuery, normalizedQuery))
+      .orderBy(desc(companyResearchResults.createdAt))
+      .limit(1);
+    return result || undefined;
+  }
+  
+  async updateCompanyResearchResult(id: number, updates: Partial<InsertCompanyResearchResult>): Promise<CompanyResearchResult | undefined> {
+    const [updated] = await db.update(companyResearchResults)
+      .set(updates)
+      .where(eq(companyResearchResults.id, id))
+      .returning();
+    return updated || undefined;
   }
 }
 

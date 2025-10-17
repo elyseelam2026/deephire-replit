@@ -855,6 +855,108 @@ export const companyTags = pgTable("company_tags", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Industry Campaigns - Track systematic industry mapping efforts
+export const industryCampaigns = pgTable("industry_campaigns", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Campaign Details
+  name: text("name").notNull(), // "Private Equity Mapping 2025"
+  industry: text("industry").notNull(), // "Private Equity", "Venture Capital", etc.
+  description: text("description"),
+  
+  // Targets & Progress
+  targetCompanies: integer("target_companies"), // Goal: 500 companies
+  companiesDiscovered: integer("companies_discovered").default(0), // Current: 342
+  companiesProcessed: integer("companies_processed").default(0), // Companies with teams discovered
+  teamMembersFound: integer("team_members_found").default(0), // Total people discovered
+  candidatesCreated: integer("candidates_created").default(0), // Promoted to candidate table
+  
+  // Geographic Focus
+  primaryGeography: text("primary_geography"), // "Global", "US", "Europe", etc.
+  geographyTags: text("geography_tags").array(),
+  
+  // Intelligence Metrics
+  hiringPatternsLearned: integer("hiring_patterns_learned").default(0),
+  careerPathsMapped: integer("career_paths_mapped").default(0),
+  orgChartsBuilt: integer("org_charts_built").default(0),
+  
+  // Status Tracking
+  status: text("status").notNull().default("planning"), // planning, active, paused, completed
+  priority: text("priority").default("medium"), // high, medium, low
+  
+  // Ownership
+  ownerId: integer("owner_id"), // User who created/owns this campaign
+  assignedTo: text("assigned_to").array(), // Team members working on this
+  
+  // Research Strategy
+  researchQueries: text("research_queries").array(), // Queries used to find companies
+  dataSources: text("data_sources").array(), // "Forbes", "PitchBook", "Crunchbase", etc.
+  
+  // Insights & Notes
+  keyInsights: jsonb("key_insights").$type<Array<{
+    insight: string;
+    discoveredAt: string;
+    significance: string;
+  }>>(),
+  notes: text("notes"),
+  
+  // Timestamps
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Company Research Results - Cache for AI-powered company research
+export const companyResearchResults = pgTable("company_research_results", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Research Query
+  originalQuery: text("original_query").notNull(), // "top 100 private equity firms"
+  normalizedQuery: text("normalized_query").notNull(), // Standardized version for deduplication
+  
+  // Research Strategy
+  searchQueries: text("search_queries").array(), // Multiple search queries used
+  dataSources: text("data_sources").array(), // Sources consulted
+  
+  // Results
+  companiesFound: jsonb("companies_found").notNull().$type<Array<{
+    name: string;
+    website?: string;
+    industry?: string;
+    size?: string;
+    geography?: string;
+    description?: string;
+    linkedinUrl?: string;
+    confidence: number; // 0-1, how confident we are this is correct
+    sources: string[]; // Which searches found this company
+  }>>(),
+  
+  totalResults: integer("total_results").notNull(),
+  
+  // Quality Metrics
+  averageConfidence: real("average_confidence"), // Average confidence across all results
+  duplicatesRemoved: integer("duplicates_removed").default(0),
+  validationsPassed: integer("validations_passed").default(0),
+  
+  // Associated Campaign
+  campaignId: integer("campaign_id").references(() => industryCampaigns.id),
+  
+  // Cache Status
+  status: text("status").notNull().default("completed"), // pending, completed, failed
+  isStale: boolean("is_stale").default(false), // True if older than 30 days
+  
+  // Metadata
+  researchDurationMs: integer("research_duration_ms"), // How long research took
+  apiCallsMade: integer("api_calls_made"), // Number of API calls used
+  costEstimate: real("cost_estimate"), // Estimated cost in USD
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"), // When to consider this cache stale
+});
+
 // Zod schemas for new tables
 export const insertCareerTransitionSchema = createInsertSchema(careerTransitions).omit({
   id: true,
@@ -952,3 +1054,28 @@ export type OrganizationChart = typeof organizationChart.$inferSelect;
 
 export type InsertCompanyTags = z.infer<typeof insertCompanyTagsSchema>;
 export type CompanyTags = typeof companyTags.$inferSelect;
+
+// Industry Campaigns schemas
+export const insertIndustryCampaignSchema = createInsertSchema(industryCampaigns).omit({
+  id: true,
+  companiesDiscovered: true,
+  companiesProcessed: true,
+  teamMembersFound: true,
+  candidatesCreated: true,
+  hiringPatternsLearned: true,
+  careerPathsMapped: true,
+  orgChartsBuilt: true,
+  lastActivityAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertIndustryCampaign = z.infer<typeof insertIndustryCampaignSchema>;
+export type IndustryCampaign = typeof industryCampaigns.$inferSelect;
+
+// Company Research Results schemas
+export const insertCompanyResearchResultSchema = createInsertSchema(companyResearchResults).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCompanyResearchResult = z.infer<typeof insertCompanyResearchResultSchema>;
+export type CompanyResearchResult = typeof companyResearchResults.$inferSelect;
