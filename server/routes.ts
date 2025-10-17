@@ -1489,6 +1489,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Research: Intelligent company discovery using natural language queries
+  app.post("/api/admin/research-companies", async (req, res) => {
+    try {
+      const { query, maxResults, saveAsCampaign, campaignName, campaignIndustry } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ 
+          error: "Research query is required" 
+        });
+      }
+      
+      console.log(`🔍 AI Research query: "${query}"`);
+      
+      // Import researchCompanies function
+      const { researchCompanies } = await import("./ai");
+      
+      // Check if we have a cached result
+      const normalizedQuery = query.toLowerCase().trim();
+      const cached = await storage.getCompanyResearchByQuery(normalizedQuery);
+      
+      if (cached && !cached.isStale) {
+        console.log(`✓ Using cached research results from ${cached.createdAt}`);
+        return res.json({
+          companies: cached.companiesFound,
+          searchQueries: cached.searchQueries || [],
+          metadata: {
+            totalResults: cached.totalResults || 0,
+            queryExecutionTime: 0,
+            aiGenerationTime: 0
+          },
+          fromCache: true,
+          cacheDate: cached.createdAt
+        });
+      }
+      
+      // Execute AI research
+      const results = await researchCompanies({
+        naturalLanguageQuery: query,
+        maxResults: maxResults || 50
+      });
+      
+      console.log(`✅ Research complete: ${results.companies.length} companies found`);
+      
+      // Save as campaign if requested
+      let campaignId = null;
+      if (saveAsCampaign) {
+        const campaign = await storage.createIndustryCampaign({
+          name: campaignName || `Research: ${query}`,
+          industry: campaignIndustry || 'Unknown',
+          targetCompanies: maxResults || 50,
+          status: 'active',
+          description: `AI Research: ${query}`
+        });
+        campaignId = campaign.id;
+        console.log(`✓ Created campaign #${campaignId}: ${campaign.name}`);
+      }
+      
+      // Cache the results
+      await storage.createCompanyResearchResult({
+        normalizedQuery,
+        originalQuery: query,
+        campaignId,
+        searchQueries: results.searchQueries,
+        dataSources: ['SerpAPI', 'AI Analysis'],
+        companiesFound: results.companies as any,
+        totalResults: results.metadata.totalResults,
+        averageConfidence: 0.8,
+        isStale: false
+      });
+      
+      res.json({
+        ...results,
+        campaignId,
+        fromCache: false
+      });
+      
+    } catch (error) {
+      console.error("❌ AI Research error:", error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Research failed" 
+      });
+    }
+  });
+
   // Boolean search for LinkedIn candidates
   app.post("/api/admin/boolean-search", async (req, res) => {
     try {

@@ -4035,3 +4035,205 @@ export async function analyzeCompanyHiringPatterns(
     return null;
   }
 }
+
+/**
+ * AI Research Engine: Intelligent company discovery using natural language queries
+ * 
+ * Examples:
+ * - "Find top 100 private equity firms globally"
+ * - "List major venture capital funds in US healthcare"
+ * - "Top 50 investment banks in Asia"
+ * 
+ * Process:
+ * 1. AI generates multiple targeted search queries
+ * 2. Execute SERP API searches for each query
+ * 3. Parse and deduplicate company names
+ * 4. Auto-enrich with company data (LinkedIn, size, geography)
+ * 5. Return validated list with confidence scores
+ */
+export async function researchCompanies(params: {
+  naturalLanguageQuery: string;
+  maxResults?: number;
+}): Promise<{
+  companies: Array<{
+    companyName: string;
+    website: string | null;
+    linkedinUrl: string | null;
+    description: string | null;
+    confidence: number;
+    sources: string[];
+  }>;
+  searchQueries: string[];
+  metadata: {
+    totalResults: number;
+    queryExecutionTime: number;
+    aiGenerationTime: number;
+  };
+}> {
+  const startTime = Date.now();
+  console.log(`\n🔍 [AI Research] Starting company research: "${params.naturalLanguageQuery}"`);
+  
+  // STEP 1: Use AI to generate multiple targeted search queries
+  const aiStartTime = Date.now();
+  const queryPrompt = `You are an expert research assistant. Given a natural language query about finding companies, generate 3-5 highly targeted Google search queries that will find the most relevant and authoritative results.
+
+User Query: "${params.naturalLanguageQuery}"
+
+Requirements:
+- Each query should target different authoritative sources (Forbes lists, industry reports, LinkedIn, Crunchbase, etc.)
+- Use precise terminology and operators for better results
+- Focus on finding official company lists, rankings, and directories
+- Avoid duplicate results by varying the angle of each query
+
+Return ONLY a JSON array of search query strings. Example:
+["top 100 private equity firms forbes 2024", "largest PE firms by AUM", "private equity companies list crunchbase"]
+
+Your response (JSON array only):`;
+
+  try {
+    const queryGenResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [{ role: "user", content: queryPrompt }],
+      temperature: 0.7,
+      max_tokens: 500
+    });
+
+    const queriesText = queryGenResponse.choices[0]?.message?.content?.trim() || '[]';
+    const searchQueries: string[] = JSON.parse(queriesText);
+    const aiGenerationTime = Date.now() - aiStartTime;
+    
+    console.log(`✓ AI generated ${searchQueries.length} search queries in ${aiGenerationTime}ms`);
+    searchQueries.forEach((q, i) => console.log(`  ${i + 1}. "${q}"`));
+
+    if (!process.env.SERPAPI_API_KEY) {
+      throw new Error('SERPAPI_API_KEY not configured');
+    }
+
+    // STEP 2: Execute SERP API searches for each query
+    const searchStartTime = Date.now();
+    const allResults: Array<{ title: string; link: string; snippet: string; source: string }> = [];
+    
+    for (const query of searchQueries.slice(0, 3)) { // Limit to 3 queries to control costs
+      console.log(`🌐 Executing SERP search: "${query}"`);
+      
+      try {
+        const serpUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(query)}&api_key=${process.env.SERPAPI_API_KEY}&num=20`;
+        const response = await fetch(serpUrl);
+        const data = await response.json();
+        
+        if (data.organic_results) {
+          for (const result of data.organic_results) {
+            allResults.push({
+              title: result.title || '',
+              link: result.link || '',
+              snippet: result.snippet || '',
+              source: query
+            });
+          }
+          console.log(`  ✓ Found ${data.organic_results.length} results`);
+        }
+      } catch (error) {
+        console.error(`  ✗ SERP search failed for query "${query}":`, error);
+      }
+    }
+    
+    const searchExecutionTime = Date.now() - searchStartTime;
+    console.log(`✓ SERP searches complete: ${allResults.length} total results in ${searchExecutionTime}ms`);
+
+    // STEP 3: Use AI to extract and validate company names from search results
+    const extractionPrompt = `You are an expert at extracting company names from search results. Analyze the following search results and extract a list of companies.
+
+Original Query: "${params.naturalLanguageQuery}"
+
+Search Results:
+${allResults.slice(0, 50).map((r, i) => `${i + 1}. ${r.title}\n   ${r.snippet}\n   URL: ${r.link}`).join('\n\n')}
+
+Instructions:
+1. Extract ONLY real company names (not categories, rankings, or descriptive text)
+2. For each company, try to infer:
+   - Official company name
+   - Website URL (if visible in results)
+   - Brief description (from snippet context)
+   - Confidence score (0.0-1.0) based on how clearly it matches the query
+3. Remove duplicates (same company mentioned multiple times)
+4. Prioritize companies that clearly match the original query intent
+5. Limit to top ${params.maxResults || 50} most relevant companies
+
+Return ONLY valid JSON in this exact format:
+{
+  "companies": [
+    {
+      "companyName": "Example Company",
+      "website": "https://example.com",
+      "description": "Brief description from search context",
+      "confidence": 0.95,
+      "sourceResults": ["Result 1", "Result 3"]
+    }
+  ]
+}`;
+
+    console.log(`🤖 AI extracting companies from ${allResults.length} search results...`);
+    
+    const extractionResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [{ role: "user", content: extractionPrompt }],
+      temperature: 0.3,
+      max_tokens: 8000
+    });
+
+    const extractedText = extractionResponse.choices[0]?.message?.content?.trim() || '{}';
+    const extracted = JSON.parse(extractedText);
+    
+    console.log(`✓ AI extracted ${extracted.companies?.length || 0} companies`);
+
+    // STEP 4: Auto-enrich with LinkedIn discovery (lightweight)
+    const enrichedCompanies = [];
+    for (const company of (extracted.companies || [])) {
+      // Try to find LinkedIn company page (lightweight search)
+      let linkedinUrl = null;
+      if (company.companyName) {
+        try {
+          const linkedinQuery = `${company.companyName} site:linkedin.com/company`;
+          const serpUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(linkedinQuery)}&api_key=${process.env.SERPAPI_API_KEY}&num=3`;
+          const response = await fetch(serpUrl);
+          const data = await response.json();
+          
+          if (data.organic_results && data.organic_results.length > 0) {
+            const firstResult = data.organic_results[0];
+            if (firstResult.link && firstResult.link.includes('linkedin.com/company')) {
+              linkedinUrl = firstResult.link;
+            }
+          }
+        } catch (err) {
+          // LinkedIn discovery failed, continue without it
+        }
+      }
+
+      enrichedCompanies.push({
+        companyName: company.companyName,
+        website: company.website || null,
+        linkedinUrl,
+        description: company.description || null,
+        confidence: company.confidence || 0.7,
+        sources: company.sourceResults || []
+      });
+    }
+
+    const totalTime = Date.now() - startTime;
+    console.log(`✅ [AI Research] Complete: ${enrichedCompanies.length} companies found in ${totalTime}ms`);
+
+    return {
+      companies: enrichedCompanies,
+      searchQueries,
+      metadata: {
+        totalResults: allResults.length,
+        queryExecutionTime: totalTime,
+        aiGenerationTime
+      }
+    };
+
+  } catch (error) {
+    console.error(`❌ [AI Research] Error:`, error);
+    throw error;
+  }
+}
