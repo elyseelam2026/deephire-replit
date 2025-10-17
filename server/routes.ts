@@ -1573,6 +1573,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk import companies from research results
+  app.post("/api/admin/bulk-import-companies", async (req, res) => {
+    try {
+      const { companies } = req.body;
+      
+      if (!companies || !Array.isArray(companies) || companies.length === 0) {
+        return res.status(400).json({ 
+          error: "Companies array is required" 
+        });
+      }
+      
+      console.log(`🔍 Bulk importing ${companies.length} companies from research results`);
+      
+      // Create an ingestion job for tracking
+      const job = await storage.createIngestionJob({
+        fileName: `AI Research - Bulk Import (${companies.length} companies)`,
+        fileType: 'research-import',
+        entityType: 'company',
+        totalRecords: companies.length,
+        status: 'processing',
+        processingMethod: 'ai-research-import'
+      });
+      
+      console.log(`✓ Created ingestion job #${job.id}`);
+      
+      // Convert research results to company URLs for processing
+      const companyUrls = companies
+        .map(c => c.website || c.linkedinUrl)
+        .filter(url => url) // Filter out nulls
+        .join('\n');
+      
+      if (!companyUrls) {
+        await storage.updateIngestionJob(job.id, {
+          status: 'failed',
+          errorDetails: { message: 'No valid URLs found in selected companies' },
+          completedAt: new Date()
+        });
+        return res.status(400).json({ 
+          error: "No valid URLs found in selected companies" 
+        });
+      }
+      
+      // Process URLs using existing company URL processing logic
+      const lines = companyUrls.split('\n').filter(line => line.trim());
+      const validUrls: string[] = [];
+      const invalidUrls: string[] = [];
+      
+      for (const line of lines) {
+        const url = line.trim();
+        try {
+          new URL(url);
+          validUrls.push(url);
+        } catch {
+          invalidUrls.push(url);
+        }
+      }
+      
+      console.log(`✓ ${validUrls.length} valid URLs, ${invalidUrls.length} invalid URLs`);
+      
+      // Import processCompanyWebsite for background processing
+      const { processCompanyWebsite } = await import("./ai");
+      const { processBulkCompanyIntelligence } = await import("./background-jobs");
+      
+      // Process each company URL
+      const results = {
+        success: 0,
+        duplicates: 0,
+        failed: 0,
+        total: validUrls.length,
+        errors: [] as string[]
+      };
+      
+      const createdCompanies: number[] = [];
+      
+      for (const url of validUrls) {
+        try {
+          const result = await processCompanyWebsite(url);
+          
+          if (result && result.company) {
+            createdCompanies.push(result.company.id);
+            results.success++;
+            
+            await storage.updateIngestionJob(job.id, {
+              processedRecords: results.success + results.duplicates + results.failed,
+              successfulRecords: results.success,
+              duplicateRecords: results.duplicates
+            });
+          } else {
+            results.failed++;
+            results.errors.push(`Failed to process ${url}: No company data returned`);
+          }
+        } catch (error) {
+          results.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`${url}: ${errorMsg}`);
+          console.error(`Error processing ${url}:`, error);
+        }
+      }
+      
+      // Update job status
+      await storage.updateIngestionJob(job.id, {
+        status: 'completed',
+        processedRecords: results.total,
+        successfulRecords: results.success,
+        errorRecords: results.failed,
+        errorDetails: results.errors.length > 0 ? { errors: results.errors } : null,
+        completedAt: new Date()
+      });
+      
+      // Trigger background intelligence processing
+      if (createdCompanies.length > 0) {
+        console.log(`🚀 Starting background intelligence processing for ${createdCompanies.length} companies`);
+        processBulkCompanyIntelligence(createdCompanies).catch(err => {
+          console.error('Background intelligence processing error:', err);
+        });
+      }
+      
+      console.log(`✅ Bulk import complete: ${results.success} success, ${results.failed} failed`);
+      
+      res.json({
+        jobId: job.id,
+        ...results,
+        message: `Successfully imported ${results.success} companies. Background processing started.`
+      });
+      
+    } catch (error) {
+      console.error("❌ Bulk import error:", error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Bulk import failed" 
+      });
+    }
+  });
+
   // Boolean search for LinkedIn candidates
   app.post("/api/admin/boolean-search", async (req, res) => {
     try {

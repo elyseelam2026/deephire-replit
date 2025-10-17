@@ -1606,11 +1606,7 @@ export default function Admin() {
                           console.log('Adding companies to system:', selected);
                           
                           try {
-                            const response = await apiRequest('/api/admin/bulk-import-companies', {
-                              method: 'POST',
-                              body: JSON.stringify({ companies: selected }),
-                              headers: { 'Content-Type': 'application/json' }
-                            });
+                            const response = await apiRequest('POST', '/api/admin/bulk-import-companies', { companies: selected });
                             
                             toast({
                               title: "Companies Added Successfully",
