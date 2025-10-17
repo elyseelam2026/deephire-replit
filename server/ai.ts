@@ -2896,6 +2896,7 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
     
     let teamPageContent = '';
     let teamPageUrl = websiteUrl;
+    let consecutiveFailures = 0;
     
     // Try to find team page
     for (const path of teamPagePaths) {
@@ -2914,8 +2915,20 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
           teamPageContent = content;
           teamPageUrl = url;
           console.log(`✓ Found team page at: ${url}`);
+          consecutiveFailures = 0; // Reset on success
           break;
         }
+      } else if (!content) {
+        consecutiveFailures++;
+        console.log(`⚠️ Failed to fetch (${consecutiveFailures} consecutive failures)`);
+        
+        // After 3 consecutive failures, likely blocked - stop wasting time
+        if (consecutiveFailures >= 3) {
+          console.log(`🚫 Too many failures (${consecutiveFailures}). Likely blocked by Cloudflare. Stopping attempts.`);
+          break;
+        }
+      } else {
+        consecutiveFailures = 0; // Reset if we got some content
       }
     }
     
@@ -2926,39 +2939,41 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       teamPageUrl = websiteUrl;
     }
     
-    if (!teamPageContent) {
-      console.log('Could not fetch any content from website');
-      return [];
-    }
+    let teamMembers: any[] = [];
     
-    // Fetch HTML for AI extraction
-    console.log('Fetching HTML from team page for AI analysis...');
-    const htmlResponse = await fetch(teamPageUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
-      },
-      signal: AbortSignal.timeout(30000)
-    });
-    const html = htmlResponse.ok ? await htmlResponse.text() : '';
-    console.log(`Fetched ${html.length} characters of HTML`);
-    
-    // Use AI to intelligently extract team members from any website structure
-    const allTeamMembers = await aiExtractTeamMembers(html, teamPageUrl);
-    
-    console.log(`\n✅ Total team members extracted from all pages: ${allTeamMembers.length}`);
-    
-    // Deduplicate by name (case-insensitive)
-    const uniqueMembers = new Map<string, any>();
-    for (const member of allTeamMembers) {
-      const key = member.name.toLowerCase().trim();
-      if (!uniqueMembers.has(key)) {
-        uniqueMembers.set(key, member);
+    // Only try AI extraction if we have content
+    if (teamPageContent) {
+      // Fetch HTML for AI extraction
+      console.log('Fetching HTML from team page for AI analysis...');
+      const htmlResponse = await fetch(teamPageUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; DeepHire-Bot/1.0; +https://deephire.ai/bot)',
+        },
+        signal: AbortSignal.timeout(30000)
+      });
+      const html = htmlResponse.ok ? await htmlResponse.text() : '';
+      console.log(`Fetched ${html.length} characters of HTML`);
+      
+      // Use AI to intelligently extract team members from any website structure
+      const allTeamMembers = await aiExtractTeamMembers(html, teamPageUrl);
+      
+      console.log(`\n✅ Total team members extracted from all pages: ${allTeamMembers.length}`);
+      
+      // Deduplicate by name (case-insensitive)
+      const uniqueMembers = new Map<string, any>();
+      for (const member of allTeamMembers) {
+        const key = member.name.toLowerCase().trim();
+        if (!uniqueMembers.has(key)) {
+          uniqueMembers.set(key, member);
+        }
       }
+      
+      teamMembers = Array.from(uniqueMembers.values());
+      console.log(`After deduplication: ${teamMembers.length} unique team members`);
+    } else {
+      console.log('Could not fetch any content from website - will try Google Search fallback');
     }
-    
-    const teamMembers = Array.from(uniqueMembers.values());
-    console.log(`After deduplication: ${teamMembers.length} unique team members`);
     
     // If no team members found and we have SerpAPI, try Google Search fallback
     if (teamMembers.length === 0 && process.env.SERPAPI_API_KEY) {
