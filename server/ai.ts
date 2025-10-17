@@ -2980,10 +2980,10 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       console.log(`\n🔍 [GOOGLE FALLBACK] No team members found via direct scraping. Trying Google Search fallback...`);
       console.log(`[GOOGLE FALLBACK] Domain: ${domain}, Has SERPAPI_API_KEY: ${!!process.env.SERPAPI_API_KEY}`);
       try {
-        const searchQuery = `site:${domain} (team OR people OR leadership OR executives OR "our people")`;
+        const searchQuery = `site:${domain} (team OR people OR leadership OR executives OR "our people" OR "management team" OR "executive team" OR directors OR officers)`;
         console.log(`[GOOGLE FALLBACK] Searching Google: ${searchQuery}`);
         
-        const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${process.env.SERPAPI_API_KEY}&num=20`;
+        const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${process.env.SERPAPI_API_KEY}&num=50`;
         const searchResponse = await fetch(serpApiUrl);
         const searchData: any = await searchResponse.json();
         
@@ -2992,7 +2992,7 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
         
         let searchSnippets = '';
         if (searchData.organic_results) {
-          for (const result of searchData.organic_results.slice(0, 15)) {
+          for (const result of searchData.organic_results.slice(0, 30)) {
             searchSnippets += `\n---\n`;
             searchSnippets += `Title: ${result.title}\n`;
             searchSnippets += `URL: ${result.link}\n`;
@@ -3061,10 +3061,56 @@ If no valid full names found, return: { "members": [] }`;
           const membersFromSearch = Array.isArray(extracted.members) ? extracted.members : 
                                     Array.isArray(extracted) ? extracted : [];
           
-          console.log(`[GOOGLE FALLBACK] Extracted ${membersFromSearch.length} members from AI response`);
+          console.log(`[GOOGLE FALLBACK] Extracted ${membersFromSearch.length} members from snippets`);
+          
+          // ENHANCED: Try to scrape the actual team pages Google found
+          if (searchData.organic_results && searchData.organic_results.length > 0) {
+            console.log(`[GOOGLE FALLBACK] Attempting to scrape top discovered pages...`);
+            
+            // Filter for most promising team pages
+            const teamPages = searchData.organic_results
+              .filter((r: any) => r.link && (
+                r.link.includes('/team') || 
+                r.link.includes('/people') || 
+                r.link.includes('/leadership') ||
+                r.link.includes('/our-people') ||
+                r.link.includes('/management') ||
+                r.link.includes('/executives')
+              ))
+              .slice(0, 3); // Try top 3 team pages
+            
+            console.log(`[GOOGLE FALLBACK] Found ${teamPages.length} promising team page URLs`);
+            
+            for (const page of teamPages) {
+              try {
+                console.log(`[GOOGLE FALLBACK] Scraping: ${page.link}`);
+                const pageHtml = await fetchWebContent(page.link);
+                
+                if (pageHtml && pageHtml.length > 1000) {
+                  const pageMembers = await aiExtractTeamMembers(pageHtml, page.link);
+                  if (pageMembers.length > 0) {
+                    console.log(`[GOOGLE FALLBACK] ✓ Extracted ${pageMembers.length} members from ${page.link}`);
+                    // Merge with snippet results, deduplicate by name
+                    for (const member of pageMembers) {
+                      const exists = membersFromSearch.some((m: any) => 
+                        m.name.toLowerCase().trim() === member.name.toLowerCase().trim()
+                      );
+                      if (!exists) {
+                        membersFromSearch.push(member);
+                      }
+                    }
+                  }
+                }
+              } catch (pageError) {
+                console.log(`[GOOGLE FALLBACK] Failed to scrape ${page.link}:`, pageError);
+              }
+            }
+            
+            console.log(`[GOOGLE FALLBACK] Total after page scraping: ${membersFromSearch.length} members`);
+          }
           
           if (membersFromSearch.length > 0) {
-            console.log(`✅ [GOOGLE FALLBACK] Google Search fallback found ${membersFromSearch.length} team members:`, membersFromSearch.map(m => m.name).join(', '));
+            console.log(`✅ [GOOGLE FALLBACK] Google Search fallback found ${membersFromSearch.length} team members:`, membersFromSearch.map((m: any) => m.name).join(', '));
             return membersFromSearch;
           } else {
             console.log(`⚠️ [GOOGLE FALLBACK] AI extraction returned 0 members`);
