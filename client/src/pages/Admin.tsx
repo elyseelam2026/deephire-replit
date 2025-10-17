@@ -314,6 +314,11 @@ export default function Admin() {
   const [booleanSearchResults, setBooleanSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   
+  const [researchQuery, setResearchQuery] = useState("");
+  const [researchMaxResults, setResearchMaxResults] = useState(50);
+  const [researchSaveCampaign, setResearchSaveCampaign] = useState("no");
+  const [researchResults, setResearchResults] = useState<any>(null);
+  
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
   const [companyFiles, setCompanyFiles] = useState<FileList | null>(null);
@@ -566,6 +571,51 @@ export default function Admin() {
       company: quickAddCompany.trim(),
       jobTitle: quickAddJobTitle.trim() || undefined,
       linkedinUrl: quickAddLinkedinUrl.trim() || undefined
+    });
+  };
+
+  // AI Research mutation
+  const researchMutation = useMutation({
+    mutationFn: async (data: { query: string; maxResults: number; saveAsCampaign: boolean }) => {
+      const response = await apiRequest('POST', '/api/admin/research-companies', {
+        query: data.query,
+        maxResults: data.maxResults,
+        saveAsCampaign: data.saveAsCampaign,
+        campaignName: data.saveAsCampaign ? `Research: ${data.query}` : undefined,
+        campaignIndustry: 'Unknown'
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setResearchResults(data);
+      toast({
+        title: "Research Complete",
+        description: `Found ${data.companies?.length || 0} companies${data.fromCache ? ' (from cache)' : ''}`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Research Failed",
+        description: error.message || "Failed to research companies. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStartResearch = () => {
+    if (!researchQuery.trim()) {
+      toast({
+        title: "Missing Query",
+        description: "Please enter a research query.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    researchMutation.mutate({
+      query: researchQuery.trim(),
+      maxResults: researchMaxResults,
+      saveAsCampaign: researchSaveCampaign === "yes"
     });
   };
 
@@ -1410,6 +1460,9 @@ export default function Admin() {
                     id="research-query"
                     placeholder="E.g., Find top 50 investment banks in Asia&#10;E.g., List major private equity firms focused on infrastructure&#10;E.g., Top 100 venture capital funds globally"
                     className="min-h-[100px] resize-none"
+                    value={researchQuery}
+                    onChange={(e) => setResearchQuery(e.target.value)}
+                    disabled={researchMutation.isPending}
                     data-testid="input-research-query"
                   />
                 </div>
@@ -1422,9 +1475,11 @@ export default function Admin() {
                     <Input
                       id="max-results"
                       type="number"
-                      defaultValue={50}
+                      value={researchMaxResults}
+                      onChange={(e) => setResearchMaxResults(parseInt(e.target.value) || 50)}
                       min={10}
                       max={200}
+                      disabled={researchMutation.isPending}
                       data-testid="input-max-results"
                     />
                   </div>
@@ -1433,7 +1488,11 @@ export default function Admin() {
                     <Label htmlFor="save-campaign">
                       Save as Campaign
                     </Label>
-                    <Select defaultValue="no">
+                    <Select 
+                      value={researchSaveCampaign} 
+                      onValueChange={setResearchSaveCampaign}
+                      disabled={researchMutation.isPending}
+                    >
                       <SelectTrigger id="save-campaign" data-testid="select-save-campaign">
                         <SelectValue />
                       </SelectTrigger>
@@ -1446,29 +1505,135 @@ export default function Admin() {
                 </div>
 
                 <Button
+                  onClick={handleStartResearch}
+                  disabled={researchMutation.isPending}
                   className="w-full"
                   data-testid="button-start-research"
                 >
-                  <Search className="h-4 w-4 mr-2" />
-                  Start AI Research
+                  {researchMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Researching...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Start AI Research
+                    </>
+                  )}
                 </Button>
               </div>
 
-              {/* Results Section - will be populated after research */}
+              {/* Results Section */}
               <div className="mt-8 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Research Results</h3>
-                  <Badge variant="secondary">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    Ready
-                  </Badge>
+                  {researchResults && (
+                    <div className="flex items-center gap-2">
+                      {researchResults.fromCache && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          <Database className="h-3 w-3 mr-1" />
+                          Cached
+                        </Badge>
+                      )}
+                      <Badge variant="secondary">
+                        {researchResults.companies?.length || 0} Companies
+                      </Badge>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="p-8 border rounded-lg text-center text-muted-foreground">
-                  <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">No research results yet</p>
-                  <p className="text-sm">Enter a query above and click "Start AI Research" to begin</p>
-                </div>
+                {!researchResults ? (
+                  <div className="p-8 border rounded-lg text-center text-muted-foreground">
+                    <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="font-medium">No research results yet</p>
+                    <p className="text-sm">Enter a query above and click "Start AI Research" to begin</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Metadata Summary */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold">{researchResults.companies?.length || 0}</p>
+                            <p className="text-sm text-muted-foreground">Companies Found</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold">{researchResults.searchQueries?.length || 0}</p>
+                            <p className="text-sm text-muted-foreground">Search Queries</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold">{((researchResults.metadata?.queryExecutionTime || 0) / 1000).toFixed(1)}s</p>
+                            <p className="text-sm text-muted-foreground">Execution Time</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Company Results Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {researchResults.companies?.map((company: any, idx: number) => (
+                        <Card key={idx} className="hover-elevate">
+                          <CardHeader>
+                            <CardTitle className="text-base flex items-center justify-between">
+                              <span className="truncate">{company.companyName}</span>
+                              <Badge variant="outline" className="ml-2">
+                                {(company.confidence * 100).toFixed(0)}%
+                              </Badge>
+                            </CardTitle>
+                            {company.description && (
+                              <CardDescription className="line-clamp-2">
+                                {company.description}
+                              </CardDescription>
+                            )}
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            {company.website && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Link className="h-3 w-3 text-muted-foreground" />
+                                <a 
+                                  href={company.website} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline truncate"
+                                >
+                                  {company.website}
+                                </a>
+                              </div>
+                            )}
+                            {company.linkedinUrl && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Building2 className="h-3 w-3 text-muted-foreground" />
+                                <a 
+                                  href={company.linkedinUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline truncate"
+                                >
+                                  LinkedIn
+                                </a>
+                              </div>
+                            )}
+                            {company.sources && company.sources.length > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                Found in {company.sources.length} source{company.sources.length > 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
