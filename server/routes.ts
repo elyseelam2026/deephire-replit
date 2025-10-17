@@ -1607,8 +1607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!companyUrls) {
         await storage.updateIngestionJob(job.id, {
           status: 'failed',
-          errorDetails: { message: 'No valid URLs found in selected companies' },
-          completedAt: new Date()
+          errorDetails: { message: 'No valid URLs found in selected companies' }
         });
         return res.status(400).json({ 
           error: "No valid URLs found in selected companies" 
@@ -1632,8 +1631,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`✓ ${validUrls.length} valid URLs, ${invalidUrls.length} invalid URLs`);
       
-      // Import processCompanyWebsite for background processing
-      const { processCompanyWebsite } = await import("./ai");
+      // Import parseCompanyFromUrl for background processing
+      const { parseCompanyFromUrl } = await import("./ai");
       const { processBulkCompanyIntelligence } = await import("./background-jobs");
       
       // Process each company URL
@@ -1649,10 +1648,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       for (const url of validUrls) {
         try {
-          const result = await processCompanyWebsite(url);
+          const result = await parseCompanyFromUrl(url);
           
-          if (result && result.company) {
-            createdCompanies.push(result.company.id);
+          if (result && result.id) {
+            createdCompanies.push(result.id);
             results.success++;
             
             await storage.updateIngestionJob(job.id, {
@@ -1678,8 +1677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processedRecords: results.total,
         successfulRecords: results.success,
         errorRecords: results.failed,
-        errorDetails: results.errors.length > 0 ? { errors: results.errors } : null,
-        completedAt: new Date()
+        errorDetails: results.errors.length > 0 ? { errors: results.errors } : null
       });
       
       // Trigger background intelligence processing
