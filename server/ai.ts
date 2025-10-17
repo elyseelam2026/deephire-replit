@@ -4087,18 +4087,20 @@ export async function researchCompanies(params: {
   
   // STEP 1: Use AI to generate multiple targeted search queries
   const aiStartTime = Date.now();
-  const queryPrompt = `You are an expert research assistant. Given a natural language query about finding companies, generate 3-5 highly targeted Google search queries that will find the most relevant and authoritative results.
+  const queryPrompt = `You are an expert research assistant. Given a natural language query about finding companies, generate 3-5 highly targeted Google search queries that will find the most relevant and authoritative results from BUSINESS PUBLICATIONS and INDUSTRY SOURCES.
 
 User Query: "${params.naturalLanguageQuery}"
 
 Requirements:
-- Each query should target different authoritative sources (Forbes lists, industry reports, LinkedIn, Crunchbase, etc.)
+- Target authoritative BUSINESS SOURCES ONLY: Forbes, Bloomberg, Financial Times, Reuters, PitchBook, Preqin, industry reports, business directories
+- DO NOT use LinkedIn, Twitter, or social media as sources
 - Use precise terminology and operators for better results
-- Focus on finding official company lists, rankings, and directories
-- Avoid duplicate results by varying the angle of each query
+- Focus on finding official company lists, rankings, league tables, and industry reports
+- Vary search angle: rankings, market reports, competitor analysis, industry directories
+- Each query should target different authoritative publications
 
 Return ONLY a JSON array of search query strings. Example:
-["top 100 private equity firms forbes 2024", "largest PE firms by AUM", "private equity companies list crunchbase"]
+["top 100 private equity firms forbes 2024", "private equity asia rankings financial times", "china PE firms market report bloomberg"]
 
 Your response (JSON array only):`;
 
