@@ -839,7 +839,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="quick-add" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="quick-add" data-testid="tab-quick-add">
             <UserPlus className="h-4 w-4 mr-2" />
             Quick Add
@@ -851,6 +851,10 @@ export default function Admin() {
           <TabsTrigger value="companies" data-testid="tab-companies">
             <Building2 className="h-4 w-4 mr-2" />
             Company Upload
+          </TabsTrigger>
+          <TabsTrigger value="research" data-testid="tab-research">
+            <Search className="h-4 w-4 mr-2" />
+            AI Research
           </TabsTrigger>
           <TabsTrigger value="duplicates" data-testid="tab-duplicates">
             <AlertCircle className="h-4 w-4 mr-2" />
@@ -1380,6 +1384,92 @@ export default function Admin() {
                   </>
                 )}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* AI Research Tab Content */}
+        <TabsContent value="research" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                AI Company Research Engine
+              </CardTitle>
+              <CardDescription>
+                Use natural language to discover companies systematically. Example: "Find top 100 private equity firms globally" or "List major venture capital funds in US healthcare"
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="max-w-2xl space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="research-query">
+                    Research Query
+                  </Label>
+                  <Textarea
+                    id="research-query"
+                    placeholder="E.g., Find top 50 investment banks in Asia&#10;E.g., List major private equity firms focused on infrastructure&#10;E.g., Top 100 venture capital funds globally"
+                    className="min-h-[100px] resize-none"
+                    data-testid="input-research-query"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="max-results">
+                      Maximum Results
+                    </Label>
+                    <Input
+                      id="max-results"
+                      type="number"
+                      defaultValue={50}
+                      min={10}
+                      max={200}
+                      data-testid="input-max-results"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="save-campaign">
+                      Save as Campaign
+                    </Label>
+                    <Select defaultValue="no">
+                      <SelectTrigger id="save-campaign" data-testid="select-save-campaign">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no">No, just research</SelectItem>
+                        <SelectItem value="yes">Yes, track progress</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  data-testid="button-start-research"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Start AI Research
+                </Button>
+              </div>
+
+              {/* Results Section - will be populated after research */}
+              <div className="mt-8 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Research Results</h3>
+                  <Badge variant="secondary">
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                    Ready
+                  </Badge>
+                </div>
+                
+                <div className="p-8 border rounded-lg text-center text-muted-foreground">
+                  <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No research results yet</p>
+                  <p className="text-sm">Enter a query above and click "Start AI Research" to begin</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
