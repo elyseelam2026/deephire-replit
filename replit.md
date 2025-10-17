@@ -81,6 +81,10 @@ Preferred communication style: Simple, everyday language.
   - **Organization Chart Population**: `analyzeRoleLevel()` detects C-level (CEO, CFO, etc.) and executive roles. Team discovery automatically populates `organization_chart` table with role hierarchy (C-Suite, VP, Director), department classification, and discovery metadata.
   - **Pattern Learning Engine**: `analyzeCompanyHiringPatterns()` foundation ready to analyze org charts and discover hiring patterns (e.g., "PAG hires 42% from Blackstone"). Will track career transitions and preferred source companies when LinkedIn career history data is integrated.
   - **Automated Processing Pipeline**: Upload workflow connected to background jobs. After CSV upload, system automatically: (1) saves companies to database, (2) triggers background intelligence processing via `processBulkCompanyIntelligence()`, (3) runs categorization → team discovery → pattern learning pipeline for each company. User sees "AI intelligence processing started for X companies" confirmation.
+- **Google Search Fallback for Team Discovery** (Oct 17, 2025): Intelligent 3-tier scraping system bypasses Cloudflare and anti-bot protection:
+  - **Tier 1 - Direct HTTP**: Standard fetch with user-agent headers (fastest, works for most sites)
+  - **Tier 2 - Bright Data Proxy**: Web Unlocker for sites with basic protection (port 22225)
+  - **Tier 3 - Google Search Extraction**: When sites block all direct access (Cloudflare, etc.), uses SerpAPI to search `site:company.com (team OR people OR leadership)`, then Grok AI extracts team member names from Google search result snippets. Successfully discovered 5 executives from Carlyle Group (Harvey M. Schwartz, Charles Andrews, Jeff Nedelman, Joe Bress, Robert Schmidt) despite complete Cloudflare blocking. Early stop optimization: detects blocking after 3 consecutive failures, immediately triggers Google fallback instead of trying 150+ URL combinations. System prioritizes efficiency over exhaustive attempts.
 
 ## External Dependencies
 
