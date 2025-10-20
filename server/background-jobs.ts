@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography, categorizeCompany, discoverTeamMembers, analyzeCompanyHiringPatterns, analyzeRoleLevel, extractOfficesWithPlaywright } from './ai';
+import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography, categorizeCompany, discoverTeamMembers, analyzeCompanyHiringPatterns, analyzeRoleLevel, parseCompanyFromUrl } from './ai';
 import { duplicateDetectionService } from './duplicate-detection';
 import type { DataIngestionJob } from '@shared/schema';
 
@@ -308,17 +308,17 @@ export async function processCompanyIntelligence(companyId: number): Promise<voi
       console.log(`[Company Intelligence] ✓ Auto-categorization complete (${categorization.industryTags?.join(', ')})`);
     }
     
-    // STEP 2: Office location discovery
+    // STEP 2: Office location discovery (using AI-powered extraction - no browser needed)
     console.log(`[Company Intelligence] Step 2/4: Discovering office locations from website...`);
     try {
-      const offices = await extractOfficesWithPlaywright(company.website);
+      const companyData = await parseCompanyFromUrl(company.website);
       
-      if (offices && offices.length > 0) {
-        console.log(`[Company Intelligence] Found ${offices.length} office locations`);
+      if (companyData && companyData.officeLocations && companyData.officeLocations.length > 0) {
+        console.log(`[Company Intelligence] Found ${companyData.officeLocations.length} office locations`);
         
         // Save office locations to company record
         await storage.updateCompany(company.id, {
-          officeLocations: offices
+          officeLocations: companyData.officeLocations
         });
         
         // Convert to hierarchy (create child companies)
