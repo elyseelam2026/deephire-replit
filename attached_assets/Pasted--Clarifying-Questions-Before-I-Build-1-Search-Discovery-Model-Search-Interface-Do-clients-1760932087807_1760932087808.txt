@@ -1,0 +1,46 @@
+🤔 Clarifying Questions Before I Build:
+1. Search & Discovery Model
+•	Search Interface: Do clients search our candidate database (like LinkedIn) OR do we scrape/discover candidates on-demand per search?
+o	Option A: Pre-populated database of candidates (we scraped 10,000+ profiles already)
+o	Option B: On-demand discovery (client searches "CFO at PE firms" → we scrape LinkedIn then)
+o	Option C: Hybrid (database + on-demand enrichment)
+
+We won’t start with an empty database.  When client opens an account, more or less they will have some database to import to
+We will (with the assistance of AI + manual) to do research according to industry.  
+We will invite candidates to register here to provide another rich pool of database. 
+We will know more candidates by viewing registered candidates’ network. 
+
+
+2. Candidate Database Source
+•	Where do candidates come from? Similar to Linkedin.com on one’s own accord + sending invitation (because we will do research) 
+•	
+o	From our company intelligence scraping (org charts)?  No. 
+o	From LinkedIn searches we run? Yes 
+o	Candidates sign up themselves? Yes
+o	All of the above? Yes
+o	
+3. Credit/Charging Mechanism
+•	What consumes credits?
+o	Each candidate profile viewed?
+o	Each search query?
+o	Each contact/InMail sent?
+o	Candidate profile enrichment (scraping LinkedIn, bio generation)?
+•	How do we calculate "search difficulty"?
+o	Senior roles = more credits?
+o	Geographic scope?
+o	AI processing required?
+
+I need time to think about this the charging model or you can also give me some advice. 
+o	
+4. Contact/Outreach
+•	How do clients contact candidates? To send email or call
+o	Email through our platform? Yes 
+o	Mail integration? Yes 
+o	Just reveal contact info and client reaches out directly? Yes if client paid
+•	Do we track responses/engagement? Yes 
+
+5. Recruiter Role in This Model
+Since you said "eliminate recruiters," what happens to the recruiter portal we built?
+•	Is it for DeepHire admins only? Yes 
+•	Or do some companies still want managed service (hybrid model)? Yes clients need recruiters to do closing, then they can hire us to do the rest of the process with full fee.  
+•	Or delete it entirely? No. 
