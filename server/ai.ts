@@ -2980,9 +2980,159 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
       console.log(`\n🔍 [GOOGLE FALLBACK] No team members found via direct scraping. Trying Google Search fallback...`);
       console.log(`[GOOGLE FALLBACK] Domain: ${domain}, Has SERPAPI_API_KEY: ${!!process.env.SERPAPI_API_KEY}`);
       try {
-        const searchQuery = `site:${domain} (team OR people OR leadership OR executives OR "our people" OR "management team" OR "executive team" OR directors OR officers)`;
-        console.log(`[GOOGLE FALLBACK] Searching Google: ${searchQuery}`);
+        // STRATEGY: Search for individual profile URL patterns (e.g., site:carlyle.com/team/)
+        // This discovers 100s of individual profiles instead of just the team listing page!
+        const profilePatterns = [
+          // Generic patterns
+          `site:${domain}/team/`,
+          `site:${domain}/people/`,
+          `site:${domain}/leadership/`,
+          `site:${domain}/our-people/`,
+          `site:${domain}/our-team/`,
+          `site:${domain}/management/`,
+          `site:${domain}/executives/`,
+          // Common company-specific patterns  
+          `site:${domain}/about/team/`,
+          `site:${domain}/about/people/`,
+          `site:${domain}/about/leadership/`,
+          // Carlyle-specific pattern (from user's example)
+          `site:${domain}/about-carlyle/team/`,
+          // Alternative nested patterns
+          `site:${domain}/company/team/`,
+          `site:${domain}/who-we-are/team/`,
+        ];
         
+        console.log(`[GOOGLE FALLBACK] Searching for individual profile URL patterns...`);
+        
+        // Try each pattern and collect all profile URLs
+        const allProfileUrls = new Set<{ url: string; title: string; snippet: string }>();
+        
+        for (const pattern of profilePatterns) {
+          try {
+            console.log(`[GOOGLE FALLBACK] Pattern: ${pattern}`);
+            const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(pattern)}&api_key=${process.env.SERPAPI_API_KEY}&num=100`;
+            const searchResponse = await fetch(serpApiUrl);
+            const searchData: any = await searchResponse.json();
+            
+            if (searchData.organic_results && searchData.organic_results.length > 0) {
+              console.log(`[GOOGLE FALLBACK] ✓ Found ${searchData.organic_results.length} SERP results for ${pattern}`);
+              let profilesFromThisPattern = 0;
+              
+              for (const result of searchData.organic_results) {
+                // Filter for individual profile pages
+                // INCLUDE: URLs with profile paths that have more after them (e.g., /team/john-doe)
+                // EXCLUDE: Generic listing pages (e.g., /team, /team/, /our-people)
+                if (result.link && result.title) {
+                  const url = result.link.toLowerCase();
+                  const isProfilePath = url.includes('/team/') || url.includes('/people/') || 
+                                        url.includes('/leadership/') || url.includes('/our-people/') ||
+                                        url.includes('/our-team/') || url.includes('/management/') ||
+                                        url.includes('/executives/');
+                  
+                  // Exclude main listing pages (they end with the directory name or just /)
+                  const isListingPage = url.endsWith('/team') || url.endsWith('/team/') ||
+                                       url.endsWith('/people') || url.endsWith('/people/') ||
+                                       url.endsWith('/leadership') || url.endsWith('/leadership/') ||
+                                       url.endsWith('/our-people') || url.endsWith('/our-people/') ||
+                                       url.endsWith('/our-team') || url.endsWith('/our-team/') ||
+                                       url.endsWith('/management') || url.endsWith('/management/') ||
+                                       url.endsWith('/executives') || url.endsWith('/executives/');
+                  
+                  // Also exclude pagination and filter pages
+                  const isPaginationOrFilter = url.includes('?page=') || url.includes('&filter=') || 
+                                              url.includes('/page/') || url.includes('#');
+                  
+                  if (isProfilePath && !isListingPage && !isPaginationOrFilter) {
+                    const sizeBefore = allProfileUrls.size;
+                    allProfileUrls.add({
+                      url: result.link,
+                      title: result.title || '',
+                      snippet: result.snippet || ''
+                    });
+                    if (allProfileUrls.size > sizeBefore) {
+                      profilesFromThisPattern++;
+                    }
+                  }
+                }
+              }
+              console.log(`[GOOGLE FALLBACK] → Added ${profilesFromThisPattern} unique profiles from this pattern (total: ${allProfileUrls.size})`);
+            }
+          } catch (patternError) {
+            console.log(`[GOOGLE FALLBACK] Pattern ${pattern} failed:`, patternError);
+          }
+          
+          // Stop if we have enough profiles
+          if (allProfileUrls.size >= 100) {
+            console.log(`[GOOGLE FALLBACK] Reached 100 profiles, stopping search`);
+            break;
+          }
+        }
+        
+        console.log(`[GOOGLE FALLBACK] Total individual profile URLs discovered: ${allProfileUrls.size}`);
+        
+        // Extract names from discovered profiles using AI
+        if (allProfileUrls.size > 0) {
+          console.log(`[GOOGLE FALLBACK] Extracting names from ${allProfileUrls.size} individual profiles...`);
+          
+          // Build a list of profiles for AI extraction
+          const profileList = Array.from(allProfileUrls).slice(0, 100).map(p => 
+            `Title: ${p.title}\nURL: ${p.url}\nSnippet: ${p.snippet}\n---`
+          ).join('\n');
+          
+          const openai = await import('openai').then(mod => mod.default);
+          const client = new openai({
+            baseURL: "https://api.x.ai/v1",
+            apiKey: process.env.XAI_API_KEY
+          });
+          
+          const extractionPrompt = `Extract team member information from these individual profile pages found on ${domain}.
+
+Profile Pages:
+${profileList}
+
+For each profile, extract:
+- name: Full name (e.g., "William McMullan", "Broes Langelaar", "Antonio Capo")
+- title: Job title if mentioned in title or snippet
+- bioUrl: The URL of the profile page
+
+IMPORTANT:
+- Extract the person's name from the page title (e.g., "William McMullan | Carlyle" → "William McMullan")
+- Only extract names with BOTH first and last names
+- Skip generic pages like "Team", "Our People", "Leadership"
+- Each profile URL represents ONE person
+
+Return JSON object with "members" array:
+{
+  "members": [
+    { "name": "William McMullan", "title": "Partner and Co-Head of Financial Services", "bioUrl": "https://..." },
+    { "name": "Broes Langelaar", "title": "", "bioUrl": "https://..." }
+  ]
+}`;
+
+          const aiResponse = await client.chat.completions.create({
+            model: "grok-2-1212",
+            messages: [{ role: "user", content: extractionPrompt }],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+          });
+          
+          const aiContent = aiResponse.choices[0].message.content?.trim() || '{}';
+          console.log(`[GOOGLE FALLBACK] AI extracted from ${allProfileUrls.size} profiles`);
+          
+          const extracted = JSON.parse(aiContent);
+          const membersFromProfiles = Array.isArray(extracted.members) ? extracted.members : 
+                                      Array.isArray(extracted) ? extracted : [];
+          
+          console.log(`✅ [GOOGLE FALLBACK] Found ${membersFromProfiles.length} team members from individual profiles`);
+          
+          if (membersFromProfiles.length > 0) {
+            return membersFromProfiles;
+          }
+        }
+        
+        // Fallback to old approach if no individual profiles found
+        console.log(`[GOOGLE FALLBACK] No individual profiles found, trying generic search...`);
+        const searchQuery = `site:${domain} (team OR people OR leadership OR executives OR "our people" OR "management team" OR "executive team" OR directors OR officers)`;
         const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${process.env.SERPAPI_API_KEY}&num=50`;
         const searchResponse = await fetch(serpApiUrl);
         const searchData: any = await searchResponse.json();
