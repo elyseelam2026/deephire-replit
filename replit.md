@@ -39,6 +39,25 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM for type-safe operations.
 - **Enterprise Schema**: Comprehensive data models for Companies (50+ fields), Candidates (40+ fields), Jobs, Job matches, Users, Data ingestion jobs, and Duplicate detection.
 
+#### Company-Candidate Relationships (Oct 20, 2025)
+**Company Role Architecture**: Companies can have multiple roles in the recruiting platform:
+- **`companyRole`** (array field): Tracks company purpose - `['client', 'sourcing', 'prospecting']`
+  - **'client'**: Companies hiring (have active jobs) - clients of the recruiting firm
+  - **'sourcing'**: Companies where candidates work (talent pool to source from)
+  - **'prospecting'**: Companies being researched for intelligence/future sourcing
+  - NOTE: A company can have multiple roles simultaneously (e.g., both 'client' and 'sourcing')
+
+**Proper Foreign Key Linking**:
+- **Candidates → Companies**: `currentCompanyId` (integer FK) links candidates to their current employer company
+- **Jobs → Companies**: `companyId` (integer FK) links jobs to the hiring company
+- **Deprecated**: `currentCompany` (text) field kept for backward compatibility but should not be used for new data
+
+**Duplicate Detection Enhancement** (Oct 20, 2025):
+- **Website Domain Matching** (40% weight - highest priority): Prevents creating 30+ duplicate companies with same domain (e.g., `kkr.com`)
+- Intelligent domain extraction: Strips `www.`, protocols, handles variations
+- Same domain + similar name = automatic duplicate detection
+- Name matching weight reduced from 50% to 35% to prioritize website matching
+
 ### AI and Machine Learning
 - **Language Model**: xAI Grok-2-1212 with 131k token context window.
 - **Capabilities**: Automated job description parsing (titles, skills, requirements) and intelligent candidate longlist generation.
