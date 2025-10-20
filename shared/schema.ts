@@ -831,7 +831,7 @@ export const organizationChart = pgTable("organization_chart", {
 // Company Intelligence Tags - Multi-dimensional categorization
 export const companyTags = pgTable("company_tags", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  companyId: integer("company_id").references(() => companies.id).notNull().unique(),
   companyName: text("company_name"), // Cached for quick reference
   
   // Auto-categorization dimensions (from website scraping)

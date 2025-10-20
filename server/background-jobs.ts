@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography, categorizeCompany, discoverTeamMembers, analyzeCompanyHiringPatterns, analyzeRoleLevel } from './ai';
+import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography, categorizeCompany, discoverTeamMembers, analyzeCompanyHiringPatterns, analyzeRoleLevel, extractOfficesWithPlaywright } from './ai';
 import { duplicateDetectionService } from './duplicate-detection';
 import type { DataIngestionJob } from '@shared/schema';
 
@@ -271,8 +271,9 @@ export function getQueueLength(): number {
  * COMPANY INTELLIGENCE PROCESSING
  * Processes a company through the AI intelligence pipeline:
  * 1. Auto-categorization (industry, stage, funding, etc.)
- * 2. Team discovery & org chart population
- * 3. Hiring pattern analysis
+ * 2. Office location discovery (extract office locations from website)
+ * 3. Team discovery & org chart population
+ * 4. Hiring pattern analysis
  */
 export async function processCompanyIntelligence(companyId: number): Promise<void> {
   try {
@@ -288,7 +289,7 @@ export async function processCompanyIntelligence(companyId: number): Promise<voi
     console.log(`[Company Intelligence] Processing: ${company.name} (${company.website})`);
     
     // STEP 1: Auto-categorization
-    console.log(`[Company Intelligence] Step 1/3: Auto-categorizing...`);
+    console.log(`[Company Intelligence] Step 1/4: Auto-categorizing...`);
     const categorization = await categorizeCompany(company.website);
     
     if (categorization) {
@@ -307,8 +308,31 @@ export async function processCompanyIntelligence(companyId: number): Promise<voi
       console.log(`[Company Intelligence] ✓ Auto-categorization complete (${categorization.industryTags?.join(', ')})`);
     }
     
-    // STEP 2: Team discovery & org chart population
-    console.log(`[Company Intelligence] Step 2/3: Discovering team members...`);
+    // STEP 2: Office location discovery
+    console.log(`[Company Intelligence] Step 2/4: Discovering office locations from website...`);
+    try {
+      const offices = await extractOfficesWithPlaywright(company.website);
+      
+      if (offices && offices.length > 0) {
+        console.log(`[Company Intelligence] Found ${offices.length} office locations`);
+        
+        // Save office locations to company record
+        await storage.updateCompany(company.id, {
+          officeLocations: offices
+        });
+        
+        // Convert to hierarchy (create child companies)
+        const hierarchy = await storage.convertCompanyToHierarchy(company.id);
+        console.log(`[Company Intelligence] ✓ Created ${hierarchy.children.length} office location companies`);
+      } else {
+        console.log(`[Company Intelligence] ⚠ No office locations found on website`);
+      }
+    } catch (officeError) {
+      console.error(`[Company Intelligence] Error discovering offices:`, officeError);
+    }
+    
+    // STEP 3: Team discovery & org chart population
+    console.log(`[Company Intelligence] Step 3/4: Discovering team members...`);
     const teamMembers = await discoverTeamMembers(company.website);
     
     if (teamMembers && teamMembers.length > 0) {
@@ -341,8 +365,8 @@ export async function processCompanyIntelligence(companyId: number): Promise<voi
       }
       console.log(`[Company Intelligence] ✓ Organization chart populated with ${teamMembers.length} members`);
       
-      // STEP 3: Hiring pattern analysis
-      console.log(`[Company Intelligence] Step 3/3: Analyzing hiring patterns...`);
+      // STEP 4: Hiring pattern analysis
+      console.log(`[Company Intelligence] Step 4/4: Analyzing hiring patterns...`);
       const orgChartData = teamMembers.map(m => {
         const nameParts = m.name.trim().split(' ');
         return {
