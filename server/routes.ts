@@ -415,6 +415,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Refresh company information from website
+  app.post("/api/companies/:id/refresh-info", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const companies = await storage.getCompanies();
+      const targetCompany = companies.find(c => c.id === parseInt(id));
+      
+      if (!targetCompany) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      if (!targetCompany.website) {
+        return res.status(400).json({ error: "Company website not available" });
+      }
+
+      console.log(`🔄 Refreshing company information for ${targetCompany.name} from ${targetCompany.website}`);
+      
+      // Fetch fresh data from website using AI
+      const freshData = await parseCompanyFromUrl(targetCompany.website);
+      
+      if (!freshData) {
+        return res.status(400).json({ error: "Failed to extract company information from website" });
+      }
+
+      // Update company with fresh data (preserve ID and other important fields)
+      const updatedCompany = await storage.updateCompany(parseInt(id), {
+        name: freshData.name || targetCompany.name,
+        missionStatement: freshData.missionStatement || targetCompany.missionStatement,
+        industry: freshData.industry || targetCompany.industry,
+        location: freshData.location || targetCompany.location,
+        headquarters: freshData.headquarters || targetCompany.headquarters,
+        officeLocations: freshData.officeLocations || targetCompany.officeLocations,
+        primaryPhone: freshData.primaryPhone || targetCompany.primaryPhone,
+        stage: freshData.stage || targetCompany.stage,
+        employeeSize: freshData.employeeSize || targetCompany.employeeSize,
+        subsector: freshData.subsector || targetCompany.subsector,
+        annualRevenue: freshData.annualRevenue || targetCompany.annualRevenue,
+      });
+
+      console.log(`✅ Successfully refreshed company information for ${targetCompany.name}`);
+      
+      res.json({ 
+        success: true,
+        company: updatedCompany,
+        message: "Company information updated successfully from website"
+      });
+    } catch (error) {
+      console.error("Error refreshing company information:", error);
+      res.status(500).json({ error: "Failed to refresh company information" });
+    }
+  });
+
   // Discover team members from company website
   app.post("/api/companies/:id/discover-team", async (req, res) => {
     try {

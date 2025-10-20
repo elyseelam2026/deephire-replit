@@ -94,6 +94,30 @@ export default function Companies() {
     },
   });
 
+  // Update company information from website
+  const updateCompanyInfo = useMutation({
+    mutationFn: async (companyId: number) => {
+      const response = await apiRequest('POST', `/api/companies/${companyId}/refresh-info`);
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Company Information Updated!",
+        description: data.message || "Successfully refreshed company data from website",
+      });
+      setSelectedCompany(data.company);
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/companies', selectedCompany?.id, 'children'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update company information. Make sure the company has a website.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Discover team members mutation
   const discoverTeam = useMutation({
     mutationFn: async (companyId: number) => {
@@ -740,9 +764,20 @@ export default function Companies() {
                     </div>
                   ) : null}
 
-                  {/* Discover Team Members */}
+                  {/* Update Company Information */}
                   {selectedCompany.website && (
-                    <div className="pt-4 border-t">
+                    <div className="pt-4 border-t space-y-2">
+                      <Button
+                        onClick={() => updateCompanyInfo.mutate(selectedCompany.id)}
+                        disabled={updateCompanyInfo.isPending}
+                        className="w-full"
+                        variant="outline"
+                        data-testid="button-update-company-info"
+                      >
+                        <Building2 className="h-4 w-4 mr-2" />
+                        {updateCompanyInfo.isPending ? 'Updating...' : 'Update Company Information'}
+                      </Button>
+                      
                       <Button
                         onClick={() => discoverTeam.mutate(selectedCompany.id)}
                         disabled={discoverTeam.isPending}
