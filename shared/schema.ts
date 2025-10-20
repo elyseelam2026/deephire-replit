@@ -20,6 +20,13 @@ export const companies = pgTable("companies", {
   isOfficeLocation: boolean("is_office_location").default(false), // true if this is a child office
   isHeadquarters: boolean("is_headquarters").default(true), // true if this is a parent/HQ company
   
+  // Company Role in Recruitment Platform (NEW)
+  companyRole: text("company_role").array().default(sql`ARRAY[]::text[]`), // ['client', 'sourcing', 'prospecting']
+  // - 'client': Company hiring (has jobs) - client of the recruiting firm
+  // - 'sourcing': Company where candidates work (talent pool to source from)
+  // - 'prospecting': Company being researched for intelligence/future sourcing
+  // NOTE: A company can have multiple roles (e.g., both 'client' and 'sourcing')
+  
   // Contact & Location (existing + enhanced)
   location: text("location"), // maintained for backward compatibility
   website: text("website"),
@@ -187,7 +194,8 @@ export const candidates = pgTable("candidates", {
   location: text("location"), // maintained for backward compatibility
   
   // Professional Background (existing + enhanced)
-  currentCompany: text("current_company"),
+  currentCompany: text("current_company"), // DEPRECATED: Use currentCompanyId instead
+  currentCompanyId: integer("current_company_id").references(() => companies.id), // FK to companies table
   currentTitle: text("current_title"),
   currentDepartment: text("current_department"),
   currentIndustry: text("current_industry"),
