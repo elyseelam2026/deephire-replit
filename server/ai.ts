@@ -1964,12 +1964,17 @@ async function extractCompanyFromRow(row: any): Promise<any | null> {
     // Common field mappings for company data with more flexible matching
     const fieldMappings = {
       name: ['name', 'company', 'companyname', 'company_name', 'organization', 'business', 'firm'],
+      website: ['website', 'url', 'web', 'site', 'homepage', 'link'],
       parentCompany: ['parent', 'parentcompany', 'parent_company', 'holding_company', 'parent_org'],
       location: ['location', 'address', 'city', 'headquarters', 'hq', 'country', 'region'],
       industry: ['industry', 'sector', 'vertical', 'business_type', 'domain', 'field'],
-      employeeSize: ['employees', 'employee_size', 'headcount', 'workforce', 'team_size', 'staff'],
+      employeeSize: ['employees', 'employee_size', 'headcount', 'workforce', 'team_size', 'staff', 'employeecount'],
       subsector: ['subsector', 'sub_sector', 'niche', 'specialty', 'focus_area'],
-      stage: ['stage', 'company_stage', 'phase', 'maturity', 'size', 'type']
+      stage: ['stage', 'company_stage', 'phase', 'maturity', 'size', 'type'],
+      aum: ['aum', 'assets', 'assetsum', 'assets_under_management'],
+      investmentFocus: ['investmentfocus', 'investment_focus', 'focus', 'strategy', 'investmentstrategy'],
+      foundedYear: ['foundedyear', 'founded_year', 'founded', 'established', 'year'],
+      description: ['description', 'about', 'overview', 'summary', 'bio']
     };
 
     const companyData: any = {};
@@ -2013,12 +2018,18 @@ async function extractCompanyFromRow(row: any): Promise<any | null> {
       // Set required defaults for database schema compatibility
       const finalCompanyData = {
         name: companyData.name,
+        website: companyData.website || null,
         parentCompany: companyData.parentCompany || null,
         location: companyData.location || 'Unknown',
         industry: companyData.industry || 'Unknown',
         employeeSize: companyData.employeeSize || null,
         subsector: companyData.subsector || null,
-        stage: companyData.stage || 'growth'
+        stage: companyData.stage || 'growth',
+        // Additional CSV fields
+        assetsUnderManagement: companyData.aum || null,
+        investmentFocus: companyData.investmentFocus || null,
+        foundedYear: companyData.foundedYear ? parseInt(companyData.foundedYear) : null,
+        missionStatement: companyData.description || null
       };
 
       console.log("Final company data prepared for database:", Object.keys(finalCompanyData));
