@@ -267,13 +267,37 @@ function calculateCompanyMatch(
     }
   }
   
+  // Website domain matching (CRITICAL for preventing duplicates)
+  if (newCompany.website && existing.website) {
+    // Extract domain from URLs
+    const extractDomain = (url: string): string => {
+      try {
+        const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+        return urlObj.hostname.toLowerCase().replace(/^www\./, '');
+      } catch {
+        return url.toLowerCase().replace(/^www\./, '').replace(/^https?:\/\//, '');
+      }
+    };
+    
+    const newDomain = extractDomain(newCompany.website);
+    const existingDomain = extractDomain(existing.website);
+    
+    // Exact domain match = 100% (same company!)
+    const websiteScore = newDomain === existingDomain ? 100 : 0;
+    scores.website = websiteScore;
+    if (websiteScore === 100) {
+      matchedFields.push('website');
+    }
+  }
+  
   // Calculate weighted overall score
   const weights = {
-    name: 0.5,        // Highest weight - primary identifier
-    location: 0.15,
-    industry: 0.15,
-    parentCompany: 0.15, // High weight if present
-    employeeSize: 0.05
+    name: 0.35,       // Reduced from 0.5 to make room for website
+    website: 0.40,    // HIGH weight - same domain = same company
+    location: 0.10,   // Reduced slightly
+    industry: 0.10,   // Reduced slightly
+    parentCompany: 0.05, // Reduced - less important than website
+    employeeSize: 0.0 // Removed weight - unreliable for PE firms
   };
   
   let totalWeight = 0;
