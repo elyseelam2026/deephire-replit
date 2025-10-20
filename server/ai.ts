@@ -149,8 +149,69 @@ export async function scrapeTeamMembersWithPlaywright(
 }
 
 /**
+ * Use AI to extract office locations from HTML content
+ * Replaces Playwright approach - works without browser dependencies
+ */
+async function extractOfficesWithAI(htmlContent: string, url: string): Promise<Array<{city: string, country?: string, address?: string}>> {
+  try {
+    console.log(`🤖 Using AI to extract offices from HTML content (${htmlContent.length} chars)`);
+    
+    const officesResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at extracting structured office location data from website HTML. Extract ALL office locations mentioned. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: `Extract ALL office locations from this HTML content. Look for cities, countries, addresses, and any geographic information.
+
+URL: ${url}
+
+HTML Content (first 25000 chars):
+${htmlContent.slice(0, 25000)}
+
+Return this EXACT JSON structure:
+{
+  "offices": [
+    {
+      "city": "city name",
+      "country": "country name",
+      "address": "full address if available, otherwise null"
+    }
+  ]
+}
+
+Rules:
+1. Extract EVERY office location mentioned (HQ + all branch offices)
+2. Look for: city names, country names, full addresses
+3. Common patterns: "New York", "London Office", "123 Main St, Chicago, IL"
+4. If only city/country mentioned (no street address), include it with address: null
+5. Skip duplicates
+6. If NO offices found, return {"offices": []}
+7. DO NOT fabricate - only extract what's actually there`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+    
+    const result = JSON.parse(officesResponse.choices[0].message.content || '{"offices":[]}');
+    const offices = result.offices || [];
+    
+    console.log(`✓ AI extracted ${offices.length} office locations`);
+    return offices;
+    
+  } catch (error) {
+    console.error(`AI office extraction failed: ${error}`);
+    return [];
+  }
+}
+
+/**
  * Use Playwright browser automation to extract office locations from JavaScript-heavy pages
  * This handles sites where office data is loaded dynamically via JavaScript
+ * NOTE: Currently disabled due to missing browser dependencies in Replit - use AI extraction instead
  */
 export async function extractOfficesWithPlaywright(websiteUrl: string): Promise<Array<{city: string, country?: string, address?: string}>> {
   let browser;
@@ -1956,6 +2017,20 @@ async function extractCandidateFromRow(row: any): Promise<any | null> {
   }
 }
 
+// Sanitize null-like strings from CSV data
+function sanitizeValue(value: any): any {
+  if (typeof value !== 'string') return value;
+  
+  const trimmed = value.trim();
+  const nullLikeValues = ['null', 'nil', 'n/a', 'na', 'none', 'undefined', ''];
+  
+  if (nullLikeValues.includes(trimmed.toLowerCase())) {
+    return null;
+  }
+  
+  return value;
+}
+
 // Helper function to extract company data from a CSV/Excel row
 async function extractCompanyFromRow(row: any): Promise<any | null> {
   try {
@@ -1992,10 +2067,10 @@ async function extractCompanyFromRow(row: any): Promise<any | null> {
         const normalizedPossibleKey = possibleKey.replace(/[^a-z0-9]/g, '');
         
         if (normalizedKeys[normalizedPossibleKey] && row[normalizedKeys[normalizedPossibleKey]]) {
-          let value = row[normalizedKeys[normalizedPossibleKey]];
+          let value = sanitizeValue(row[normalizedKeys[normalizedPossibleKey]]);
           
-          // Skip empty values
-          if (!value || (typeof value === 'string' && value.trim() === '')) {
+          // Skip empty/null values
+          if (value === null || (typeof value === 'string' && value.trim() === '')) {
             continue;
           }
           
@@ -2584,7 +2659,7 @@ CRITICAL EXTRACTION RULES:
     console.log(`  - HQ: ${result.headquarters?.city || 'N/A'}, ${result.headquarters?.country || 'N/A'}`);
     console.log(`  - Offices: ${result.officeLocations?.length || 0} locations`);
     
-    // Step 3: If we got few/no offices but an offices page exists, try Playwright
+    // Step 3: If we got few/no offices but an offices page exists, try AI-powered extraction
     let finalOfficeLocations = result.officeLocations || [];
     
     if (finalOfficeLocations.length <= 1) {
@@ -2600,19 +2675,21 @@ CRITICAL EXTRACTION RULES:
       
       for (const officesUrl of officesPages) {
         try {
-          const response = await fetch(officesUrl);
-          if (response.ok) {
-            console.log(`📍 Found offices page but got only ${finalOfficeLocations.length} office(s). Trying Playwright...`);
-            const playwrightOffices = await extractOfficesWithPlaywright(officesUrl);
+          console.log(`📍 Trying to fetch offices page: ${officesUrl}`);
+          const officePageContent = await fetchWebContent(officesUrl);
+          
+          if (officePageContent && officePageContent.length > 100) {
+            console.log(`✓ Found offices page with ${officePageContent.length} chars. Using AI to extract locations...`);
+            const aiOffices = await extractOfficesWithAI(officePageContent, officesUrl);
             
-            if (playwrightOffices.length > finalOfficeLocations.length) {
-              console.log(`✓ Playwright found ${playwrightOffices.length} offices (better than ${finalOfficeLocations.length})`);
-              finalOfficeLocations = playwrightOffices;
+            if (aiOffices.length > finalOfficeLocations.length) {
+              console.log(`✓ AI found ${aiOffices.length} offices (better than ${finalOfficeLocations.length})`);
+              finalOfficeLocations = aiOffices;
             }
             break; // Only try first offices page that exists
           }
         } catch (e) {
-          // Page doesn't exist, try next
+          console.log(`⚠ Could not fetch ${officesUrl}: ${e}`);
         }
       }
     }
