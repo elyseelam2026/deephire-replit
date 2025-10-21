@@ -374,6 +374,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get single company by ID
+  app.get("/api/companies/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const companies = await storage.getCompanies(false); // Get all companies including offices
+      const company = companies.find(c => c.id === parseInt(id));
+      
+      if (!company) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+      
+      res.json(company);
+    } catch (error) {
+      console.error("Error fetching company:", error);
+      res.status(500).json({ error: "Failed to fetch company" });
+    }
+  });
+
   // Get child companies for a parent
   app.get("/api/companies/:id/children", async (req, res) => {
     try {

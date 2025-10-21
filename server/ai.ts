@@ -2550,33 +2550,86 @@ export async function extractCompanyFromWebsite(websiteUrl: string): Promise<any
   console.log(`========================================\n`);
   
   try {
-    // Step 1: Try to fetch contact/about pages first for better data
     const baseUrl = new URL(websiteUrl).origin;
+    
+    // Step 1: Fetch homepage and discover office/location page links
+    console.log(`📄 Fetching homepage to discover office pages...`);
+    const homepageContent = await fetchWebContent(websiteUrl);
+    
+    if (!homepageContent || homepageContent.length < 100) {
+      console.log('❌ Could not fetch homepage');
+      return null;
+    }
+    
+    // Step 2: Use AI to discover office/location page URLs from homepage
+    console.log(`🔍 Using AI to discover office/location page URLs...`);
+    const discoveryResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert web analyst. Find URLs for office/location pages on company websites."
+        },
+        {
+          role: "user",
+          content: `Analyze this homepage and find URLs for pages that contain office locations, company offices, or contact information.
+
+Homepage URL: ${websiteUrl}
+Homepage Content:
+${homepageContent.slice(0, 15000)}
+
+Return EXACTLY this JSON structure:
+{
+  "officePageUrls": [
+    "complete URLs for pages mentioning: offices, locations, contact, our offices, global offices, find us, etc."
+  ],
+  "aboutPageUrls": [
+    "complete URLs for about/company info pages"
+  ]
+}
+
+RULES:
+1. Look for links with text like: "Offices", "Locations", "Our Offices", "Global Offices", "Contact", "Find Us", "Worldwide", "Presence"
+2. Return COMPLETE URLs (with https://)
+3. If you find relative paths like "/en/our-offices", convert to full URL: "${baseUrl}/en/our-offices"
+4. Include up to 5 most relevant URLs total
+5. If no office pages found, return empty arrays
+6. DO NOT fabricate URLs - only extract what exists in the content`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+    
+    const discoveredUrls = JSON.parse(discoveryResponse.choices[0].message.content || "{}");
+    const officeUrls = Array.isArray(discoveredUrls.officePageUrls) ? discoveredUrls.officePageUrls : [];
+    const aboutUrls = Array.isArray(discoveredUrls.aboutPageUrls) ? discoveredUrls.aboutPageUrls : [];
+    
+    console.log(`✅ Discovered ${officeUrls.length} office page URLs and ${aboutUrls.length} about page URLs`);
+    if (officeUrls.length > 0) {
+      console.log(`   Office pages: ${officeUrls.join(', ')}`);
+    }
+    
+    // Step 3: Fetch all discovered pages plus some common fallbacks
     const pagesToTry = [
       websiteUrl, // Homepage
+      ...officeUrls,
+      ...aboutUrls,
+      // Fallback common paths (in case AI missed them)
       `${baseUrl}/contact`,
-      `${baseUrl}/contact-us`,
-      `${baseUrl}/about`,
-      `${baseUrl}/about-us`,
-      `${baseUrl}/locations`,
-      `${baseUrl}/offices`,
-      `${baseUrl}/about/offices`, // For sites like EQT that have offices under /about
-      `${baseUrl}/about/locations`,
-      `${baseUrl}/about/our-network`, // For sites like CVC
-      `${baseUrl}/our-network`
-    ];
+      `${baseUrl}/about`
+    ].filter((url, index, self) => self.indexOf(url) === index); // Remove duplicates
     
     let allContent = '';
-    for (const pageUrl of pagesToTry) {
+    for (const pageUrl of pagesToTry.slice(0, 10)) { // Limit to 10 pages max
       try {
-        console.log(`Trying to fetch: ${pageUrl}`);
+        console.log(`📥 Fetching: ${pageUrl}`);
         const content = await fetchWebContent(pageUrl);
         if (content && content.length > 50) {
           allContent += `\n\n=== Content from ${pageUrl} ===\n${content}`;
-          console.log(`✓ Fetched ${content.length} chars from ${pageUrl}`);
+          console.log(`   ✓ Fetched ${content.length} chars`);
         }
       } catch (err) {
-        console.log(`⚠ Could not fetch ${pageUrl}`);
+        console.log(`   ⚠ Could not fetch ${pageUrl}`);
       }
     }
     
@@ -2659,41 +2712,6 @@ CRITICAL EXTRACTION RULES:
     console.log(`  - HQ: ${result.headquarters?.city || 'N/A'}, ${result.headquarters?.country || 'N/A'}`);
     console.log(`  - Offices: ${result.officeLocations?.length || 0} locations`);
     
-    // Step 3: If we got few/no offices but an offices page exists, try AI-powered extraction
-    let finalOfficeLocations = result.officeLocations || [];
-    
-    if (finalOfficeLocations.length <= 1) {
-      // Check if we found an offices page
-      const officesPages = [
-        `${baseUrl}/offices`,
-        `${baseUrl}/locations`,
-        `${baseUrl}/about/offices`,
-        `${baseUrl}/about/locations`,
-        `${baseUrl}/about/our-network`,
-        `${baseUrl}/our-network`
-      ];
-      
-      for (const officesUrl of officesPages) {
-        try {
-          console.log(`📍 Trying to fetch offices page: ${officesUrl}`);
-          const officePageContent = await fetchWebContent(officesUrl);
-          
-          if (officePageContent && officePageContent.length > 100) {
-            console.log(`✓ Found offices page with ${officePageContent.length} chars. Using AI to extract locations...`);
-            const aiOffices = await extractOfficesWithAI(officePageContent, officesUrl);
-            
-            if (aiOffices.length > finalOfficeLocations.length) {
-              console.log(`✓ AI found ${aiOffices.length} offices (better than ${finalOfficeLocations.length})`);
-              finalOfficeLocations = aiOffices;
-            }
-            break; // Only try first offices page that exists
-          }
-        } catch (e) {
-          console.log(`⚠ Could not fetch ${officesUrl}: ${e}`);
-        }
-      }
-    }
-    
     return {
       name: result.name,
       website: websiteUrl,
@@ -2701,7 +2719,7 @@ CRITICAL EXTRACTION RULES:
       missionStatement: result.missionStatement || null,
       primaryPhone: result.primaryPhone || null,
       headquarters: result.headquarters || null,
-      officeLocations: finalOfficeLocations,
+      officeLocations: result.officeLocations || [],
       annualRevenue: result.annualRevenue || null,
       location: result.headquarters?.city ? `${result.headquarters.city}, ${result.headquarters.country || ''}`.trim() : null
     };
