@@ -13,6 +13,19 @@ The long-term vision includes a bottom-up intelligence system:
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### October 21, 2025 - Multi-Layer Office Extraction System
+- **Implemented comprehensive 4-layer office extraction pipeline** (replaces single AI approach):
+  - **Layer 1 (JSON-LD)**: Extracts from Schema.org structured data (fastest, most reliable)
+  - **Layer 2 (Microdata)**: Extracts from itemprop attributes  
+  - **Layer 3 (CSS Selectors)**: Pattern matching on common office/location/contact elements
+  - **Layer 4 (AI)**: Final fallback using Grok-2 if previous layers find < 3 offices
+- **Improved fetch reliability**: Added 3-retry logic with exponential backoff for network requests
+- **Removed broken Bright Data integration**: Simplified to direct HTTP fetching (eliminates 407 auth errors)
+- **Benefits**: Faster extraction, reduced AI costs, works with more website designs
+- **Technical Details**: Uses cheerio for HTML parsing, regex for city/country patterns, intelligent deduplication
+
 ## System Architecture
 
 ### Frontend

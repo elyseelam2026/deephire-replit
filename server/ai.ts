@@ -149,12 +149,161 @@ export async function scrapeTeamMembersWithPlaywright(
 }
 
 /**
- * Use AI to extract office locations from HTML content
- * Replaces Playwright approach - works without browser dependencies
+ * LAYER 1: Extract offices from Schema.org JSON-LD structured data
+ * This is the most reliable method when available
+ */
+async function extractOfficesFromJsonLd(html: string): Promise<Array<{city: string, country?: string, address?: string}>> {
+  const offices: Array<{city: string, country?: string, address?: string}> = [];
+  
+  try {
+    // Find all JSON-LD script tags
+    const $ = cheerio.load(html);
+    const scripts = $('script[type="application/ld+json"]');
+    
+    scripts.each((_, script) => {
+      try {
+        const data = JSON.parse($(script).html() || '{}');
+        
+        // Handle Organization or LocalBusiness schema
+        if (data['@type'] === 'Organization' || data['@type'] === 'LocalBusiness') {
+          const address = data.address;
+          if (address && typeof address === 'object') {
+            offices.push({
+              city: address.addressLocality || null,
+              country: address.addressCountry || null,
+              address: address.streetAddress || null
+            });
+          }
+        }
+        
+        // Handle arrays of locations
+        if (Array.isArray(data.location)) {
+          for (const loc of data.location) {
+            const address = loc.address;
+            if (address) {
+              offices.push({
+                city: address.addressLocality || null,
+                country: address.addressCountry || null,
+                address: address.streetAddress || null
+              });
+            }
+          }
+        }
+      } catch (err) {
+        // Skip malformed JSON-LD
+      }
+    });
+    
+    if (offices.length > 0) {
+      console.log(`✅ Layer 1 (JSON-LD): Found ${offices.length} offices`);
+    }
+  } catch (error) {
+    console.log('⚠️ Layer 1 (JSON-LD): Failed to parse');
+  }
+  
+  return offices;
+}
+
+/**
+ * LAYER 2: Extract offices from Schema.org microdata (itemprop attributes)
+ */
+async function extractOfficesFromMicrodata(html: string): Promise<Array<{city: string, country?: string, address?: string}>> {
+  const offices: Array<{city: string, country?: string, address?: string}> = [];
+  
+  try {
+    const $ = cheerio.load(html);
+    
+    // Find all elements with itemprop="address"
+    $('[itemprop="address"]').each((_, element) => {
+      const $el = $(element);
+      
+      const city = $el.find('[itemprop="addressLocality"]').text().trim();
+      const country = $el.find('[itemprop="addressCountry"]').text().trim();
+      const address = $el.find('[itemprop="streetAddress"]').text().trim();
+      
+      if (city || country || address) {
+        offices.push({
+          city: city || 'Unknown',
+          country: country || undefined,
+          address: address || undefined
+        });
+      }
+    });
+    
+    if (offices.length > 0) {
+      console.log(`✅ Layer 2 (Microdata): Found ${offices.length} offices`);
+    }
+  } catch (error) {
+    console.log('⚠️ Layer 2 (Microdata): Failed to parse');
+  }
+  
+  return offices;
+}
+
+/**
+ * LAYER 3: Extract offices using common CSS selectors and patterns
+ */
+async function extractOfficesFromSelectors(html: string): Promise<Array<{city: string, country?: string, address?: string}>> {
+  const offices: Array<{city: string, country?: string, address?: string}> = [];
+  
+  try {
+    const $ = cheerio.load(html);
+    
+    // Common selectors for office/location sections
+    const officeSelectors = [
+      '.office-location', '.office', '.location', '.branch',
+      '.office-card', '.location-item', '.office-item',
+      '[class*="office"]', '[class*="location"]',
+      'address', '.address', '.contact-address'
+    ];
+    
+    const uniqueOffices = new Set<string>();
+    
+    for (const selector of officeSelectors) {
+      $(selector).each((_, element) => {
+        const $el = $(element);
+        const text = $el.text().trim();
+        
+        // Skip empty or very short text
+        if (!text || text.length < 10) return;
+        
+        // Look for city/country patterns in the text
+        const cityCountryPattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g;
+        const matches = Array.from(text.matchAll(cityCountryPattern));
+        
+        for (const match of matches) {
+          const office = {
+            city: match[1],
+            country: match[2],
+            address: text.length < 200 ? text : undefined
+          };
+          
+          const key = `${office.city}-${office.country}`;
+          if (!uniqueOffices.has(key)) {
+            uniqueOffices.add(key);
+            offices.push(office);
+          }
+        }
+      });
+    }
+    
+    if (offices.length > 0) {
+      console.log(`✅ Layer 3 (CSS Selectors): Found ${offices.length} offices`);
+    }
+  } catch (error) {
+    console.log('⚠️ Layer 3 (CSS Selectors): Failed to parse');
+  }
+  
+  return offices;
+}
+
+/**
+ * LAYER 4: Use AI to extract office locations from HTML content
+ * This is the most flexible method and works as a final fallback
  */
 async function extractOfficesWithAI(htmlContent: string, url: string): Promise<Array<{city: string, country?: string, address?: string}>> {
   try {
-    console.log(`🤖 Using AI to extract offices from HTML content (${htmlContent.length} chars)`);
+    console.log(`🤖 Layer 4 (AI): Analyzing HTML content (${htmlContent.length} chars)`);
     
     const officesResponse = await openai.chat.completions.create({
       model: "grok-2-1212",
@@ -199,13 +348,89 @@ Rules:
     const result = JSON.parse(officesResponse.choices[0].message.content || '{"offices":[]}');
     const offices = result.offices || [];
     
-    console.log(`✓ AI extracted ${offices.length} office locations`);
+    console.log(`✅ Layer 4 (AI): Extracted ${offices.length} office locations`);
     return offices;
     
   } catch (error) {
-    console.error(`AI office extraction failed: ${error}`);
+    console.error(`❌ Layer 4 (AI) failed: ${error}`);
     return [];
   }
+}
+
+/**
+ * MULTI-LAYER OFFICE EXTRACTION
+ * Tries multiple strategies in order: JSON-LD → Microdata → CSS Selectors → AI
+ * Combines results from all successful layers
+ */
+async function extractOfficesMultiLayer(html: string, url: string): Promise<Array<{city: string, country?: string, address?: string}>> {
+  console.log('🔍 Starting multi-layer office extraction...');
+  console.log(`   Input: ${html.length} chars of HTML from ${url}`);
+  
+  let allOffices: Array<{city: string, country?: string, address?: string}> = [];
+  
+  // Layer 1: JSON-LD (fastest, most reliable)
+  console.log('   Trying Layer 1 (JSON-LD)...');
+  const jsonLdOffices = await extractOfficesFromJsonLd(html);
+  if (jsonLdOffices.length === 0) {
+    console.log('   ⚠️ Layer 1 (JSON-LD): Found 0 offices');
+  }
+  allOffices.push(...jsonLdOffices);
+  
+  // Layer 2: Microdata
+  console.log('   Trying Layer 2 (Microdata)...');
+  const microdataOffices = await extractOfficesFromMicrodata(html);
+  if (microdataOffices.length === 0) {
+    console.log('   ⚠️ Layer 2 (Microdata): Found 0 offices');
+  }
+  allOffices.push(...microdataOffices);
+  
+  // Layer 3: CSS Selectors
+  console.log('   Trying Layer 3 (CSS Selectors)...');
+  const selectorOffices = await extractOfficesFromSelectors(html);
+  if (selectorOffices.length === 0) {
+    console.log('   ⚠️ Layer 3 (CSS Selectors): Found 0 offices');
+  }
+  allOffices.push(...selectorOffices);
+  
+  console.log(`   📊 After 3 layers: ${allOffices.length} total offices (before deduplication)`);
+  
+  // Layer 4: AI (most flexible, use if previous layers found < 3 offices)
+  if (allOffices.length < 3) {
+    console.log('   ⚠️ Found < 3 offices with structured methods, using AI extraction...');
+    const aiOffices = await extractOfficesWithAI(html, url);
+    allOffices.push(...aiOffices);
+    console.log(`   📊 After AI layer: ${allOffices.length} total offices (before deduplication)`);
+  } else {
+    console.log(`   ✓ Found ${allOffices.length} offices from structured layers, skipping AI`);
+  }
+  
+  // Deduplicate offices
+  console.log('   🔄 Deduplicating offices...');
+  const uniqueOffices = new Map<string, any>();
+  for (const office of allOffices) {
+    if (!office.city && !office.country) {
+      console.log(`   ⚠️ Skipping empty office: ${JSON.stringify(office)}`);
+      continue;
+    }
+    
+    const key = `${office.city || 'unknown'}-${office.country || 'unknown'}`.toLowerCase();
+    if (!uniqueOffices.has(key)) {
+      uniqueOffices.set(key, office);
+    } else {
+      console.log(`   ⚠️ Skipping duplicate: ${key}`);
+    }
+  }
+  
+  const finalOffices = Array.from(uniqueOffices.values());
+  console.log(`✅ Multi-layer extraction complete: ${finalOffices.length} unique offices found`);
+  
+  if (finalOffices.length > 0) {
+    console.log('   📍 Sample offices:', JSON.stringify(finalOffices.slice(0, 3), null, 2));
+  } else {
+    console.log('   ❌ WARNING: No offices extracted! This may indicate a problem with the extraction logic.');
+  }
+  
+  return finalOffices;
 }
 
 /**
@@ -2559,7 +2784,10 @@ RULES:
     
     console.log(`✓ Total content fetched: ${allContent.length} characters from multiple pages`);
     
-    // Step 2: Extract company data using AI with aggressive extraction
+    // Step 4: Extract offices using multi-layer approach (faster + more reliable)
+    const extractedOffices = await extractOfficesMultiLayer(allContent, websiteUrl);
+    
+    // Step 5: Extract remaining company data using AI
     const companyDataResponse = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
@@ -2589,29 +2817,22 @@ Return EXACTLY this JSON structure - extract EVERY piece of info you can find:
     "country": "HQ country",
     "postalCode": "HQ zip code"
   },
-  "officeLocations": [
-    {
-      "city": "office city",
-      "country": "office country", 
-      "address": "full office address if available"
-    }
-  ],
   "annualRevenue": "revenue if mentioned (e.g., '$5B', '€2.3M', 'AUM $500B')",
   "website": "${websiteUrl}"
 }
+
+NOTE: Office locations are extracted separately, so focus on extracting name, industry, mission, phone, headquarters, and revenue.
 
 CRITICAL EXTRACTION RULES:
 1. SEARCH EVERYWHERE: Headers, footers, contact pages, about sections, sidebars
 2. Phone numbers: Look for patterns like +1, (555), 1-800, international formats
 3. Addresses: Search "Contact", "Visit Us", "Headquarters", "HQ", footer sections
-4. Offices: Look for "Locations", "Global Offices", "Our Offices", city names with addresses
-5. Revenue: Search for "$", "AUM", "revenue", "billion", "assets under management"
-6. If headquarters has partial info (just city/country), that's OK - include what you find
-7. Extract ALL office locations mentioned, not just HQ
-5. For description: Use "About Us" or mission statement text
-6. If data is missing: use null or empty array []
-7. DO NOT fabricate or assume anything
-8. Revenue is rarely on websites - leave as null unless explicitly stated`
+4. Revenue: Search for "$", "AUM", "revenue", "billion", "assets under management"
+5. If headquarters has partial info (just city/country), that's OK - include what you find
+6. For description: Use "About Us" or mission statement text - search specifically for 'About Us', 'About', 'Who We Are' sections
+7. If data is missing: use null
+8. DO NOT fabricate or assume anything
+9. Revenue is rarely on websites - leave as null unless explicitly stated`
         }
       ],
       response_format: { type: "json_object" }
@@ -2629,7 +2850,7 @@ CRITICAL EXTRACTION RULES:
     console.log(`  - Industry: ${result.industry || 'N/A'}`);
     console.log(`  - Phone: ${result.primaryPhone || 'N/A'}`);
     console.log(`  - HQ: ${result.headquarters?.city || 'N/A'}, ${result.headquarters?.country || 'N/A'}`);
-    console.log(`  - Offices: ${result.officeLocations?.length || 0} locations`);
+    console.log(`  - Offices (multi-layer): ${extractedOffices.length} locations`);
     
     return {
       name: result.name,
@@ -2638,7 +2859,7 @@ CRITICAL EXTRACTION RULES:
       missionStatement: result.missionStatement || null,
       primaryPhone: result.primaryPhone || null,
       headquarters: result.headquarters || null,
-      officeLocations: result.officeLocations || [],
+      officeLocations: extractedOffices, // Use multi-layer extracted offices
       annualRevenue: result.annualRevenue || null,
       location: result.headquarters?.city ? `${result.headquarters.city}, ${result.headquarters.country || ''}`.trim() : null
     };
