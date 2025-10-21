@@ -1499,51 +1499,8 @@ async function fetchWebContent(url: string): Promise<string> {
   }
 }
 
-// Real LinkedIn discovery using web search - uses actual company name!
-async function findLinkedInProfile(firstName: string, lastName: string, company: string): Promise<string | null> {
-  try {
-    const fullName = `${firstName} ${lastName}`;
-    
-    // Search for LinkedIn profile using the actual company name
-    console.log(`Searching for LinkedIn profile: ${fullName} at ${company}`);
-    
-    // Simple approach: search for LinkedIn profiles directly using web search
-    // Format: "Matthew Fortuin" "Bain Capital" site:linkedin.com/in
-    const searchQuery = `"${fullName}" "${company}" site:linkedin.com/in`;
-    
-    // In a real implementation, we'd use a web search API here
-    // For now, let's simulate finding LinkedIn profiles based on name patterns
-    const normalizedFirst = firstName.toLowerCase().replace(/[^a-z]/g, '');
-    const normalizedLast = lastName.toLowerCase().replace(/[^a-z]/g, '');
-    
-    // Try common LinkedIn username patterns
-    const possiblePatterns = [
-      `${normalizedFirst}${normalizedLast}`,
-      `${normalizedFirst}-${normalizedLast}`,
-      `${normalizedFirst}.${normalizedLast}`,
-      `${normalizedFirst}${normalizedLast[0]}`,
-      `${normalizedFirst[0]}${normalizedLast}`,
-    ];
-    
-    // For demonstration, let's construct likely LinkedIn URLs
-    for (const pattern of possiblePatterns) {
-      const linkedinUrl = `https://www.linkedin.com/in/${pattern}`;
-      console.log(`Checking potential LinkedIn profile: ${linkedinUrl}`);
-      
-      // In production, you'd verify these URLs exist
-      // For now, return the first constructed pattern
-      console.log(`Found potential LinkedIn profile for ${fullName}: ${linkedinUrl}`);
-      return linkedinUrl;
-    }
-    
-    console.log(`No LinkedIn profile pattern generated for ${fullName}`);
-    return null;
-    
-  } catch (error) {
-    console.error(`Error searching for LinkedIn profile of ${firstName} ${lastName}:`, error);
-    return null;
-  }
-}
+// ✓ REMOVED: Old broken findLinkedInProfile function that guessed URLs
+// Now using searchLinkedInProfile() which validates URLs with SerpAPI
 
 // Extract LinkedIn URL from web content (fallback method)
 function extractLinkedInUrl(content: string): string | null {
@@ -1661,10 +1618,26 @@ STRICT RULES:
       return null;
     }
     
-    // Step 3: Use the ACTUAL company to find LinkedIn profile (not hardcoded "Bain Capital"!)
-    const actualCompany = result.currentCompany || 'Unknown Company';
-    console.log(`Using web search approach: "${result.firstName} ${result.lastName}" + "${actualCompany}"`);
-    const discoveredLinkedInUrl = await findLinkedInProfile(result.firstName, result.lastName, actualCompany);
+    // Step 3: Use the REAL LinkedIn search with SerpAPI validation (not guessing!)
+    const actualCompany = result.currentCompany || '';
+    let discoveredLinkedInUrl: string | undefined = undefined;
+    
+    if (actualCompany) {
+      console.log(`🔍 Using REAL LinkedIn search: "${result.firstName} ${result.lastName}" at "${actualCompany}"`);
+      const linkedInResult = await searchLinkedInProfile(
+        result.firstName, 
+        result.lastName, 
+        actualCompany,
+        result.currentTitle || null
+      );
+      
+      if (linkedInResult && linkedInResult.score >= 0.7) {
+        discoveredLinkedInUrl = linkedInResult.url;
+        console.log(`✓ Found VERIFIED LinkedIn profile: ${discoveredLinkedInUrl} (score: ${linkedInResult.score})`);
+      } else {
+        console.log(`✗ No verified LinkedIn profile found`);
+      }
+    }
     
     if (!result.firstName || !result.lastName) {
       console.log('Could not extract valid candidate data from bio');
@@ -1674,14 +1647,14 @@ STRICT RULES:
     const candidateData = {
       firstName: result.firstName,
       lastName: result.lastName,
-      email: result.email || `${result.firstName}.${result.lastName}@email.com`.toLowerCase(),
+      email: result.email || undefined, // ✓ Don't generate fake emails!
       phoneNumber: result.phoneNumber || undefined,
       currentCompany: result.currentCompany || undefined,
       currentTitle: result.currentTitle || undefined,
       basicSalary: undefined,
       salaryExpectations: undefined,
       bioUrl: bioUrl, // Store original bio URL
-      linkedinUrl: discoveredLinkedInUrl || undefined, // Store discovered LinkedIn URL
+      linkedinUrl: discoveredLinkedInUrl, // Store discovered LinkedIn URL (only if verified)
       skills: Array.isArray(result.skills) ? result.skills : [],
       yearsExperience: typeof result.yearsExperience === 'number' ? result.yearsExperience : undefined,
       location: result.location || undefined,
@@ -1694,7 +1667,10 @@ STRICT RULES:
     console.log(`Enhanced extraction complete for ${candidateData.firstName} ${candidateData.lastName}`);
     if (discoveredLinkedInUrl) {
       console.log(`  - Bio URL: ${bioUrl}`);
-      console.log(`  - LinkedIn URL: ${discoveredLinkedInUrl}`);
+      console.log(`  - LinkedIn URL (VERIFIED): ${discoveredLinkedInUrl}`);
+    } else {
+      console.log(`  - Bio URL: ${bioUrl}`);
+      console.log(`  - LinkedIn URL: Not found (no fake URL generated)`);
     }
     
     return candidateData;

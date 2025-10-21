@@ -1,5 +1,6 @@
 import { storage } from './storage';
-import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, generateComprehensiveBiography, categorizeCompany, discoverTeamMembers, analyzeCompanyHiringPatterns, analyzeRoleLevel, parseCompanyFromUrl } from './ai';
+import { parseCandidateFromUrl, parseEnhancedCandidateFromUrl, categorizeCompany, discoverTeamMembers, analyzeCompanyHiringPatterns, analyzeRoleLevel, parseCompanyFromUrl, generateBiographyAndCareerHistory } from './ai';
+import { scrapeLinkedInProfile } from './brightdata';
 import { duplicateDetectionService } from './duplicate-detection';
 import type { DataIngestionJob } from '@shared/schema';
 
@@ -31,27 +32,39 @@ async function processBatch(urls: string[], ingestionJobId: number): Promise<{
         // Use enhanced parsing that discovers LinkedIn URLs and generates biographies
         const candidateData = await parseEnhancedCandidateFromUrl(url);
         
-        // If we found a LinkedIn URL, enhance the biography with multi-source data
-        if (candidateData && candidateData.linkedinUrl) {
-          try {
-            const enhancedBio = await generateComprehensiveBiography(
-              candidateData.bioUrl, 
-              candidateData.linkedinUrl,
-              candidateData
-            );
-            
-            if (enhancedBio) {
-              candidateData.biography = enhancedBio.biography;
-              candidateData.careerSummary = enhancedBio.careerSummary;
-              console.log(`Enhanced biography generated for ${candidateData.firstName} ${candidateData.lastName}`);
-            }
-          } catch (bioError) {
-            console.log(`Biography enhancement failed for ${candidateData.firstName}, continuing with basic data:`, bioError);
-          }
-        }
-        
         if (!candidateData) {
           return { type: 'failed', error: `Failed to parse URL: ${url}` };
+        }
+        
+        // If we found a VERIFIED LinkedIn URL, scrape it and use 3-layer pipeline
+        if (candidateData.linkedinUrl) {
+          try {
+            console.log(`✓ Found LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}: ${candidateData.linkedinUrl}`);
+            console.log(`🔄 Scraping LinkedIn profile with Bright Data...`);
+            
+            // Step 1: Scrape the LinkedIn profile to get full data
+            const linkedinData = await scrapeLinkedInProfile(candidateData.linkedinUrl);
+            console.log(`✓ LinkedIn profile scraped successfully`);
+            
+            // Step 2: Generate biography AND extract career history using 3-layer pipeline
+            console.log(`🎯 Starting 3-layer AI pipeline (Comprehension → Synthesis → Career Mapping)...`);
+            const bioResult = await generateBiographyAndCareerHistory(
+              candidateData.firstName,
+              candidateData.lastName,
+              linkedinData,
+              candidateData.cvText // bio page content for context
+            );
+            
+            if (bioResult) {
+              candidateData.biography = bioResult.biography;
+              (candidateData as any).careerHistory = bioResult.careerHistory;
+              console.log(`✓ 3-layer pipeline complete: Biography ${bioResult.biography.length} chars, Career ${bioResult.careerHistory.length} positions`);
+            }
+          } catch (bioError) {
+            console.log(`⚠️ Biography enhancement failed for ${candidateData.firstName}, continuing with basic data:`, bioError);
+          }
+        } else {
+          console.log(`ℹ️ No verified LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}, using basic biography from bio page`);
         }
 
         // Check for duplicates
