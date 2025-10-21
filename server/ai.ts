@@ -1987,11 +1987,30 @@ export async function parseCsvData(buffer: Buffer, dataType: 'candidate' | 'comp
 export async function extractUrlsFromCsv(buffer: Buffer): Promise<string[]> {
   try {
     const csvString = buffer.toString('utf-8');
-    const jsonData = await csvToJson().fromString(csvString);
-    
     const urls: string[] = [];
-    const urlPattern = /https?:\/\/[^\s]+/;
+    const urlPattern = /https?:\/\/[^\s,]+/;
     
+    // First, try line-by-line extraction (handles plain URL lists)
+    const lines = csvString.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine && urlPattern.test(trimmedLine)) {
+        // Extract URL from the line (handles lines with just URLs or CSV rows)
+        const match = trimmedLine.match(urlPattern);
+        if (match) {
+          urls.push(match[0]);
+        }
+      }
+    }
+    
+    // If we found URLs, return them
+    if (urls.length > 0) {
+      console.log(`Extracted ${urls.length} URLs from CSV for background processing`);
+      return urls;
+    }
+    
+    // Fall back to CSV parsing (handles structured CSV with URL columns)
+    const jsonData = await csvToJson().fromString(csvString);
     for (const row of jsonData) {
       for (const [key, value] of Object.entries(row)) {
         if (typeof value === 'string' && value.trim() && urlPattern.test(value.trim())) {
