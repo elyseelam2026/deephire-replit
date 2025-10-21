@@ -349,6 +349,12 @@ Rules:
     const offices = result.offices || [];
     
     console.log(`✅ Layer 4 (AI): Extracted ${offices.length} office locations`);
+    if (offices.length > 0) {
+      console.log(`   📍 AI returned offices:`, JSON.stringify(offices.slice(0, 5), null, 2));
+    } else {
+      console.log(`   ⚠️ AI returned empty array - no offices found in HTML`);
+      console.log(`   Raw AI response:`, officesResponse.choices[0].message.content?.slice(0, 500));
+    }
     return offices;
     
   } catch (error) {
@@ -1218,7 +1224,147 @@ export async function parseCandidateData(cvText: string): Promise<{
   }
 }
 
-// Fetch web content from URL with real HTTP requests and retry logic
+// Fetch web content from URL - returns both clean text and raw HTML
+async function fetchWebContentWithHtml(url: string): Promise<{cleanText: string, rawHtml: string}> {
+  try {
+    console.log(`Fetching real content from: ${url}`);
+    
+    // Basic URL validation
+    if (!url || !url.startsWith('http')) {
+      console.log('Invalid URL provided');
+      return {cleanText: '', rawHtml: ''};
+    }
+    
+    // Try direct fetch with retries
+    let html = '';
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+          },
+          // 30 second timeout for slow pages
+          signal: AbortSignal.timeout(30000)
+        });
+        
+        if (response.ok) {
+          html = await response.text();
+          console.log(`✅ Successfully fetched ${html.length} characters from ${url}`);
+          break; // Success, exit retry loop
+        } else {
+          lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+          console.log(`⚠️ Attempt ${attempt}/${maxRetries} failed: ${response.status} ${response.statusText}`);
+          
+          // Don't retry on 404 or 403 - these won't improve with retries
+          if (response.status === 404 || response.status === 403 || response.status === 401) {
+            console.log(`   Permanent error (${response.status}), skipping retries`);
+            break;
+          }
+          
+          // Wait before retry (exponential backoff)
+          if (attempt < maxRetries) {
+            const waitMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            console.log(`   Retrying in ${waitMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+          }
+        }
+      } catch (fetchError: any) {
+        lastError = fetchError;
+        console.log(`⚠️ Attempt ${attempt}/${maxRetries} error:`, fetchError.message);
+        
+        // Wait before retry
+        if (attempt < maxRetries) {
+          const waitMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          console.log(`   Retrying in ${waitMs}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
+      }
+    }
+    
+    if (!html && lastError) {
+      console.log(`❌ All ${maxRetries} attempts failed for ${url}:`, lastError.message);
+      return {cleanText: '', rawHtml: ''}; // Return empty strings instead of throwing
+    }
+    
+    if (!html) {
+      return {cleanText: '', rawHtml: ''};
+    }
+    
+    // Parse HTML and extract text content using Cheerio
+    const $ = cheerio.load(html);
+    
+    // Remove script and style elements for clean text extraction
+    $('script, style, nav, footer, .sidebar, .menu').remove();
+    
+    // Extract main content - try different selectors
+    let textContent = '';
+    
+    // Try to find main content areas
+    const contentSelectors = [
+      'main', '.main-content', '.content', '.post-content',
+      '.entry-content', '.article-content', '.page-content',
+      '.bio', '.biography', '.profile', '.about',
+      '.container', '.wrapper', 'article', '.article'
+    ];
+    
+    for (const selector of contentSelectors) {
+      const content = $(selector).first();
+      if (content.length > 0) {
+        textContent = content.text().trim();
+        if (textContent.length > 200) { // Good amount of content found
+          console.log(`Extracted content using selector: ${selector}`);
+          break;
+        }
+      }
+    }
+    
+    // Fallback to body text if no main content found
+    if (!textContent || textContent.length < 100) {
+      textContent = $('body').text().trim();
+      console.log('Used body text as fallback');
+    }
+    
+    // Clean up whitespace and limit length
+    textContent = textContent
+      .replace(/\s+/g, ' ')  // Normalize whitespace
+      .replace(/\n\s*\n/g, '\n')  // Remove empty lines
+      .trim();
+    
+    // Limit to first 10,000 characters to avoid token limits
+    if (textContent.length > 10000) {
+      textContent = textContent.substring(0, 10000) + '...';
+    }
+    
+    console.log(`Extracted ${textContent.length} characters of clean text from ${url}`);
+    
+    // Return both clean text (for AI analysis) and raw HTML (for structured extraction)
+    return {
+      cleanText: textContent,
+      rawHtml: html
+    };
+    
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      console.error(`Timeout fetching ${url}:`, error.message);
+    } else {
+      console.error(`Error fetching content from ${url}:`, error);
+    }
+    return {cleanText: '', rawHtml: ''};
+  }
+}
+
+// Legacy function for backwards compatibility
 async function fetchWebContent(url: string): Promise<string> {
   try {
     console.log(`Fetching real content from: ${url}`);
@@ -2764,13 +2910,15 @@ RULES:
     ].filter((url, index, self) => self.indexOf(url) === index); // Remove duplicates
     
     let allContent = '';
+    let allRawHtml = ''; // For office extraction (needs HTML structure)
     for (const pageUrl of pagesToTry.slice(0, 10)) { // Limit to 10 pages max
       try {
         console.log(`📥 Fetching: ${pageUrl}`);
-        const content = await fetchWebContent(pageUrl);
-        if (content && content.length > 50) {
-          allContent += `\n\n=== Content from ${pageUrl} ===\n${content}`;
-          console.log(`   ✓ Fetched ${content.length} chars`);
+        const { cleanText, rawHtml } = await fetchWebContentWithHtml(pageUrl);
+        if (cleanText && cleanText.length > 50) {
+          allContent += `\n\n=== Content from ${pageUrl} ===\n${cleanText}`;
+          allRawHtml += `\n\n${rawHtml}`; // Append raw HTML for office extraction
+          console.log(`   ✓ Fetched ${cleanText.length} chars (${rawHtml.length} raw HTML)`);
         }
       } catch (err) {
         console.log(`   ⚠ Could not fetch ${pageUrl}`);
@@ -2783,9 +2931,11 @@ RULES:
     }
     
     console.log(`✓ Total content fetched: ${allContent.length} characters from multiple pages`);
+    console.log(`✓ Raw HTML for office extraction: ${allRawHtml.length} characters`);
     
     // Step 4: Extract offices using multi-layer approach (faster + more reliable)
-    const extractedOffices = await extractOfficesMultiLayer(allContent, websiteUrl);
+    // IMPORTANT: Pass raw HTML not cleaned text - layers need HTML structure
+    const extractedOffices = await extractOfficesMultiLayer(allRawHtml, websiteUrl);
     
     // Step 5: Extract remaining company data using AI
     const companyDataResponse = await openai.chat.completions.create({
