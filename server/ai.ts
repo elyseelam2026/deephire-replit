@@ -993,7 +993,7 @@ export async function parseCandidateData(cvText: string): Promise<{
   }
 }
 
-// Fetch web content from URL with real HTTP requests (with Bright Data fallback)
+// Fetch web content from URL with real HTTP requests and retry logic
 async function fetchWebContent(url: string): Promise<string> {
   try {
     console.log(`Fetching real content from: ${url}`);
@@ -1004,147 +1004,66 @@ async function fetchWebContent(url: string): Promise<string> {
       return '';
     }
     
-    // Try direct fetch first
+    // Try direct fetch with retries
     let html = '';
-    let usedBrightData = false;
+    const maxRetries = 3;
+    let lastError: Error | null = null;
     
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate',
-          'DNT': '1',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-        },
-        // 30 second timeout for slow pages
-        signal: AbortSignal.timeout(30000)
-      });
-      
-      if (!response.ok) {
-        console.log(`⚠️ Direct fetch failed (${response.status}), trying Bright Data Web Unlocker...`);
-        
-        // Fallback to Bright Data for blocked sites
-        if (process.env.BRIGHTDATA_API_KEY) {
-          const { HttpsProxyAgent } = await import('https-proxy-agent');
-          
-          // Use the same format as scrapeLinkedInRawHTML() - proven to work
-          const proxyAuth = `${process.env.BRIGHTDATA_API_KEY}:`;
-          const proxyUrl = `http://${proxyAuth}@brd.superproxy.io:22225`;
-          const agent = new HttpsProxyAgent(proxyUrl);
-          
-          console.log(`🔓 Using Bright Data Web Unlocker to bypass blocks...`);
-          
-          const https = await import('https');
-          html = await new Promise((resolve, reject) => {
-            const req = https.request(url, {
-              method: 'GET',
-              agent: agent,
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-              }
-            }, (res) => {
-              let data = '';
-              
-              res.on('data', (chunk) => {
-                data += chunk;
-              });
-              
-              res.on('end', () => {
-                if (res.statusCode === 200) {
-                  console.log(`✅ Bright Data: Fetched ${data.length} characters`);
-                  resolve(data);
-                } else {
-                  console.error(`❌ Bright Data failed: ${res.statusCode}`);
-                  reject(new Error(`Bright Data failed: ${res.statusCode}`));
-                }
-              });
-            });
-            
-            req.on('error', (error) => {
-              console.error('❌ Bright Data request error:', error);
-              reject(error);
-            });
-            
-            req.setTimeout(30000, () => {
-              req.destroy();
-              reject(new Error('Bright Data request timeout'));
-            });
-            
-            req.end();
-          });
-          
-          usedBrightData = true;
-        } else {
-          console.log('❌ BRIGHTDATA_API_KEY not configured, cannot retry');
-          return '';
-        }
-      } else {
-        html = await response.text();
-        console.log(`Successfully fetched ${html.length} characters from ${url}`);
-      }
-    } catch (fetchError) {
-      // Try Bright Data if direct fetch throws error
-      if (process.env.BRIGHTDATA_API_KEY && !usedBrightData) {
-        console.log(`⚠️ Direct fetch error, trying Bright Data Web Unlocker...`);
-        
-        const { HttpsProxyAgent } = await import('https-proxy-agent');
-        
-        // Use the same format as scrapeLinkedInRawHTML() - proven to work
-        const proxyAuth = `${process.env.BRIGHTDATA_API_KEY}:`;
-        const proxyUrl = `http://${proxyAuth}@brd.superproxy.io:22225`;
-        const agent = new HttpsProxyAgent(proxyUrl);
-        
-        const https = await import('https');
-        html = await new Promise((resolve, reject) => {
-          const req = https.request(url, {
-            method: 'GET',
-            agent: agent,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.9',
-            }
-          }, (res) => {
-            let data = '';
-            
-            res.on('data', (chunk) => {
-              data += chunk;
-            });
-            
-            res.on('end', () => {
-              if (res.statusCode === 200) {
-                console.log(`✅ Bright Data: Fetched ${data.length} characters`);
-                resolve(data);
-              } else {
-                console.error(`❌ Bright Data failed: ${res.statusCode}`);
-                reject(new Error(`Bright Data failed: ${res.statusCode}`));
-              }
-            });
-          });
-          
-          req.on('error', (error) => {
-            console.error('❌ Bright Data request error:', error);
-            reject(error);
-          });
-          
-          req.setTimeout(30000, () => {
-            req.destroy();
-            reject(new Error('Bright Data request timeout'));
-          });
-          
-          req.end();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+          },
+          // 30 second timeout for slow pages
+          signal: AbortSignal.timeout(30000)
         });
         
-        usedBrightData = true;
-      } else {
-        throw fetchError;
+        if (response.ok) {
+          html = await response.text();
+          console.log(`✅ Successfully fetched ${html.length} characters from ${url}`);
+          break; // Success, exit retry loop
+        } else {
+          lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+          console.log(`⚠️ Attempt ${attempt}/${maxRetries} failed: ${response.status} ${response.statusText}`);
+          
+          // Don't retry on 404 or 403 - these won't improve with retries
+          if (response.status === 404 || response.status === 403 || response.status === 401) {
+            console.log(`   Permanent error (${response.status}), skipping retries`);
+            break;
+          }
+          
+          // Wait before retry (exponential backoff)
+          if (attempt < maxRetries) {
+            const waitMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            console.log(`   Retrying in ${waitMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+          }
+        }
+      } catch (fetchError: any) {
+        lastError = fetchError;
+        console.log(`⚠️ Attempt ${attempt}/${maxRetries} error:`, fetchError.message);
+        
+        // Wait before retry
+        if (attempt < maxRetries) {
+          const waitMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          console.log(`   Retrying in ${waitMs}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
       }
+    }
+    
+    if (!html && lastError) {
+      console.log(`❌ All ${maxRetries} attempts failed for ${url}:`, lastError.message);
+      return ''; // Return empty string instead of throwing - allows other pages to succeed
     }
     
     if (!html) {
@@ -1196,7 +1115,7 @@ async function fetchWebContent(url: string): Promise<string> {
       textContent = textContent.substring(0, 10000) + '...';
     }
     
-    console.log(`Extracted ${textContent.length} characters of clean text from ${url}${usedBrightData ? ' (via Bright Data)' : ''}`);
+    console.log(`Extracted ${textContent.length} characters of clean text from ${url}`);
     return textContent;
     
   } catch (error) {
