@@ -386,6 +386,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Retroactive processing endpoints - process existing "Data Only" candidates
+  
+  // Process career history for an existing candidate
+  app.post("/api/candidates/:id/process-career", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+
+      if (!candidate.linkedinUrl) {
+        return res.status(400).json({ error: "Candidate has no LinkedIn URL" });
+      }
+
+      console.log(`\n🔄 [Retroactive Processing] Career Only for ${candidate.firstName} ${candidate.lastName}`);
+      console.log(`LinkedIn URL: ${candidate.linkedinUrl}`);
+
+      // Scrape LinkedIn profile
+      const profileData = await scrapeLinkedInProfile(candidate.linkedinUrl);
+      
+      // Update candidate with career data (no biography)
+      const updatedCandidate = await storage.updateCandidate(candidateId, {
+        bioSource: 'brightdata',
+        bioStatus: 'not_generated',
+        processingMode: 'career_only'
+      });
+
+      console.log(`✅ [Retroactive Processing] Career data fetched for ${candidate.firstName} ${candidate.lastName}`);
+      
+      res.json({ 
+        success: true, 
+        candidate: updatedCandidate,
+        message: "Career history fetched successfully"
+      });
+    } catch (error) {
+      console.error("Error processing career history:", error);
+      res.status(500).json({ error: "Failed to process career history" });
+    }
+  });
+
+  // Generate biography for an existing candidate
+  app.post("/api/candidates/:id/process-biography", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+
+      if (!candidate.linkedinUrl) {
+        return res.status(400).json({ error: "Candidate has no LinkedIn URL" });
+      }
+
+      console.log(`\n🔄 [Retroactive Processing] Bio Only for ${candidate.firstName} ${candidate.lastName}`);
+      console.log(`LinkedIn URL: ${candidate.linkedinUrl}`);
+
+      // Scrape LinkedIn profile
+      const profileData = await scrapeLinkedInProfile(candidate.linkedinUrl);
+      
+      // Generate biography only
+      const biography = await generateBiographyFromLinkedInData(profileData);
+      
+      // Update candidate with biography
+      const updatedCandidate = await storage.updateCandidate(candidateId, {
+        biography,
+        bioSource: 'brightdata',
+        bioStatus: 'verified',
+        processingMode: 'bio_only'
+      });
+
+      console.log(`✅ [Retroactive Processing] Biography generated for ${candidate.firstName} ${candidate.lastName}`);
+      
+      res.json({ 
+        success: true, 
+        candidate: updatedCandidate,
+        message: "Biography generated successfully"
+      });
+    } catch (error) {
+      console.error("Error generating biography:", error);
+      res.status(500).json({ error: "Failed to generate biography" });
+    }
+  });
+
+  // Full processing for an existing candidate (career + biography)
+  app.post("/api/candidates/:id/process-full", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+
+      if (!candidate.linkedinUrl) {
+        return res.status(400).json({ error: "Candidate has no LinkedIn URL" });
+      }
+
+      console.log(`\n🔄 [Retroactive Processing] Full Processing for ${candidate.firstName} ${candidate.lastName}`);
+      console.log(`LinkedIn URL: ${candidate.linkedinUrl}`);
+
+      // Scrape LinkedIn profile
+      const profileData = await scrapeLinkedInProfile(candidate.linkedinUrl);
+      
+      // Generate biography and career history
+      const bioResult = await generateBiographyAndCareerHistory(
+        candidate.firstName,
+        candidate.lastName,
+        profileData,
+        candidate.cvText || null
+      );
+      
+      if (bioResult) {
+        // Update candidate with both biography and career history
+        const updatedCandidate = await storage.updateCandidate(candidateId, {
+          biography: bioResult.biography,
+          careerHistory: bioResult.careerHistory,
+          bioSource: 'brightdata',
+          bioStatus: 'verified',
+          processingMode: 'full'
+        });
+
+        console.log(`✅ [Retroactive Processing] Full processing complete for ${candidate.firstName} ${candidate.lastName}`);
+        
+        res.json({ 
+          success: true, 
+          candidate: updatedCandidate,
+          message: "Full processing complete"
+        });
+      } else {
+        throw new Error("Failed to generate biography and career history");
+      }
+    } catch (error) {
+      console.error("Error in full processing:", error);
+      res.status(500).json({ error: "Failed to complete full processing" });
+    }
+  });
+
   // Get companies endpoint
   app.get("/api/companies", async (req, res) => {
     try {

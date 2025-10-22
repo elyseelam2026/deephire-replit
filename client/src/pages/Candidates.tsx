@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText, Building2, Calendar } from "lucide-react";
+import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText, Building2, Calendar, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Candidate, CareerHistoryEntry } from "@shared/schema";
@@ -690,6 +690,122 @@ export default function Candidates() {
                   </div>
                 )}
               
+              {/* Processing Actions - For Data Only candidates */}
+              {selectedCandidate.processingMode === 'data_only' && selectedCandidate.linkedinUrl && (
+                <div className="border-t pt-6">
+                  <h4 className="font-medium text-sm mb-4">Processing Actions</h4>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    This candidate was uploaded in "Data Only" mode. Choose a processing option:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (!selectedCandidate) return;
+                        try {
+                          toast({
+                            title: "Processing Started",
+                            description: "Fetching career history from LinkedIn...",
+                          });
+                          const response = await apiRequest('POST', `/api/candidates/${selectedCandidate.id}/process-career`, null);
+                          const result = await response.json();
+                          
+                          if (result.success) {
+                            queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+                            toast({
+                              title: "Career History Fetched",
+                              description: result.message || "Career data has been extracted successfully",
+                            });
+                            setSelectedCandidate(null);
+                          }
+                        } catch (error: any) {
+                          toast({
+                            title: "Processing Failed",
+                            description: error.message || "Failed to fetch career history",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      data-testid={`button-process-career-${selectedCandidate.id}`}
+                    >
+                      <Briefcase className="h-3 w-3 mr-2" />
+                      Fetch Career History
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (!selectedCandidate) return;
+                        try {
+                          toast({
+                            title: "Processing Started",
+                            description: "Generating executive biography...",
+                          });
+                          const response = await apiRequest('POST', `/api/candidates/${selectedCandidate.id}/process-biography`, null);
+                          const result = await response.json();
+                          
+                          if (result.success) {
+                            queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+                            toast({
+                              title: "Biography Generated",
+                              description: result.message || "Executive biography has been created successfully",
+                            });
+                            setSelectedCandidate(null);
+                          }
+                        } catch (error: any) {
+                          toast({
+                            title: "Processing Failed",
+                            description: error.message || "Failed to generate biography",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      data-testid={`button-process-biography-${selectedCandidate.id}`}
+                    >
+                      <FileText className="h-3 w-3 mr-2" />
+                      Generate Biography
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={async () => {
+                        if (!selectedCandidate) return;
+                        try {
+                          toast({
+                            title: "Processing Started",
+                            description: "Running full processing (career + biography)...",
+                          });
+                          const response = await apiRequest('POST', `/api/candidates/${selectedCandidate.id}/process-full`, null);
+                          const result = await response.json();
+                          
+                          if (result.success) {
+                            queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+                            toast({
+                              title: "Full Processing Complete",
+                              description: result.message || "Career history and biography have been generated",
+                            });
+                            setSelectedCandidate(null);
+                          }
+                        } catch (error: any) {
+                          toast({
+                            title: "Processing Failed",
+                            description: error.message || "Failed to complete full processing",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      data-testid={`button-process-full-${selectedCandidate.id}`}
+                    >
+                      <Sparkles className="h-3 w-3 mr-2" />
+                      Full Processing
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* QA Validation Section */}
               <div className="border-t pt-6">
                 <h4 className="font-medium text-sm mb-4">QA Validation</h4>
