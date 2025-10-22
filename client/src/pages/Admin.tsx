@@ -323,6 +323,7 @@ export default function Admin() {
   
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
+  const [candidateProcessingMode, setCandidateProcessingMode] = useState<'full' | 'career_only' | 'bio_only' | 'data_only'>('full');
   const [companyFiles, setCompanyFiles] = useState<FileList | null>(null);
   const [companyUrls, setCompanyUrls] = useState("");
   const [candidateStatus, setCandidateStatus] = useState<UploadStatus>('idle');
@@ -723,6 +724,9 @@ export default function Admin() {
     if (candidateUrls.trim()) {
       formData.append('urls', candidateUrls);
     }
+    
+    // Add processing mode to control API calls
+    formData.append('processingMode', candidateProcessingMode);
 
     setCandidateStatus('uploading');
     setCandidateProgress(25);
@@ -1258,6 +1262,91 @@ export default function Admin() {
                     <p className="text-xs text-muted-foreground mt-1">
                       One URL per line. LinkedIn profiles, personal websites, or bio pages.
                     </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Processing Mode Selection */}
+              <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="processingMode" className="text-base font-semibold">
+                    Processing Mode
+                  </Label>
+                  <Select 
+                    value={candidateProcessingMode} 
+                    onValueChange={(value) => setCandidateProcessingMode(value as 'full' | 'career_only' | 'bio_only' | 'data_only')}
+                    disabled={candidateStatus === 'uploading' || candidateStatus === 'processing'}
+                  >
+                    <SelectTrigger id="processingMode" data-testid="select-processing-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">
+                        <div className="flex flex-col items-start">
+                          <span className="font-semibold">Full Processing</span>
+                          <span className="text-xs text-muted-foreground">Career + Biography (SerpAPI + Bright Data + Grok)</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="career_only">
+                        <div className="flex flex-col items-start">
+                          <span className="font-semibold">Career Only</span>
+                          <span className="text-xs text-muted-foreground">Just career history (SerpAPI + Bright Data)</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="bio_only">
+                        <div className="flex flex-col items-start">
+                          <span className="font-semibold">Bio Only</span>
+                          <span className="text-xs text-muted-foreground">Just biography (Bright Data + Grok)</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="data_only">
+                        <div className="flex flex-col items-start">
+                          <span className="font-semibold">Data Only (Free)</span>
+                          <span className="text-xs text-muted-foreground">Store URLs without processing</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {candidateProcessingMode === 'data_only' && '💰 Free: Perfect for bulk upload. Process later when needed.'}
+                    {candidateProcessingMode === 'career_only' && '📊 Medium cost: Quick career mapping without biography.'}
+                    {candidateProcessingMode === 'bio_only' && '📝 Medium cost: Executive summaries without full career data.'}
+                    {candidateProcessingMode === 'full' && '🎯 High cost: Complete profiles with career history and AI-generated biographies.'}
+                  </p>
+                </div>
+
+                {/* Cost Breakdown */}
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t text-xs">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">SerpAPI:</span>
+                      <Badge variant={candidateProcessingMode === 'data_only' || candidateProcessingMode === 'bio_only' ? 'outline' : 'default'} className="text-xs">
+                        {candidateProcessingMode === 'data_only' || candidateProcessingMode === 'bio_only' ? 'Skip' : 'Yes'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Bright Data:</span>
+                      <Badge variant={candidateProcessingMode === 'data_only' ? 'outline' : 'default'} className="text-xs">
+                        {candidateProcessingMode === 'data_only' ? 'Skip' : 'Yes'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">AI Biography:</span>
+                      <Badge variant={candidateProcessingMode === 'career_only' || candidateProcessingMode === 'data_only' ? 'outline' : 'default'} className="text-xs">
+                        {candidateProcessingMode === 'career_only' || candidateProcessingMode === 'data_only' ? 'Skip' : 'Yes'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Cost Level:</span>
+                      <Badge variant={candidateProcessingMode === 'data_only' ? 'secondary' : 'default'}>
+                        {candidateProcessingMode === 'data_only' && 'Free'}
+                        {candidateProcessingMode === 'career_only' && 'Medium'}
+                        {candidateProcessingMode === 'bio_only' && 'Medium'}
+                        {candidateProcessingMode === 'full' && 'High'}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               </div>
