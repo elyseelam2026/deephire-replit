@@ -15,6 +15,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 22, 2025 - 4 Processing Modes for Credit Optimization
+- **Implemented flexible processing modes for candidate uploads**: Users can now choose how much processing to apply to each candidate upload, optimizing credit usage
+- **Four processing modes available**:
+  - **Full Processing** (`full`): SerpAPI + Bright Data + Grok AI - Complete profiles with career history and AI-generated biographies
+  - **Career Only** (`career_only`): SerpAPI + Bright Data - Quick career mapping without biography generation
+  - **Bio Only** (`bio_only`): SerpAPI + Bright Data + Grok AI - Biographical summaries without full career extraction emphasis
+  - **Data Only** (`data_only`): No API calls - Free bulk upload for later processing
+- **Added processingMode column to candidates table**: Tracks which mode was used for each candidate
+- **Updated background job processor**: Conditionally calls APIs based on selected processing mode
+- **Comprehensive UI implementation**: Mode selectors in both bulk upload and Quick Add forms with cost breakdowns
+- **Visual mode indicators**: Processing mode badges on candidate cards (Data Only, Career Only, Bio Only)
+- **Unified contract across upload methods**: Both bulk upload and Quick Add follow the same processing logic for all 4 modes
+- **Benefits**: Credit optimization, flexible workflows, bulk upload now free with data_only mode
+
 ### October 22, 2025 - Recycling Bin Feature
 - **Implemented soft delete system for candidates**: Replaced permanent deletion with reversible soft delete
 - **Added `deleted_at` timestamp column**: Tracks when candidates are deleted without removing data

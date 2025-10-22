@@ -59,57 +59,54 @@ async function processBatch(
           
           candidateData.processingMode = processingMode;
           
-          // If we found a VERIFIED LinkedIn URL, scrape it (for modes 1, 2, 3)
+          // If we found a VERIFIED LinkedIn URL, scrape it (for full, career_only, bio_only modes)
           if (candidateData.linkedinUrl && processingMode !== 'data_only') {
             try {
               console.log(`✓ Found LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}: ${candidateData.linkedinUrl}`);
               
-              // Mode 3: Bio Only - Skip Bright Data scrape, just use basic bio
-              if (processingMode === 'bio_only') {
-                console.log(`📝 Bio Only mode: Skipping LinkedIn scrape, using bio page content`);
-                // Generate bio from bio page content only
-                if (candidateData.cvText) {
-                  const bioResult = await generateBiographyAndCareerHistory(
-                    candidateData.firstName,
-                    candidateData.lastName,
-                    null, // no LinkedIn data
-                    candidateData.cvText
-                  );
-                  if (bioResult) {
-                    candidateData.biography = bioResult.biography;
-                    (candidateData as any).careerHistory = bioResult.careerHistory;
-                  }
-                }
-              } else {
-                // Modes 1 & 2: Scrape LinkedIn with Bright Data
-                console.log(`🔄 Scraping LinkedIn profile with Bright Data...`);
-                const linkedinData = await scrapeLinkedInProfile(candidateData.linkedinUrl);
-                console.log(`✓ LinkedIn profile scraped successfully`);
+              // All non-data_only modes scrape LinkedIn with Bright Data
+              console.log(`🔄 Scraping LinkedIn profile with Bright Data...`);
+              const linkedinData = await scrapeLinkedInProfile(candidateData.linkedinUrl);
+              console.log(`✓ LinkedIn profile scraped successfully`);
+              
+              // Mode 1: Full - Generate biography AND career history
+              if (processingMode === 'full') {
+                console.log(`🎯 Full mode: Starting 3-layer AI pipeline (Comprehension → Synthesis → Career Mapping)...`);
+                const bioResult = await generateBiographyAndCareerHistory(
+                  candidateData.firstName,
+                  candidateData.lastName,
+                  linkedinData,
+                  candidateData.cvText // bio page content for context
+                );
                 
-                // Mode 1: Full - Generate biography AND career history
-                if (processingMode === 'full') {
-                  console.log(`🎯 Full mode: Starting 3-layer AI pipeline (Comprehension → Synthesis → Career Mapping)...`);
-                  const bioResult = await generateBiographyAndCareerHistory(
-                    candidateData.firstName,
-                    candidateData.lastName,
-                    linkedinData,
-                    candidateData.cvText // bio page content for context
-                  );
-                  
-                  if (bioResult) {
-                    candidateData.biography = bioResult.biography;
-                    (candidateData as any).careerHistory = bioResult.careerHistory;
-                    console.log(`✓ 3-layer pipeline complete: Biography ${bioResult.biography.length} chars, Career ${bioResult.careerHistory.length} positions`);
-                  }
+                if (bioResult) {
+                  candidateData.biography = bioResult.biography;
+                  (candidateData as any).careerHistory = bioResult.careerHistory;
+                  console.log(`✓ 3-layer pipeline complete: Biography ${bioResult.biography.length} chars, Career ${bioResult.careerHistory.length} positions`);
                 }
-                // Mode 2: Career Only - Just extract career history, skip biography
-                else if (processingMode === 'career_only') {
-                  console.log(`💼 Career Only mode: Extracting career history without biography generation`);
-                  // Extract career history from LinkedIn data directly
-                  if (linkedinData.workExperience) {
-                    (candidateData as any).careerHistory = linkedinData.workExperience;
-                    console.log(`✓ Career history extracted: ${linkedinData.workExperience.length} positions`);
-                  }
+              }
+              // Mode 2: Career Only - Just extract career history, skip biography
+              else if (processingMode === 'career_only') {
+                console.log(`💼 Career Only mode: Extracting career history without biography generation`);
+                // Extract career history from LinkedIn data directly
+                if (linkedinData.workExperience) {
+                  (candidateData as any).careerHistory = linkedinData.workExperience;
+                  console.log(`✓ Career history extracted: ${linkedinData.workExperience.length} positions`);
+                }
+              }
+              // Mode 3: Bio Only - Generate biography only, no career history extraction
+              else if (processingMode === 'bio_only') {
+                console.log(`📝 Bio Only mode: Generating biography without career history extraction`);
+                const bioResult = await generateBiographyAndCareerHistory(
+                  candidateData.firstName,
+                  candidateData.lastName,
+                  linkedinData,
+                  candidateData.cvText // bio page content for context
+                );
+                if (bioResult) {
+                  candidateData.biography = bioResult.biography;
+                  // Note: We generate biography but don't save career history to database
+                  console.log(`✓ Biography generated: ${bioResult.biography.length} chars (career history not saved)`);
                 }
               }
             } catch (bioError) {

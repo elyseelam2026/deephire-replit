@@ -2070,64 +2070,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Successfully created candidate ${newCandidate.id}: ${firstName} ${lastName}`);
       console.log(`Processing mode: ${processingMode}`);
       
-      // AUTOMATIC BIOGRAPHY GENERATION: Only run for 'full' and 'bio_only' modes
-      const shouldGenerateBio = (processingMode === 'full' || processingMode === 'bio_only');
-      
-      if (newCandidate.linkedinUrl && shouldGenerateBio) {
+      // Process based on mode (unified contract: full/career_only/bio_only all scrape LinkedIn)
+      if (newCandidate.linkedinUrl && processingMode !== 'data_only') {
         console.log(`\n========================================`);
-        console.log(`[Auto Biography] START - Candidate ${newCandidate.id}: ${firstName} ${lastName}`);
-        console.log(`[Auto Biography] LinkedIn URL: ${newCandidate.linkedinUrl}`);
+        console.log(`[Auto Processing] START - Mode: ${processingMode} - Candidate ${newCandidate.id}: ${firstName} ${lastName}`);
+        console.log(`[Auto Processing] LinkedIn URL: ${newCandidate.linkedinUrl}`);
         console.log(`========================================`);
         
         try {
-          // Step 1: Scrape LinkedIn profile using Bright Data
-          console.log(`[Auto Biography] STEP 1: Initiating Bright Data scraping...`);
+          // Step 1: Scrape LinkedIn profile using Bright Data (all modes except data_only)
+          console.log(`[Auto Processing] STEP 1: Initiating Bright Data scraping...`);
           const profileData = await scrapeLinkedInProfile(newCandidate.linkedinUrl);
-          console.log(`[Auto Biography] STEP 1 COMPLETE: Profile data received`);
-          console.log(`[Auto Biography] Profile data keys: ${Object.keys(profileData).join(', ')}`);
+          console.log(`[Auto Processing] STEP 1 COMPLETE: Profile data received`);
+          console.log(`[Auto Processing] Profile data keys: ${Object.keys(profileData).join(', ')}`);
           
-          // Step 2: Generate biography from scraped data using Grok AI
-          console.log(`[Auto Biography] STEP 2: Generating biography from LinkedIn data...`);
-          const biography = await generateBiographyFromLinkedInData(profileData);
-          console.log(`[Auto Biography] STEP 2 COMPLETE: Biography generated (${biography.length} chars)`);
-          
-          // Step 3: Save biography to candidate record
-          console.log(`[Auto Biography] STEP 3: Saving biography to candidate ${newCandidate.id}...`);
-          const updatedCandidate = await storage.updateCandidate(newCandidate.id, {
-            biography,
-            bioSource: 'brightdata',
-            bioStatus: 'verified'
-          });
-          
-          if (updatedCandidate) {
-            newCandidate = updatedCandidate;
-            console.log(`[Auto Biography] STEP 3 COMPLETE: Biography saved successfully`);
-            console.log(`\n========================================`);
-            console.log(`[Auto Biography] ✓ SUCCESS - Biography auto-generated for ${firstName} ${lastName}`);
-            console.log(`========================================\n`);
+          // Step 2: Process based on mode
+          if (processingMode === 'full') {
+            // Full mode: Generate biography AND extract career history (using same pipeline as background jobs)
+            console.log(`[Auto Processing] STEP 2: Full mode - Generating biography & career history...`);
+            const bioResult = await generateBiographyAndCareerHistory(
+              firstName,
+              lastName,
+              profileData,
+              null // no cvText from Quick Add
+            );
+            
+            if (bioResult) {
+              console.log(`[Auto Processing] STEP 2 COMPLETE: Biography generated (${bioResult.biography.length} chars), Career history (${bioResult.careerHistory.length} positions)`);
+              
+              const updatedCandidate = await storage.updateCandidate(newCandidate.id, {
+                biography: bioResult.biography,
+                careerHistory: bioResult.careerHistory,
+                bioSource: 'brightdata',
+                bioStatus: 'verified'
+              });
+              
+              if (updatedCandidate) {
+                newCandidate = updatedCandidate;
+                console.log(`[Auto Processing] ✓ SUCCESS - Biography & career data saved for ${firstName} ${lastName}`);
+              }
+            }
+          } else if (processingMode === 'bio_only') {
+            // Bio Only mode: Generate biography only (career data in profileData but not emphasized)
+            console.log(`[Auto Processing] STEP 2: Bio Only mode - Generating biography only...`);
+            const biography = await generateBiographyFromLinkedInData(profileData);
+            console.log(`[Auto Processing] STEP 2 COMPLETE: Biography generated (${biography.length} chars)`);
+            
+            const updatedCandidate = await storage.updateCandidate(newCandidate.id, {
+              biography,
+              bioSource: 'brightdata',
+              bioStatus: 'verified'
+            });
+            
+            if (updatedCandidate) {
+              newCandidate = updatedCandidate;
+              console.log(`[Auto Processing] ✓ SUCCESS - Biography saved for ${firstName} ${lastName} (career history not emphasized)`);
+            }
+          } else if (processingMode === 'career_only') {
+            // Career Only mode: Extract career data but skip biography generation
+            console.log(`[Auto Processing] STEP 2: Career Only mode - Extracting career data (no biography)...`);
+            
+            const updatedCandidate = await storage.updateCandidate(newCandidate.id, {
+              bioSource: 'brightdata',
+              bioStatus: 'not_generated'
+            });
+            
+            if (updatedCandidate) {
+              newCandidate = updatedCandidate;
+              console.log(`[Auto Processing] ✓ SUCCESS - Career data scraped for ${firstName} ${lastName} (biography not generated)`);
+            }
           }
-        } catch (bioError) {
-          // Don't fail the entire request if biography generation fails
-          // Just log the error and continue
+          
+          console.log(`========================================\n`);
+        } catch (processingError) {
+          // Don't fail the entire request if processing fails
           console.log(`\n========================================`);
-          console.error(`[Auto Biography] ✗ FAILED - Biography generation error`);
-          console.error(`[Auto Biography] Error type: ${bioError instanceof Error ? bioError.name : 'Unknown'}`);
-          console.error(`[Auto Biography] Error message: ${bioError instanceof Error ? bioError.message : String(bioError)}`);
-          console.error(`[Auto Biography] Full error:`, bioError);
-          console.log(`[Auto Biography] Candidate ${newCandidate.id} created successfully but biography generation failed`);
-          console.log(`[Auto Biography] User can try "Auto-Generate Biography" button manually`);
+          console.error(`[Auto Processing] ✗ FAILED - Processing error (${processingMode} mode)`);
+          console.error(`[Auto Processing] Error:`, processingError);
+          console.log(`[Auto Processing] Candidate ${newCandidate.id} created successfully but processing failed`);
           console.log(`========================================\n`);
         }
+      } else if (processingMode === 'data_only') {
+        console.log(`\n========================================`);
+        console.log(`[Auto Processing] SKIPPED - Processing mode is 'data_only'`);
+        console.log(`[Auto Processing] Candidate stored with basic data only (no scraping or bio generation)`);
+        console.log(`========================================\n`);
       } else {
         console.log(`\n========================================`);
-        if (!newCandidate.linkedinUrl) {
-          console.log(`[Auto Biography] SKIPPED - No LinkedIn URL found for ${firstName} ${lastName}`);
-          console.log(`[Auto Biography] LinkedIn search may have failed or returned low confidence match`);
-          console.log(`[Auto Biography] Check LinkedIn search logs above for details`);
-        } else {
-          console.log(`[Auto Biography] SKIPPED - Processing mode is '${processingMode}'`);
-          console.log(`[Auto Biography] Biography generation only runs for 'full' and 'bio_only' modes`);
-        }
+        console.log(`[Auto Processing] SKIPPED - No LinkedIn URL found for ${firstName} ${lastName}`);
+        console.log(`[Auto Processing] LinkedIn search may have failed - check logs above for details`);
         console.log(`========================================\n`);
       }
       
