@@ -1,4 +1,4 @@
-import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock } from "lucide-react";
+import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -17,6 +17,7 @@ const adminItems = [
   { title: "Companies", url: "/recruiting/companies", icon: Building2 },
   { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
   { title: "Candidates", url: "/recruiting/candidates", icon: Users },
+  { title: "Recycling Bin", url: "/recruiting/recycling-bin", icon: Trash2 },
   { title: "Staging", url: "/recruiting/staging", icon: Clock },
   { title: "Conversations", url: "/recruiting/conversations", icon: MessageSquare },
   { title: "Outreach", url: "/recruiting/outreach", icon: Mail },
