@@ -1,8 +1,9 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRight, Search, Pencil, Trash2, X, Save } from "lucide-react";
+import { Building2, MapPin, Users, TrendingUp, Phone, Globe, DollarSign, ArrowRight, Search, Pencil, Trash2, X, Save, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -66,6 +67,7 @@ export default function Companies() {
   // Fetch organization chart when a company is selected
   type OrgChartMember = {
     id: number;
+    candidateId: number | null;
     firstName: string;
     lastName: string;
     title: string;
@@ -802,7 +804,18 @@ export default function Companies() {
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="flex-1">
-                                      <p className="font-medium text-sm">{member.firstName} {member.lastName}</p>
+                                      {member.candidateId ? (
+                                        <Link 
+                                          href={`/recruiting/candidates?id=${member.candidateId}`}
+                                          className="font-medium text-sm text-primary hover:underline cursor-pointer inline-flex items-center gap-1"
+                                          data-testid={`link-candidate-${member.candidateId}`}
+                                        >
+                                          <UserCircle className="h-3 w-3" />
+                                          {member.firstName} {member.lastName}
+                                        </Link>
+                                      ) : (
+                                        <p className="font-medium text-sm">{member.firstName} {member.lastName}</p>
+                                      )}
                                       <p className="text-xs text-muted-foreground mt-1">{member.title}</p>
                                       {member.department && (
                                         <Badge variant="secondary" className="mt-2 text-xs">{member.department}</Badge>
@@ -839,7 +852,18 @@ export default function Companies() {
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="flex-1">
-                                      <p className="font-medium text-sm">{member.firstName} {member.lastName}</p>
+                                      {member.candidateId ? (
+                                        <Link 
+                                          href={`/recruiting/candidates?id=${member.candidateId}`}
+                                          className="font-medium text-sm text-primary hover:underline cursor-pointer inline-flex items-center gap-1"
+                                          data-testid={`link-candidate-${member.candidateId}`}
+                                        >
+                                          <UserCircle className="h-3 w-3" />
+                                          {member.firstName} {member.lastName}
+                                        </Link>
+                                      ) : (
+                                        <p className="font-medium text-sm">{member.firstName} {member.lastName}</p>
+                                      )}
                                       <p className="text-xs text-muted-foreground mt-1">{member.title}</p>
                                       {member.department && (
                                         <Badge variant="secondary" className="mt-2 text-xs">{member.department}</Badge>
@@ -874,7 +898,18 @@ export default function Companies() {
                                   className="p-2 bg-muted rounded-md text-sm"
                                   data-testid={`org-chart-member-${member.id}`}
                                 >
-                                  <p className="font-medium text-xs">{member.firstName} {member.lastName}</p>
+                                  {member.candidateId ? (
+                                    <Link 
+                                      href={`/recruiting/candidates?id=${member.candidateId}`}
+                                      className="font-medium text-xs text-primary hover:underline cursor-pointer inline-flex items-center gap-1"
+                                      data-testid={`link-candidate-${member.candidateId}`}
+                                    >
+                                      <UserCircle className="h-3 w-3" />
+                                      {member.firstName} {member.lastName}
+                                    </Link>
+                                  ) : (
+                                    <p className="font-medium text-xs">{member.firstName} {member.lastName}</p>
+                                  )}
                                   <p className="text-xs text-muted-foreground">{member.title}</p>
                                 </div>
                               ))}

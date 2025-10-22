@@ -10,7 +10,7 @@ import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalL
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Candidate, CareerHistoryEntry } from "@shared/schema";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -44,6 +44,20 @@ export default function Candidates() {
       return response.json();
     }
   });
+
+  // Handle query parameter to auto-open candidate
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const candidateId = params.get('id');
+    if (candidateId && candidates) {
+      const candidate = candidates.find(c => c.id === parseInt(candidateId));
+      if (candidate) {
+        setSelectedCandidate(candidate);
+        // Clean up URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, [candidates]);
 
   const deleteMutation = useMutation({
     mutationFn: async (candidateId: number) => {
