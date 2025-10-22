@@ -14,6 +14,14 @@ const openai = new OpenAI({
 });
 
 /**
+ * Helper function to strip markdown code blocks from AI responses before JSON parsing
+ * Handles: ```json {...} ``` or ``` {...} ```
+ */
+function stripMarkdownJson(text: string): string {
+  return text.replace(/^```(?:json)?\s*\n?/g, '').replace(/\n?```\s*$/g, '');
+}
+
+/**
  * Use Playwright browser automation to scrape paginated team pages
  * This handles JavaScript-rendered pagination that static HTML scraping can't reach
  */
@@ -4067,7 +4075,11 @@ Return ONLY the JSON object, no markdown.`
     max_tokens: 2000
   });
   
-  const aiResponse = response.choices[0]?.message?.content?.trim() || '{}';
+  let aiResponse = response.choices[0]?.message?.content?.trim() || '{}';
+  
+  // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+  aiResponse = stripMarkdownJson(aiResponse);
+  
   const comprehension = JSON.parse(aiResponse);
   
   console.log(`[Layer 1: Comprehension] ✓ Deep understanding established`);
@@ -4309,7 +4321,8 @@ JSON array:`
       max_tokens: 3000
     });
     
-    const aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
+    let aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
+    aiResponse = stripMarkdownJson(aiResponse);
     const careerHistory = JSON.parse(aiResponse);
     
     if (!Array.isArray(careerHistory)) {
@@ -4386,9 +4399,10 @@ JSON array:`
       max_tokens: 2000
     });
     
-    const aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
+    let aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
     console.log(`[Career History Bio] AI response:`, aiResponse.substring(0, 200));
     
+    aiResponse = stripMarkdownJson(aiResponse);
     const careerHistory = JSON.parse(aiResponse);
     
     if (!Array.isArray(careerHistory)) {
@@ -4471,10 +4485,11 @@ JSON array:`
       max_tokens: 3000
     });
     
-    const aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
+    let aiResponse = response.choices[0]?.message?.content?.trim() || '[]';
     console.log(`[Career History HTML] AI response:`, aiResponse.substring(0, 200));
     
-    // Parse the AI response as JSON
+    // Strip markdown and parse the AI response as JSON
+    aiResponse = stripMarkdownJson(aiResponse);
     const careerHistory = JSON.parse(aiResponse);
     
     if (!Array.isArray(careerHistory)) {
