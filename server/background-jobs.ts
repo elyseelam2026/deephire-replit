@@ -11,6 +11,7 @@ interface BulkUrlJob {
   urls: string[];
   batchSize: number;
   concurrency: number;
+  reprocess: boolean;  // Flag to update existing candidates instead of skipping duplicates
   status: 'queued' | 'processing' | 'paused' | 'stopped' | 'completed' | 'failed';
 }
 
@@ -20,7 +21,7 @@ const processingJobs = new Map<number, boolean>();
 const jobControls = new Map<number, { paused: boolean; stopped: boolean }>();
 
 // Process a batch of URLs concurrently
-async function processBatch(urls: string[], ingestionJobId: number): Promise<{
+async function processBatch(urls: string[], ingestionJobId: number, reprocess: boolean = false): Promise<{
   successCount: number;
   failedCount: number;
   duplicateCount: number;
@@ -71,11 +72,32 @@ async function processBatch(urls: string[], ingestionJobId: number): Promise<{
         const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData);
         
         if (duplicates.length > 0) {
-          await duplicateDetectionService.detectCandidateDuplicates(
-            candidateData, 
-            ingestionJobId
-          );
-          return { type: 'duplicate', candidateData };
+          // If reprocessing, UPDATE the existing candidate instead of skipping
+          if (reprocess) {
+            const matchResult = duplicates[0];
+            const candidateId = matchResult.existingCandidateId; // Fix: use existingCandidateId from match result
+            console.log(`🔄 Reprocessing: Updating existing candidate ${candidateId} (${candidateData.firstName} ${candidateData.lastName})`);
+            
+            await storage.updateCandidate(candidateId, {
+              linkedinUrl: candidateData.linkedinUrl,
+              biography: candidateData.biography,
+              careerHistory: (candidateData as any).careerHistory,
+              currentCompany: candidateData.currentCompany,
+              currentTitle: candidateData.currentTitle,
+              location: candidateData.location,
+              skills: candidateData.skills
+            });
+            
+            console.log(`✅ Updated candidate ${candidateId} with new data`);
+            return { type: 'success', candidateData };
+          } else {
+            // Normal mode: record as duplicate
+            await duplicateDetectionService.detectCandidateDuplicates(
+              candidateData, 
+              ingestionJobId
+            );
+            return { type: 'duplicate', candidateData };
+          }
         } else {
           await storage.createCandidate(candidateData);
           return { type: 'success', candidateData };
@@ -165,7 +187,7 @@ async function processBulkUrlJob(job: BulkUrlJob): Promise<void> {
       
       console.log(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} URLs) - ${progressPercentage}% complete`);
       
-      const batchResults = await processBatch(batch, job.jobId);
+      const batchResults = await processBatch(batch, job.jobId, job.reprocess);
       
       totalSuccessCount += batchResults.successCount;
       totalFailedCount += batchResults.failedCount;
@@ -213,7 +235,7 @@ async function processBulkUrlJob(job: BulkUrlJob): Promise<void> {
 export async function queueBulkUrlJob(
   jobId: number, 
   urls: string[], 
-  options: { batchSize?: number; concurrency?: number } = {}
+  options: { batchSize?: number; concurrency?: number; reprocess?: boolean } = {}
 ): Promise<void> {
   const job: BulkUrlJob = {
     id: Date.now(),
@@ -221,6 +243,7 @@ export async function queueBulkUrlJob(
     urls,
     batchSize: options.batchSize || 10, // Process 10 URLs per batch
     concurrency: options.concurrency || 3, // 3 concurrent requests per batch
+    reprocess: options.reprocess || false,
     status: 'queued'
   };
   
