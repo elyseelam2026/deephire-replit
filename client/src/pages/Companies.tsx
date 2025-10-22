@@ -63,6 +63,23 @@ export default function Companies() {
     enabled: !!selectedCompany && !!selectedCompany.parentCompanyId,
   });
 
+  // Fetch organization chart when a company is selected
+  type OrgChartMember = {
+    id: number;
+    firstName: string;
+    lastName: string;
+    title: string;
+    level: string | null;
+    department: string | null;
+    isCLevel: boolean;
+    isExecutive: boolean;
+    linkedinUrl: string | null;
+  };
+  const { data: orgChart } = useQuery<OrgChartMember[]>({
+    queryKey: ['/api/companies', selectedCompany?.id, 'org-chart'],
+    enabled: !!selectedCompany,
+  });
+
   // Convert company to hierarchy mutation
   const convertToHierarchy = useMutation({
     mutationFn: async (companyId: number) => {
@@ -763,6 +780,110 @@ export default function Companies() {
                       </div>
                     </div>
                   ) : null}
+
+                  {/* Organization Chart */}
+                  {orgChart && orgChart.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
+                        <Users className="h-4 w-4" />
+                        Organization Chart ({orgChart.length} members)
+                      </h4>
+                      <div className="space-y-3">
+                        {/* C-Level Executives */}
+                        {orgChart.filter(m => m.isCLevel).length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground font-medium mb-2">C-Suite</p>
+                            <div className="space-y-2">
+                              {orgChart.filter(m => m.isCLevel).map((member) => (
+                                <div 
+                                  key={member.id} 
+                                  className="p-3 bg-primary/5 border border-primary/20 rounded-md"
+                                  data-testid={`org-chart-member-${member.id}`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">{member.firstName} {member.lastName}</p>
+                                      <p className="text-xs text-muted-foreground mt-1">{member.title}</p>
+                                      {member.department && (
+                                        <Badge variant="secondary" className="mt-2 text-xs">{member.department}</Badge>
+                                      )}
+                                    </div>
+                                    {member.linkedinUrl && (
+                                      <a 
+                                        href={member.linkedinUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:underline text-xs"
+                                        data-testid={`linkedin-link-${member.id}`}
+                                      >
+                                        LinkedIn →
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Executives */}
+                        {orgChart.filter(m => !m.isCLevel && m.isExecutive).length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground font-medium mb-2">Executives</p>
+                            <div className="space-y-2">
+                              {orgChart.filter(m => !m.isCLevel && m.isExecutive).map((member) => (
+                                <div 
+                                  key={member.id} 
+                                  className="p-3 bg-muted rounded-md"
+                                  data-testid={`org-chart-member-${member.id}`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">{member.firstName} {member.lastName}</p>
+                                      <p className="text-xs text-muted-foreground mt-1">{member.title}</p>
+                                      {member.department && (
+                                        <Badge variant="secondary" className="mt-2 text-xs">{member.department}</Badge>
+                                      )}
+                                    </div>
+                                    {member.linkedinUrl && (
+                                      <a 
+                                        href={member.linkedinUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:underline text-xs"
+                                        data-testid={`linkedin-link-${member.id}`}
+                                      >
+                                        LinkedIn →
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Other Team Members */}
+                        {orgChart.filter(m => !m.isCLevel && !m.isExecutive).length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground font-medium mb-2">Team Members</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {orgChart.filter(m => !m.isCLevel && !m.isExecutive).map((member) => (
+                                <div 
+                                  key={member.id} 
+                                  className="p-2 bg-muted rounded-md text-sm"
+                                  data-testid={`org-chart-member-${member.id}`}
+                                >
+                                  <p className="font-medium text-xs">{member.firstName} {member.lastName}</p>
+                                  <p className="text-xs text-muted-foreground">{member.title}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Update Company Information */}
                   {selectedCompany.website && (

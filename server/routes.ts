@@ -986,6 +986,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Organization Chart endpoints
+  app.get("/api/companies/:id/org-chart", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      const orgChart = await storage.getOrgChartForCompany(companyId);
+      res.json(orgChart);
+    } catch (error) {
+      console.error("Error fetching org chart:", error);
+      res.status(500).json({ error: "Failed to fetch organization chart" });
+    }
+  });
+
   // Admin bulk upload endpoints
   app.post("/api/admin/upload-candidates", upload.array('files', 50), async (req, res) => {
     try {
