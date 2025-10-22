@@ -2024,7 +2024,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add candidate by name and company - AI searches for profiles and creates record
   app.post("/api/admin/add-candidate-by-name", async (req, res) => {
     try {
-      const { firstName, lastName, company, jobTitle, linkedinUrl } = req.body;
+      const { firstName, lastName, company, jobTitle, linkedinUrl, processingMode = 'full' } = req.body;
       
       // Validate required fields
       if (!firstName || !lastName || !company) {
@@ -2062,12 +2062,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create the candidate record (duplicate detection will run automatically)
       // The duplicate detection service will flag this if it's a duplicate
-      let newCandidate = await storage.createCandidate(searchResult.candidateData);
+      let newCandidate = await storage.createCandidate({
+        ...searchResult.candidateData,
+        processingMode: processingMode as 'full' | 'career_only' | 'bio_only' | 'data_only'
+      });
       
       console.log(`Successfully created candidate ${newCandidate.id}: ${firstName} ${lastName}`);
+      console.log(`Processing mode: ${processingMode}`);
       
-      // AUTOMATIC BIOGRAPHY GENERATION: If LinkedIn URL exists, trigger Bright Data scraping
-      if (newCandidate.linkedinUrl) {
+      // AUTOMATIC BIOGRAPHY GENERATION: Only run for 'full' and 'bio_only' modes
+      const shouldGenerateBio = (processingMode === 'full' || processingMode === 'bio_only');
+      
+      if (newCandidate.linkedinUrl && shouldGenerateBio) {
         console.log(`\n========================================`);
         console.log(`[Auto Biography] START - Candidate ${newCandidate.id}: ${firstName} ${lastName}`);
         console.log(`[Auto Biography] LinkedIn URL: ${newCandidate.linkedinUrl}`);
@@ -2114,9 +2120,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         console.log(`\n========================================`);
-        console.log(`[Auto Biography] SKIPPED - No LinkedIn URL found for ${firstName} ${lastName}`);
-        console.log(`[Auto Biography] LinkedIn search may have failed or returned low confidence match`);
-        console.log(`[Auto Biography] Check LinkedIn search logs above for details`);
+        if (!newCandidate.linkedinUrl) {
+          console.log(`[Auto Biography] SKIPPED - No LinkedIn URL found for ${firstName} ${lastName}`);
+          console.log(`[Auto Biography] LinkedIn search may have failed or returned low confidence match`);
+          console.log(`[Auto Biography] Check LinkedIn search logs above for details`);
+        } else {
+          console.log(`[Auto Biography] SKIPPED - Processing mode is '${processingMode}'`);
+          console.log(`[Auto Biography] Biography generation only runs for 'full' and 'bio_only' modes`);
+        }
         console.log(`========================================\n`);
       }
       

@@ -324,6 +324,7 @@ export default function Admin() {
   const [candidateFiles, setCandidateFiles] = useState<FileList | null>(null);
   const [candidateUrls, setCandidateUrls] = useState("");
   const [candidateProcessingMode, setCandidateProcessingMode] = useState<'full' | 'career_only' | 'bio_only' | 'data_only'>('full');
+  const [quickAddProcessingMode, setQuickAddProcessingMode] = useState<'full' | 'career_only' | 'bio_only' | 'data_only'>('full');
   const [companyFiles, setCompanyFiles] = useState<FileList | null>(null);
   const [companyUrls, setCompanyUrls] = useState("");
   const [candidateStatus, setCandidateStatus] = useState<UploadStatus>('idle');
@@ -573,7 +574,8 @@ export default function Admin() {
       lastName: quickAddLastName.trim(),
       company: quickAddCompany.trim(),
       jobTitle: quickAddJobTitle.trim() || undefined,
-      linkedinUrl: quickAddLinkedinUrl.trim() || undefined
+      linkedinUrl: quickAddLinkedinUrl.trim() || undefined,
+      processingMode: quickAddProcessingMode
     });
   };
 
@@ -1012,6 +1014,34 @@ export default function Admin() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Paste the LinkedIn profile URL if you already have it - skips automatic search
+                  </p>
+                </div>
+
+                {/* Processing Mode Selection for Quick Add */}
+                <div className="space-y-2">
+                  <Label htmlFor="quick-add-processing-mode">
+                    Processing Mode
+                  </Label>
+                  <Select 
+                    value={quickAddProcessingMode} 
+                    onValueChange={(value) => setQuickAddProcessingMode(value as 'full' | 'career_only' | 'bio_only' | 'data_only')}
+                    disabled={quickAddMutation.isPending}
+                  >
+                    <SelectTrigger id="quick-add-processing-mode" data-testid="select-quick-add-processing-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full Processing (Career + Bio)</SelectItem>
+                      <SelectItem value="career_only">Career Only</SelectItem>
+                      <SelectItem value="bio_only">Bio Only</SelectItem>
+                      <SelectItem value="data_only">Data Only (Free)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {quickAddProcessingMode === 'data_only' && '💰 Free - Store profile without API calls'}
+                    {quickAddProcessingMode === 'career_only' && '📊 Medium cost - Career mapping only'}
+                    {quickAddProcessingMode === 'bio_only' && '📝 Medium cost - Biography only'}
+                    {quickAddProcessingMode === 'full' && '🎯 High cost - Full profile with career & bio'}
                   </p>
                 </div>
 
