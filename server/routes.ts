@@ -7,7 +7,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory } from "./ai";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
@@ -408,14 +408,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Scrape LinkedIn profile
       const profileData = await scrapeLinkedInProfile(candidate.linkedinUrl);
       
+      // Extract and transform career history from LinkedIn experience data
+      const careerHistory = (profileData.experience || []).map(exp => ({
+        title: exp.title || '',
+        company: exp.company || '',
+        startDate: exp.start_date || '',
+        endDate: exp.end_date,
+        description: exp.description,
+        location: exp.location
+      }));
+      
       // Update candidate with career data (no biography)
       const updatedCandidate = await storage.updateCandidate(candidateId, {
+        careerHistory,
         bioSource: 'brightdata',
         bioStatus: 'not_generated',
         processingMode: 'career_only'
       });
 
-      console.log(`✅ [Retroactive Processing] Career data fetched for ${candidate.firstName} ${candidate.lastName}`);
+      console.log(`✅ [Retroactive Processing] Career data fetched for ${candidate.firstName} ${candidate.lastName} (${careerHistory.length} positions)`);
       
       res.json({ 
         success: true, 
@@ -497,7 +508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         candidate.firstName,
         candidate.lastName,
         profileData,
-        candidate.cvText || null
+        candidate.cvText ?? undefined
       );
       
       if (bioResult) {
@@ -2232,7 +2243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               firstName,
               lastName,
               profileData,
-              null // no cvText from Quick Add
+              undefined // no cvText from Quick Add
             );
             
             if (bioResult) {

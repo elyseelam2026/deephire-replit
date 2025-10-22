@@ -15,7 +15,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-### October 22, 2025 - 4 Processing Modes for Credit Optimization
+### October 22, 2025 - 4 Processing Modes + Retroactive Processing
 - **Implemented flexible processing modes for candidate uploads**: Users can now choose how much processing to apply to each candidate upload, optimizing credit usage
 - **Four processing modes available**:
   - **Full Processing** (`full`): SerpAPI + Bright Data + Grok AI - Complete profiles with career history and AI-generated biographies
@@ -27,7 +27,15 @@ Preferred communication style: Simple, everyday language.
 - **Comprehensive UI implementation**: Mode selectors in both bulk upload and Quick Add forms with cost breakdowns
 - **Visual mode indicators**: Processing mode badges on candidate cards (Data Only, Career Only, Bio Only)
 - **Unified contract across upload methods**: Both bulk upload and Quick Add follow the same processing logic for all 4 modes
-- **Benefits**: Credit optimization, flexible workflows, bulk upload now free with data_only mode
+- **Retroactive Processing Feature**: New workflow enabling selective processing of previously uploaded candidates
+  - **Upload → Review → Process**: Upload all URLs as "Data Only" (free), manually review LinkedIn profiles, then selectively process useful candidates
+  - **Processing Action Buttons**: Three buttons appear on candidate detail page for data_only candidates:
+    - **Fetch Career History**: Scrapes LinkedIn and extracts work experience (Career Only mode)
+    - **Generate Biography**: Scrapes LinkedIn and creates AI-generated executive biography (Bio Only mode)  
+    - **Full Processing**: Complete processing with both career history and biography (Full mode)
+  - **API Endpoints**: POST `/api/candidates/:id/process-career`, `/api/candidates/:id/process-biography`, `/api/candidates/:id/process-full`
+  - **Automatic Data Transformation**: LinkedIn experience data automatically mapped to internal career history schema
+- **Benefits**: Credit optimization, flexible workflows, bulk upload now free with data_only mode, selective processing based on manual review
 
 ### October 22, 2025 - Recycling Bin Feature
 - **Implemented soft delete system for candidates**: Replaced permanent deletion with reversible soft delete
