@@ -1143,6 +1143,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reprocess existing candidates to add LinkedIn URLs and career history
+  app.post("/api/admin/reprocess-candidates", async (req, res) => {
+    try {
+      const { candidateIds, jobId } = req.body;
+      
+      let candidates: any[] = [];
+      
+      if (candidateIds && Array.isArray(candidateIds)) {
+        // Reprocess specific candidate IDs
+        const allCandidates = await storage.getCandidates();
+        candidates = allCandidates.filter((c: any) => candidateIds.includes(c.id));
+      } else if (jobId) {
+        // Reprocess all candidates from a specific ingestion job
+        const allCandidates = await storage.getCandidates();
+        // Note: We'll need to add ingestionJobId tracking to implement this properly
+        return res.status(400).json({ error: "Reprocessing by job ID not yet implemented. Please provide candidateIds array." });
+      } else {
+        return res.status(400).json({ error: "Please provide either candidateIds (array) or jobId (number)" });
+      }
+      
+      if (candidates.length === 0) {
+        return res.status(404).json({ error: "No candidates found to reprocess" });
+      }
+      
+      // Extract bio URLs from candidates
+      const urlsToProcess = candidates
+        .filter(c => c.bioUrl)
+        .map(c => c.bioUrl);
+      
+      if (urlsToProcess.length === 0) {
+        return res.status(400).json({ error: "No candidates have bio URLs to reprocess" });
+      }
+      
+      // Create a new ingestion job for tracking the reprocessing
+      const ingestionJob = await storage.createIngestionJob({
+        fileName: `Reprocess ${candidates.length} candidates`,
+        fileType: 'reprocess',
+        uploadedById: null,
+        entityType: 'candidate',
+        status: 'processing',
+        totalRecords: urlsToProcess.length,
+        processingMethod: 'reprocess'
+      });
+      
+      // Queue background job to reprocess
+      await queueBulkUrlJob(ingestionJob.id, urlsToProcess, {
+        batchSize: 10,
+        concurrency: 3,
+        reprocess: true  // Flag to indicate this is a reprocessing job
+      });
+      
+      res.json({
+        success: true,
+        message: `Reprocessing ${urlsToProcess.length} candidates in background`,
+        jobId: ingestionJob.id,
+        candidatesQueued: urlsToProcess.length
+      });
+      
+    } catch (error) {
+      console.error("Error reprocessing candidates:", error);
+      res.status(500).json({ error: "Failed to reprocess candidates", details: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.post("/api/admin/upload-companies", upload.array('files', 50), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[] || [];
