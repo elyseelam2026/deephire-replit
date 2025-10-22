@@ -15,6 +15,17 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 22, 2025 - Recycling Bin Feature
+- **Implemented soft delete system for candidates**: Replaced permanent deletion with reversible soft delete
+- **Added `deleted_at` timestamp column**: Tracks when candidates are deleted without removing data
+- **Recycling Bin UI**: New dedicated page at `/recruiting/recycling-bin` to view deleted candidates
+- **Restore functionality**: One-click candidate restoration from recycling bin back to active list
+- **Permanent delete option**: Optional hard delete for final removal from database
+- **Filtered queries**: All candidate endpoints automatically exclude soft-deleted candidates (where `deleted_at IS NULL`)
+- **Route ordering fix**: Critical Express routing bug fixed - specific routes (`/recycling-bin`) now come before parameterized routes (`/:id`)
+- **No auto-purge**: Deleted candidates kept forever unless manually permanently deleted
+- **Benefits**: Data safety, undo capability, prevents accidental loss of candidate records
+
 ### October 21, 2025 - Multi-Layer Office Extraction System
 - **Implemented comprehensive 4-layer office extraction pipeline** (replaces single AI approach):
   - **Layer 1 (JSON-LD)**: Extracts from Schema.org structured data (fastest, most reliable)
