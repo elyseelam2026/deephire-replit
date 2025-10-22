@@ -43,8 +43,11 @@ export interface IStorage {
   getCandidatesForReprocessing(): Promise<Candidate[]>;
   getCandidate(id: number): Promise<Candidate | undefined>;
   updateCandidate(id: number, updates: Partial<InsertCandidate>): Promise<Candidate | undefined>;
-  deleteCandidate(id: number): Promise<void>;
+  deleteCandidate(id: number): Promise<void>; // Soft delete
   searchCandidates(query: string): Promise<Candidate[]>;
+  getDeletedCandidates(): Promise<Candidate[]>; // Recycling bin
+  restoreCandidate(id: number): Promise<Candidate | undefined>; // Restore from recycling bin
+  permanentlyDeleteCandidate(id: number): Promise<void>; // Hard delete
   
   // Job matching
   createJobMatch(match: InsertJobMatch): Promise<JobMatch>;
@@ -352,7 +355,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCandidates(): Promise<Candidate[]> {
-    return await db.select().from(candidates).orderBy(desc(candidates.createdAt));
+    return await db.select().from(candidates)
+      .where(sql`${candidates.deletedAt} IS NULL`)
+      .orderBy(desc(candidates.createdAt));
   }
 
   async getCandidatesForReprocessing(): Promise<Candidate[]> {
@@ -361,6 +366,8 @@ export class DatabaseStorage implements IStorage {
       .from(candidates)
       .where(
         and(
+          // Not deleted
+          sql`${candidates.deletedAt} IS NULL`,
           // Has a bioUrl (was processed from URL)
           sql`${candidates.bioUrl} IS NOT NULL`,
           // Missing enhanced data (biography is null or empty)
@@ -371,30 +378,62 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCandidate(id: number): Promise<Candidate | undefined> {
-    const [candidate] = await db.select().from(candidates).where(eq(candidates.id, id));
+    const [candidate] = await db.select().from(candidates)
+      .where(and(
+        eq(candidates.id, id),
+        sql`${candidates.deletedAt} IS NULL`
+      ));
     return candidate || undefined;
   }
 
   async updateCandidate(id: number, updates: Partial<InsertCandidate>): Promise<Candidate | undefined> {
     const [candidate] = await db.update(candidates)
       .set({ ...updates, updatedAt: sql`now()` })
-      .where(eq(candidates.id, id))
+      .where(and(
+        eq(candidates.id, id),
+        sql`${candidates.deletedAt} IS NULL`
+      ))
       .returning();
     return candidate || undefined;
   }
 
   async deleteCandidate(id: number): Promise<void> {
+    // Soft delete - set deletedAt timestamp
+    await db.update(candidates)
+      .set({ deletedAt: sql`now()` })
+      .where(eq(candidates.id, id));
+  }
+
+  async getDeletedCandidates(): Promise<Candidate[]> {
+    return await db.select().from(candidates)
+      .where(sql`${candidates.deletedAt} IS NOT NULL`)
+      .orderBy(desc(candidates.deletedAt));
+  }
+
+  async restoreCandidate(id: number): Promise<Candidate | undefined> {
+    const [candidate] = await db.update(candidates)
+      .set({ deletedAt: null })
+      .where(eq(candidates.id, id))
+      .returning();
+    return candidate || undefined;
+  }
+
+  async permanentlyDeleteCandidate(id: number): Promise<void> {
+    // Hard delete - permanently remove from database
     await db.delete(candidates).where(eq(candidates.id, id));
   }
 
   async searchCandidates(query: string): Promise<Candidate[]> {
     return await db.select().from(candidates)
-      .where(sql`
-        ${candidates.firstName} ILIKE ${`%${query}%`} OR 
-        ${candidates.lastName} ILIKE ${`%${query}%`} OR 
-        ${candidates.currentTitle} ILIKE ${`%${query}%`} OR 
-        ${candidates.currentCompany} ILIKE ${`%${query}%`}
-      `)
+      .where(and(
+        sql`${candidates.deletedAt} IS NULL`,
+        sql`
+          ${candidates.firstName} ILIKE ${`%${query}%`} OR 
+          ${candidates.lastName} ILIKE ${`%${query}%`} OR 
+          ${candidates.currentTitle} ILIKE ${`%${query}%`} OR 
+          ${candidates.currentCompany} ILIKE ${`%${query}%`}
+        `
+      ))
       .orderBy(desc(candidates.createdAt));
   }
 

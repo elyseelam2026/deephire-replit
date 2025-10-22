@@ -302,7 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete candidate endpoint
+  // Delete candidate endpoint (soft delete - moves to recycling bin)
   app.delete("/api/candidates/:id", async (req, res) => {
     try {
       const candidateId = parseInt(req.params.id);
@@ -313,10 +313,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.deleteCandidate(candidateId);
-      res.json({ success: true, message: "Candidate deleted successfully" });
+      res.json({ success: true, message: "Candidate moved to recycling bin" });
     } catch (error) {
       console.error("Error deleting candidate:", error);
       res.status(500).json({ error: "Failed to delete candidate" });
+    }
+  });
+
+  // Get deleted candidates (recycling bin)
+  app.get("/api/candidates/recycling-bin", async (req, res) => {
+    try {
+      const deletedCandidates = await storage.getDeletedCandidates();
+      res.json(deletedCandidates);
+    } catch (error) {
+      console.error("Error fetching deleted candidates:", error);
+      res.status(500).json({ error: "Failed to fetch deleted candidates" });
+    }
+  });
+
+  // Restore candidate from recycling bin
+  app.post("/api/candidates/:id/restore", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const restoredCandidate = await storage.restoreCandidate(candidateId);
+      
+      if (!restoredCandidate) {
+        return res.status(404).json({ error: "Candidate not found in recycling bin" });
+      }
+
+      res.json({ success: true, message: "Candidate restored successfully", candidate: restoredCandidate });
+    } catch (error) {
+      console.error("Error restoring candidate:", error);
+      res.status(500).json({ error: "Failed to restore candidate" });
+    }
+  });
+
+  // Permanently delete candidate
+  app.delete("/api/candidates/:id/permanent", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      await storage.permanentlyDeleteCandidate(candidateId);
+      res.json({ success: true, message: "Candidate permanently deleted" });
+    } catch (error) {
+      console.error("Error permanently deleting candidate:", error);
+      res.status(500).json({ error: "Failed to permanently delete candidate" });
     }
   });
 
