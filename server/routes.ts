@@ -1044,6 +1044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const files = req.files as Express.Multer.File[] || [];
       const urlsText = req.body.urls || "";
       const urls = urlsText.split('\n').filter((url: string) => url.trim()).map((url: string) => url.trim());
+      const processingMode = req.body.processingMode || 'full'; // full, career_only, bio_only, data_only
       
       let successCount = 0;
       let failedCount = 0;
@@ -1142,12 +1143,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process URLs using background job system for scalability
       if (urls.length > 0 && ingestionJob) {
-        console.log(`Queuing background processing for ${urls.length} URLs (job ID: ${ingestionJob.id})`);
+        console.log(`Queuing background processing for ${urls.length} URLs in ${processingMode} mode (job ID: ${ingestionJob.id})`);
         
         // Use background job processing for URLs (handles 800+ efficiently)
         await queueBulkUrlJob(ingestionJob.id, urls, {
           batchSize: 10, // Process 10 URLs per batch
-          concurrency: 3 // 3 concurrent requests per batch
+          concurrency: 3, // 3 concurrent requests per batch
+          processingMode: processingMode as 'full' | 'career_only' | 'bio_only' | 'data_only'
         });
         
         // Update ingestion job to show it's being processed in background

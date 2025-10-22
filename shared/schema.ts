@@ -303,6 +303,13 @@ export const candidates = pgTable("candidates", {
   dataQualityScore: real("data_quality_score"), // Overall data completeness/quality (0-1)
   stagingCandidateId: integer("staging_candidate_id"), // Track origin from staging (no FK to avoid circular ref)
   
+  // Processing Mode (controls what APIs are called during upload)
+  processingMode: text("processing_mode").default("full"), // full, career_only, bio_only, data_only
+  // - full: Career + Bio (SerpAPI + Bright Data + Grok) - High cost, complete profile
+  // - career_only: Just career history (SerpAPI + Bright Data) - Medium cost, quick career mapping
+  // - bio_only: Just biography (Bright Data + Grok) - Medium cost, executive summaries
+  // - data_only: Store URLs only, no API calls - Free, bulk import for later processing
+  
   // System fields (existing)
   cvText: text("cv_text"), // extracted CV text
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),

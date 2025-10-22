@@ -12,6 +12,7 @@ interface BulkUrlJob {
   batchSize: number;
   concurrency: number;
   reprocess: boolean;  // Flag to update existing candidates instead of skipping duplicates
+  processingMode: 'full' | 'career_only' | 'bio_only' | 'data_only'; // Controls which APIs are called
   status: 'queued' | 'processing' | 'paused' | 'stopped' | 'completed' | 'failed';
 }
 
@@ -21,7 +22,12 @@ const processingJobs = new Map<number, boolean>();
 const jobControls = new Map<number, { paused: boolean; stopped: boolean }>();
 
 // Process a batch of URLs concurrently
-async function processBatch(urls: string[], ingestionJobId: number, reprocess: boolean = false): Promise<{
+async function processBatch(
+  urls: string[], 
+  ingestionJobId: number, 
+  reprocess: boolean = false,
+  processingMode: 'full' | 'career_only' | 'bio_only' | 'data_only' = 'full'
+): Promise<{
   successCount: number;
   failedCount: number;
   duplicateCount: number;
@@ -30,42 +36,88 @@ async function processBatch(urls: string[], ingestionJobId: number, reprocess: b
   const results = await Promise.allSettled(
     urls.map(async (url) => {
       try {
-        // Use enhanced parsing that discovers LinkedIn URLs and generates biographies
-        const candidateData = await parseEnhancedCandidateFromUrl(url);
+        let candidateData: any;
         
-        if (!candidateData) {
-          return { type: 'failed', error: `Failed to parse URL: ${url}` };
-        }
-        
-        // If we found a VERIFIED LinkedIn URL, scrape it and use 3-layer pipeline
-        if (candidateData.linkedinUrl) {
-          try {
-            console.log(`✓ Found LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}: ${candidateData.linkedinUrl}`);
-            console.log(`🔄 Scraping LinkedIn profile with Bright Data...`);
-            
-            // Step 1: Scrape the LinkedIn profile to get full data
-            const linkedinData = await scrapeLinkedInProfile(candidateData.linkedinUrl);
-            console.log(`✓ LinkedIn profile scraped successfully`);
-            
-            // Step 2: Generate biography AND extract career history using 3-layer pipeline
-            console.log(`🎯 Starting 3-layer AI pipeline (Comprehension → Synthesis → Career Mapping)...`);
-            const bioResult = await generateBiographyAndCareerHistory(
-              candidateData.firstName,
-              candidateData.lastName,
-              linkedinData,
-              candidateData.cvText // bio page content for context
-            );
-            
-            if (bioResult) {
-              candidateData.biography = bioResult.biography;
-              (candidateData as any).careerHistory = bioResult.careerHistory;
-              console.log(`✓ 3-layer pipeline complete: Biography ${bioResult.biography.length} chars, Career ${bioResult.careerHistory.length} positions`);
-            }
-          } catch (bioError) {
-            console.log(`⚠️ Biography enhancement failed for ${candidateData.firstName}, continuing with basic data:`, bioError);
-          }
+        // Mode 4: Data Only - Just store URL, no API calls
+        if (processingMode === 'data_only') {
+          console.log(`📦 Data Only mode: Storing URL without processing: ${url}`);
+          candidateData = {
+            firstName: 'Pending',
+            lastName: 'Processing',
+            linkedinUrl: url.includes('linkedin.com') ? url : undefined,
+            bioUrl: !url.includes('linkedin.com') ? url : undefined,
+            processingMode: 'data_only',
+            candidateStatus: 'new'
+          };
         } else {
-          console.log(`ℹ️ No verified LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}, using basic biography from bio page`);
+          // Modes 1-3: Parse candidate data from URL (uses SerpAPI for LinkedIn discovery)
+          candidateData = await parseEnhancedCandidateFromUrl(url);
+          
+          if (!candidateData) {
+            return { type: 'failed', error: `Failed to parse URL: ${url}` };
+          }
+          
+          candidateData.processingMode = processingMode;
+          
+          // If we found a VERIFIED LinkedIn URL, scrape it (for modes 1, 2, 3)
+          if (candidateData.linkedinUrl && processingMode !== 'data_only') {
+            try {
+              console.log(`✓ Found LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}: ${candidateData.linkedinUrl}`);
+              
+              // Mode 3: Bio Only - Skip Bright Data scrape, just use basic bio
+              if (processingMode === 'bio_only') {
+                console.log(`📝 Bio Only mode: Skipping LinkedIn scrape, using bio page content`);
+                // Generate bio from bio page content only
+                if (candidateData.cvText) {
+                  const bioResult = await generateBiographyAndCareerHistory(
+                    candidateData.firstName,
+                    candidateData.lastName,
+                    null, // no LinkedIn data
+                    candidateData.cvText
+                  );
+                  if (bioResult) {
+                    candidateData.biography = bioResult.biography;
+                    (candidateData as any).careerHistory = bioResult.careerHistory;
+                  }
+                }
+              } else {
+                // Modes 1 & 2: Scrape LinkedIn with Bright Data
+                console.log(`🔄 Scraping LinkedIn profile with Bright Data...`);
+                const linkedinData = await scrapeLinkedInProfile(candidateData.linkedinUrl);
+                console.log(`✓ LinkedIn profile scraped successfully`);
+                
+                // Mode 1: Full - Generate biography AND career history
+                if (processingMode === 'full') {
+                  console.log(`🎯 Full mode: Starting 3-layer AI pipeline (Comprehension → Synthesis → Career Mapping)...`);
+                  const bioResult = await generateBiographyAndCareerHistory(
+                    candidateData.firstName,
+                    candidateData.lastName,
+                    linkedinData,
+                    candidateData.cvText // bio page content for context
+                  );
+                  
+                  if (bioResult) {
+                    candidateData.biography = bioResult.biography;
+                    (candidateData as any).careerHistory = bioResult.careerHistory;
+                    console.log(`✓ 3-layer pipeline complete: Biography ${bioResult.biography.length} chars, Career ${bioResult.careerHistory.length} positions`);
+                  }
+                }
+                // Mode 2: Career Only - Just extract career history, skip biography
+                else if (processingMode === 'career_only') {
+                  console.log(`💼 Career Only mode: Extracting career history without biography generation`);
+                  // Extract career history from LinkedIn data directly
+                  if (linkedinData.workExperience) {
+                    (candidateData as any).careerHistory = linkedinData.workExperience;
+                    console.log(`✓ Career history extracted: ${linkedinData.workExperience.length} positions`);
+                  }
+                }
+              }
+            } catch (bioError) {
+              console.log(`⚠️ Processing failed for ${candidateData.firstName}, continuing with basic data:`, bioError);
+            }
+          } else if (!candidateData.linkedinUrl) {
+            console.log(`ℹ️ No verified LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}, using basic data from bio page`);
+          }
         }
 
         // Check for duplicates
@@ -187,7 +239,7 @@ async function processBulkUrlJob(job: BulkUrlJob): Promise<void> {
       
       console.log(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} URLs) - ${progressPercentage}% complete`);
       
-      const batchResults = await processBatch(batch, job.jobId, job.reprocess);
+      const batchResults = await processBatch(batch, job.jobId, job.reprocess, job.processingMode);
       
       totalSuccessCount += batchResults.successCount;
       totalFailedCount += batchResults.failedCount;
@@ -235,7 +287,12 @@ async function processBulkUrlJob(job: BulkUrlJob): Promise<void> {
 export async function queueBulkUrlJob(
   jobId: number, 
   urls: string[], 
-  options: { batchSize?: number; concurrency?: number; reprocess?: boolean } = {}
+  options: { 
+    batchSize?: number; 
+    concurrency?: number; 
+    reprocess?: boolean;
+    processingMode?: 'full' | 'career_only' | 'bio_only' | 'data_only';
+  } = {}
 ): Promise<void> {
   const job: BulkUrlJob = {
     id: Date.now(),
@@ -244,6 +301,7 @@ export async function queueBulkUrlJob(
     batchSize: options.batchSize || 10, // Process 10 URLs per batch
     concurrency: options.concurrency || 3, // 3 concurrent requests per batch
     reprocess: options.reprocess || false,
+    processingMode: options.processingMode || 'full',
     status: 'queued'
   };
   
