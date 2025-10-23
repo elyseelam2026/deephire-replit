@@ -167,6 +167,7 @@ export const candidates = pgTable("candidates", {
   lastName: text("last_name").notNull(),
   middleName: text("middle_name"),
   preferredName: text("preferred_name"),
+  chineseName: text("chinese_name"), // Full Chinese name (e.g., 李嘉冕)
   pronouns: text("pronouns"), // he/him, she/her, they/them, etc.
   email: text("email").unique(),
   phoneNumber: text("phone_number"),

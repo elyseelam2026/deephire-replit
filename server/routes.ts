@@ -440,13 +440,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Extract additional profile data from LinkedIn
       // Bright Data provides first_name and last_name separately
-      const firstName = (profileData as any).first_name || profileData.name || candidate.firstName;
-      const lastName = (profileData as any).last_name || candidate.lastName;
+      const fullName = profileData.name || '';
+      const firstName = (profileData as any).first_name || fullName.split(' ')[0] || candidate.firstName;
+      const lastName = (profileData as any).last_name || fullName.split(' ').slice(1).join(' ') || candidate.lastName;
+      
+      // Detect Chinese name (contains Chinese characters)
+      const hasChinese = /[\u4e00-\u9fa5]/.test(fullName);
+      const chineseName = hasChinese ? fullName : undefined;
       
       // Infer email if not already set
       let inferredEmail = candidate.email;
       const companyName = profileData.current_company_name || (profileData.current_company as any)?.name;
-      if (!inferredEmail && companyName) {
+      if (!inferredEmail && companyName && firstName && lastName) {
         // Use existing email inference logic
         const companyDomain = companyName.toLowerCase().replace(/\s+/g, '');
         inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
@@ -456,6 +461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedCandidate = await storage.updateCandidate(candidateId, {
         firstName,
         lastName,
+        chineseName,
         email: inferredEmail,
         location: profileData.city && profileData.country_code 
           ? `${profileData.city}, ${profileData.country_code}` 
@@ -508,13 +514,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Extract additional profile data from LinkedIn
       // Bright Data provides first_name and last_name separately
-      const firstName = (profileData as any).first_name || profileData.name || candidate.firstName;
-      const lastName = (profileData as any).last_name || candidate.lastName;
+      const fullName = profileData.name || '';
+      const firstName = (profileData as any).first_name || fullName.split(' ')[0] || candidate.firstName;
+      const lastName = (profileData as any).last_name || fullName.split(' ').slice(1).join(' ') || candidate.lastName;
+      
+      // Detect Chinese name (contains Chinese characters)
+      const hasChinese = /[\u4e00-\u9fa5]/.test(fullName);
+      const chineseName = hasChinese ? fullName : undefined;
       
       // Infer email if not already set
       let inferredEmail = candidate.email;
-      if (!inferredEmail && profileData.current_company) {
-        const companyDomain = profileData.current_company.toLowerCase().replace(/\s+/g, '');
+      const companyName = profileData.current_company_name || (profileData.current_company as any)?.name;
+      if (!inferredEmail && companyName && firstName && lastName) {
+        const companyDomain = companyName.toLowerCase().replace(/\s+/g, '');
         inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
       }
       
@@ -522,6 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedCandidate = await storage.updateCandidate(candidateId, {
         firstName,
         lastName,
+        chineseName,
         email: inferredEmail,
         location: profileData.city && profileData.country_code 
           ? `${profileData.city}, ${profileData.country_code}` 
@@ -578,15 +591,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (bioResult) {
-        // Extract additional profile data
-        const nameParts = (profileData.name || '').split(' ');
-        const firstName = nameParts[0] || candidate.firstName;
-        const lastName = nameParts.slice(1).join(' ') || candidate.lastName;
+        // Extract additional profile data from LinkedIn
+        // Bright Data provides first_name and last_name separately
+        const fullName = profileData.name || '';
+        const firstName = (profileData as any).first_name || fullName.split(' ')[0] || candidate.firstName;
+        const lastName = (profileData as any).last_name || fullName.split(' ').slice(1).join(' ') || candidate.lastName;
+        
+        // Detect Chinese name (contains Chinese characters)
+        const hasChinese = /[\u4e00-\u9fa5]/.test(fullName);
+        const chineseName = hasChinese ? fullName : undefined;
         
         // Infer email if not already set
         let inferredEmail = candidate.email;
-        if (!inferredEmail && profileData.current_company) {
-          const companyDomain = profileData.current_company.toLowerCase().replace(/\s+/g, '');
+        const companyName = profileData.current_company_name || (profileData.current_company as any)?.name;
+        if (!inferredEmail && companyName && firstName && lastName) {
+          const companyDomain = companyName.toLowerCase().replace(/\s+/g, '');
           inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
         }
         
@@ -594,6 +613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const updatedCandidate = await storage.updateCandidate(candidateId, {
           firstName,
           lastName,
+          chineseName,
           email: inferredEmail,
           location: profileData.city && profileData.country_code 
             ? `${profileData.city}, ${profileData.country_code}` 

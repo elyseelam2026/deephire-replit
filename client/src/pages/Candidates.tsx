@@ -395,7 +395,16 @@ export default function Candidates() {
                   {selectedCandidate?.firstName?.[0]}{selectedCandidate?.lastName?.[0]}
                 </AvatarFallback>
               </Avatar>
-              {selectedCandidate?.firstName} {selectedCandidate?.lastName}
+              <div className="flex flex-col">
+                <span>
+                  {(selectedCandidate as any)?.chineseName || `${selectedCandidate?.firstName} ${selectedCandidate?.lastName}`}
+                </span>
+                {(selectedCandidate as any)?.chineseName && (
+                  <span className="text-sm text-muted-foreground font-normal">
+                    {selectedCandidate?.firstName} {selectedCandidate?.lastName}
+                  </span>
+                )}
+              </div>
             </DialogTitle>
             <DialogDescription>
               Candidate profile and details
