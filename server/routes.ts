@@ -438,11 +438,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Update candidate with career data (no biography)
+      // Extract additional profile data
+      const nameParts = (profileData.name || '').split(' ');
+      const firstName = nameParts[0] || candidate.firstName;
+      const lastName = nameParts.slice(1).join(' ') || candidate.lastName;
+      
+      // Infer email if not already set
+      let inferredEmail = candidate.email;
+      if (!inferredEmail && profileData.current_company) {
+        // Use existing email inference logic
+        const companyDomain = profileData.current_company.toLowerCase().replace(/\s+/g, '');
+        inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
+      }
+      
+      // Update candidate with all available data from LinkedIn
       const updatedCandidate = await storage.updateCandidate(candidateId, {
+        firstName,
+        lastName,
+        email: inferredEmail,
+        location: profileData.city && profileData.country_code 
+          ? `${profileData.city}, ${profileData.country_code}` 
+          : candidate.location,
+        currentCompany: profileData.current_company_name || profileData.current_company || candidate.currentCompany,
+        currentTitle: profileData.position || candidate.currentTitle,
+        skills: profileData.skills || candidate.skills,
         careerHistory,
         bioSource: 'brightdata',
         bioStatus: 'not_generated',
+        emailSource: inferredEmail !== candidate.email ? 'domain_pattern' : candidate.emailSource,
         processingMode: 'career_only'
       });
 
@@ -482,11 +505,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate biography only
       const biography = await generateBiographyFromLinkedInData(profileData);
       
-      // Update candidate with biography
+      // Extract additional profile data
+      const nameParts = (profileData.name || '').split(' ');
+      const firstName = nameParts[0] || candidate.firstName;
+      const lastName = nameParts.slice(1).join(' ') || candidate.lastName;
+      
+      // Infer email if not already set
+      let inferredEmail = candidate.email;
+      if (!inferredEmail && profileData.current_company) {
+        const companyDomain = profileData.current_company.toLowerCase().replace(/\s+/g, '');
+        inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
+      }
+      
+      // Update candidate with all available data
       const updatedCandidate = await storage.updateCandidate(candidateId, {
+        firstName,
+        lastName,
+        email: inferredEmail,
+        location: profileData.city && profileData.country_code 
+          ? `${profileData.city}, ${profileData.country_code}` 
+          : candidate.location,
+        currentCompany: profileData.current_company_name || profileData.current_company || candidate.currentCompany,
+        currentTitle: profileData.position || candidate.currentTitle,
+        skills: profileData.skills || candidate.skills,
         biography,
         bioSource: 'brightdata',
         bioStatus: 'verified',
+        emailSource: inferredEmail !== candidate.email ? 'domain_pattern' : candidate.emailSource,
         processingMode: 'bio_only'
       });
 
@@ -532,12 +577,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (bioResult) {
-        // Update candidate with both biography and career history
+        // Extract additional profile data
+        const nameParts = (profileData.name || '').split(' ');
+        const firstName = nameParts[0] || candidate.firstName;
+        const lastName = nameParts.slice(1).join(' ') || candidate.lastName;
+        
+        // Infer email if not already set
+        let inferredEmail = candidate.email;
+        if (!inferredEmail && profileData.current_company) {
+          const companyDomain = profileData.current_company.toLowerCase().replace(/\s+/g, '');
+          inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
+        }
+        
+        // Update candidate with all available data
         const updatedCandidate = await storage.updateCandidate(candidateId, {
+          firstName,
+          lastName,
+          email: inferredEmail,
+          location: profileData.city && profileData.country_code 
+            ? `${profileData.city}, ${profileData.country_code}` 
+            : candidate.location,
+          currentCompany: profileData.current_company_name || profileData.current_company || candidate.currentCompany,
+          currentTitle: profileData.position || candidate.currentTitle,
+          skills: profileData.skills || candidate.skills,
           biography: bioResult.biography,
           careerHistory: bioResult.careerHistory,
           bioSource: 'brightdata',
           bioStatus: 'verified',
+          emailSource: inferredEmail !== candidate.email ? 'domain_pattern' : candidate.emailSource,
           processingMode: 'full'
         });
 
