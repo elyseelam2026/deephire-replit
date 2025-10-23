@@ -438,10 +438,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Extract additional profile data
-      const nameParts = (profileData.name || '').split(' ');
-      const firstName = nameParts[0] || candidate.firstName;
-      const lastName = nameParts.slice(1).join(' ') || candidate.lastName;
+      // Extract additional profile data from LinkedIn
+      // Bright Data provides first_name and last_name separately
+      const firstName = (profileData as any).first_name || profileData.name || candidate.firstName;
+      const lastName = (profileData as any).last_name || candidate.lastName;
       
       // Infer email if not already set
       let inferredEmail = candidate.email;
@@ -505,10 +505,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate biography only
       const biography = await generateBiographyFromLinkedInData(profileData);
       
-      // Extract additional profile data
-      const nameParts = (profileData.name || '').split(' ');
-      const firstName = nameParts[0] || candidate.firstName;
-      const lastName = nameParts.slice(1).join(' ') || candidate.lastName;
+      // Extract additional profile data from LinkedIn
+      // Bright Data provides first_name and last_name separately
+      const firstName = (profileData as any).first_name || profileData.name || candidate.firstName;
+      const lastName = (profileData as any).last_name || candidate.lastName;
       
       // Infer email if not already set
       let inferredEmail = candidate.email;
