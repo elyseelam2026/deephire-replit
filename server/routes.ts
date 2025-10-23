@@ -445,9 +445,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Infer email if not already set
       let inferredEmail = candidate.email;
-      if (!inferredEmail && profileData.current_company) {
+      const companyName = profileData.current_company_name || (profileData.current_company as any)?.name;
+      if (!inferredEmail && companyName) {
         // Use existing email inference logic
-        const companyDomain = profileData.current_company.toLowerCase().replace(/\s+/g, '');
+        const companyDomain = companyName.toLowerCase().replace(/\s+/g, '');
         inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
       }
       
