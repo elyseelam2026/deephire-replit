@@ -690,12 +690,15 @@ export default function Candidates() {
                   </div>
                 )}
               
-              {/* Processing Actions - For Data Only candidates */}
-              {selectedCandidate.processingMode === 'data_only' && selectedCandidate.linkedinUrl && (
+              {/* Processing Actions - Available for all candidates with LinkedIn URLs */}
+              {selectedCandidate.linkedinUrl && (
                 <div className="border-t pt-6">
                   <h4 className="font-medium text-sm mb-4">Processing Actions</h4>
                   <p className="text-xs text-muted-foreground mb-3">
-                    This candidate was uploaded in "Data Only" mode. Choose a processing option:
+                    {selectedCandidate.processingMode === 'data_only' 
+                      ? 'This candidate was uploaded in "Data Only" mode. Choose a processing option:'
+                      : 'Re-process this candidate to update their profile data:'
+                    }
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
