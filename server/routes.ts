@@ -408,15 +408,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Scrape LinkedIn profile
       const profileData = await scrapeLinkedInProfile(candidate.linkedinUrl);
       
-      // Extract and transform career history from LinkedIn experience data
-      const careerHistory = (profileData.experience || []).map(exp => ({
-        title: exp.title || '',
-        company: exp.company || '',
-        startDate: exp.start_date || '',
-        endDate: exp.end_date,
-        description: exp.description,
-        location: exp.location
-      }));
+      // Extract and flatten career history from LinkedIn experience data
+      // Bright Data returns complex nested structure - need to flatten it
+      const careerHistory: any[] = [];
+      for (const exp of (profileData.experience || [])) {
+        // Check if this entry has nested positions (multiple roles at same company)
+        if ((exp as any).positions && Array.isArray((exp as any).positions)) {
+          // Flatten each position into separate entries
+          for (const position of (exp as any).positions) {
+            careerHistory.push({
+              title: position.title || exp.title || '',
+              company: exp.company || '',
+              startDate: position.start_date || '',
+              endDate: position.end_date || '',
+              description: position.description_html || exp.description,
+              location: position.location || exp.location
+            });
+          }
+        } else {
+          // Single position format
+          careerHistory.push({
+            title: exp.title || '',
+            company: exp.company || '',
+            startDate: exp.start_date || '',
+            endDate: exp.end_date || '',
+            description: exp.description,
+            location: exp.location
+          });
+        }
+      }
       
       // Update candidate with career data (no biography)
       const updatedCandidate = await storage.updateCandidate(candidateId, {

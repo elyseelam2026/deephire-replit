@@ -88,10 +88,36 @@ async function processBatch(
               // Mode 2: Career Only - Just extract career history, skip biography
               else if (processingMode === 'career_only') {
                 console.log(`💼 Career Only mode: Extracting career history without biography generation`);
-                // Extract career history from LinkedIn data directly
-                if (linkedinData.workExperience) {
-                  (candidateData as any).careerHistory = linkedinData.workExperience;
-                  console.log(`✓ Career history extracted: ${linkedinData.workExperience.length} positions`);
+                // Extract and flatten career history from LinkedIn data
+                // Bright Data returns complex nested structure with positions arrays
+                if (linkedinData.experience) {
+                  const careerHistory: any[] = [];
+                  for (const exp of linkedinData.experience) {
+                    // Check if entry has nested positions (multiple roles at same company)
+                    if ((exp as any).positions && Array.isArray((exp as any).positions)) {
+                      for (const position of (exp as any).positions) {
+                        careerHistory.push({
+                          title: position.title || exp.title || '',
+                          company: exp.company || '',
+                          startDate: position.start_date || '',
+                          endDate: position.end_date || '',
+                          description: position.description_html || exp.description,
+                          location: position.location || exp.location
+                        });
+                      }
+                    } else {
+                      careerHistory.push({
+                        title: exp.title || '',
+                        company: exp.company || '',
+                        startDate: exp.start_date || '',
+                        endDate: exp.end_date || '',
+                        description: exp.description,
+                        location: exp.location
+                      });
+                    }
+                  }
+                  (candidateData as any).careerHistory = careerHistory;
+                  console.log(`✓ Career history extracted: ${careerHistory.length} positions`);
                 }
               }
               // Mode 3: Bio Only - Generate biography only, no career history extraction
