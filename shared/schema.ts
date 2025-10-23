@@ -134,6 +134,10 @@ export const companies = pgTable("companies", {
   privacyPolicyUrl: text("privacy_policy_url"),
   industryCompliance: text("industry_compliance").array(), // HIPAA, SOX, etc.
   
+  // Company Normalization & Matching (for AI-powered deduplication)
+  normalizedAliases: text("normalized_aliases").array().default(sql`ARRAY[]::text[]`), // ["boyu-capital", "博裕资本", "boyu-capital-partners"]
+  primaryDomain: text("primary_domain"), // Main website domain for matching (e.g., "boyucapital.com")
+  
   // System fields (existing)
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
@@ -315,6 +319,68 @@ export const candidates = pgTable("candidates", {
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
+});
+
+// Company Staging - AI-powered company deduplication and approval queue
+export const companyStaging = pgTable("company_staging", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Raw data from candidate career history
+  rawName: text("raw_name").notNull(), // Original company name as extracted (e.g., "博裕资本")
+  rawLocation: text("raw_location"), // Location from career history (helps with matching)
+  
+  // AI-normalized data
+  normalizedName: text("normalized_name").notNull(), // Slug version (e.g., "boyu-capital")
+  preferredName: text("preferred_name"), // AI's suggested display name
+  normalizedAliases: text("normalized_aliases").array().default(sql`ARRAY[]::text[]`), // Name variants
+  detectedDomain: text("detected_domain"), // AI-extracted/guessed domain
+  
+  // Matching & confidence
+  confidence: real("confidence").notNull().default(0), // 0-1 confidence score
+  suggestedCompanyId: integer("suggested_company_id").references(() => companies.id), // AI's merge suggestion
+  suggestedReason: text("suggested_reason"), // Why AI thinks it matches
+  
+  // AI metadata
+  aiMetadata: jsonb("ai_metadata"), // Full AI response for audit
+  
+  // Status tracking
+  status: text("status").notNull().default("pending"), // pending, approved, rejected, merged
+  reviewedBy: text("reviewed_by"), // User who reviewed (if manual)
+  reviewNote: text("review_note"), // Manual review notes
+  
+  // Source tracking (which candidate mentioned this company)
+  sourceCandidateId: integer("source_candidate_id").references(() => candidates.id).notNull(),
+  sourcePositionIndex: integer("source_position_index"), // Which position in career history
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  processedAt: timestamp("processed_at"), // When AI processed it
+  decidedAt: timestamp("decided_at"), // When final decision was made (auto or manual)
+});
+
+// Candidate-Company Junction - LinkedIn-style "who worked here" relationships
+export const candidateCompanies = pgTable("candidate_companies", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // References
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  
+  // Position details (from career history)
+  title: text("title").notNull(), // Job title
+  startDate: text("start_date"), // As text to handle various formats (e.g., "Mar 2021", "2021")
+  endDate: text("end_date"), // null or "Present" for current positions
+  location: text("location"), // Office location
+  description: text("description"), // Job description/achievements
+  
+  // Metadata
+  sourceType: text("source_type").notNull().default("candidate_career"), // candidate_career, manual, verified
+  sourceId: integer("source_id"), // Reference to staging entry if auto-created
+  confidence: real("confidence").default(1.0), // Confidence in the match (0-1)
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
 
 // Job applications/matches - tracking candidate-job relationships
@@ -588,6 +654,19 @@ export const insertDataReviewQueueSchema = createInsertSchema(dataReviewQueue).o
   id: true,
   createdAt: true,
   reviewedAt: true,
+});
+
+export const insertCompanyStagingSchema = createInsertSchema(companyStaging).omit({
+  id: true,
+  createdAt: true,
+  processedAt: true,
+  decidedAt: true,
+});
+
+export const insertCandidateCompanySchema = createInsertSchema(candidateCompanies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 // Staging Candidates - unverified scraped data (ChatGPT's "Raw/Staging Database")
@@ -1036,6 +1115,12 @@ export type DuplicateDetection = typeof duplicateDetections.$inferSelect;
 
 export type InsertDataReviewQueue = z.infer<typeof insertDataReviewQueueSchema>;
 export type DataReviewQueue = typeof dataReviewQueue.$inferSelect;
+
+export type InsertCompanyStaging = z.infer<typeof insertCompanyStagingSchema>;
+export type CompanyStaging = typeof companyStaging.$inferSelect;
+
+export type InsertCandidateCompany = z.infer<typeof insertCandidateCompanySchema>;
+export type CandidateCompany = typeof candidateCompanies.$inferSelect;
 
 // Staging Candidates schemas
 export const insertStagingCandidateSchema = createInsertSchema(stagingCandidates).omit({

@@ -2,13 +2,15 @@ import {
   companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
+  companyStaging, candidateCompanies,
   type Company, type Job, type Candidate, type JobMatch, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
   type DataIngestionJob, type InsertDataIngestionJob, type DuplicateDetection, type InsertDuplicateDetection,
   type DataReviewQueue, type InsertDataReviewQueue, type StagingCandidate, type InsertStagingCandidate,
   type VerificationResult, type InsertVerificationResult, type OrganizationChart, type InsertOrganizationChart,
-  type IndustryCampaign, type InsertIndustryCampaign, type CompanyResearchResult, type InsertCompanyResearchResult
+  type IndustryCampaign, type InsertIndustryCampaign, type CompanyResearchResult, type InsertCompanyResearchResult,
+  type CompanyStaging, type InsertCompanyStaging, type CandidateCompany, type InsertCandidateCompany
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -29,6 +31,22 @@ export interface IStorage {
   getParentCompany(childCompanyId: number): Promise<Company | undefined>;
   convertCompanyToHierarchy(companyId: number): Promise<{ parent: Company; children: Company[] }>;
   searchCompanies(query: string): Promise<Array<{ parent: Company; matchedOffices: Company[]; matchType: 'parent' | 'office' | 'both' }>>;
+  
+  // Company Staging (AI-powered deduplication)
+  createCompanyStaging(staging: InsertCompanyStaging): Promise<CompanyStaging>;
+  getCompanyStagingList(filters?: { status?: string; limit?: number }): Promise<CompanyStaging[]>;
+  getCompanyStaging(id: number): Promise<CompanyStaging | undefined>;
+  updateCompanyStaging(id: number, updates: Partial<InsertCompanyStaging>): Promise<CompanyStaging | undefined>;
+  approveCompanyStaging(id: number, reviewedBy?: string): Promise<Company>; // Auto-creates company & junction
+  mergeCompanyStaging(id: number, targetCompanyId: number, reviewedBy?: string): Promise<void>; // Merges into existing company
+  rejectCompanyStaging(id: number, reviewedBy?: string, reason?: string): Promise<void>;
+  findCompanyByNameOrDomain(name: string, domain?: string): Promise<Company | undefined>; // For duplicate checking
+  
+  // Candidate-Company Junction (who worked where)
+  createCandidateCompany(junction: InsertCandidateCompany): Promise<CandidateCompany>;
+  getCandidateCompanies(candidateId: number): Promise<(CandidateCompany & { company: Company })[]>;
+  getCompanyCandidates(companyId: number): Promise<(CandidateCompany & { candidate: Candidate })[]>;
+  deleteCandidateCompany(id: number): Promise<void>;
   
   // Job management
   createJob(job: InsertJob): Promise<Job>;
@@ -317,6 +335,177 @@ export class DatabaseStorage implements IStorage {
       const typeOrder = { both: 0, parent: 1, office: 2 };
       return typeOrder[a.matchType] - typeOrder[b.matchType];
     });
+  }
+
+  // Company Staging (AI-powered deduplication)
+  async createCompanyStaging(staging: InsertCompanyStaging): Promise<CompanyStaging> {
+    const [created] = await db.insert(companyStaging).values(staging).returning();
+    return created;
+  }
+
+  async getCompanyStagingList(filters?: { status?: string; limit?: number }): Promise<CompanyStaging[]> {
+    let query = db.select().from(companyStaging);
+    
+    if (filters?.status) {
+      query = query.where(eq(companyStaging.status, filters.status)) as any;
+    }
+    
+    query = query.orderBy(desc(companyStaging.createdAt)) as any;
+    
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+    
+    return await query;
+  }
+
+  async getCompanyStaging(id: number): Promise<CompanyStaging | undefined> {
+    const [staging] = await db.select().from(companyStaging).where(eq(companyStaging.id, id));
+    return staging || undefined;
+  }
+
+  async updateCompanyStaging(id: number, updates: Partial<InsertCompanyStaging>): Promise<CompanyStaging | undefined> {
+    const [updated] = await db.update(companyStaging)
+      .set(updates)
+      .where(eq(companyStaging.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async approveCompanyStaging(id: number, reviewedBy?: string): Promise<Company> {
+    const staging = await this.getCompanyStaging(id);
+    if (!staging) {
+      throw new Error(`Company staging ${id} not found`);
+    }
+
+    // Create new company from staging data
+    const company = await this.createCompany({
+      name: staging.preferredName || staging.rawName,
+      primaryDomain: staging.detectedDomain || undefined,
+      normalizedAliases: staging.normalizedAliases || [],
+      location: staging.rawLocation || undefined,
+    });
+
+    // Update staging status
+    await this.updateCompanyStaging(id, {
+      status: 'approved',
+      reviewedBy,
+      decidedAt: sql`now()`,
+    } as any);
+
+    return company;
+  }
+
+  async mergeCompanyStaging(id: number, targetCompanyId: number, reviewedBy?: string): Promise<void> {
+    const staging = await this.getCompanyStaging(id);
+    if (!staging) {
+      throw new Error(`Company staging ${id} not found`);
+    }
+
+    const targetCompany = await this.getCompany(targetCompanyId);
+    if (!targetCompany) {
+      throw new Error(`Target company ${targetCompanyId} not found`);
+    }
+
+    // Merge aliases into target company
+    const existingAliases = targetCompany.normalizedAliases || [];
+    const newAliases = staging.normalizedAliases || [];
+    const mergedAliases = Array.from(new Set([...existingAliases, ...newAliases, staging.normalizedName]));
+
+    await this.updateCompany(targetCompanyId, {
+      normalizedAliases: mergedAliases,
+      primaryDomain: targetCompany.primaryDomain || staging.detectedDomain || undefined,
+    });
+
+    // Update staging status
+    await this.updateCompanyStaging(id, {
+      status: 'merged',
+      reviewedBy,
+      decidedAt: sql`now()`,
+    } as any);
+  }
+
+  async rejectCompanyStaging(id: number, reviewedBy?: string, reason?: string): Promise<void> {
+    await this.updateCompanyStaging(id, {
+      status: 'rejected',
+      reviewedBy,
+      reviewNote: reason,
+      decidedAt: sql`now()`,
+    } as any);
+  }
+
+  async findCompanyByNameOrDomain(name: string, domain?: string): Promise<Company | undefined> {
+    if (domain) {
+      // First try exact domain match
+      const [company] = await db.select().from(companies)
+        .where(eq(companies.primaryDomain, domain));
+      if (company) return company;
+    }
+
+    // Try name match (case-insensitive)
+    const [company] = await db.select().from(companies)
+      .where(ilike(companies.name, name));
+    return company || undefined;
+  }
+
+  // Candidate-Company Junction (who worked where)
+  async createCandidateCompany(junction: InsertCandidateCompany): Promise<CandidateCompany> {
+    const [created] = await db.insert(candidateCompanies).values(junction).returning();
+    return created;
+  }
+
+  async getCandidateCompanies(candidateId: number): Promise<(CandidateCompany & { company: Company })[]> {
+    const results = await db.select({
+      id: candidateCompanies.id,
+      candidateId: candidateCompanies.candidateId,
+      companyId: candidateCompanies.companyId,
+      title: candidateCompanies.title,
+      startDate: candidateCompanies.startDate,
+      endDate: candidateCompanies.endDate,
+      location: candidateCompanies.location,
+      description: candidateCompanies.description,
+      sourceType: candidateCompanies.sourceType,
+      sourceId: candidateCompanies.sourceId,
+      confidence: candidateCompanies.confidence,
+      createdAt: candidateCompanies.createdAt,
+      updatedAt: candidateCompanies.updatedAt,
+      company: companies,
+    })
+    .from(candidateCompanies)
+    .innerJoin(companies, eq(candidateCompanies.companyId, companies.id))
+    .where(eq(candidateCompanies.candidateId, candidateId))
+    .orderBy(desc(candidateCompanies.startDate));
+
+    return results as (CandidateCompany & { company: Company })[];
+  }
+
+  async getCompanyCandidates(companyId: number): Promise<(CandidateCompany & { candidate: Candidate })[]> {
+    const results = await db.select({
+      id: candidateCompanies.id,
+      candidateId: candidateCompanies.candidateId,
+      companyId: candidateCompanies.companyId,
+      title: candidateCompanies.title,
+      startDate: candidateCompanies.startDate,
+      endDate: candidateCompanies.endDate,
+      location: candidateCompanies.location,
+      description: candidateCompanies.description,
+      sourceType: candidateCompanies.sourceType,
+      sourceId: candidateCompanies.sourceId,
+      confidence: candidateCompanies.confidence,
+      createdAt: candidateCompanies.createdAt,
+      updatedAt: candidateCompanies.updatedAt,
+      candidate: candidates,
+    })
+    .from(candidateCompanies)
+    .innerJoin(candidates, eq(candidateCompanies.candidateId, candidates.id))
+    .where(eq(candidateCompanies.companyId, companyId))
+    .orderBy(desc(candidateCompanies.startDate));
+
+    return results as (CandidateCompany & { candidate: Candidate })[];
+  }
+
+  async deleteCandidateCompany(id: number): Promise<void> {
+    await db.delete(candidateCompanies).where(eq(candidateCompanies.id, id));
   }
 
   // Job management
