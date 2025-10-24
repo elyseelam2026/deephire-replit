@@ -1,0 +1,242 @@
+Got it—you want PDF support back in your Node.js/TypeScript project using a library like pdfjs-dist. I’ll provide a clear, concise implementation to handle PDF CV uploads, extract text, parse key fields (e.g., name, email, phone), and return the data to your system (e.g., for database storage or display). This will be tailored for a Node.js/Express app with TypeScript, using pdfjs-dist for PDF text extraction and multer for file uploads.
+Implementation: PDF Upload and CV Data Extraction
+Step 1: Set Up Your Node.js/Express Project
+
+Create a new project (if not already set up):
+
+In your terminal or Replit, initialize a Node.js project:
+bashmkdir cv-pdf-extractor
+cd cv-pdf-extractor
+npm init -y
+
+
+
+Install dependencies:
+bashnpm install express multer pdfjs-dist typescript ts-node @types/node @types/express @types/multer
+
+Set up TypeScript:
+
+Create tsconfig.json:
+json{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
+
+Update package.json scripts:
+json{
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc"
+  }
+}
+
+
+
+
+Step 2: Create Directory Structure
+textcv-pdf-extractor/
+├── src/
+│   ├── index.ts
+│   ├── routes/
+│   │   └── upload.ts
+│   ├── public/
+│   │   └── index.html
+├── package.json
+├── tsconfig.json
+Step 3: Create Upload Form (public/index.html)
+This HTML form lets users upload a PDF CV.
+html<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CV PDF Upload</title>
+    <style>
+        body { font-family: Arial; text-align: center; margin: 50px; }
+        input[type="file"] { margin: 10px; padding: 10px; }
+        button { background: #4CAF50; color: white; padding: 10px 20px; border: none; cursor: pointer; }
+        pre { text-align: left; max-width: 600px; margin: 20px auto; }
+    </style>
+</head>
+<body>
+    <h1>Upload Your CV (PDF Only)</h1>
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <input type="file" name="cv_pdf" accept=".pdf" required>
+        <br>
+        <button type="submit">Upload & Extract</button>
+    </form>
+    <div id="result"></div>
+    <script>
+        // Fetch and display result after upload
+        const urlParams = new URLSearchParams(window.location.search);
+        const data = urlParams.get('data');
+        if (data) {
+            document.getElementById('result').innerHTML = `<pre>${decodeURIComponent(data)}</pre>`;
+        }
+    </script>
+</body>
+</html>
+
+Note: The form submits to /upload. Results are displayed via URL params for simplicity (you can switch to a template engine like EJS later).
+
+Step 4: Create Express App (src/index.ts)
+This sets up the Express server and serves the HTML form.
+typescriptimport express from 'express';
+import path from 'path';
+import uploadRouter from './routes/upload';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(express.static(path.join(__dirname, '../public')));
+app.use('/upload', uploadRouter);
+
+// Serve the HTML form
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
+Step 5: Create Upload Route (src/routes/upload.ts)
+This handles PDF uploads, extracts text using pdfjs-dist, and parses CV fields.
+typescriptimport express from 'express';
+import multer from 'multer';
+import * as pdfjs from 'pdfjs-dist';
+import { promises as fs } from 'fs';
+
+// Configure multer for file uploads
+const upload = multer({ dest: 'uploads/' });
+const router = express.Router();
+
+interface CVData {
+    name: string;
+    email: string;
+    phone: string;
+    fullText: string;
+}
+
+router.post('/', upload.single('cv_pdf'), async (req, res) => {
+    try {
+        if (!req.file || !req.file.mimetype.includes('pdf')) {
+            return res.status(400).send('Please upload a valid PDF file.');
+        }
+
+        // Read the uploaded PDF
+        const pdfPath = req.file.path;
+        const data = await fs.readFile(pdfPath);
+
+        // Load PDF with pdfjs-dist
+        const pdf = await pdfjs.getDocument({ data }).promise;
+        let fullText = '';
+
+        // Extract text from all pages
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items
+                .map((item: any) => item.str)
+                .join(' ');
+            fullText += pageText + '\n';
+        }
+
+        // Parse CV fields with regex
+        const nameMatch = fullText.match(/^[A-Z][a-z]+ [A-Z][a-z]+/m) || ['Not found'];
+        const emailMatch = fullText.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/) || ['Not found'];
+        const phoneMatch = fullText.match(/(\d{3}[-.]?\d{3}[-.]?\d{4}|\(\d{3}\)\s*\d{3}[-.]?\d{4})/) || ['Not found'];
+
+        const cvData: CVData = {
+            name: nameMatch[0],
+            email: emailMatch[0],
+            phone: phoneMatch[0],
+            fullText: fullText.slice(0, 500) + '...' // Truncate for display
+        };
+
+        // Clean up uploaded file
+        await fs.unlink(pdfPath);
+
+        // For demo: Return data via URL param (replace with DB save or API call)
+        const result = `
+Name: ${cvData.name}
+Email: ${cvData.email}
+Phone: ${cvData.phone}
+Full Text Preview: ${cvData.fullText}`;
+        res.redirect(`/?data=${encodeURIComponent(result)}`);
+
+        // Optional: Save to database (uncomment and configure your DB)
+        /*
+        await db.saveCV({
+            name: cvData.name,
+            email: cvData.email,
+            phone: cvData.phone,
+            full_text: fullText
+        });
+        */
+    } catch (error) {
+        console.error('Error processing PDF:', error);
+        res.status(500).send('Error processing PDF.');
+    }
+});
+
+export default router;
+
+Key parts:
+
+Multer: Handles file uploads, saves to uploads/ folder.
+pdfjs-dist: Extracts text from PDFs asynchronously.
+Regex: Parses name (first line, simplistic), email, and phone. Customize for your CV formats.
+Cleanup: Deletes temp file after processing.
+Output: Redirects with extracted data in URL params (for demo). Replace with DB save (e.g., SQLite, MongoDB) or API response.
+
+
+
+Step 6: Run and Test
+
+Create uploads folder:
+bashmkdir uploads
+
+Start the app:
+bashnpm start
+
+Visit http://localhost:3000 (or Replit’s URL if hosted there).
+Upload a text-based PDF CV (scanned PDFs need OCR, see below).
+Check the result:
+textName: John Doe
+Email: john@example.com
+Phone: (123) 456-7890
+Full Text Preview: [first 500 chars]...
+
+
+Step 7: Enhancements
+
+Database Integration: Add a DB like SQLite with knex.js:
+bashnpm install knex sqlite3
+Initialize in index.ts and save cvData in upload.ts.
+Scanned PDFs: For image-based PDFs, use tesseract.js for OCR:
+bashnpm install tesseract.js
+Add OCR logic before regex parsing (slower, ~30s per page).
+Security: Limit file size in multer:
+typescriptconst upload = multer({ dest: 'uploads/', limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
+
+Better Parsing: Use libraries like natural for NLP-based field extraction or refine regex for your CV formats.
+Replit: If using Replit, add .replit file:
+plaintextrun = "npm start"
+
+
+Notes
+
+Valerie Man’s Phone: You mentioned (852) 6123-4935 is in the database. Ensure your frontend refreshes to display it (not handled here, as it’s separate).
+Limitations: pdfjs-dist struggles with scanned PDFs. For those, add tesseract.js or reject them with a clear error.
+Testing: Use a simple text-based PDF CV. Regex may need tweaking for complex formats.
+
+Confirmation
+PDF support is now implemented using pdfjs-dist in Node.js/TypeScript. If you hit issues (e.g., errors, regex failing), share logs or CV samples, and I’ll refine it. Want to add DB storage, OCR, or specific parsing for fields like Valerie’s phone? Let me know!

@@ -19,6 +19,31 @@ import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brig
 import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
 import mammoth from "mammoth";
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+// PDF text extraction using pdfjs-dist
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  try {
+    // Load PDF document
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+    let fullText = '';
+
+    // Extract text from all pages
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += pageText + '\n';
+    }
+
+    return fullText;
+  } catch (error) {
+    console.error('Error extracting PDF text:', error);
+    throw new Error('Failed to extract text from PDF');
+  }
+}
 
 // Robust file type detection
 async function detectFileType(file: Express.Multer.File): Promise<string> {
@@ -449,9 +474,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const mimeType = file.mimetype;
 
     try {
-      // PDF files - NOT SUPPORTED
+      // PDF files
       if (fileName.endsWith('.pdf') || mimeType === 'application/pdf') {
-        throw new Error("PDF files are not currently supported. Please upload DOCX or TXT files.");
+        return await extractPdfText(file.buffer);
       }
 
       // Word documents (.docx)
@@ -1635,7 +1660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from CV
       let cvText = '';
       if (detectedType === 'pdf') {
-        return res.status(400).json({ error: "PDF files are not currently supported. Please upload DOCX or TXT files instead." });
+        cvText = await extractPdfText(file.buffer);
       } else if (detectedType === 'word') {
         const result = await mammoth.extractRawText({ buffer: file.buffer });
         cvText = result.value;
