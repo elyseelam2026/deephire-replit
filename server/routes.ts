@@ -343,6 +343,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update candidate endpoint
+  app.patch("/api/candidates/:id", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+
+      // Define allowed fields for update
+      const allowedFields = [
+        'firstName', 'lastName', 'nativeName', 'latinName', 'nativeNameLocale',
+        'email', 'linkedinUrl', 'currentCompany', 'currentTitle', 'location',
+        'biography', 'displayName', 'emailFirstName', 'emailLastName'
+      ];
+
+      // Filter and sanitize update data
+      const updateData: any = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      }
+
+      // Validate at least one field is being updated
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "No valid fields provided for update" });
+      }
+
+      const updatedCandidate = await storage.updateCandidate(candidateId, updateData);
+      res.json(updatedCandidate);
+    } catch (error) {
+      console.error("Error updating candidate:", error);
+      res.status(500).json({ error: "Failed to update candidate" });
+    }
+  });
+
   // Delete candidate endpoint (soft delete - moves to recycling bin)
   app.delete("/api/candidates/:id", async (req, res) => {
     try {

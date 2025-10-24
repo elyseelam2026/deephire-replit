@@ -30,6 +30,8 @@ export default function Candidates() {
   const [candidateToDelete, setCandidateToDelete] = useState<Candidate | null>(null);
   const [bioDialogOpen, setBioDialogOpen] = useState(false);
   const [bioText, setBioText] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState<any>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -76,6 +78,29 @@ export default function Candidates() {
       toast({
         title: "Delete Failed",
         description: error.message || "Failed to delete candidate",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await apiRequest('PATCH', `/api/candidates/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      toast({
+        title: "Candidate Updated",
+        description: "The candidate has been updated successfully.",
+      });
+      setEditDialogOpen(false);
+      setSelectedCandidate(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update candidate",
         variant: "destructive",
       });
     },
@@ -416,11 +441,22 @@ export default function Candidates() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  // TODO: Open edit dialog
-                  toast({
-                    title: "Edit Candidate",
-                    description: "Edit functionality coming next"
-                  });
+                  if (selectedCandidate) {
+                    setEditFormData({
+                      firstName: selectedCandidate.firstName || '',
+                      lastName: selectedCandidate.lastName || '',
+                      nativeName: (selectedCandidate as any).nativeName || '',
+                      latinName: (selectedCandidate as any).latinName || '',
+                      nativeNameLocale: (selectedCandidate as any).nativeNameLocale || '',
+                      email: selectedCandidate.email || '',
+                      linkedinUrl: selectedCandidate.linkedinUrl || '',
+                      currentCompany: selectedCandidate.currentCompany || '',
+                      currentTitle: selectedCandidate.currentTitle || '',
+                      location: selectedCandidate.location || '',
+                      biography: selectedCandidate.biography || '',
+                    });
+                    setEditDialogOpen(true);
+                  }
                 }}
                 data-testid={`button-edit-candidate-${selectedCandidate?.id}`}
               >
@@ -1080,6 +1116,170 @@ export default function Candidates() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Candidate Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Candidate</DialogTitle>
+            <DialogDescription>
+              Update candidate information including multi-language names and profile details
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Basic Information Section */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Basic Information</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-firstName">First Name</Label>
+                  <Input
+                    id="edit-firstName"
+                    value={editFormData.firstName || ''}
+                    onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
+                    data-testid="input-edit-firstName"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lastName">Last Name</Label>
+                  <Input
+                    id="edit-lastName"
+                    value={editFormData.lastName || ''}
+                    onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
+                    data-testid="input-edit-lastName"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editFormData.email || ''}
+                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                  data-testid="input-edit-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-linkedinUrl">LinkedIn URL</Label>
+                <Input
+                  id="edit-linkedinUrl"
+                  value={editFormData.linkedinUrl || ''}
+                  onChange={(e) => setEditFormData({...editFormData, linkedinUrl: e.target.value})}
+                  data-testid="input-edit-linkedinUrl"
+                />
+              </div>
+            </div>
+
+            {/* Multi-Language Names Section */}
+            <div className="space-y-3 border-t pt-4">
+              <h4 className="font-medium text-sm">Multi-Language Names</h4>
+              <div className="space-y-2">
+                <Label htmlFor="edit-nativeName">Native Name (e.g., 李嘉冕)</Label>
+                <Input
+                  id="edit-nativeName"
+                  value={editFormData.nativeName || ''}
+                  onChange={(e) => setEditFormData({...editFormData, nativeName: e.target.value})}
+                  placeholder="李嘉冕"
+                  data-testid="input-edit-nativeName"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-latinName">Latin Name (e.g., Li Jiamian)</Label>
+                <Input
+                  id="edit-latinName"
+                  value={editFormData.latinName || ''}
+                  onChange={(e) => setEditFormData({...editFormData, latinName: e.target.value})}
+                  placeholder="Li Jiamian"
+                  data-testid="input-edit-latinName"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-nativeNameLocale">Locale (e.g., zh-CN, ko-KR, ja-JP)</Label>
+                <Input
+                  id="edit-nativeNameLocale"
+                  value={editFormData.nativeNameLocale || ''}
+                  onChange={(e) => setEditFormData({...editFormData, nativeNameLocale: e.target.value})}
+                  placeholder="zh-CN"
+                  data-testid="input-edit-nativeNameLocale"
+                />
+              </div>
+            </div>
+
+            {/* Professional Information Section */}
+            <div className="space-y-3 border-t pt-4">
+              <h4 className="font-medium text-sm">Professional Information</h4>
+              <div className="space-y-2">
+                <Label htmlFor="edit-currentCompany">Current Company</Label>
+                <Input
+                  id="edit-currentCompany"
+                  value={editFormData.currentCompany || ''}
+                  onChange={(e) => setEditFormData({...editFormData, currentCompany: e.target.value})}
+                  data-testid="input-edit-currentCompany"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-currentTitle">Current Title</Label>
+                <Input
+                  id="edit-currentTitle"
+                  value={editFormData.currentTitle || ''}
+                  onChange={(e) => setEditFormData({...editFormData, currentTitle: e.target.value})}
+                  data-testid="input-edit-currentTitle"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-location">Location</Label>
+                <Input
+                  id="edit-location"
+                  value={editFormData.location || ''}
+                  onChange={(e) => setEditFormData({...editFormData, location: e.target.value})}
+                  data-testid="input-edit-location"
+                />
+              </div>
+            </div>
+
+            {/* Biography Section */}
+            <div className="space-y-3 border-t pt-4">
+              <h4 className="font-medium text-sm">Biography</h4>
+              <div className="space-y-2">
+                <Label htmlFor="edit-biography">Executive Biography</Label>
+                <Textarea
+                  id="edit-biography"
+                  value={editFormData.biography || ''}
+                  onChange={(e) => setEditFormData({...editFormData, biography: e.target.value})}
+                  rows={6}
+                  data-testid="textarea-edit-biography"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-2 border-t pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setEditDialogOpen(false)}
+                data-testid="button-cancel-edit"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedCandidate) {
+                    updateMutation.mutate({
+                      id: selectedCandidate.id,
+                      data: editFormData
+                    });
+                  }
+                }}
+                disabled={updateMutation.isPending}
+                data-testid="button-save-edit"
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Biography Entry Dialog */}
       <Dialog open={bioDialogOpen} onOpenChange={setBioDialogOpen}>
