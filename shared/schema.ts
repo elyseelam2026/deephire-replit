@@ -162,12 +162,30 @@ export const jobs = pgTable("jobs", {
 export const candidates = pgTable("candidates", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   
-  // Core Identity & Contact (existing + enhanced)
+  // Core Identity & Contact - Multi-Language Support (Salesforce-style)
+  // Native name (in original script)
+  nativeName: text("native_name"), // e.g., "李嘉冕", "김민준", "田中太郎"
+  nativeNameLocale: text("native_name_locale"), // ISO locale: zh-CN, ko-KR, ja-JP, ar-SA
+  
+  // Latin/Romanized name (ASCII-safe for systems)
+  latinName: text("latin_name"), // e.g., "Jiamian Li", "Minjun Kim", "Taro Tanaka"
+  transliterationMethod: text("transliteration_method"), // pinyin, manual, romaji, rr_romanization
+  transliterationConfidence: real("transliteration_confidence"), // 0.0 - 1.0 quality score
+  
+  // Legacy fields (kept for backward compatibility)
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   middleName: text("middle_name"),
   preferredName: text("preferred_name"),
-  chineseName: text("chinese_name"), // Full Chinese name (e.g., 李嘉冕)
+  
+  // Email-safe name components (always ASCII)
+  emailFirstName: text("email_first_name"), // Transliterated first name for email inference
+  emailLastName: text("email_last_name"), // Transliterated last name for email inference
+  
+  // Display preferences
+  displayName: text("display_name"), // Computed: nativeName || latinName || firstName + lastName
+  nameOrderPreference: text("name_order_preference"), // family_first, given_first
+  
   pronouns: text("pronouns"), // he/him, she/her, they/them, etc.
   email: text("email").unique(),
   phoneNumber: text("phone_number"),
@@ -315,11 +333,81 @@ export const candidates = pgTable("candidates", {
   // - bio_only: Just biography (Bright Data + Grok) - Medium cost, executive summaries
   // - data_only: Store URLs only, no API calls - Free, bulk import for later processing
   
+  // Custom Fields (Salesforce-style flexible fields)
+  customFieldValues: jsonb("custom_field_values"), // {fieldId: value} - stores custom field data
+  // Example: {"deal_experience": ["Buyout", "Growth"], "aum_managed": "$500M", "board_seats": 3}
+  
   // System fields (existing)
   cvText: text("cv_text"), // extracted CV text
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
+});
+
+// Custom Field Sections - Salesforce-style field grouping
+export const customFieldSections = pgTable("custom_field_sections", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Section metadata
+  name: text("name").notNull(), // e.g., "Current Compensation Information"
+  label: text("label").notNull(), // Display name
+  description: text("description"), // Help text for this section
+  icon: text("icon"), // Lucide icon name
+  
+  // Organization
+  entityType: text("entity_type").notNull().default("candidate"), // candidate, company, job
+  orderIndex: integer("order_index").notNull().default(0), // Display order
+  isCollapsible: boolean("is_collapsible").default(true),
+  isCollapsedByDefault: boolean("is_collapsed_by_default").default(false),
+  
+  // Visibility & Access
+  isActive: boolean("is_active").default(true),
+  requiredRole: text("required_role"), // admin, recruiter, viewer - null means all
+  
+  // System tracking
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
+// Custom Field Definitions - Salesforce-style field schema
+export const customFieldDefinitions = pgTable("custom_field_definitions", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Field identity
+  fieldKey: text("field_key").notNull().unique(), // e.g., "deal_experience", "aum_managed"
+  label: text("label").notNull(), // Display label
+  description: text("description"), // Help text
+  
+  // Field type and validation
+  fieldType: text("field_type").notNull(), // text, number, currency, date, select, multi_select, checkbox, url, email, phone
+  dataType: text("data_type"), // string, number, boolean, date for storage
+  
+  // Organization
+  sectionId: integer("section_id").references(() => customFieldSections.id),
+  entityType: text("entity_type").notNull().default("candidate"), // candidate, company, job
+  orderIndex: integer("order_index").notNull().default(0),
+  
+  // Validation rules
+  isRequired: boolean("is_required").default(false),
+  validationRules: jsonb("validation_rules"), // {min, max, pattern, options: ["Buyout", "Growth"], etc}
+  defaultValue: text("default_value"),
+  
+  // Display options
+  placeholder: text("placeholder"),
+  helpText: text("help_text"),
+  isVisible: boolean("is_visible").default(true),
+  isEditable: boolean("is_editable").default(true),
+  
+  // Picklist options (for select/multi-select fields)
+  picklistOptions: jsonb("picklist_options"), // [{value: "buyout", label: "Buyout"}, ...]
+  
+  // Access control
+  requiredRole: text("required_role"), // admin, recruiter, viewer - null means all can edit
+  
+  // System tracking
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
 
 // Company Staging - AI-powered company deduplication and approval queue

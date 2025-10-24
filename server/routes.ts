@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
+import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
 
 // Robust file type detection
@@ -438,30 +439,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Extract additional profile data from LinkedIn
-      // Bright Data provides first_name and last_name separately
-      const fullName = profileData.name || '';
-      const firstName = (profileData as any).first_name || fullName.split(' ')[0] || candidate.firstName;
-      const lastName = (profileData as any).last_name || fullName.split(' ').slice(1).join(' ') || candidate.lastName;
+      // Extract and transliterate name using enterprise-grade transliteration service
+      const fullName = profileData.name || `${candidate.firstName} ${candidate.lastName}`;
+      const transliteration = transliterateName(fullName);
       
-      // Detect Chinese name (contains Chinese characters)
-      const hasChinese = /[\u4e00-\u9fa5]/.test(fullName);
-      const chineseName = hasChinese ? fullName : undefined;
+      // Legacy firstName/lastName for backward compatibility
+      const firstName = (profileData as any).first_name || transliteration.emailFirstName || candidate.firstName;
+      const lastName = (profileData as any).last_name || transliteration.emailLastName || candidate.lastName;
       
-      // Infer email if not already set
+      // Infer email using transliterated name (ASCII-safe)
       let inferredEmail = candidate.email;
+      let emailStatus = candidate.emailStatus || 'inferred';
+      let emailSource = candidate.emailSource || 'domain_pattern';
+      
       const companyName = profileData.current_company_name || (profileData.current_company as any)?.name;
-      if (!inferredEmail && companyName && firstName && lastName) {
-        // Use existing email inference logic
-        const companyDomain = companyName.toLowerCase().replace(/\s+/g, '');
-        inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
+      if (!inferredEmail && companyName) {
+        const emailData = inferEmail(fullName, companyName);
+        inferredEmail = emailData.email;
+        emailStatus = emailData.emailStatus;
+        emailSource = emailData.emailSource;
       }
       
       // Update candidate with all available data from LinkedIn
       const updatedCandidate = await storage.updateCandidate(candidateId, {
         firstName,
         lastName,
-        chineseName,
+        nativeName: fullName,
+        nativeNameLocale: transliteration.locale,
+        latinName: transliteration.latinName,
+        transliterationMethod: transliteration.method,
+        transliterationConfidence: transliteration.confidence,
+        emailFirstName: transliteration.emailFirstName,
+        emailLastName: transliteration.emailLastName,
+        displayName: fullName,
         email: inferredEmail,
         location: profileData.city && profileData.country_code 
           ? `${profileData.city}, ${profileData.country_code}` 
@@ -472,7 +482,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         careerHistory,
         bioSource: 'brightdata',
         bioStatus: 'not_generated',
-        emailSource: inferredEmail !== candidate.email ? 'domain_pattern' : candidate.emailSource,
+        emailStatus,
+        emailSource,
         processingMode: 'career_only'
       });
 
@@ -512,29 +523,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate biography only
       const biography = await generateBiographyFromLinkedInData(profileData);
       
-      // Extract additional profile data from LinkedIn
-      // Bright Data provides first_name and last_name separately
-      const fullName = profileData.name || '';
-      const firstName = (profileData as any).first_name || fullName.split(' ')[0] || candidate.firstName;
-      const lastName = (profileData as any).last_name || fullName.split(' ').slice(1).join(' ') || candidate.lastName;
+      // Extract and transliterate name using enterprise-grade transliteration service
+      const fullName = profileData.name || `${candidate.firstName} ${candidate.lastName}`;
+      const transliteration = transliterateName(fullName);
       
-      // Detect Chinese name (contains Chinese characters)
-      const hasChinese = /[\u4e00-\u9fa5]/.test(fullName);
-      const chineseName = hasChinese ? fullName : undefined;
+      // Legacy firstName/lastName for backward compatibility
+      const firstName = (profileData as any).first_name || transliteration.emailFirstName || candidate.firstName;
+      const lastName = (profileData as any).last_name || transliteration.emailLastName || candidate.lastName;
       
-      // Infer email if not already set
+      // Infer email using transliterated name (ASCII-safe)
       let inferredEmail = candidate.email;
+      let emailStatus = candidate.emailStatus || 'inferred';
+      let emailSource = candidate.emailSource || 'domain_pattern';
+      
       const companyName = profileData.current_company_name || (profileData.current_company as any)?.name;
-      if (!inferredEmail && companyName && firstName && lastName) {
-        const companyDomain = companyName.toLowerCase().replace(/\s+/g, '');
-        inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
+      if (!inferredEmail && companyName) {
+        const emailData = inferEmail(fullName, companyName);
+        inferredEmail = emailData.email;
+        emailStatus = emailData.emailStatus;
+        emailSource = emailData.emailSource;
       }
       
       // Update candidate with all available data
       const updatedCandidate = await storage.updateCandidate(candidateId, {
         firstName,
         lastName,
-        chineseName,
+        nativeName: fullName,
+        nativeNameLocale: transliteration.locale,
+        latinName: transliteration.latinName,
+        transliterationMethod: transliteration.method,
+        transliterationConfidence: transliteration.confidence,
+        emailFirstName: transliteration.emailFirstName,
+        emailLastName: transliteration.emailLastName,
+        displayName: fullName,
         email: inferredEmail,
         location: profileData.city && profileData.country_code 
           ? `${profileData.city}, ${profileData.country_code}` 
@@ -545,7 +566,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         biography,
         bioSource: 'brightdata',
         bioStatus: 'verified',
-        emailSource: inferredEmail !== candidate.email ? 'domain_pattern' : candidate.emailSource,
+        emailStatus,
+        emailSource,
         processingMode: 'bio_only'
       });
 
@@ -591,29 +613,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (bioResult) {
-        // Extract additional profile data from LinkedIn
-        // Bright Data provides first_name and last_name separately
-        const fullName = profileData.name || '';
-        const firstName = (profileData as any).first_name || fullName.split(' ')[0] || candidate.firstName;
-        const lastName = (profileData as any).last_name || fullName.split(' ').slice(1).join(' ') || candidate.lastName;
+        // Extract and transliterate name using enterprise-grade transliteration service
+        const fullName = profileData.name || `${candidate.firstName} ${candidate.lastName}`;
+        const transliteration = transliterateName(fullName);
         
-        // Detect Chinese name (contains Chinese characters)
-        const hasChinese = /[\u4e00-\u9fa5]/.test(fullName);
-        const chineseName = hasChinese ? fullName : undefined;
+        // Legacy firstName/lastName for backward compatibility
+        const firstName = (profileData as any).first_name || transliteration.emailFirstName || candidate.firstName;
+        const lastName = (profileData as any).last_name || transliteration.emailLastName || candidate.lastName;
         
-        // Infer email if not already set
+        // Infer email using transliterated name (ASCII-safe)
         let inferredEmail = candidate.email;
+        let emailStatus = candidate.emailStatus || 'inferred';
+        let emailSource = candidate.emailSource || 'domain_pattern';
+        
         const companyName = profileData.current_company_name || (profileData.current_company as any)?.name;
-        if (!inferredEmail && companyName && firstName && lastName) {
-          const companyDomain = companyName.toLowerCase().replace(/\s+/g, '');
-          inferredEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyDomain}.com`;
+        if (!inferredEmail && companyName) {
+          const emailData = inferEmail(fullName, companyName);
+          inferredEmail = emailData.email;
+          emailStatus = emailData.emailStatus;
+          emailSource = emailData.emailSource;
         }
         
         // Update candidate with all available data
         const updatedCandidate = await storage.updateCandidate(candidateId, {
           firstName,
           lastName,
-          chineseName,
+          nativeName: fullName,
+          nativeNameLocale: transliteration.locale,
+          latinName: transliteration.latinName,
+          transliterationMethod: transliteration.method,
+          transliterationConfidence: transliteration.confidence,
+          emailFirstName: transliteration.emailFirstName,
+          emailLastName: transliteration.emailLastName,
+          displayName: fullName,
           email: inferredEmail,
           location: profileData.city && profileData.country_code 
             ? `${profileData.city}, ${profileData.country_code}` 
@@ -625,7 +657,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           careerHistory: bioResult.careerHistory,
           bioSource: 'brightdata',
           bioStatus: 'verified',
-          emailSource: inferredEmail !== candidate.email ? 'domain_pattern' : candidate.emailSource,
+          emailStatus,
+          emailSource,
           processingMode: 'full'
         });
 
