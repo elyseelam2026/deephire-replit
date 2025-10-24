@@ -21,15 +21,15 @@ import { z } from "zod";
 import mammoth from "mammoth";
 
 // Lazy load pdf-parse using createRequire for CommonJS compatibility
-let pdfParseModule: any = null;
+let pdfParseFunction: any = null;
 function getPdfParse() {
-  if (!pdfParseModule) {
+  if (!pdfParseFunction) {
     const require = createRequire(import.meta.url);
     const module = require("pdf-parse");
-    // pdf-parse uses default export in CommonJS
-    pdfParseModule = module.default || module;
+    // pdf-parse exports PDFParse as a named export
+    pdfParseFunction = module.PDFParse || module;
   }
-  return pdfParseModule;
+  return pdfParseFunction;
 }
 
 // Robust file type detection
