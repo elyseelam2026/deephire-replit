@@ -15,6 +15,46 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 24, 2025 - Multi-Language Support + Custom Fields + UI Enhancements
+- **Enterprise Multi-Language Name System** (FREE - No AI costs):
+  - **Database Schema**: 9 new fields for international candidate names
+    - `nativeName` (李嘉冕), `latinName` (Li Jiamian), `nativeNameLocale` (zh-CN)
+    - `transliterationMethod` (pinyin/romaja/romaji), `transliterationConfidence` (0-1 score)
+    - `emailFirstName`/`emailLastName` (ASCII-safe components for email inference)
+    - `displayName` (user-preferred display format)
+  - **3-Step Transliteration Pipeline**: 
+    1. ASCII Detection → Skip if already Latin alphabet
+    2. Auto-Transliteration → pinyin (Chinese), romaja (Korean), romaji (Japanese) with 0.9 confidence
+    3. Initials Fallback → First letter extraction with 0.3 confidence, flagged for manual review
+  - **Email Inference Enhancement**: Uses transliterated names for domain-based email generation
+    - Example: 李嘉冕 → Li Jiamian → li.jiamian@company.com
+    - Status flags: `verified`, `transliterated`, `needs_review`
+  - **All Processing Endpoints Updated**: Career-only, bio-only, and full processing use transliteration
+  - **UI Display**: Candidate detail shows native name prominently, latin name as subtitle, transliteration badge
+  - **Migrated Legacy Data**: Existing `chineseName` values moved to `nativeName` for backward compatibility
+  
+- **Salesforce-Style Custom Fields System**:
+  - **Database Architecture**: 2 new tables for flexible candidate data
+    - `custom_field_sections`: Groupings like "Compensation", "Background", "Executive Summary" with ordering
+    - `custom_field_definitions`: Field metadata (type, validation, picklists, help text, visibility)
+    - `candidates.customFieldValues`: JSONB column storing {fieldId: value} pairs
+  - **Field Types Supported**: text, number, currency, date, select, multi_select, checkbox, url, email, phone
+  - **Complete REST API** (11 endpoints):
+    - `/api/custom-field-sections` (GET, POST, PATCH, DELETE)
+    - `/api/custom-field-definitions` (GET, POST, PATCH, DELETE) 
+    - `/api/candidates/:id/custom-fields` (PATCH for value updates)
+  - **Storage Layer**: Full CRUD methods for sections, definitions, and candidate values
+  - **UI Placeholders**: Custom fields section in candidate detail (admin interface pending)
+
+- **Candidate Detail UI Enhancements**:
+  - **Edit Button**: Added to candidate detail dialog header (implementation pending)
+  - **Documents & Files Section**: UI placeholder for CV/resume upload with empty state
+  - **Notes & Interaction History Section**: UI placeholder for tracking candidate communications
+  - **Multi-Language Name Display**: Native name + latin name + transliteration badge
+  - **Custom Fields Display**: Shows JSON values if present, configuration button
+
+- **Benefits**: International candidate support, flexible data model for different recruiting firms, improved email accuracy, foundation for document management and interaction tracking
+
 ### October 22, 2025 - 4 Processing Modes + Retroactive Processing
 - **Implemented flexible processing modes for candidate uploads**: Users can now choose how much processing to apply to each candidate upload, optimizing credit usage
 - **Four processing modes available**:

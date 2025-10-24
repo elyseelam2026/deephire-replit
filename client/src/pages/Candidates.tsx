@@ -389,22 +389,44 @@ export default function Candidates() {
       <Dialog open={!!selectedCandidate} onOpenChange={(open) => !open && setSelectedCandidate(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col" data-testid={`candidate-profile-${selectedCandidate?.id}`}>
           <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
-            <DialogTitle className="flex items-center gap-3">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>
-                  {selectedCandidate?.firstName?.[0]}{selectedCandidate?.lastName?.[0]}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <span>
-                  {(selectedCandidate as any)?.chineseName || `${selectedCandidate?.firstName} ${selectedCandidate?.lastName}`}
-                </span>
-                {(selectedCandidate as any)?.chineseName && (
-                  <span className="text-sm text-muted-foreground font-normal">
-                    {selectedCandidate?.firstName} {selectedCandidate?.lastName}
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>
+                    {selectedCandidate?.firstName?.[0]}{selectedCandidate?.lastName?.[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col">
+                  <span>
+                    {(selectedCandidate as any)?.nativeName || (selectedCandidate as any)?.chineseName || `${selectedCandidate?.firstName} ${selectedCandidate?.lastName}`}
                   </span>
-                )}
+                  {((selectedCandidate as any)?.nativeName || (selectedCandidate as any)?.chineseName) && (selectedCandidate as any)?.latinName && (
+                    <span className="text-sm text-muted-foreground font-normal">
+                      {(selectedCandidate as any)?.latinName || `${selectedCandidate?.firstName} ${selectedCandidate?.lastName}`}
+                    </span>
+                  )}
+                  {(selectedCandidate as any)?.transliterationMethod && (
+                    <Badge variant="outline" className="text-xs w-fit mt-1" data-testid={`badge-transliteration-${selectedCandidate?.id}`}>
+                      {(selectedCandidate as any).transliterationMethod}{(selectedCandidate as any).nativeNameLocale ? ` • ${(selectedCandidate as any).nativeNameLocale}` : ''}
+                    </Badge>
+                  )}
+                </div>
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  // TODO: Open edit dialog
+                  toast({
+                    title: "Edit Candidate",
+                    description: "Edit functionality coming next"
+                  });
+                }}
+                data-testid={`button-edit-candidate-${selectedCandidate?.id}`}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
             </DialogTitle>
             <DialogDescription>
               Candidate profile and details
@@ -944,6 +966,93 @@ export default function Candidates() {
                     Verify LinkedIn URL
                   </Button>
                 </div>
+              </div>
+
+              {/* Documents & Files Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-sm">Documents & Files</h4>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      toast({
+                        title: "Upload CV",
+                        description: "CV upload feature coming next"
+                      });
+                    }}
+                    data-testid={`button-upload-cv-${selectedCandidate.id}`}
+                  >
+                    <FileText className="h-3 w-3 mr-2" />
+                    Upload CV
+                  </Button>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                  <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">No documents uploaded yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Upload CVs, resumes, or other documents to enhance candidate profiles</p>
+                </div>
+              </div>
+
+              {/* Notes & Interaction History */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-sm">Notes & Interaction History</h4>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      toast({
+                        title: "Add Note",
+                        description: "Notes feature coming next"
+                      });
+                    }}
+                    data-testid={`button-add-note-${selectedCandidate.id}`}
+                  >
+                    <Edit className="h-3 w-3 mr-2" />
+                    Add Note
+                  </Button>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                  <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">No interaction history yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Track calls, emails, meetings, and notes about this candidate</p>
+                </div>
+              </div>
+
+              {/* Custom Fields Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-sm">Custom Fields</h4>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      toast({
+                        title: "Custom Fields",
+                        description: "Configure custom fields in Admin Settings"
+                      });
+                    }}
+                    data-testid={`button-manage-custom-fields-${selectedCandidate.id}`}
+                  >
+                    <Edit className="h-3 w-3 mr-2" />
+                    Configure Fields
+                  </Button>
+                </div>
+                {(selectedCandidate as any)?.customFieldValues ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <pre className="text-xs text-muted-foreground overflow-x-auto">
+                        {JSON.stringify((selectedCandidate as any).customFieldValues, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                    <p className="text-sm text-muted-foreground">No custom fields configured</p>
+                    <p className="text-xs text-muted-foreground mt-1">Add custom fields to track additional candidate information</p>
+                  </div>
+                )}
               </div>
               </TabsContent>
             </Tabs>
