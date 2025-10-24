@@ -1161,7 +1161,7 @@ export async function parseCandidateData(cvText: string): Promise<{
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string;
+  phoneNumber?: string;  // Changed from phone to phoneNumber
   currentCompany?: string;
   currentTitle?: string;
   basicSalary?: number;
@@ -1228,7 +1228,7 @@ export async function parseCandidateData(cvText: string): Promise<{
       firstName: result.firstName,
       lastName: result.lastName,
       email: result.email || undefined, // Don't infer email if not provided
-      phone: result.phone || undefined,
+      phoneNumber: result.phone || undefined,  // Use phoneNumber to match database field
       currentCompany: result.currentCompany || undefined,
       currentTitle: result.currentTitle || undefined,
       basicSalary: typeof result.basicSalary === 'number' ? result.basicSalary : undefined,

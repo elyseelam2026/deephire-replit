@@ -21,13 +21,15 @@ import { z } from "zod";
 import mammoth from "mammoth";
 
 // Lazy load pdf-parse using createRequire for CommonJS compatibility
-let pdfParse: any = null;
+let pdfParseModule: any = null;
 function getPdfParse() {
-  if (!pdfParse) {
+  if (!pdfParseModule) {
     const require = createRequire(import.meta.url);
-    pdfParse = require("pdf-parse");
+    const module = require("pdf-parse");
+    // pdf-parse uses default export in CommonJS
+    pdfParseModule = module.default || module;
   }
-  return pdfParse;
+  return pdfParseModule;
 }
 
 // Robust file type detection
@@ -1687,17 +1689,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create the candidate
-      const candidateToCreate: any = {
+      const newCandidate = await storage.createCandidate({
         ...candidateData,
         cvText: cvText
-      };
-      
-      // Add phone if available
-      if (candidateData.phone) {
-        candidateToCreate.phone = candidateData.phone;
-      }
-      
-      const newCandidate = await storage.createCandidate(candidateToCreate);
+      });
       
       console.log(`✅ Created candidate ${newCandidate.firstName} ${newCandidate.lastName} (ID: ${newCandidate.id})`);
       
@@ -1738,7 +1733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Update candidate with enriched data
               const updateData: any = {
                 linkedinUrl: linkedInUrl,
-                executiveBiography: biography
+                biography: biography  // Use 'biography' not 'executiveBiography'
               };
               await storage.updateCandidate(newCandidate.id, updateData);
               
