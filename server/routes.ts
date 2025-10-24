@@ -20,9 +20,15 @@ import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
 import mammoth from "mammoth";
 
-// Load pdf-parse using createRequire for CommonJS compatibility
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+// Lazy load pdf-parse using createRequire for CommonJS compatibility
+let pdfParse: any = null;
+function getPdfParse() {
+  if (!pdfParse) {
+    const require = createRequire(import.meta.url);
+    pdfParse = require("pdf-parse");
+  }
+  return pdfParse;
+}
 
 // Robust file type detection
 async function detectFileType(file: Express.Multer.File): Promise<string> {
@@ -455,7 +461,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // PDF files
       if (fileName.endsWith('.pdf') || mimeType === 'application/pdf') {
-        const pdfData = await pdfParse(file.buffer);
+        const parse = getPdfParse();
+        const pdfData = await parse(file.buffer);
         return pdfData.text;
       }
 
@@ -1640,7 +1647,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from CV
       let cvText = '';
       if (detectedType === 'pdf') {
-        const pdfData = await pdfParse(file.buffer);
+        const parse = getPdfParse();
+        const pdfData = await parse(file.buffer);
         cvText = pdfData.text;
       } else if (detectedType === 'word') {
         const result = await mammoth.extractRawText({ buffer: file.buffer });
@@ -1679,12 +1687,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create the candidate
-      const newCandidate = await storage.createCandidate({
+      const candidateToCreate: any = {
         ...candidateData,
         cvText: cvText
-      });
+      };
+      
+      // Add phone if available
+      if (candidateData.phone) {
+        candidateToCreate.phone = candidateData.phone;
+      }
+      
+      const newCandidate = await storage.createCandidate(candidateToCreate);
       
       console.log(`✅ Created candidate ${newCandidate.firstName} ${newCandidate.lastName} (ID: ${newCandidate.id})`);
+      
+      // Auto-enrich: Search for LinkedIn profile in the background
+      // Don't block the response, run this asynchronously
+      (async () => {
+        try {
+          console.log(`🔍 Auto-enriching candidate ${newCandidate.id}: searching LinkedIn...`);
+          
+          let linkedInUrl = candidateData.linkedinUrl;
+          
+          // Only search if we don't already have a LinkedIn URL from the CV
+          if (!linkedInUrl && newCandidate.currentCompany) {
+            const searchResult = await searchLinkedInProfile(
+              newCandidate.firstName,
+              newCandidate.lastName,
+              newCandidate.currentCompany
+            );
+            
+            // Handle the search result (can be string or object)
+            if (typeof searchResult === 'string') {
+              linkedInUrl = searchResult;
+            } else if (searchResult && typeof searchResult === 'object' && 'url' in searchResult) {
+              linkedInUrl = searchResult.url;
+            }
+          }
+          
+          if (linkedInUrl) {
+            console.log(`✅ Found LinkedIn profile for ${newCandidate.firstName} ${newCandidate.lastName}: ${linkedInUrl}`);
+            
+            // Scrape LinkedIn profile
+            const linkedInData = await scrapeLinkedInProfile(linkedInUrl);
+            
+            if (linkedInData) {
+              // Generate biography and career history
+              const biography = await generateBiographyFromLinkedInData(linkedInData);
+              
+              // Update candidate with enriched data
+              const updateData: any = {
+                linkedinUrl: linkedInUrl,
+                executiveBiography: biography
+              };
+              await storage.updateCandidate(newCandidate.id, updateData);
+              
+              console.log(`✅ Successfully enriched candidate ${newCandidate.id} with LinkedIn data and biography`);
+            }
+          } else {
+            console.log(`⚠️ No LinkedIn profile found for ${newCandidate.firstName} ${newCandidate.lastName}`);
+          }
+        } catch (enrichError) {
+          console.error(`❌ Error auto-enriching candidate ${newCandidate.id}:`, enrichError);
+          // Don't fail the upload just because enrichment failed
+        }
+      })();
       
       res.json({
         success: true,

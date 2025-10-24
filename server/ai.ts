@@ -1161,6 +1161,7 @@ export async function parseCandidateData(cvText: string): Promise<{
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   currentCompany?: string;
   currentTitle?: string;
   basicSalary?: number;
@@ -1186,25 +1187,29 @@ export async function parseCandidateData(cvText: string): Promise<{
       messages: [
         {
           role: "system",
-          content: "You are an expert recruiter. Parse CV/resume text and extract structured candidate data in JSON format. Always respond with valid JSON."
+          content: "You are an expert recruiter. Parse CV/resume text and extract structured candidate data in JSON format. Pay special attention to names - for Asian names with Western names (e.g., 'Ho Chi Ming, Anthony'), the last name comes first, then given name, then Western name. Always respond with valid JSON."
         },
         {
           role: "user",
           content: `Parse this CV/resume and extract the following information in JSON format:
           {
-            "firstName": "extracted first name",
-            "lastName": "extracted last name", 
-            "email": "email address if found",
+            "firstName": "first name or Western name (for 'Ho Chi Ming, Anthony' this would be 'Anthony')",
+            "lastName": "last/family name (for 'Ho Chi Ming, Anthony' this would be 'Ho')", 
+            "email": "email address if found or null",
+            "phone": "phone number if found or null",
             "currentCompany": "current employer",
             "currentTitle": "current job title",
             "basicSalary": numeric_value_if_mentioned_or_null,
             "salaryExpectations": numeric_value_if_mentioned_or_null,
-            "linkedinUrl": "linkedin_url_if_found",
+            "linkedinUrl": "full linkedin_url_if_found",
             "skills": ["skill1", "skill2", "skill3"],
             "yearsExperience": numeric_years_total_or_null,
             "location": "city, country/state",
             "isAvailable": true_if_actively_looking_or_false
           }
+          
+          IMPORTANT: Extract the ACTUAL email and phone from the CV if present. Do not infer or generate them.
+          For names with multiple parts like "Ho Chi Ming, Anthony", the structure is: LastName GivenName, WesternName
           
           CV/Resume Text:
           ${truncatedText}`
@@ -1222,7 +1227,8 @@ export async function parseCandidateData(cvText: string): Promise<{
     return {
       firstName: result.firstName,
       lastName: result.lastName,
-      email: result.email || `${result.firstName}.${result.lastName}@email.com`.toLowerCase(),
+      email: result.email || undefined, // Don't infer email if not provided
+      phone: result.phone || undefined,
       currentCompany: result.currentCompany || undefined,
       currentTitle: result.currentTitle || undefined,
       basicSalary: typeof result.basicSalary === 'number' ? result.basicSalary : undefined,
