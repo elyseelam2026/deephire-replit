@@ -1156,6 +1156,47 @@ export async function generateCandidateLonglist(
     .slice(0, limit);
 }
 
+// Generate executive biography from CV text
+export async function generateBiographyFromCV(cvText: string, candidateName: string): Promise<string> {
+  try {
+    // Truncate CV text to prevent token limit issues
+    const MAX_CV_LENGTH = 50000;
+    const truncatedText = cvText.length > MAX_CV_LENGTH 
+      ? cvText.substring(0, MAX_CV_LENGTH) + "\n\n[CV text truncated...]"
+      : cvText;
+    
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an executive recruiter writing professional biographies for senior candidates. Write comprehensive, third-person biographies that highlight career achievements, expertise, and professional journey."
+        },
+        {
+          role: "user",
+          content: `Write a professional executive biography for ${candidateName} based on their CV below. 
+
+The biography should:
+- Be written in third person
+- Highlight key career achievements and progression
+- Emphasize areas of expertise and specialization
+- Include education background
+- Be 2-3 paragraphs long
+- Sound professional and polished
+
+CV Text:
+${truncatedText}`
+        }
+      ]
+    });
+
+    return response.choices[0].message.content || "";
+  } catch (error) {
+    console.error("Error generating biography from CV:", error);
+    return "";
+  }
+}
+
 // Parse candidate data from CV/resume text
 export async function parseCandidateData(cvText: string): Promise<{
   firstName: string;

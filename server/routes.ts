@@ -8,7 +8,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV } from "./ai";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
@@ -1649,8 +1649,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from CV
       let cvText = '';
       if (detectedType === 'pdf') {
-        const parse = getPdfParse();
-        const pdfData = await parse(file.buffer);
+        const pdfParseFunc = getPdfParse();
+        const pdfData = await pdfParseFunc(file.buffer);
         cvText = pdfData.text;
       } else if (detectedType === 'word') {
         const result = await mammoth.extractRawText({ buffer: file.buffer });
@@ -1696,15 +1696,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`✅ Created candidate ${newCandidate.firstName} ${newCandidate.lastName} (ID: ${newCandidate.id})`);
       
-      // Auto-enrich: Search for LinkedIn profile in the background
+      // Auto-enrich: Generate biography from CV in the background
       // Don't block the response, run this asynchronously
       (async () => {
         try {
-          console.log(`🔍 Auto-enriching candidate ${newCandidate.id}: searching LinkedIn...`);
+          console.log(`🔍 Auto-enriching candidate ${newCandidate.id}: generating biography from CV...`);
           
+          // Generate biography from CV text (CV is primary source)
+          const biography = await generateBiographyFromCV(
+            cvText, 
+            `${newCandidate.firstName} ${newCandidate.lastName}`
+          );
+          
+          if (biography) {
+            console.log(`✅ Generated biography from CV for ${newCandidate.firstName} ${newCandidate.lastName}`);
+            
+            // Update candidate with biography
+            await storage.updateCandidate(newCandidate.id, {
+              biography: biography,
+              bioSource: 'cv'  // Mark that biography was generated from CV
+            } as any);
+            
+            console.log(`✅ Successfully enriched candidate ${newCandidate.id} with CV-based biography`);
+          }
+          
+          // Also search for LinkedIn profile if not already in CV
           let linkedInUrl = candidateData.linkedinUrl;
           
-          // Only search if we don't already have a LinkedIn URL from the CV
           if (!linkedInUrl && newCandidate.currentCompany) {
             const searchResult = await searchLinkedInProfile(
               newCandidate.firstName,
@@ -1718,29 +1736,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else if (searchResult && typeof searchResult === 'object' && 'url' in searchResult) {
               linkedInUrl = searchResult.url;
             }
-          }
-          
-          if (linkedInUrl) {
-            console.log(`✅ Found LinkedIn profile for ${newCandidate.firstName} ${newCandidate.lastName}: ${linkedInUrl}`);
             
-            // Scrape LinkedIn profile
-            const linkedInData = await scrapeLinkedInProfile(linkedInUrl);
-            
-            if (linkedInData) {
-              // Generate biography and career history
-              const biography = await generateBiographyFromLinkedInData(linkedInData);
-              
-              // Update candidate with enriched data
-              const updateData: any = {
-                linkedinUrl: linkedInUrl,
-                biography: biography  // Use 'biography' not 'executiveBiography'
-              };
-              await storage.updateCandidate(newCandidate.id, updateData);
-              
-              console.log(`✅ Successfully enriched candidate ${newCandidate.id} with LinkedIn data and biography`);
+            if (linkedInUrl) {
+              console.log(`✅ Found LinkedIn profile: ${linkedInUrl}`);
+              await storage.updateCandidate(newCandidate.id, {
+                linkedinUrl: linkedInUrl
+              } as any);
             }
-          } else {
-            console.log(`⚠️ No LinkedIn profile found for ${newCandidate.firstName} ${newCandidate.lastName}`);
           }
         } catch (enrichError) {
           console.error(`❌ Error auto-enriching candidate ${newCandidate.id}:`, enrichError);
