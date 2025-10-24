@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText, Building2, Calendar, Sparkles } from "lucide-react";
+import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText, Building2, Calendar, Sparkles, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Candidate, CareerHistoryEntry } from "@shared/schema";
@@ -35,7 +35,10 @@ export default function Candidates() {
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteType, setNoteType] = useState("note");
+  const [uploadCVDialogOpen, setUploadCVDialogOpen] = useState(false);
+  const [uploadingCV, setUploadingCV] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const singleCVInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -233,6 +236,62 @@ export default function Candidates() {
     },
   });
 
+  const uploadSingleCVMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/candidates/upload-single-cv', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || error.error || 'Upload failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      toast({
+        title: "Candidate Created",
+        description: `Successfully created ${data.candidate.firstName} ${data.candidate.lastName}`,
+      });
+      setUploadCVDialogOpen(false);
+      setUploadingCV(false);
+      // Open the newly created candidate detail dialog
+      setSelectedCandidate(data.candidate);
+      if (singleCVInputRef.current) {
+        singleCVInputRef.current.value = '';
+      }
+    },
+    onError: (error: any) => {
+      setUploadingCV(false);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to process CV",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSingleCVUpload = async () => {
+    if (!singleCVInputRef.current?.files || singleCVInputRef.current.files.length === 0) {
+      toast({
+        title: "No File Selected",
+        description: "Please select a CV file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const file = singleCVInputRef.current.files[0];
+    setUploadingCV(true);
+    uploadSingleCVMutation.mutate(file);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-6" data-testid="candidates-page">
@@ -298,9 +357,9 @@ export default function Candidates() {
             Find and manage talent ({candidates?.length || 0} total)
           </p>
         </div>
-        <Button data-testid="button-add-candidate">
-          <Users className="h-4 w-4 mr-2" />
-          Add Candidate
+        <Button onClick={() => setUploadCVDialogOpen(true)} data-testid="button-upload-cv">
+          <Upload className="h-4 w-4 mr-2" />
+          Upload CV
         </Button>
       </div>
 
@@ -1517,6 +1576,56 @@ export default function Candidates() {
                 data-testid="button-save-biography"
               >
                 {saveBiographyMutation.isPending ? "Saving..." : "Save Biography"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload CV Dialog */}
+      <Dialog open={uploadCVDialogOpen} onOpenChange={setUploadCVDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload CV</DialogTitle>
+            <DialogDescription>
+              Upload a candidate's CV (PDF, DOCX, or TXT) to automatically create their profile.
+              The system will extract their information and check for duplicates.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cv-file">CV File</Label>
+              <Input
+                id="cv-file"
+                type="file"
+                ref={singleCVInputRef}
+                accept=".pdf,.docx,.doc,.txt"
+                data-testid="input-cv-file"
+              />
+              <p className="text-sm text-muted-foreground">
+                Accepted formats: PDF, DOCX, DOC, TXT
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setUploadCVDialogOpen(false);
+                  if (singleCVInputRef.current) {
+                    singleCVInputRef.current.value = '';
+                  }
+                }}
+                data-testid="button-cancel-cv-upload"
+                disabled={uploadingCV}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSingleCVUpload}
+                disabled={uploadingCV}
+                data-testid="button-upload-cv-submit"
+              >
+                {uploadingCV ? 'Processing...' : 'Upload & Create'}
               </Button>
             </div>
           </div>

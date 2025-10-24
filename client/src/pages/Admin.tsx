@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,9 @@ type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
 interface UploadResult {
   success: number;
   duplicates?: number;
+  jobId?: number;
+  backgroundProcessing?: boolean;
+  urlsQueued?: number;
   failed: number;
   total: number;
   message?: string;
@@ -331,6 +334,10 @@ export default function Admin() {
   const [companyStatus, setCompanyStatus] = useState<UploadStatus>('idle');
   const [candidateProgress, setCandidateProgress] = useState(0);
   const [companyProgress, setCompanyProgress] = useState(0);
+  const [candidateJobId, setCandidateJobId] = useState<number | null>(null);
+  const [companyJobId, setCompanyJobId] = useState<number | null>(null);
+  const [candidateJobStatus, setCandidateJobStatus] = useState<string>('');
+  const [companyJobStatus, setCompanyJobStatus] = useState<string>('');
   const [duplicateFilter, setDuplicateFilter] = useState<string>('pending');
   const [entityFilter, setEntityFilter] = useState<string>('all');
   const [historyEntityFilter, setHistoryEntityFilter] = useState<string>('all');
@@ -340,8 +347,119 @@ export default function Admin() {
     result: UploadResult | null;
     entityType: 'candidate' | 'company';
   }>({ isOpen: false, result: null, entityType: 'candidate' });
-  const { toast } = useToast();
+  const { toast} = useToast();
   const queryClient = useQueryClient();
+
+  // Poll for job status when processing
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const pollJobStatus = async (jobId: number, type: 'candidate' | 'company') => {
+      try {
+        const response = await fetch(`/api/admin/jobs/${jobId}/status`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        
+        if (type === 'candidate') {
+          setCandidateJobStatus(data.status);
+          setCandidateProgress(data.progressPercentage || 0);
+          
+          if (data.status === 'completed') {
+            setCandidateStatus('completed');
+            setCandidateJobId(null);
+            queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/admin/upload-history'] });
+          } else if (data.status === 'stopped') {
+            setCandidateStatus('idle');
+            setCandidateJobId(null);
+            toast({ title: "Upload Stopped", description: "The upload was cancelled by user.", variant: "destructive" });
+          } else if (data.status === 'error') {
+            setCandidateStatus('error');
+            setCandidateJobId(null);
+            toast({ title: "Upload Failed", description: "The upload encountered an error.", variant: "destructive" });
+          }
+        } else {
+          setCompanyJobStatus(data.status);
+          setCompanyProgress(data.progressPercentage || 0);
+          
+          if (data.status === 'completed') {
+            setCompanyStatus('completed');
+            setCompanyJobId(null);
+            queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/admin/upload-history'] });
+          } else if (data.status === 'stopped') {
+            setCompanyStatus('idle');
+            setCompanyJobId(null);
+            toast({ title: "Upload Stopped", description: "The company upload was cancelled by user.", variant: "destructive" });
+          } else if (data.status === 'error') {
+            setCompanyStatus('error');
+            setCompanyJobId(null);
+            toast({ title: "Upload Failed", description: "The company upload encountered an error.", variant: "destructive" });
+          }
+        }
+      } catch (error) {
+        console.error('Error polling job status:', error);
+      }
+    };
+
+    if (candidateJobId) {
+      intervalId = setInterval(() => pollJobStatus(candidateJobId, 'candidate'), 2000);
+    } else if (companyJobId) {
+      intervalId = setInterval(() => pollJobStatus(companyJobId, 'company'), 2000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [candidateJobId, companyJobId, queryClient]);
+
+  // Job control functions
+  const pauseJob = async (jobId: number, type: 'candidate' | 'company') => {
+    try {
+      await apiRequest('POST', `/api/admin/jobs/${jobId}/pause`, null);
+      if (type === 'candidate') {
+        setCandidateJobStatus('paused');
+      } else {
+        setCompanyJobStatus('paused');
+      }
+      toast({ title: "Job Paused", description: "The upload job has been paused." });
+    } catch (error: any) {
+      toast({ title: "Pause Failed", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const resumeJob = async (jobId: number, type: 'candidate' | 'company') => {
+    try {
+      await apiRequest('POST', `/api/admin/jobs/${jobId}/resume`, null);
+      if (type === 'candidate') {
+        setCandidateJobStatus('processing');
+      } else {
+        setCompanyJobStatus('processing');
+      }
+      toast({ title: "Job Resumed", description: "The upload job has been resumed." });
+    } catch (error: any) {
+      toast({ title: "Resume Failed", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const stopJob = async (jobId: number, type: 'candidate' | 'company') => {
+    try {
+      await apiRequest('POST', `/api/admin/jobs/${jobId}/stop`, null);
+      if (type === 'candidate') {
+        setCandidateJobStatus('stopped');
+        setCandidateJobId(null);
+        setCandidateStatus('idle');
+      } else {
+        setCompanyJobStatus('stopped');
+        setCompanyJobId(null);
+        setCompanyStatus('idle');
+      }
+      toast({ title: "Job Stopped", description: "The upload job has been cancelled." });
+    } catch (error: any) {
+      toast({ title: "Stop Failed", description: error.message, variant: "destructive" });
+    }
+  };
 
   // Navigation handlers for the summary modal
   const handleNavigateToData = (entityType: 'candidate' | 'company') => {
@@ -379,15 +497,26 @@ export default function Admin() {
       return await res.json() as UploadResult;
     },
     onSuccess: (result: UploadResult) => {
-      setCandidateStatus('completed');
-      setCandidateProgress(100);
-      
-      // Show comprehensive summary modal instead of simple toast
-      setSummaryModal({
-        isOpen: true,
-        result,
-        entityType: 'candidate'
-      });
+      // Check if background processing is happening
+      if (result.backgroundProcessing && result.jobId) {
+        setCandidateJobId(result.jobId);
+        setCandidateStatus('processing');
+        setCandidateJobStatus('processing');
+        toast({
+          title: "Processing Started",
+          description: `Processing ${result.urlsQueued} URLs in the background. You can monitor progress below.`,
+        });
+      } else {
+        setCandidateStatus('completed');
+        setCandidateProgress(100);
+        
+        // Show comprehensive summary modal instead of simple toast
+        setSummaryModal({
+          isOpen: true,
+          result,
+          entityType: 'candidate'
+        });
+      }
       
       queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/duplicates'] });

@@ -17,7 +17,6 @@ import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, 
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
 import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
-import * as pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 
 // Robust file type detection
@@ -451,6 +450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // PDF files
       if (fileName.endsWith('.pdf') || mimeType === 'application/pdf') {
+        const pdfParse = (await import("pdf-parse")).default;
         const pdfData = await pdfParse(file.buffer);
         return pdfData.text;
       }
@@ -1614,6 +1614,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
       console.error("Error message:", error instanceof Error ? error.message : error);
       res.status(500).json({ error: "Failed to process candidate uploads", details: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // Individual CV upload endpoint - upload single CV to create new candidate
+  app.post("/api/candidates/upload-single-cv", upload.single('file'), async (req: MulterRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      const processingMode = req.body.processingMode || 'full';
+      
+      console.log(`Processing single CV: ${file.originalname}`);
+      
+      // Detect file type
+      const detectedType = await detectFileType(file);
+      console.log(`Detected file type: ${detectedType}`);
+      
+      // Extract text from CV
+      let cvText = '';
+      if (detectedType === 'pdf') {
+        const pdfParse = (await import("pdf-parse")).default;
+        const pdfData = await pdfParse(file.buffer);
+        cvText = pdfData.text;
+      } else if (detectedType === 'word') {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        cvText = result.value;
+      } else if (detectedType === 'text') {
+        cvText = file.buffer.toString('utf-8');
+      } else {
+        return res.status(400).json({ error: "Unsupported file type. Please upload PDF, DOCX, or TXT files." });
+      }
+      
+      if (!cvText || cvText.trim().length === 0) {
+        return res.status(400).json({ error: "Could not extract text from CV. Please ensure the file contains readable text." });
+      }
+      
+      console.log(`Extracted ${cvText.length} characters from CV`);
+      
+      // Parse candidate data using AI
+      const candidateData = await parseCandidateData(cvText);
+      
+      if (!candidateData) {
+        return res.status(400).json({ error: "Could not parse candidate information from CV. Please ensure the CV contains clear candidate details." });
+      }
+      
+      console.log(`Parsed candidate: ${candidateData.firstName} ${candidateData.lastName}`);
+      
+      // Check for duplicates
+      const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData);
+      
+      if (duplicates.length > 0) {
+        return res.status(409).json({ 
+          error: "Duplicate candidate detected",
+          message: `This candidate already exists in the system: ${candidateData.firstName} ${candidateData.lastName}`,
+          duplicates: duplicates,
+          candidateData: candidateData
+        });
+      }
+      
+      // Create the candidate
+      const newCandidate = await storage.createCandidate({
+        ...candidateData,
+        cvText: cvText
+      });
+      
+      console.log(`✅ Created candidate ${newCandidate.firstName} ${newCandidate.lastName} (ID: ${newCandidate.id})`);
+      
+      res.json({
+        success: true,
+        candidate: newCandidate,
+        message: `Successfully created candidate ${newCandidate.firstName} ${newCandidate.lastName}`
+      });
+      
+    } catch (error) {
+      console.error("Error processing single CV upload:", error);
+      res.status(500).json({ 
+        error: "Failed to process CV", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 
