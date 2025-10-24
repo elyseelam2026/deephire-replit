@@ -20,14 +20,6 @@ import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
 import mammoth from "mammoth";
 
-// PDF parsing function - use require for CommonJS compatibility
-async function parsePdf(buffer: Buffer): Promise<string> {
-  const require = createRequire(import.meta.url);
-  const pdfParse = require('pdf-parse');
-  const data = await pdfParse(buffer);
-  return data.text;
-}
-
 // Robust file type detection
 async function detectFileType(file: Express.Multer.File): Promise<string> {
   try {
@@ -457,9 +449,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const mimeType = file.mimetype;
 
     try {
-      // PDF files
+      // PDF files - NOT SUPPORTED
       if (fileName.endsWith('.pdf') || mimeType === 'application/pdf') {
-        return await parsePdf(file.buffer);
+        throw new Error("PDF files are not currently supported. Please upload DOCX or TXT files.");
       }
 
       // Word documents (.docx)
@@ -1643,7 +1635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from CV
       let cvText = '';
       if (detectedType === 'pdf') {
-        cvText = await parsePdf(file.buffer);
+        return res.status(400).json({ error: "PDF files are not currently supported. Please upload DOCX or TXT files instead." });
       } else if (detectedType === 'word') {
         const result = await mammoth.extractRawText({ buffer: file.buffer });
         cvText = result.value;
