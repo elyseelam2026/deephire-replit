@@ -381,6 +381,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add note to candidate's interaction history
+  app.post("/api/candidates/:id/notes", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(candidateId);
+      
+      if (!candidate) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+
+      const { type, content } = req.body;
+      
+      if (!content || !content.trim()) {
+        return res.status(400).json({ error: "Note content is required" });
+      }
+
+      // Get existing interaction history or initialize empty array
+      const interactionHistory = (candidate.interactionHistory as any[]) || [];
+      
+      // Create new note
+      const newNote = {
+        id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: type || 'note',
+        content: content.trim(),
+        createdAt: new Date().toISOString(),
+      };
+      
+      // Add note to beginning of array (most recent first)
+      interactionHistory.unshift(newNote);
+      
+      // Update candidate with new interaction history
+      const updatedCandidate = await storage.updateCandidate(candidateId, {
+        interactionHistory: interactionHistory as any
+      });
+      
+      res.json(updatedCandidate);
+    } catch (error) {
+      console.error("Error adding note:", error);
+      res.status(500).json({ error: "Failed to add note" });
+    }
+  });
+
   // Delete candidate endpoint (soft delete - moves to recycling bin)
   app.delete("/api/candidates/:id", async (req, res) => {
     try {

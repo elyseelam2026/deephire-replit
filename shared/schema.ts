@@ -337,6 +337,10 @@ export const candidates = pgTable("candidates", {
   customFieldValues: jsonb("custom_field_values"), // {fieldId: value} - stores custom field data
   // Example: {"deal_experience": ["Buyout", "Growth"], "aum_managed": "$500M", "board_seats": 3}
   
+  // Interaction History & Notes
+  interactionHistory: jsonb("interaction_history"), // Array of interaction/note objects
+  // Example: [{id: "note_123", type: "note", content: "Great candidate", createdAt: "2025-01-01T12:00:00Z"}]
+  
   // System fields (existing)
   cvText: text("cv_text"), // extracted CV text
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),

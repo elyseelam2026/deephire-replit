@@ -10,7 +10,7 @@ import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalL
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Candidate, CareerHistoryEntry } from "@shared/schema";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -32,6 +32,10 @@ export default function Candidates() {
   const [bioText, setBioText] = useState("");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<any>({});
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [noteType, setNoteType] = useState("note");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -101,6 +105,75 @@ export default function Candidates() {
       toast({
         title: "Update Failed",
         description: error.message || "Failed to update candidate",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const uploadCVMutation = useMutation({
+    mutationFn: async ({ candidateId, file }: { candidateId: number; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('candidateId', candidateId.toString());
+      
+      const response = await fetch('/api/candidates/upload-cv', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      toast({
+        title: "CV Uploaded",
+        description: "The CV has been uploaded and processed successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload CV",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && selectedCandidate) {
+      uploadCVMutation.mutate({ candidateId: selectedCandidate.id, file });
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const addNoteMutation = useMutation({
+    mutationFn: async ({ candidateId, type, content }: { candidateId: number; type: string; content: string }) => {
+      const response = await apiRequest('POST', `/api/candidates/${candidateId}/notes`, { type, content });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      toast({
+        title: "Note Added",
+        description: "The note has been added to the candidate's interaction history.",
+      });
+      setNoteDialogOpen(false);
+      setNoteText("");
+      setNoteType("note");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Add Note Failed",
+        description: error.message || "Failed to add note",
         variant: "destructive",
       });
     },
@@ -1011,23 +1084,43 @@ export default function Candidates() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      toast({
-                        title: "Upload CV",
-                        description: "CV upload feature coming next"
-                      });
-                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadCVMutation.isPending}
                     data-testid={`button-upload-cv-${selectedCandidate.id}`}
                   >
                     <FileText className="h-3 w-3 mr-2" />
-                    Upload CV
+                    {uploadCVMutation.isPending ? 'Uploading...' : 'Upload CV'}
                   </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.pdf,.doc,.docx"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    data-testid="input-file-upload"
+                  />
                 </div>
-                <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed text-center">
-                  <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">No documents uploaded yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">Upload CVs, resumes, or other documents to enhance candidate profiles</p>
-                </div>
+                {selectedCandidate.cvText ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">CV/Resume</span>
+                      </div>
+                      <div className="p-3 bg-background rounded border">
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto">
+                          {selectedCandidate.cvText}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                    <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">No documents uploaded yet</p>
+                    <p className="text-xs text-muted-foreground mt-1">Upload CVs, resumes, or other documents to enhance candidate profiles</p>
+                  </div>
+                )}
               </div>
 
               {/* Notes & Interaction History */}
@@ -1037,23 +1130,36 @@ export default function Candidates() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      toast({
-                        title: "Add Note",
-                        description: "Notes feature coming next"
-                      });
-                    }}
+                    onClick={() => setNoteDialogOpen(true)}
                     data-testid={`button-add-note-${selectedCandidate.id}`}
                   >
                     <Edit className="h-3 w-3 mr-2" />
                     Add Note
                   </Button>
                 </div>
-                <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed text-center">
-                  <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">No interaction history yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">Track calls, emails, meetings, and notes about this candidate</p>
-                </div>
+                {(selectedCandidate as any)?.interactionHistory && ((selectedCandidate as any).interactionHistory as any[]).length > 0 ? (
+                  <div className="space-y-3">
+                    {((selectedCandidate as any).interactionHistory as any[]).map((interaction: any) => (
+                      <div key={interaction.id} className="p-3 bg-muted/30 rounded-lg border-l-2 border-primary">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {interaction.type}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(interaction.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap">{interaction.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                    <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">No interaction history yet</p>
+                    <p className="text-xs text-muted-foreground mt-1">Track calls, emails, meetings, and notes about this candidate</p>
+                  </div>
+                )}
               </div>
 
               {/* Custom Fields Section */}
@@ -1275,6 +1381,74 @@ export default function Candidates() {
                 data-testid="button-save-edit"
               >
                 {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Note Dialog */}
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Add Note</DialogTitle>
+            <DialogDescription>
+              Add a note, call log, email summary, or meeting record to track interactions with this candidate
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="note-type">Type</Label>
+              <select
+                id="note-type"
+                value={noteType}
+                onChange={(e) => setNoteType(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+                data-testid="select-note-type"
+              >
+                <option value="note">Note</option>
+                <option value="call">Call</option>
+                <option value="email">Email</option>
+                <option value="meeting">Meeting</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="note-content">Note Content</Label>
+              <Textarea
+                id="note-content"
+                placeholder="Enter your note here..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                rows={6}
+                data-testid="textarea-note-content"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setNoteDialogOpen(false);
+                  setNoteText("");
+                  setNoteType("note");
+                }}
+                data-testid="button-cancel-note"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedCandidate && noteText.trim()) {
+                    addNoteMutation.mutate({
+                      candidateId: selectedCandidate.id,
+                      type: noteType,
+                      content: noteText
+                    });
+                  }
+                }}
+                disabled={!noteText.trim() || addNoteMutation.isPending}
+                data-testid="button-save-note"
+              >
+                {addNoteMutation.isPending ? 'Adding...' : 'Add Note'}
               </Button>
             </div>
           </div>
