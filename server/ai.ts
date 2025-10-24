@@ -1161,6 +1161,7 @@ export async function parseCandidateData(cvText: string): Promise<{
   firstName: string;
   lastName: string;
   email: string;
+  emailSource?: string;  // 'cv' or 'inferred'
   phoneNumber?: string;  // Changed from phone to phoneNumber
   currentCompany?: string;
   currentTitle?: string;
@@ -1224,10 +1225,16 @@ export async function parseCandidateData(cvText: string): Promise<{
       return null; // Invalid data
     }
 
+    // For CV uploads: prefer actual email from CV, but infer if not present
+    // CV email is marked as 'cv' source, inferred email is marked as 'inferred'
+    const email = result.email || `${result.firstName}.${result.lastName}@email.com`.toLowerCase();
+    const emailSource = result.email ? 'cv' : 'inferred';
+    
     return {
       firstName: result.firstName,
       lastName: result.lastName,
-      email: result.email || undefined, // Don't infer email if not provided
+      email: email,
+      emailSource: emailSource,  // Track whether email came from CV or was inferred
       phoneNumber: result.phone || undefined,  // Use phoneNumber to match database field
       currentCompany: result.currentCompany || undefined,
       currentTitle: result.currentTitle || undefined,
