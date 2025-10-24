@@ -20,16 +20,11 @@ import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
 import mammoth from "mammoth";
 
-// Lazy load pdf-parse using createRequire for CommonJS compatibility
-let pdfParseFunction: any = null;
-function getPdfParse() {
-  if (!pdfParseFunction) {
-    const require = createRequire(import.meta.url);
-    const module = require("pdf-parse");
-    // pdf-parse exports PDFParse as a named export
-    pdfParseFunction = module.PDFParse || module;
-  }
-  return pdfParseFunction;
+// PDF parsing function - dynamically import pdf-parse
+async function parsePdf(buffer: Buffer): Promise<string> {
+  const { PDFParse } = await import('pdf-parse');
+  const data = await PDFParse(buffer);
+  return data.text;
 }
 
 // Robust file type detection
@@ -463,9 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // PDF files
       if (fileName.endsWith('.pdf') || mimeType === 'application/pdf') {
-        const parse = getPdfParse();
-        const pdfData = await parse(file.buffer);
-        return pdfData.text;
+        return await parsePdf(file.buffer);
       }
 
       // Word documents (.docx)
@@ -1649,9 +1642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from CV
       let cvText = '';
       if (detectedType === 'pdf') {
-        const pdfParseFunc = getPdfParse();
-        const pdfData = await pdfParseFunc(file.buffer);
-        cvText = pdfData.text;
+        cvText = await parsePdf(file.buffer);
       } else if (detectedType === 'word') {
         const result = await mammoth.extractRawText({ buffer: file.buffer });
         cvText = result.value;
