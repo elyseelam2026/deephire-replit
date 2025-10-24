@@ -1173,6 +1173,14 @@ export async function parseCandidateData(cvText: string): Promise<{
   cvText: string;
 } | null> {
   try {
+    // Truncate CV text to prevent token limit issues
+    // Grok-2 has 131k token limit. 1 token ≈ 4 chars, so ~50k chars is safe (~12.5k tokens)
+    // This leaves plenty of room for the prompt itself
+    const MAX_CV_LENGTH = 50000;
+    const truncatedText = cvText.length > MAX_CV_LENGTH 
+      ? cvText.substring(0, MAX_CV_LENGTH) + "\n\n[CV text truncated...]"
+      : cvText;
+    
     const response = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
@@ -1199,7 +1207,7 @@ export async function parseCandidateData(cvText: string): Promise<{
           }
           
           CV/Resume Text:
-          ${cvText}`
+          ${truncatedText}`
         }
       ],
       response_format: { type: "json_object" }

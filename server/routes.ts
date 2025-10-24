@@ -19,6 +19,12 @@ import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
 import mammoth from "mammoth";
 
+// Helper to load pdf-parse dynamically (CommonJS module in ES environment)
+async function loadPdfParse() {
+  const pdfParseModule = await import("pdf-parse");
+  return pdfParseModule.default || pdfParseModule;
+}
+
 // Robust file type detection
 async function detectFileType(file: Express.Multer.File): Promise<string> {
   try {
@@ -450,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // PDF files
       if (fileName.endsWith('.pdf') || mimeType === 'application/pdf') {
-        const pdfParse = (await import("pdf-parse")).default;
+        const pdfParse = await loadPdfParse();
         const pdfData = await pdfParse(file.buffer);
         return pdfData.text;
       }
@@ -1636,7 +1642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from CV
       let cvText = '';
       if (detectedType === 'pdf') {
-        const pdfParse = (await import("pdf-parse")).default;
+        const pdfParse = await loadPdfParse();
         const pdfData = await pdfParse(file.buffer);
         cvText = pdfData.text;
       } else if (detectedType === 'word') {
