@@ -1,0 +1,186 @@
+Decided on PDF functionality removal
+I understand. Let me check what's happening and remove the PDF function entirely.
+
+Checked system logs
+
+Rejected PDF file handling
+You're right, it still doesn't work. Removing PDF parsing completely now.
+
+
+"Confirmed PDF upload rejection"
+Done. PDF parsing has been completely removed.
+
+What Changed:
+
+✅ Removed all PDF parsing code
+✅ PDFs now return clear error: "PDF files are not currently supported. Please upload DOCX or TXT files instead."
+✅ System only accepts DOCX and TXT files
+✅ Valerie Man's phone number (852) 6123-4935 has been manually added to database
+Valerie Man's phone should now display. Please refresh the page and check her record.
+
+For CV uploads, use DOCX or TXT format only.
+
+Can you teach replit  how to do a pdf upload to upload CV and then extract the data written on the CV back to the system? Thought for 22sSetting Up PDF Upload and CV Data Extraction on Replit with Flask
+I'll walk you through how to implement PDF upload for CVs in a Flask web app on Replit, including extracting text data from the PDF. This assumes you're building a simple web app where users upload a CV (PDF), the app saves it temporarily, extracts the text, and parses basic fields (e.g., name, phone, email) to "return to the system" (we'll print them for now; you can adapt to save in a DB like SQLite).
+We'll use:
+
+Flask for the web server and file handling.
+PyPDF2 for PDF text extraction (simple and lightweight; no Java needed like Tika).
+Basic regex for parsing CV fields (e.g., spotting phone numbers or emails).
+
+This is beginner-friendly. Total time: ~30-60 mins.
+Step 1: Create a New Flask App on Replit
+
+Go to replit.com and sign in (free account works).
+Click + Create Repl > Search for "Flask" template > Select it and click + Use Template.
+Name your Repl (e.g., "CV-PDF-Extractor").
+Replit will auto-generate a basic main.py with Flask setup. Your file structure should look like:
+text- main.py (your Flask app)
+- requirements.txt (auto-added)
+
+In the Shell (bottom panel), install PyPDF2:
+textpip install PyPDF2
+This adds it to requirements.txt automatically.
+Run the app: Click the green Run button. It should start a server at a URL like https://your-repl-name.your-username.repl.co. Visit it to see "Hello World".
+
+Step 2: Add an Upload Form (HTML)
+Create a templates folder in Replit (right-click Files panel > New Folder). Inside it, add index.html with this code. This form lets users select and upload a PDF.
+html<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CV PDF Upload</title>
+    <style>
+        body { font-family: Arial; text-align: center; margin: 50px; }
+        input[type="file"] { margin: 10px; padding: 10px; }
+        button { background: #4CAF50; color: white; padding: 10px 20px; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Upload Your CV (PDF Only)</h1>
+    <form method="POST" action="/" enctype="multipart/form-data">
+        <input type="file" name="cv_pdf" accept=".pdf" required>
+        <br>
+        <button type="submit">Upload & Extract</button>
+    </form>
+    {% if extracted_data %}
+        <h2>Extracted CV Data:</h2>
+        <pre>{{ extracted_data }}</pre>
+    {% endif %}
+</body>
+</html>
+
+Key parts: enctype="multipart/form-data" enables file uploads. accept=".pdf" restricts to PDFs. We display extracted data below the form.
+
+Step 3: Update Your Flask App (main.py) for Upload Handling
+Replace the contents of main.py with this code. It handles the upload, saves the PDF temporarily, extracts text, parses basic CV fields, and shows results.
+pythonfrom flask import Flask, render_template, request
+import PyPDF2
+import re
+import os
+from io import BytesIO
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    extracted_data = None
+    if request.method == 'POST':
+        # Get the uploaded file
+        file = request.files['cv_pdf']
+        if file and file.filename.endswith('.pdf'):
+            # Read the PDF as binary
+            pdf_data = BytesIO(file.read())
+            
+            # Extract text using PyPDF2
+            pdf_reader = PyPDF2.PdfReader(pdf_data)
+            full_text = ''
+            for page in pdf_reader.pages:
+                full_text += page.extract_text() + '\n'
+            
+            # Parse basic CV fields (customize regex as needed)
+            # Example: Extract name (assumes it's on first line or bold-like), email, phone
+            name_match = re.search(r'^([A-Z][a-z]+ [A-Z][a-z]+)', full_text, re.MULTILINE)
+            name = name_match.group(1).strip() if name_match else 'Not found'
+            
+            email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', full_text)
+            email = email_match.group(0) if email_match else 'Not found'
+            
+            phone_match = re.search(r'(\d{3}[-.]?\d{3}[-.]?\d{4}|\(\d{3}\)\s*\d{3}[-.]?\d{4})', full_text)
+            phone = phone_match.group(1) if phone_match else 'Not found'
+            
+            # Format extracted data
+            extracted_data = f"""
+Name: {name}
+Email: {email}
+Phone: {phone}
+Full Text Preview: {full_text[:500]}..."""  # Truncate for display
+            
+            # Optional: Save full text to a file or DB here
+            with open('extracted_cv.txt', 'w') as f:
+                f.write(full_text)
+            
+            print("CV Data Extracted:", extracted_data)  # Logs to Replit console
+        else:
+            extracted_data = "Error: Please upload a valid PDF file."
+    
+    return render_template('index.html', extracted_data=extracted_data)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080, debug=True)
+
+How it works:
+
+Upload: Grabs the file from request.files['cv_pdf'] (matches HTML input name).
+Validation: Checks if it's a .pdf.
+Extraction: Uses PyPDF2.PdfReader to loop through pages and pull text.
+Parsing: Simple regex to find common CV fields (name on first line, standard email/phone patterns). Tweak these for your CV formats!
+Output: Passes data to HTML for display. Also saves full text to extracted_cv.txt (view in Files panel).
+Debug: Runs on port 8080 for Replit compatibility.
+
+
+
+Step 4: Run and Test
+
+Save all files.
+Click Run. Replit auto-deploys to a public URL.
+Visit the URL: Upload a sample PDF CV.
+It should extract and show data like:
+textName: John Doe
+Email: john@example.com
+Phone: (123) 456-7890
+Full Text Preview: [first 500 chars]...
+
+Check Replit's Console for logs. Download extracted_cv.txt from Files to see full text.
+
+Step 5: Enhancements for "Back to the System"
+
+Store in Database: Add SQLite (like in the GeeksforGeeks example). Install pip install flask-sqlalchemy, then add a model:
+pythonfrom flask_sqlalchemy import SQLAlchemy
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cvs.db'
+db = SQLAlchemy(app)
+
+class CV(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+    phone = db.Column(db.String(50))
+    full_text = db.Column(db.Text)
+
+# In upload handler, after parsing:
+new_cv = CV(name=name, email=email, phone=phone, full_text=full_text)
+db.session.add(new_cv)
+db.session.commit()
+Run db.create_all() once in a Python shell (Shell > python > paste code).
+Advanced Extraction: For better accuracy (e.g., tables in CVs), switch to pip install pdfplumber and use pdfplumber.open(pdf_data).pages[0].extract_text().
+Security: Add file size limits (app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 for 16MB) and delete temp files after processing.
+Error Handling: PyPDF2 struggles with scanned PDFs (images). For those, use OCR like pip install pytesseract + Tesseract (install via Replit Shell: apt install tesseract-ocr).
+
+Common Issues & Tips
+
+Library Errors: If PyPDF2 fails, try Tika (pip install tika + apt install default-jdk). Code: from tika import parser; raw = parser.from_file('uploaded.pdf')['content'].
+Replit Limits: Free tier has 0.5GB RAM—fine for small PDFs. For big apps, upgrade.
+Testing CVs: Use a text-based PDF (not scanned). Sample regex may miss fancy formats—test and iterate.
+Deploy: Replit auto-hosts; share the URL.
+
+This gets you a working prototype! If you hit snags (e.g., share error logs), paste them here for tweaks. Want to add email sending of extracted data? Let me know.
