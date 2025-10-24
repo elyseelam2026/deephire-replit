@@ -17,6 +17,8 @@ import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, 
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
 import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
+import * as pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 
 // Robust file type detection
 async function detectFileType(file: Express.Multer.File): Promise<string> {
@@ -441,6 +443,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to extract text from CV files
+  async function extractCvText(file: Express.Multer.File): Promise<string> {
+    const fileName = file.originalname.toLowerCase();
+    const mimeType = file.mimetype;
+
+    try {
+      // PDF files
+      if (fileName.endsWith('.pdf') || mimeType === 'application/pdf') {
+        const pdfData = await pdfParse(file.buffer);
+        return pdfData.text;
+      }
+
+      // Word documents (.docx)
+      if (fileName.endsWith('.docx') || 
+          mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        return result.value;
+      }
+
+      // Word documents (.doc) - older format
+      if (fileName.endsWith('.doc') || mimeType === 'application/msword') {
+        // mammoth doesn't support .doc, fallback to text extraction
+        return file.buffer.toString('utf-8');
+      }
+
+      // Plain text files
+      if (fileName.endsWith('.txt') || mimeType === 'text/plain') {
+        return file.buffer.toString('utf-8');
+      }
+
+      // Unsupported format - try text extraction as fallback
+      return file.buffer.toString('utf-8');
+    } catch (error) {
+      console.error(`Error extracting text from ${fileName}:`, error);
+      throw new Error(`Failed to extract text from ${fileName}. Supported formats: PDF, DOCX, TXT`);
+    }
+  }
+
   // Upload candidate CV endpoint
   app.post("/api/candidates/upload-cv", upload.single('file'), async (req: MulterRequest, res) => {
     try {
@@ -448,8 +488,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const cvText = req.file.buffer.toString('utf-8');
+      // Extract text using appropriate parser based on file type
+      const cvText = await extractCvText(req.file);
       const { candidateId } = req.body;
+
+      if (!cvText || cvText.trim().length === 0) {
+        return res.status(400).json({ 
+          error: "Could not extract text from file. Please ensure the file contains readable text." 
+        });
+      }
 
       if (candidateId) {
         // Update existing candidate
@@ -463,7 +510,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error("Error processing CV:", error);
-      res.status(500).json({ error: "Failed to process CV" });
+      const errorMessage = error instanceof Error ? error.message : "Failed to process CV";
+      res.status(500).json({ error: errorMessage });
     }
   });
 

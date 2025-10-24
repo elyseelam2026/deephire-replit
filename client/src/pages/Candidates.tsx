@@ -160,8 +160,12 @@ export default function Candidates() {
       const response = await apiRequest('POST', `/api/candidates/${candidateId}/notes`, { type, content });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/candidates'] });
+      // Update selectedCandidate with the returned data
+      if (data && selectedCandidate) {
+        setSelectedCandidate({ ...selectedCandidate, interactionHistory: data.interactionHistory });
+      }
       toast({
         title: "Note Added",
         description: "The note has been added to the candidate's interaction history.",
