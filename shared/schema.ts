@@ -1269,3 +1269,21 @@ export const insertCompanyResearchResultSchema = createInsertSchema(companyResea
 });
 export type InsertCompanyResearchResult = z.infer<typeof insertCompanyResearchResultSchema>;
 export type CompanyResearchResult = typeof companyResearchResults.$inferSelect;
+
+// Custom Field Sections schemas
+export const insertCustomFieldSectionSchema = createInsertSchema(customFieldSections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCustomFieldSection = z.infer<typeof insertCustomFieldSectionSchema>;
+export type CustomFieldSection = typeof customFieldSections.$inferSelect;
+
+// Custom Field Definitions schemas
+export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCustomFieldDefinition = z.infer<typeof insertCustomFieldDefinitionSchema>;
+export type CustomFieldDefinition = typeof customFieldDefinitions.$inferSelect;

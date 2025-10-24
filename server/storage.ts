@@ -2,7 +2,7 @@ import {
   companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
-  companyStaging, candidateCompanies,
+  companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions,
   type Company, type Job, type Candidate, type JobMatch, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
@@ -10,7 +10,8 @@ import {
   type DataReviewQueue, type InsertDataReviewQueue, type StagingCandidate, type InsertStagingCandidate,
   type VerificationResult, type InsertVerificationResult, type OrganizationChart, type InsertOrganizationChart,
   type IndustryCampaign, type InsertIndustryCampaign, type CompanyResearchResult, type InsertCompanyResearchResult,
-  type CompanyStaging, type InsertCompanyStaging, type CandidateCompany, type InsertCandidateCompany
+  type CompanyStaging, type InsertCompanyStaging, type CandidateCompany, type InsertCandidateCompany,
+  type CustomFieldSection, type InsertCustomFieldSection, type CustomFieldDefinition, type InsertCustomFieldDefinition
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -148,6 +149,20 @@ export interface IStorage {
   getCompanyResearchResult(id: number): Promise<CompanyResearchResult | undefined>;
   getCompanyResearchByQuery(normalizedQuery: string): Promise<CompanyResearchResult | undefined>;
   updateCompanyResearchResult(id: number, updates: Partial<InsertCompanyResearchResult>): Promise<CompanyResearchResult | undefined>;
+  
+  // Custom Field Sections (Salesforce-style field grouping)
+  createCustomFieldSection(section: InsertCustomFieldSection): Promise<CustomFieldSection>;
+  getCustomFieldSections(entityType?: string): Promise<CustomFieldSection[]>;
+  getCustomFieldSection(id: number): Promise<CustomFieldSection | undefined>;
+  updateCustomFieldSection(id: number, updates: Partial<InsertCustomFieldSection>): Promise<CustomFieldSection | undefined>;
+  deleteCustomFieldSection(id: number): Promise<void>;
+  
+  // Custom Field Definitions (Salesforce-style field metadata)
+  createCustomFieldDefinition(definition: InsertCustomFieldDefinition): Promise<CustomFieldDefinition>;
+  getCustomFieldDefinitions(filters?: { entityType?: string; sectionId?: number }): Promise<CustomFieldDefinition[]>;
+  getCustomFieldDefinition(id: number): Promise<CustomFieldDefinition | undefined>;
+  updateCustomFieldDefinition(id: number, updates: Partial<InsertCustomFieldDefinition>): Promise<CustomFieldDefinition | undefined>;
+  deleteCustomFieldDefinition(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1412,6 +1427,83 @@ export class DatabaseStorage implements IStorage {
       .where(eq(companyResearchResults.id, id))
       .returning();
     return updated || undefined;
+  }
+  
+  // Custom Field Sections management
+  async createCustomFieldSection(section: InsertCustomFieldSection): Promise<CustomFieldSection> {
+    const [created] = await db.insert(customFieldSections).values(section).returning();
+    return created;
+  }
+  
+  async getCustomFieldSections(entityType?: string): Promise<CustomFieldSection[]> {
+    let query = db.select().from(customFieldSections);
+    
+    if (entityType) {
+      query = query.where(eq(customFieldSections.entityType, entityType)) as typeof query;
+    }
+    
+    return query
+      .where(eq(customFieldSections.isActive, true))
+      .orderBy(customFieldSections.orderIndex);
+  }
+  
+  async getCustomFieldSection(id: number): Promise<CustomFieldSection | undefined> {
+    const [section] = await db.select().from(customFieldSections).where(eq(customFieldSections.id, id));
+    return section || undefined;
+  }
+  
+  async updateCustomFieldSection(id: number, updates: Partial<InsertCustomFieldSection>): Promise<CustomFieldSection | undefined> {
+    const [updated] = await db.update(customFieldSections)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(customFieldSections.id, id))
+      .returning();
+    return updated || undefined;
+  }
+  
+  async deleteCustomFieldSection(id: number): Promise<void> {
+    await db.delete(customFieldSections).where(eq(customFieldSections.id, id));
+  }
+  
+  // Custom Field Definitions management
+  async createCustomFieldDefinition(definition: InsertCustomFieldDefinition): Promise<CustomFieldDefinition> {
+    const [created] = await db.insert(customFieldDefinitions).values(definition).returning();
+    return created;
+  }
+  
+  async getCustomFieldDefinitions(filters?: { entityType?: string; sectionId?: number }): Promise<CustomFieldDefinition[]> {
+    let query = db.select().from(customFieldDefinitions);
+    
+    const conditions = [];
+    if (filters?.entityType) {
+      conditions.push(eq(customFieldDefinitions.entityType, filters.entityType));
+    }
+    if (filters?.sectionId) {
+      conditions.push(eq(customFieldDefinitions.sectionId, filters.sectionId));
+    }
+    conditions.push(eq(customFieldDefinitions.isVisible, true));
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    
+    return query.orderBy(customFieldDefinitions.orderIndex);
+  }
+  
+  async getCustomFieldDefinition(id: number): Promise<CustomFieldDefinition | undefined> {
+    const [definition] = await db.select().from(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
+    return definition || undefined;
+  }
+  
+  async updateCustomFieldDefinition(id: number, updates: Partial<InsertCustomFieldDefinition>): Promise<CustomFieldDefinition | undefined> {
+    const [updated] = await db.update(customFieldDefinitions)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(customFieldDefinitions.id, id))
+      .returning();
+    return updated || undefined;
+  }
+  
+  async deleteCustomFieldDefinition(id: number): Promise<void> {
+    await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
   }
 }
 

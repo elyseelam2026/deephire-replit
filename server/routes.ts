@@ -3064,6 +3064,163 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // ==================== CUSTOM FIELD SECTIONS ====================
+  
+  // Get all custom field sections (with optional entity type filter)
+  app.get("/api/custom-field-sections", async (req, res) => {
+    try {
+      const { entityType } = req.query;
+      const sections = await storage.getCustomFieldSections(entityType as string);
+      res.json(sections);
+    } catch (error) {
+      console.error("Error fetching custom field sections:", error);
+      res.status(500).json({ error: "Failed to fetch custom field sections" });
+    }
+  });
+  
+  // Get single custom field section
+  app.get("/api/custom-field-sections/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const section = await storage.getCustomFieldSection(id);
+      if (!section) {
+        return res.status(404).json({ error: "Custom field section not found" });
+      }
+      res.json(section);
+    } catch (error) {
+      console.error("Error fetching custom field section:", error);
+      res.status(500).json({ error: "Failed to fetch custom field section" });
+    }
+  });
+  
+  // Create new custom field section
+  app.post("/api/custom-field-sections", async (req, res) => {
+    try {
+      const section = await storage.createCustomFieldSection(req.body);
+      res.status(201).json(section);
+    } catch (error) {
+      console.error("Error creating custom field section:", error);
+      res.status(500).json({ error: "Failed to create custom field section" });
+    }
+  });
+  
+  // Update custom field section
+  app.patch("/api/custom-field-sections/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateCustomFieldSection(id, req.body);
+      if (!updated) {
+        return res.status(404).json({ error: "Custom field section not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating custom field section:", error);
+      res.status(500).json({ error: "Failed to update custom field section" });
+    }
+  });
+  
+  // Delete custom field section
+  app.delete("/api/custom-field-sections/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomFieldSection(id);
+      res.json({ message: "Custom field section deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting custom field section:", error);
+      res.status(500).json({ error: "Failed to delete custom field section" });
+    }
+  });
+
+  // ==================== CUSTOM FIELD DEFINITIONS ====================
+  
+  // Get all custom field definitions (with optional filters)
+  app.get("/api/custom-field-definitions", async (req, res) => {
+    try {
+      const { entityType, sectionId } = req.query;
+      const filters: any = {};
+      if (entityType) filters.entityType = entityType as string;
+      if (sectionId) filters.sectionId = parseInt(sectionId as string);
+      
+      const definitions = await storage.getCustomFieldDefinitions(filters);
+      res.json(definitions);
+    } catch (error) {
+      console.error("Error fetching custom field definitions:", error);
+      res.status(500).json({ error: "Failed to fetch custom field definitions" });
+    }
+  });
+  
+  // Get single custom field definition
+  app.get("/api/custom-field-definitions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const definition = await storage.getCustomFieldDefinition(id);
+      if (!definition) {
+        return res.status(404).json({ error: "Custom field definition not found" });
+      }
+      res.json(definition);
+    } catch (error) {
+      console.error("Error fetching custom field definition:", error);
+      res.status(500).json({ error: "Failed to fetch custom field definition" });
+    }
+  });
+  
+  // Create new custom field definition
+  app.post("/api/custom-field-definitions", async (req, res) => {
+    try {
+      const definition = await storage.createCustomFieldDefinition(req.body);
+      res.status(201).json(definition);
+    } catch (error) {
+      console.error("Error creating custom field definition:", error);
+      res.status(500).json({ error: "Failed to create custom field definition" });
+    }
+  });
+  
+  // Update custom field definition
+  app.patch("/api/custom-field-definitions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateCustomFieldDefinition(id, req.body);
+      if (!updated) {
+        return res.status(404).json({ error: "Custom field definition not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating custom field definition:", error);
+      res.status(500).json({ error: "Failed to update custom field definition" });
+    }
+  });
+  
+  // Delete custom field definition
+  app.delete("/api/custom-field-definitions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomFieldDefinition(id);
+      res.json({ message: "Custom field definition deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting custom field definition:", error);
+      res.status(500).json({ error: "Failed to delete custom field definition" });
+    }
+  });
+  
+  // ==================== CANDIDATE CUSTOM FIELD VALUES ====================
+  
+  // Update candidate custom field values
+  app.patch("/api/candidates/:id/custom-fields", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const { customFieldValues } = req.body;
+      
+      const updated = await storage.updateCandidate(candidateId, { customFieldValues });
+      if (!updated) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating candidate custom fields:", error);
+      res.status(500).json({ error: "Failed to update candidate custom fields" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
