@@ -1238,7 +1238,7 @@ export async function parseCandidateData(cvText: string): Promise<{
             "firstName": "first name or Western name (for 'Ho Chi Ming, Anthony' this would be 'Anthony')",
             "lastName": "last/family name (for 'Ho Chi Ming, Anthony' this would be 'Ho')", 
             "email": "email address if found or null",
-            "phone": "phone number if found or null",
+            "phoneNumber": "phone number if found or null",
             "currentCompany": "current employer",
             "currentTitle": "current job title",
             "basicSalary": numeric_value_if_mentioned_or_null,
@@ -1276,7 +1276,7 @@ export async function parseCandidateData(cvText: string): Promise<{
       lastName: result.lastName,
       email: email,
       emailSource: emailSource,  // Track whether email came from CV or was inferred
-      phoneNumber: result.phone || undefined,  // Use phoneNumber to match database field
+      phoneNumber: result.phoneNumber || undefined,  // Use phoneNumber to match database field
       currentCompany: result.currentCompany || undefined,
       currentTitle: result.currentTitle || undefined,
       basicSalary: typeof result.basicSalary === 'number' ? result.basicSalary : undefined,

@@ -20,10 +20,11 @@ import { transliterateName, inferEmail } from "./transliteration";
 import { z } from "zod";
 import mammoth from "mammoth";
 
-// PDF parsing function - dynamically import pdf-parse
+// PDF parsing function - use require for CommonJS compatibility
 async function parsePdf(buffer: Buffer): Promise<string> {
-  const { PDFParse } = await import('pdf-parse');
-  const data = await PDFParse(buffer);
+  const require = createRequire(import.meta.url);
+  const pdfParse = require('pdf-parse');
+  const data = await pdfParse(buffer);
   return data.text;
 }
 
