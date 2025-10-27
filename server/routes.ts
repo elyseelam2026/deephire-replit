@@ -1665,11 +1665,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Only acknowledge company context in first few messages
           knownContext.push(`from **${updatedSearchContext.companyName}**`);
         }
+        
+        // Check if this is the first user message (need friendly greeting)
+        const isFirstMessage = messages.length <= 1;
 
         if (!hasBasicInfo) {
           // No requirements yet - ask for basics
           const greeting = knownContext.length > 0
             ? `Great to work with you ${knownContext.join(' ')}! I'm here to help you find the perfect candidate.\n\n`
+            : isFirstMessage
+            ? `Hi there! I'm here to help you find the perfect candidate.\n\n`
             : `I'm here to help you find the perfect candidate!\n\n`;
           
           aiResponse = greeting +
@@ -1688,11 +1693,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!updatedSearchContext.salary) missingInfo.push("• What's the **salary range** for this role?");
 
           if (missingInfo.length > 0) {
+            // Build contextual greeting and acknowledgment
+            let greeting = '';
+            if (isFirstMessage) {
+              greeting = knownContext.length > 0
+                ? `Hi there! Great to work with you ${knownContext.join(' ')}.\n\n`
+                : `Hi there! Thanks for reaching out.\n\n`;
+            }
+            
             const contextIntro = updatedSearchContext.industry
               ? `in the **${updatedSearchContext.industry}** industry`
               : '';
             
-            aiResponse = `Great start! I'm building a profile for a **${updatedSearchContext.title || 'candidate'}** ` +
+            aiResponse = greeting +
+              `I'm building a profile for a **${updatedSearchContext.title || 'candidate'}** ` +
               `${contextIntro ? contextIntro + ' ' : ''}` +
               `${updatedSearchContext.skills && updatedSearchContext.skills.length > 0 ? `with skills in **${updatedSearchContext.skills.join(', ')}**` : ''}.\n\n` +
               `To create a comprehensive job order, I need just a bit more information:\n\n` +
