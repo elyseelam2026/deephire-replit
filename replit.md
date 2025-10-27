@@ -88,7 +88,9 @@ Preferred communication style: Simple, everyday language.
         3. Stores matched candidates in conversation.matchedCandidates
         4. Links conversation to job via conversation.jobId
         5. Directs user to Jobs page to review results (no waiting in chat)
-    -   **Search Agreement Detection**: Detects 12+ keywords ("internal", "external", "yes", "proceed", "start", "go ahead", "sure", "ok", "okay", "create job", "begin", "let's do it")
+    -   **Search Agreement Detection**: Two-tier system for detecting user agreement:
+        -   **Strong Explicit Phrases** (override phase checks): "start internal search", "start external search", "yes, start internal", "yes, start external", "begin search"
+        -   **Weak Agreement Keywords** (require ready_to_create_job phase): "internal search", "external search", "proceed", "go ahead", "create job", "let's do it"
     -   **Intelligent Candidate Matching**: Uses `generateCandidateLonglist` with skill matching and experience scoring
     -   **Conversation Schema**: `nap_conversations` table with JSONB for messages, searchContext, matchedCandidates, jdFileInfo, and jobId reference
     -   **API Endpoints**: POST `/api/conversations` (create with optional userId/companyId), GET `/api/conversations/:id` (fetch), POST `/api/conversations/:id/messages` (send message with optional file)

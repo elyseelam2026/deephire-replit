@@ -4,6 +4,8 @@ import { ChatInterface } from "@/components/ChatInterface";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
 
 type Message = {
   role: 'user' | 'assistant' | 'system';
@@ -55,12 +57,22 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       setConversationId(data.id);
+      // Persist conversation ID in localStorage for memory
+      localStorage.setItem('currentConversationId', data.id.toString());
     },
   });
 
-  // Create conversation once on mount
+  // Load existing conversation from localStorage OR create new one
   useEffect(() => {
-    if (!conversationId && !createConversationMutation.isPending) {
+    // Check if there's a saved conversation ID
+    const savedConversationId = localStorage.getItem('currentConversationId');
+    
+    if (savedConversationId) {
+      // Resume existing conversation
+      const id = parseInt(savedConversationId);
+      setConversationId(id);
+    } else if (!conversationId && !createConversationMutation.isPending) {
+      // Create new conversation only if no saved one exists
       createConversationMutation.mutate();
     }
   }, []);
@@ -123,12 +135,24 @@ export default function Dashboard() {
     await sendMessageMutation.mutateAsync({ message: content, file });
   };
 
-  // Auto-redirect to Jobs page when job is created
+  // Auto-redirect to Jobs page when job is created (only once per job)
   useEffect(() => {
     if (!conversation?.messages) return;
     
     const lastMessage = conversation.messages[conversation.messages.length - 1];
     if (lastMessage?.metadata?.type === 'job_created' && lastMessage.metadata.jobId) {
+      const jobId = lastMessage.metadata.jobId;
+      
+      // Check if we've already redirected for this job
+      const redirectedJobs = JSON.parse(localStorage.getItem('redirectedJobs') || '[]');
+      if (redirectedJobs.includes(jobId)) {
+        return; // Already redirected, don't do it again
+      }
+      
+      // Mark this job as redirected
+      redirectedJobs.push(jobId);
+      localStorage.setItem('redirectedJobs', JSON.stringify(redirectedJobs));
+      
       // Small delay to show "Job Created!" message first
       const timer = setTimeout(() => {
         toast({
@@ -142,18 +166,44 @@ export default function Dashboard() {
     }
   }, [conversation?.messages]);
 
+  const handleNewConversation = () => {
+    // Clear localStorage and create new conversation
+    localStorage.removeItem('currentConversationId');
+    setConversationId(null);
+    createConversationMutation.mutate();
+  };
+
   const messages = conversation?.messages || [];
   const matchedCandidates = conversation?.matchedCandidates || [];
 
   return (
-    <div className="h-full" data-testid="dashboard">
-      <ChatInterface
-        conversationId={conversationId || undefined}
-        messages={messages}
-        matchedCandidates={matchedCandidates}
-        onSendMessage={handleSendMessage}
-        isLoading={sendMessageMutation.isPending}
-      />
+    <div className="h-full flex flex-col" data-testid="dashboard">
+      {/* Header with New Conversation button */}
+      {messages.length > 0 && (
+        <div className="p-3 border-b flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Conversation #{conversationId}</span>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleNewConversation}
+            data-testid="button-new-conversation"
+          >
+            New Conversation
+          </Button>
+        </div>
+      )}
+      <div className="flex-1 overflow-hidden">
+        <ChatInterface
+          conversationId={conversationId || undefined}
+          messages={messages}
+          matchedCandidates={matchedCandidates}
+          onSendMessage={handleSendMessage}
+          isLoading={sendMessageMutation.isPending}
+        />
+      </div>
     </div>
   );
 }

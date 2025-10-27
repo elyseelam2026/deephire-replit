@@ -1692,16 +1692,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           newPhase = 'initial';
         }
 
-        // CRITICAL: Detect if user agreed to start the search
+        // CRITICAL: Detect explicit user agreement to start the search
         const lowerMessage = message.toLowerCase().trim();
         const searchAgreementKeywords = [
-          'internal', 'external', 'yes', 'proceed', 'start', 'go ahead', 
-          'sure', 'ok', 'okay', 'create job', 'begin', 'let\'s do it'
+          'internal search', 'external search', 'start search', 'start internal', 'start external',
+          'yes internal', 'yes external', 'proceed', 'go ahead', 'create job', 'begin search', 'let\'s do it'
         ];
         
-        const userAgreedToSearch = searchAgreementKeywords.some(keyword => 
-          lowerMessage.includes(keyword)
-        ) && (newPhase === 'ready_to_create_job' || updatedSearchContext.title);
+        // Strong explicit keywords that override phase checking
+        const strongAgreementPhrases = [
+          'start internal search', 'start external search', 'yes, start internal', 
+          'yes, start external', 'start the search', 'begin search'
+        ];
+        
+        // Check for strong explicit agreement (overrides phase) OR phase-based agreement
+        const hasStrongAgreement = strongAgreementPhrases.some(phrase => lowerMessage.includes(phrase));
+        const hasWeakAgreement = searchAgreementKeywords.some(keyword => lowerMessage.includes(keyword)) 
+          && (conversation.phase === 'ready_to_create_job' || newPhase === 'ready_to_create_job');
+        
+        const userAgreedToSearch = hasStrongAgreement || hasWeakAgreement;
 
         // If user agreed AND we have enough context, create job + run search
         if (userAgreedToSearch && updatedSearchContext.title && !conversation.jobId) {
