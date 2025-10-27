@@ -146,11 +146,11 @@ export default function Conversations() {
                     </div>
                     <div className="flex-1">
                       <CardTitle className="text-lg" data-testid={`conversation-job-${conversation.id}`}>
-                        {conversation.job.title}
+                        {conversation.job?.title || conversation.searchContext?.title || 'Active Conversation'}
                       </CardTitle>
                       <CardDescription className="flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
-                        {conversation.job.company.name}
+                        {conversation.job?.company?.name || conversation.searchContext?.companyName || 'In Progress'}
                       </CardDescription>
                     </div>
                   </div>
