@@ -49,6 +49,15 @@ Preferred communication style: Simple, everyday language.
 -   **Components**: Reusable components for data tables, cards, forms, navigation.
 
 ### Key Technical Implementations
+-   **Conversational AI Recruiting Assistant** (MVP Feature): ChatGPT-style interface for investor demos where clients interact with AI to find candidates:
+    -   **Multi-Turn Context Accumulation**: AI remembers and merges requirements across conversation turns (skills accumulated via deduplicated union, not replaced)
+    -   **Dual Input Methods**: Accepts both JD file uploads (PDF/DOCX) and natural language text messages
+    -   **AI-Powered Parsing**: Uses `parseJobDescription` to extract structured requirements (title, skills, location, years of experience) from both files and text
+    -   **Intelligent Candidate Matching**: Searches database using `generateCandidateLonglist` with accumulated context, returns enriched candidate cards with name, title, company, location, skills, and match scores
+    -   **Conversation Schema**: `nap_conversations` table with JSONB for messages, searchContext, matchedCandidates, and jdFileInfo
+    -   **API Endpoints**: POST `/api/conversations` (create), GET `/api/conversations/:id` (fetch), POST `/api/conversations/:id/messages` (send message with optional file)
+    -   **UI Components**: ChatInterface with message bubbles, file upload, auto-scroll, and candidate result cards; Dashboard manages conversation lifecycle
+    -   **Data Flow**: Single storage update at end of message handler ensures React Query invalidation provides complete updated conversation to UI
 -   **Hybrid LinkedIn Search**: Two-stage search (exact then loose) for candidate finding.
 -   **LinkedIn Profile Validation**: Multi-result scoring with confidence thresholds via SerpAPI.
 -   **Boolean Search**: Advanced LinkedIn search for Quick Add.
