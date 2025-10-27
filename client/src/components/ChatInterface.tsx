@@ -17,14 +17,26 @@ type Message = {
   };
 };
 
+type MatchedCandidate = {
+  candidateId: number;
+  matchScore: number;
+  firstName: string;
+  lastName: string;
+  currentTitle: string;
+  currentCompany: string;
+  location: string;
+  skills: string[];
+};
+
 interface ChatInterfaceProps {
   conversationId?: number;
   onSendMessage: (content: string, file?: File) => Promise<void>;
   messages: Message[];
+  matchedCandidates?: MatchedCandidate[];
   isLoading?: boolean;
 }
 
-export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterfaceProps) {
+export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLoading }: ChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -164,6 +176,71 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
                 <span className="text-sm text-muted-foreground">Thinking...</span>
               </div>
             </Card>
+          </div>
+        )}
+
+        {/* Matched Candidates Display */}
+        {matchedCandidates && matchedCandidates.length > 0 && (
+          <div className="flex gap-3">
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarFallback className="bg-secondary text-secondary-foreground">
+                <Sparkles className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 space-y-3">
+              <h3 className="font-semibold text-sm">Top Matches</h3>
+              <div className="grid gap-3">
+                {matchedCandidates.filter(m => m.matchScore > 50).slice(0, 5).map((match) => (
+                  <Card 
+                    key={match.candidateId} 
+                    className="p-4 hover-elevate cursor-pointer"
+                    data-testid={`candidate-card-${match.candidateId}`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">
+                              {match.firstName} {match.lastName}
+                            </h4>
+                            <Badge variant={match.matchScore >= 80 ? "default" : "secondary"} className="text-xs">
+                              {match.matchScore}% match
+                            </Badge>
+                          </div>
+                          <p className="text-sm font-medium text-muted-foreground mt-1">
+                            {match.currentTitle}
+                          </p>
+                          {match.currentCompany && (
+                            <p className="text-sm text-muted-foreground">
+                              {match.currentCompany}
+                            </p>
+                          )}
+                          {match.location && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              📍 {match.location}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {match.skills && match.skills.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {match.skills.slice(0, 4).map((skill, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {match.skills.length > 4 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{match.skills.length - 4} more
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

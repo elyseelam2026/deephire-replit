@@ -111,12 +111,14 @@ export default function Dashboard() {
   };
 
   const messages = conversation?.messages || [];
+  const matchedCandidates = conversation?.matchedCandidates || [];
 
   return (
     <div className="h-full" data-testid="dashboard">
       <ChatInterface
         conversationId={conversationId || undefined}
         messages={messages}
+        matchedCandidates={matchedCandidates}
         onSendMessage={handleSendMessage}
         isLoading={sendMessageMutation.isPending}
       />

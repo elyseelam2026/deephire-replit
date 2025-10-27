@@ -1491,6 +1491,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the message and get AI response
       let aiResponse: string;
       let matchedCandidates: any[] | undefined;
+      let updatedSearchContext: any = conversation.searchContext;
+      let jdFileInfo: any = conversation.jdFileInfo;
 
       if (file) {
         // Handle JD upload
@@ -1499,27 +1501,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Parse JD using AI
         const parsedJD = await parseJobDescription(jdText);
         
-        aiResponse = `I've analyzed the job description. Here's what I found:\n\n` +
+        // Update search context and file info (will be saved at the end)
+        updatedSearchContext = parsedJD;
+        jdFileInfo = {
+          fileName: file.originalname,
+          fileSize: file.size,
+          uploadedAt: new Date().toISOString(),
+          parsedData: parsedJD
+        };
+
+        // Search for matching candidates
+        const allCandidates = await storage.getCandidates();
+        const candidateMatches = await generateCandidateLonglist(
+          allCandidates.map(c => ({
+            id: c.id,
+            firstName: c.firstName,
+            lastName: c.lastName,
+            currentTitle: c.currentTitle || "",
+            skills: c.skills || [],
+            cvText: c.cvText || undefined
+          })),
+          parsedJD.skills || [],
+          jdText,
+          10
+        );
+
+        // Enrich matches with full candidate details
+        matchedCandidates = candidateMatches.map(match => {
+          const candidate = allCandidates.find(c => c.id === match.candidateId);
+          return {
+            candidateId: match.candidateId,
+            matchScore: match.matchScore,
+            firstName: candidate?.firstName || '',
+            lastName: candidate?.lastName || '',
+            currentTitle: candidate?.currentTitle || '',
+            currentCompany: candidate?.currentCompany || '',
+            location: candidate?.location || '',
+            skills: candidate?.skills || []
+          };
+        });
+        
+        const matchCount = candidateMatches.filter(m => m.matchScore > 60).length;
+        
+        aiResponse = `I've analyzed the job description and found ${matchCount} strong matches:\n\n` +
           `**Position**: ${parsedJD.title || 'Not specified'}\n` +
           `**Skills Required**: ${parsedJD.skills?.join(', ') || 'Not specified'}\n` +
           `**Location**: ${parsedJD.location || 'Not specified'}\n\n` +
-          `Let me search for matching candidates...`;
-
-        // Update search context
-        await storage.updateConversation(conversationId, {
-          searchContext: parsedJD,
-          jdFileInfo: {
-            fileName: file.originalname,
-            fileSize: file.size,
-            uploadedAt: new Date().toISOString(),
-            parsedData: parsedJD
-          }
-        });
+          `Here are the top candidates that match your requirements. You can click on any candidate to view their full profile.`;
       } else {
-        // Handle text message - parse intent and respond
-        aiResponse = `I understand you're looking for someone. Could you tell me more about:\n\n` +
-          `1. What specific role or title?\n2. Required skills or experience?\n` +
-          `3. Preferred location?\n4. Any other important criteria?`;
+        // Handle text message - use AI to extract requirements
+        const parsedRequirements = await parseJobDescription(message);
+        
+        if (parsedRequirements.title || (parsedRequirements.skills && parsedRequirements.skills.length > 0)) {
+          // Merge with existing search context FIRST, preserving AND accumulating values
+          const existingSkills = updatedSearchContext?.skills || [];
+          const newSkills = parsedRequirements.skills || [];
+          const mergedSkills = [...new Set([...existingSkills, ...newSkills])]; // Deduplicated union
+
+          updatedSearchContext = updatedSearchContext ? {
+            title: parsedRequirements.title || updatedSearchContext.title,
+            skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
+            location: parsedRequirements.location || updatedSearchContext.location,
+            yearsExperience: parsedRequirements.yearsExperience || updatedSearchContext.yearsExperience,
+            description: parsedRequirements.description || updatedSearchContext.description,
+            requirements: parsedRequirements.requirements || updatedSearchContext.requirements,
+            responsibilities: parsedRequirements.responsibilities || updatedSearchContext.responsibilities,
+            company: parsedRequirements.company || updatedSearchContext.company,
+            salary: parsedRequirements.salary || updatedSearchContext.salary,
+          } : parsedRequirements;
+
+          // Build search text from accumulated context
+          const searchText = [
+            updatedSearchContext.title,
+            updatedSearchContext.description,
+            updatedSearchContext.requirements,
+            updatedSearchContext.location,
+            message // Include current message for additional context
+          ].filter(Boolean).join(' ');
+
+          // Search for candidates using MERGED context
+          const allCandidates = await storage.getCandidates();
+          const candidateMatches = await generateCandidateLonglist(
+            allCandidates.map(c => ({
+              id: c.id,
+              firstName: c.firstName,
+              lastName: c.lastName,
+              currentTitle: c.currentTitle || "",
+              skills: c.skills || [],
+              cvText: c.cvText || undefined
+            })),
+            updatedSearchContext.skills || [], // Use merged skills, not just new ones
+            searchText, // Use accumulated context, not just current message
+            10
+          );
+
+          // Enrich matches with full candidate details
+          matchedCandidates = candidateMatches.map(match => {
+            const candidate = allCandidates.find(c => c.id === match.candidateId);
+            return {
+              candidateId: match.candidateId,
+              matchScore: match.matchScore,
+              firstName: candidate?.firstName || '',
+              lastName: candidate?.lastName || '',
+              currentTitle: candidate?.currentTitle || '',
+              currentCompany: candidate?.currentCompany || '',
+              location: candidate?.location || '',
+              skills: candidate?.skills || []
+            };
+          });
+
+          const matchCount = candidateMatches.filter(m => m.matchScore > 60).length;
+          
+          aiResponse = `I found ${matchCount} candidates matching your requirements:\n\n` +
+            `**Position**: ${parsedRequirements.title || updatedSearchContext.title || 'Not specified'}\n` +
+            `**Skills**: ${parsedRequirements.skills?.join(', ') || updatedSearchContext.skills?.join(', ') || 'Not specified'}\n\n` +
+            `Here are the top matches. Click any candidate to view their full profile.`;
+        } else {
+          // Not enough information - ask clarifying questions
+          aiResponse = updatedSearchContext ? 
+            `Thank you! Could you also tell me:\n\n` +
+            `• What specific skills are required?\n` +
+            `• Any location preferences?\n` +
+            `• Years of experience needed?` :
+            `I'm here to help you find the perfect candidate. Tell me what you're looking for!\n\n` +
+            `For example: "I need a CFO with private equity experience in Hong Kong"`;
+        }
       }
 
       // Add AI response
@@ -1535,10 +1641,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updatedMessages = [...messages, assistantMessage];
 
-      // Update conversation
+      // Update conversation with all changes in a single call
       await storage.updateConversation(conversationId, {
         messages: updatedMessages,
-        phase: file ? 'clarifying' : 'initial'
+        searchContext: updatedSearchContext,
+        matchedCandidates: matchedCandidates,
+        jdFileInfo: jdFileInfo,
+        phase: matchedCandidates ? 'searching' : (file ? 'clarifying' : 'initial')
       });
 
       // Return updated conversation
