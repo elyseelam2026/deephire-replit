@@ -78,14 +78,21 @@ Preferred communication style: Simple, everyday language.
     -   **Conversation Memory**: Full conversation history passed to Grok for context-aware multi-turn dialogue
     -   **Enhanced Job Parsing**: Extracts 13 fields (title, skills, location, years of experience, industry, company size, urgency, salary, department, requirements, responsibilities, benefits) with flexible yearsExperience parsing ("5+ years", "5-7 years")
     -   **Multi-Turn Context Accumulation**: AI remembers and merges requirements across conversation turns (skills accumulated via deduplicated union, not replaced)
-    -   **Phase Tracking**: Conversation progresses through phases: initial → clarifying → ready_to_search → job_order_created
+    -   **Phase Tracking**: Conversation progresses through phases: initial → clarifying → ready_to_create_job → job_order_created
     -   **Dual Input Methods**: Accepts both JD file uploads (PDF/DOCX) and natural language text messages
     -   **Two-Tier Search Pricing**: AI explains options before searching (15-min internal database vs extended external search with premium pricing)
     -   **Company Context Pre-Population**: POST `/api/conversations` accepts userId/companyId to auto-populate searchContext with company metadata from database
-    -   **Intelligent Candidate Matching**: Searches database using `generateCandidateLonglist` with accumulated context, returns enriched candidate cards with name, title, company, location, skills, and match scores
-    -   **Conversation Schema**: `nap_conversations` table with JSONB for messages, searchContext, matchedCandidates, and jdFileInfo
+    -   **Immediate Job Order Creation**: When user agrees to search (keywords: "internal", "yes", "start", "proceed"), system immediately:
+        1. Creates job order in database with all accumulated context
+        2. Runs `generateCandidateLonglist()` to search all candidates
+        3. Stores matched candidates in conversation.matchedCandidates
+        4. Links conversation to job via conversation.jobId
+        5. Directs user to Jobs page to review results (no waiting in chat)
+    -   **Search Agreement Detection**: Detects 12+ keywords ("internal", "external", "yes", "proceed", "start", "go ahead", "sure", "ok", "okay", "create job", "begin", "let's do it")
+    -   **Intelligent Candidate Matching**: Uses `generateCandidateLonglist` with skill matching and experience scoring
+    -   **Conversation Schema**: `nap_conversations` table with JSONB for messages, searchContext, matchedCandidates, jdFileInfo, and jobId reference
     -   **API Endpoints**: POST `/api/conversations` (create with optional userId/companyId), GET `/api/conversations/:id` (fetch), POST `/api/conversations/:id/messages` (send message with optional file)
-    -   **UI Components**: ChatInterface with message bubbles, file upload, auto-scroll, and candidate result cards; Dashboard manages conversation lifecycle
+    -   **UI Components**: ChatInterface with message bubbles, file upload, auto-scroll; Dashboard manages conversation lifecycle; Conversations page shows all chats with null-safe job references
     -   **Data Flow**: Single storage update at end of message handler ensures React Query invalidation provides complete updated conversation to UI
     -   **Demo Testing**: Dashboard accepts `?companyId=X` URL parameter to simulate authenticated user from specific company
 -   **Hybrid LinkedIn Search**: Two-stage search (exact then loose) for candidate finding.
