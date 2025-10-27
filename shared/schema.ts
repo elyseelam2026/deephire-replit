@@ -487,13 +487,60 @@ export const jobMatches = pgTable("job_matches", {
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 });
 
-// NAP (Name-a-Person) conversations - AI chat sessions
+// NAP (Name-a-Person) conversations - AI chat sessions (ChatGPT-style recruiting assistant)
 export const napConversations = pgTable("nap_conversations", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  
+  // Optional job reference (created after JD upload or clarification complete)
+  jobId: integer("job_id").references(() => jobs.id),
+  
+  // Optional candidate reference (for candidate-specific conversations)
   candidateId: integer("candidate_id").references(() => candidates.id),
-  messages: jsonb("messages"), // array of chat messages
+  
+  // Chat messages array - {role: 'user'|'assistant'|'system', content: string, timestamp: string}
+  messages: jsonb("messages").$type<Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: string;
+    metadata?: {
+      type?: 'jd_upload' | 'candidate_results' | 'clarification' | 'text';
+      fileName?: string;
+      candidateIds?: number[];
+      searchQuery?: any;
+    };
+  }>>().default(sql`'[]'::jsonb`),
+  
+  // Search context - what the user is looking for
+  searchContext: jsonb("search_context").$type<{
+    title?: string;
+    skills?: string[];
+    location?: string;
+    experience?: string;
+    salary?: string;
+    industry?: string;
+    [key: string]: any;
+  }>(),
+  
+  // Matched candidates from search
+  matchedCandidates: jsonb("matched_candidates").$type<Array<{
+    candidateId: number;
+    matchScore: number;
+    reasoning: string;
+  }>>(),
+  
+  // JD file info if uploaded
+  jdFileInfo: jsonb("jd_file_info").$type<{
+    fileName: string;
+    fileSize: number;
+    uploadedAt: string;
+    parsedData?: any;
+  }>(),
+  
+  // Conversation status
   status: text("status").default("active").notNull(), // active, completed, archived
+  phase: text("phase").default("initial").notNull(), // initial, clarifying, searching, results, completed
+  
+  // Timestamps
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
