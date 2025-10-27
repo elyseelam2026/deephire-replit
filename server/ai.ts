@@ -1049,6 +1049,14 @@ export async function parseJobDescription(jdText: string): Promise<{
   urgency: string;
   requirements: string[];
   benefits: string[];
+  location?: string;
+  yearsExperience?: number;
+  description?: string;
+  responsibilities?: string[];
+  company?: string;
+  salary?: string;
+  industry?: string;
+  companySize?: string;
 }> {
   try {
     const response = await openai.chat.completions.create({
@@ -1067,7 +1075,15 @@ export async function parseJobDescription(jdText: string): Promise<{
             "skills": ["skill1", "skill2", "skill3"],
             "urgency": "low|medium|high|urgent based on language used",
             "requirements": ["requirement1", "requirement2"],
-            "benefits": ["benefit1", "benefit2"]
+            "benefits": ["benefit1", "benefit2"],
+            "location": "city/country if mentioned",
+            "yearsExperience": number of years if mentioned,
+            "description": "brief 1-2 sentence job summary",
+            "responsibilities": ["responsibility1", "responsibility2"],
+            "company": "company name if mentioned",
+            "salary": "salary range if mentioned",
+            "industry": "industry (e.g., Private Equity, Technology, Finance, Retail)",
+            "companySize": "startup|mid-size|enterprise if mentioned"
           }
           
           Job Description:
@@ -1078,13 +1094,34 @@ export async function parseJobDescription(jdText: string): Promise<{
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    // Parse yearsExperience flexibly - handle numbers, strings like "5+", "5-7", etc.
+    let yearsExp: number | undefined;
+    if (typeof result.yearsExperience === 'number') {
+      yearsExp = result.yearsExperience;
+    } else if (typeof result.yearsExperience === 'string') {
+      // Extract first number from strings like "5+ years", "5-7 years", "senior (10 years)"
+      const match = result.yearsExperience.match(/(\d+)/);
+      if (match) {
+        yearsExp = parseInt(match[1], 10);
+      }
+    }
+    
     return {
       title: result.title || "Untitled Position",
       department: result.department || "General",
       skills: Array.isArray(result.skills) ? result.skills : [],
       urgency: ["low", "medium", "high", "urgent"].includes(result.urgency) ? result.urgency : "medium",
       requirements: Array.isArray(result.requirements) ? result.requirements : [],
-      benefits: Array.isArray(result.benefits) ? result.benefits : []
+      benefits: Array.isArray(result.benefits) ? result.benefits : [],
+      location: result.location || undefined,
+      yearsExperience: yearsExp,
+      description: result.description || undefined,
+      responsibilities: Array.isArray(result.responsibilities) ? result.responsibilities : undefined,
+      company: result.company || undefined,
+      salary: result.salary || undefined,
+      industry: result.industry || undefined,
+      companySize: result.companySize || undefined,
     };
   } catch (error) {
     console.error("Error parsing job description:", error);

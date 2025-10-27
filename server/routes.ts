@@ -1464,7 +1464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Send a message in a conversation
+  // Send a message in a conversation - CONSULTATIVE AI FLOW
   app.post("/api/conversations/:id/messages", upload.single('file'), async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
@@ -1492,18 +1492,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the message and get AI response
       let aiResponse: string;
       let matchedCandidates: any[] | undefined;
-      let updatedSearchContext: any = conversation.searchContext;
+      let updatedSearchContext: any = conversation.searchContext ||{};
       let jdFileInfo: any = conversation.jdFileInfo;
+      let newPhase = conversation.phase || 'initial';
+      let createdJobId: number | undefined;
 
       if (file) {
         // Handle JD upload
-        const jdText = await extractTextFromDocument(file);
+        const jdText = await extractCvText(file);
         
         // Parse JD using AI
         const parsedJD = await parseJobDescription(jdText);
         
-        // Update search context and file info (will be saved at the end)
-        updatedSearchContext = parsedJD;
+        // Merge with existing context
+        const existingSkills = updatedSearchContext?.skills || [];
+        const newSkills = parsedJD.skills || [];
+        const mergedSkills = Array.from(new Set([...existingSkills, ...newSkills]));
+
+        updatedSearchContext = {
+          title: parsedJD.title || updatedSearchContext.title,
+          skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
+          location: parsedJD.location || updatedSearchContext.location,
+          yearsExperience: parsedJD.yearsExperience || updatedSearchContext.yearsExperience,
+          description: parsedJD.description || updatedSearchContext.description,
+          requirements: parsedJD.requirements || updatedSearchContext.requirements,
+          responsibilities: parsedJD.responsibilities || updatedSearchContext.responsibilities,
+          company: parsedJD.company || updatedSearchContext.company,
+          salary: parsedJD.salary || updatedSearchContext.salary,
+          industry: parsedJD.industry || updatedSearchContext.industry,
+          urgency: parsedJD.urgency || updatedSearchContext.urgency,
+          companySize: parsedJD.companySize || updatedSearchContext.companySize,
+        };
+
         jdFileInfo = {
           fileName: file.originalname,
           fileSize: file.size,
@@ -1511,121 +1531,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
           parsedData: parsedJD
         };
 
-        // Search for matching candidates
-        const allCandidates = await storage.getCandidates();
-        const candidateMatches = await generateCandidateLonglist(
-          allCandidates.map(c => ({
-            id: c.id,
-            firstName: c.firstName,
-            lastName: c.lastName,
-            currentTitle: c.currentTitle || "",
-            skills: c.skills || [],
-            cvText: c.cvText || undefined
-          })),
-          parsedJD.skills || [],
-          jdText,
-          10
-        );
+        // CONSULTATIVE: Ask clarifying questions even with JD
+        const missingInfo = [];
+        if (!updatedSearchContext.industry) missingInfo.push("• Which **industry** is this role in?");
+        if (!updatedSearchContext.companySize) missingInfo.push("• What's the **company size**? (startup, mid-size, enterprise)");
+        if (!updatedSearchContext.urgency) missingInfo.push("• How **urgent** is this hire? (standard timeline or fast-track)");
+        if (!updatedSearchContext.salary) missingInfo.push("• What's the **salary range**?");
 
-        // Enrich matches with full candidate details
-        matchedCandidates = candidateMatches.map(match => {
-          const candidate = allCandidates.find(c => c.id === match.candidateId);
-          return {
-            candidateId: match.candidateId,
-            matchScore: match.matchScore,
-            firstName: candidate?.firstName || '',
-            lastName: candidate?.lastName || '',
-            currentTitle: candidate?.currentTitle || '',
-            currentCompany: candidate?.currentCompany || '',
-            location: candidate?.location || '',
-            skills: candidate?.skills || []
-          };
-        });
-        
-        const matchCount = candidateMatches.filter(m => m.matchScore > 60).length;
-        
-        aiResponse = `I've analyzed the job description and found ${matchCount} strong matches:\n\n` +
-          `**Position**: ${parsedJD.title || 'Not specified'}\n` +
-          `**Skills Required**: ${parsedJD.skills?.join(', ') || 'Not specified'}\n` +
-          `**Location**: ${parsedJD.location || 'Not specified'}\n\n` +
-          `Here are the top candidates that match your requirements. You can click on any candidate to view their full profile.`;
+        if (missingInfo.length > 0) {
+          aiResponse = `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n` +
+            `Before I create a formal job order and start searching, let me clarify a few more details to ensure we find the perfect match:\n\n` +
+            missingInfo.join('\n');
+          newPhase = 'clarifying';
+        } else {
+          // Have enough info - would create job order here
+          newPhase = 'ready_to_create_job';
+          aiResponse = `Perfect! I have all the information I need.\n\n` +
+            `**Position**: ${updatedSearchContext.title}\n` +
+            `**Industry**: ${updatedSearchContext.industry}\n` +
+            `**Location**: ${updatedSearchContext.location || 'Not specified'}\n` +
+            `**Skills**: ${updatedSearchContext.skills?.join(', ') || 'Not specified'}\n\n` +
+            `Would you like me to create a formal job order and begin the search? I can offer two search tiers:\n\n` +
+            `✓ **Internal Database Search** (~15 minutes, search our existing candidates)\n` +
+            `✓ **Extended External Search** (longer, search external sources - premium pricing)\n\n` +
+            `Which would you prefer?`;
+        }
       } else {
-        // Handle text message - use AI to extract requirements
+        // Handle text message - extract and merge requirements
         const parsedRequirements = await parseJobDescription(message);
         
-        if (parsedRequirements.title || (parsedRequirements.skills && parsedRequirements.skills.length > 0)) {
-          // Merge with existing search context FIRST, preserving AND accumulating values
-          const existingSkills = updatedSearchContext?.skills || [];
-          const newSkills = parsedRequirements.skills || [];
-          const mergedSkills = [...new Set([...existingSkills, ...newSkills])]; // Deduplicated union
+        // Merge with existing context
+        const existingSkills = updatedSearchContext?.skills || [];
+        const newSkills = parsedRequirements.skills || [];
+        const mergedSkills = Array.from(new Set([...existingSkills, ...newSkills]));
 
-          updatedSearchContext = updatedSearchContext ? {
-            title: parsedRequirements.title || updatedSearchContext.title,
-            skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
-            location: parsedRequirements.location || updatedSearchContext.location,
-            yearsExperience: parsedRequirements.yearsExperience || updatedSearchContext.yearsExperience,
-            description: parsedRequirements.description || updatedSearchContext.description,
-            requirements: parsedRequirements.requirements || updatedSearchContext.requirements,
-            responsibilities: parsedRequirements.responsibilities || updatedSearchContext.responsibilities,
-            company: parsedRequirements.company || updatedSearchContext.company,
-            salary: parsedRequirements.salary || updatedSearchContext.salary,
-          } : parsedRequirements;
+        // Check if message contains answers to our questions
+        const lowerMessage = message.toLowerCase();
+        if (!updatedSearchContext.industry && (lowerMessage.includes('industry') || lowerMessage.includes('finance') || lowerMessage.includes('tech') || lowerMessage.includes('retail'))) {
+          updatedSearchContext.industry = parsedRequirements.company || message;
+        }
+        if (!updatedSearchContext.urgency && (lowerMessage.includes('urgent') || lowerMessage.includes('fast') || lowerMessage.includes('asap') || lowerMessage.includes('standard'))) {
+          updatedSearchContext.urgency = lowerMessage.includes('urgent') || lowerMessage.includes('fast') || lowerMessage.includes('asap') ? 'urgent' : 'standard';
+        }
+        if (!updatedSearchContext.companySize && (lowerMessage.includes('startup') || lowerMessage.includes('enterprise') || lowerMessage.includes('mid') || lowerMessage.includes('small') || lowerMessage.includes('large'))) {
+          if (lowerMessage.includes('startup')) updatedSearchContext.companySize = 'startup';
+          else if (lowerMessage.includes('enterprise') || lowerMessage.includes('large')) updatedSearchContext.companySize = 'enterprise';
+          else if (lowerMessage.includes('mid')) updatedSearchContext.companySize = 'mid-size';
+        }
 
-          // Build search text from accumulated context
-          const searchText = [
-            updatedSearchContext.title,
-            updatedSearchContext.description,
-            updatedSearchContext.requirements,
-            updatedSearchContext.location,
-            message // Include current message for additional context
-          ].filter(Boolean).join(' ');
+        updatedSearchContext = {
+          ...updatedSearchContext,
+          title: parsedRequirements.title || updatedSearchContext.title,
+          skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
+          location: parsedRequirements.location || updatedSearchContext.location,
+          yearsExperience: parsedRequirements.yearsExperience || updatedSearchContext.yearsExperience,
+          description: parsedRequirements.description || updatedSearchContext.description,
+          requirements: parsedRequirements.requirements || updatedSearchContext.requirements,
+          responsibilities: parsedRequirements.responsibilities || updatedSearchContext.responsibilities,
+          company: parsedRequirements.company || updatedSearchContext.company,
+          salary: parsedRequirements.salary || updatedSearchContext.salary,
+        };
 
-          // Search for candidates using MERGED context
-          const allCandidates = await storage.getCandidates();
-          const candidateMatches = await generateCandidateLonglist(
-            allCandidates.map(c => ({
-              id: c.id,
-              firstName: c.firstName,
-              lastName: c.lastName,
-              currentTitle: c.currentTitle || "",
-              skills: c.skills || [],
-              cvText: c.cvText || undefined
-            })),
-            updatedSearchContext.skills || [], // Use merged skills, not just new ones
-            searchText, // Use accumulated context, not just current message
-            10
-          );
+        // CONSULTATIVE: Determine what to ask next
+        const hasBasicInfo = updatedSearchContext.title || (updatedSearchContext.skills && updatedSearchContext.skills.length > 0);
 
-          // Enrich matches with full candidate details
-          matchedCandidates = candidateMatches.map(match => {
-            const candidate = allCandidates.find(c => c.id === match.candidateId);
-            return {
-              candidateId: match.candidateId,
-              matchScore: match.matchScore,
-              firstName: candidate?.firstName || '',
-              lastName: candidate?.lastName || '',
-              currentTitle: candidate?.currentTitle || '',
-              currentCompany: candidate?.currentCompany || '',
-              location: candidate?.location || '',
-              skills: candidate?.skills || []
-            };
-          });
-
-          const matchCount = candidateMatches.filter(m => m.matchScore > 60).length;
-          
-          aiResponse = `I found ${matchCount} candidates matching your requirements:\n\n` +
-            `**Position**: ${parsedRequirements.title || updatedSearchContext.title || 'Not specified'}\n` +
-            `**Skills**: ${parsedRequirements.skills?.join(', ') || updatedSearchContext.skills?.join(', ') || 'Not specified'}\n\n` +
-            `Here are the top matches. Click any candidate to view their full profile.`;
+        if (!hasBasicInfo) {
+          // No requirements yet - ask for basics
+          aiResponse = `I'm here to help you find the perfect candidate! \n\n` +
+            `To get started, could you tell me:\n\n` +
+            `• What **role/position** are you hiring for?\n` +
+            `• What **key skills** are essential?\n\n` +
+            `Or feel free to upload a job description if you have one!`;
+          newPhase = 'initial';
         } else {
-          // Not enough information - ask clarifying questions
-          aiResponse = updatedSearchContext ? 
-            `Thank you! Could you also tell me:\n\n` +
-            `• What specific skills are required?\n` +
-            `• Any location preferences?\n` +
-            `• Years of experience needed?` :
-            `I'm here to help you find the perfect candidate. Tell me what you're looking for!\n\n` +
-            `For example: "I need a CFO with private equity experience in Hong Kong"`;
+          // Have basic info - ask for details
+          const missingInfo = [];
+          if (!updatedSearchContext.industry) missingInfo.push("• Which **industry** is this role in? (e.g., Private Equity, Tech, Finance, Retail)");
+          if (!updatedSearchContext.location) missingInfo.push("• What **location** are you targeting? (e.g., Hong Kong, Singapore, Remote)");
+          if (!updatedSearchContext.companySize) missingInfo.push("• What's the **company size**? (startup, mid-size, or enterprise)");
+          if (!updatedSearchContext.urgency) missingInfo.push("• How **urgent** is this hire? (standard timeline or need someone fast)");
+          if (!updatedSearchContext.salary) missingInfo.push("• What's the **salary range** for this role?");
+
+          if (missingInfo.length > 0) {
+            aiResponse = `Great start! I'm building a profile for a **${updatedSearchContext.title || 'candidate'}** ` +
+              `${updatedSearchContext.skills && updatedSearchContext.skills.length > 0 ? `with skills in **${updatedSearchContext.skills.join(', ')}**` : ''}.\n\n` +
+              `To create a comprehensive job order, I need just a bit more information:\n\n` +
+              missingInfo.slice(0, 3).join('\n'); // Ask max 3 questions at a time
+            newPhase = 'clarifying';
+          } else {
+            // Have enough info - ready to create job order
+            newPhase = 'ready_to_create_job';
+            aiResponse = `Excellent! I have everything I need:\n\n` +
+              `**Position**: ${updatedSearchContext.title}\n` +
+              `**Industry**: ${updatedSearchContext.industry}\n` +
+              `**Location**: ${updatedSearchContext.location}\n` +
+              `**Company Size**: ${updatedSearchContext.companySize}\n` +
+              `**Skills**: ${updatedSearchContext.skills?.join(', ')}\n` +
+              `**Urgency**: ${updatedSearchContext.urgency}\n\n` +
+              `Ready to create a formal job order and begin the search? Choose your search tier:\n\n` +
+              `✓ **Internal Database** (~15 min) - Search our ${await storage.getCandidates().then(c => c.length)} existing candidates\n` +
+              `✓ **Extended External** (longer) - Include LinkedIn + external sources (premium pricing)\n\n` +
+              `Type "internal" or "external" to proceed, or "create job order" to formalize this first.`;
+          }
         }
       }
 
@@ -1637,6 +1644,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: matchedCandidates ? {
           type: 'candidate_results' as const,
           candidateIds: matchedCandidates.map(c => c.candidateId)
+        } : createdJobId ? {
+          type: 'job_created' as const,
+          jobId: createdJobId
         } : undefined
       };
 
@@ -1648,7 +1658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         searchContext: updatedSearchContext,
         matchedCandidates: matchedCandidates,
         jdFileInfo: jdFileInfo,
-        phase: matchedCandidates ? 'searching' : (file ? 'clarifying' : 'initial')
+        phase: newPhase
       });
 
       // Return updated conversation
