@@ -72,6 +72,9 @@ Preferred communication style: Simple, everyday language.
 -   **Conversational AI Recruiting Assistant** (MVP Feature): ChatGPT-style interface for investor demos where clients interact with AI to find candidates:
     -   **Consultative AI Approach**: AI asks clarifying questions BEFORE searching, working like a real executive recruiter instead of an order-taking chatbot
     -   **Context-Aware Intelligence**: Auto-loads user's company metadata (industry, size, stage) on conversation start; AI only asks for missing information to avoid redundant questions
+    -   **Dialogue-Based Interaction**: AI detects greetings/casual messages vs hiring intent, responds conversationally to "Hi, how are you?" without forcing job questions
+    -   **Progressive Engagement**: Stays casual until user mentions hiring needs (detects 15+ greeting patterns, 10+ hiring keywords), then transitions smoothly to business
+    -   **Smart Greeting Detection**: Handles punctuation variants ("Hi!", "Hello!", "Good morning!") using regex + punctuation stripping for reliable pattern matching
     -   **Enhanced Job Parsing**: Extracts 13 fields (title, skills, location, years of experience, industry, company size, urgency, salary, department, requirements, responsibilities, benefits) with flexible yearsExperience parsing ("5+ years", "5-7 years")
     -   **Multi-Turn Context Accumulation**: AI remembers and merges requirements across conversation turns (skills accumulated via deduplicated union, not replaced)
     -   **Phase Tracking**: Conversation progresses through phases: initial → clarifying → ready_to_search → job_order_created
