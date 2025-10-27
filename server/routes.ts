@@ -1452,10 +1452,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new conversation
   app.post("/api/conversations", async (req, res) => {
     try {
+      const { userId, companyId } = req.body;
+      // TODO: Get userId from req.user when authentication is implemented
+      
+      let initialSearchContext: any = {};
+      
+      // If user/company provided, auto-load company metadata to avoid redundant questions
+      if (userId || companyId) {
+        try {
+          let company;
+          
+          if (userId) {
+            const user = await storage.getUser(userId);
+            if (user?.companyId) {
+              company = await storage.getCompany(user.companyId);
+            }
+          } else if (companyId) {
+            company = await storage.getCompany(companyId);
+          }
+          
+          // Pre-populate known context from company profile
+          if (company) {
+            initialSearchContext = {
+              companyName: company.name,
+              industry: company.industry || company.subIndustry || undefined,
+              companySize: company.employeeSizeRange || (company.employeeSize ? `${company.employeeSize} employees` : undefined),
+              companyStage: company.stage || company.companyStage || undefined,
+              location: company.location || undefined,
+              // Store company metadata for later reference
+              _companyMetadata: {
+                companyId: company.id,
+                companyRole: company.companyRole,
+                fundingStage: company.fundingStage,
+                totalFundingRaised: company.totalFundingRaised,
+                preferredSkills: company.preferredSkills,
+                avoidCompanies: company.avoidCompanies,
+              }
+            };
+          }
+        } catch (error) {
+          console.error("Error loading company metadata:", error);
+          // Continue without pre-populated context
+        }
+      }
+      
       const conversation = await storage.createConversation({
         messages: [],
         status: 'active',
         phase: 'initial',
+        searchContext: Object.keys(initialSearchContext).length > 0 ? initialSearchContext : undefined,
       });
       res.json(conversation);
     } catch (error) {
@@ -1531,22 +1576,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           parsedData: parsedJD
         };
 
-        // CONSULTATIVE: Ask clarifying questions even with JD
+        // CONSULTATIVE: Ask clarifying questions even with JD (but skip what we already know)
         const missingInfo = [];
+        const knownContext = [];
+        
+        // Build acknowledgment of known info
+        if (updatedSearchContext.companyName) {
+          knownContext.push(`from **${updatedSearchContext.companyName}**`);
+        }
+        if (updatedSearchContext.industry) {
+          knownContext.push(`in the **${updatedSearchContext.industry}** industry`);
+        }
+        
+        // Only ask about what we don't know
         if (!updatedSearchContext.industry) missingInfo.push("• Which **industry** is this role in?");
         if (!updatedSearchContext.companySize) missingInfo.push("• What's the **company size**? (startup, mid-size, enterprise)");
         if (!updatedSearchContext.urgency) missingInfo.push("• How **urgent** is this hire? (standard timeline or fast-track)");
         if (!updatedSearchContext.salary) missingInfo.push("• What's the **salary range**?");
 
         if (missingInfo.length > 0) {
-          aiResponse = `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n` +
+          const contextIntro = knownContext.length > 0 
+            ? `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}** ${knownContext.join(' ')}.\n\n`
+            : `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n`;
+          
+          aiResponse = contextIntro +
             `Before I create a formal job order and start searching, let me clarify a few more details to ensure we find the perfect match:\n\n` +
             missingInfo.join('\n');
           newPhase = 'clarifying';
         } else {
           // Have enough info - would create job order here
           newPhase = 'ready_to_create_job';
-          aiResponse = `Perfect! I have all the information I need.\n\n` +
+          const contextIntro = knownContext.length > 0
+            ? `Perfect! Since you're ${knownContext.join(' ')}, I have everything I need.\n\n`
+            : `Perfect! I have all the information I need.\n\n`;
+          
+          aiResponse = contextIntro +
             `**Position**: ${updatedSearchContext.title}\n` +
             `**Industry**: ${updatedSearchContext.industry}\n` +
             `**Location**: ${updatedSearchContext.location || 'Not specified'}\n` +
@@ -1592,19 +1656,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           salary: parsedRequirements.salary || updatedSearchContext.salary,
         };
 
-        // CONSULTATIVE: Determine what to ask next
+        // CONSULTATIVE: Determine what to ask next (but skip what we already know)
         const hasBasicInfo = updatedSearchContext.title || (updatedSearchContext.skills && updatedSearchContext.skills.length > 0);
+        
+        // Build acknowledgment of known context from user's company
+        const knownContext = [];
+        if (updatedSearchContext.companyName && messages.length <= 2) {
+          // Only acknowledge company context in first few messages
+          knownContext.push(`from **${updatedSearchContext.companyName}**`);
+        }
 
         if (!hasBasicInfo) {
           // No requirements yet - ask for basics
-          aiResponse = `I'm here to help you find the perfect candidate! \n\n` +
+          const greeting = knownContext.length > 0
+            ? `Great to work with you ${knownContext.join(' ')}! I'm here to help you find the perfect candidate.\n\n`
+            : `I'm here to help you find the perfect candidate!\n\n`;
+          
+          aiResponse = greeting +
             `To get started, could you tell me:\n\n` +
             `• What **role/position** are you hiring for?\n` +
             `• What **key skills** are essential?\n\n` +
             `Or feel free to upload a job description if you have one!`;
           newPhase = 'initial';
         } else {
-          // Have basic info - ask for details
+          // Have basic info - ask for missing details (skip what we already know from company profile)
           const missingInfo = [];
           if (!updatedSearchContext.industry) missingInfo.push("• Which **industry** is this role in? (e.g., Private Equity, Tech, Finance, Retail)");
           if (!updatedSearchContext.location) missingInfo.push("• What **location** are you targeting? (e.g., Hong Kong, Singapore, Remote)");
@@ -1613,7 +1688,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!updatedSearchContext.salary) missingInfo.push("• What's the **salary range** for this role?");
 
           if (missingInfo.length > 0) {
+            const contextIntro = updatedSearchContext.industry
+              ? `in the **${updatedSearchContext.industry}** industry`
+              : '';
+            
             aiResponse = `Great start! I'm building a profile for a **${updatedSearchContext.title || 'candidate'}** ` +
+              `${contextIntro ? contextIntro + ' ' : ''}` +
               `${updatedSearchContext.skills && updatedSearchContext.skills.length > 0 ? `with skills in **${updatedSearchContext.skills.join(', ')}**` : ''}.\n\n` +
               `To create a comprehensive job order, I need just a bit more information:\n\n` +
               missingInfo.slice(0, 3).join('\n'); // Ask max 3 questions at a time
@@ -1621,7 +1701,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             // Have enough info - ready to create job order
             newPhase = 'ready_to_create_job';
-            aiResponse = `Excellent! I have everything I need:\n\n` +
+            const contextIntro = knownContext.length > 0
+              ? `Excellent! Since you're ${knownContext.join(' ')}, I have everything I need:\n\n`
+              : `Excellent! I have everything I need:\n\n`;
+            
+            aiResponse = contextIntro +
               `**Position**: ${updatedSearchContext.title}\n` +
               `**Industry**: ${updatedSearchContext.industry}\n` +
               `**Location**: ${updatedSearchContext.location}\n` +

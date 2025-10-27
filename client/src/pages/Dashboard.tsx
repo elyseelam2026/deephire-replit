@@ -29,13 +29,23 @@ export default function Dashboard() {
   const { toast} = useToast();
   const queryClient = useQueryClient();
 
+  // Get companyId from URL params (for demo/testing purposes)
+  // TODO: This will come from user session when authentication is implemented
+  const urlParams = new URLSearchParams(window.location.search);
+  const companyId = urlParams.get('companyId');
+
   // Create conversation on mount (once)
   const createConversationMutation = useMutation({
     mutationFn: async () => {
+      const body: any = {};
+      if (companyId) {
+        body.companyId = parseInt(companyId);
+      }
+      
       const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('Failed to create conversation');
       return response.json();
