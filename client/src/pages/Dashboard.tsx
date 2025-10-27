@@ -3,15 +3,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChatInterface } from "@/components/ChatInterface";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 type Message = {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
   metadata?: {
-    type?: 'jd_upload' | 'candidate_results' | 'clarification' | 'text';
+    type?: 'jd_upload' | 'candidate_results' | 'clarification' | 'text' | 'job_created';
     fileName?: string;
     candidateIds?: number[];
+    jobId?: number;
   };
 };
 
@@ -28,6 +30,7 @@ export default function Dashboard() {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const { toast} = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   // Get companyId from URL params (for demo/testing purposes)
   // TODO: This will come from user session when authentication is implemented
@@ -119,6 +122,25 @@ export default function Dashboard() {
 
     await sendMessageMutation.mutateAsync({ message: content, file });
   };
+
+  // Auto-redirect to Jobs page when job is created
+  useEffect(() => {
+    if (!conversation?.messages) return;
+    
+    const lastMessage = conversation.messages[conversation.messages.length - 1];
+    if (lastMessage?.metadata?.type === 'job_created' && lastMessage.metadata.jobId) {
+      // Small delay to show "Job Created!" message first
+      const timer = setTimeout(() => {
+        toast({
+          title: "Redirecting...",
+          description: "Taking you to the Jobs page to see your results",
+        });
+        setLocation('/recruiting/jobs');
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [conversation?.messages]);
 
   const messages = conversation?.messages || [];
   const matchedCandidates = conversation?.matchedCandidates || [];

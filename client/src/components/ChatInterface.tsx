@@ -11,9 +11,10 @@ type Message = {
   content: string;
   timestamp: string;
   metadata?: {
-    type?: 'jd_upload' | 'candidate_results' | 'clarification' | 'text';
+    type?: 'jd_upload' | 'candidate_results' | 'clarification' | 'text' | 'job_created';
     fileName?: string;
     candidateIds?: number[];
+    jobId?: number;
   };
 };
 
