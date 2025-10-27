@@ -87,6 +87,8 @@ export default function Dashboard() {
       return response.json();
     },
     enabled: !!conversationId,
+    staleTime: 0, // Always fetch fresh data
+    refetchOnMount: true, // Refetch when component mounts
   });
 
   // Send message mutation

@@ -1791,12 +1791,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: 'assistant' as const,
         content: aiResponse,
         timestamp: new Date().toISOString(),
-        metadata: matchedCandidates ? {
+        metadata: createdJobId ? {
+          type: 'job_created' as const,
+          jobId: createdJobId,
+          candidateIds: matchedCandidates?.map(c => c.candidateId) || []
+        } : matchedCandidates ? {
           type: 'candidate_results' as const,
           candidateIds: matchedCandidates.map(c => c.candidateId)
-        } : createdJobId ? {
-          type: 'job_created' as const,
-          jobId: createdJobId
         } : undefined
       };
 
