@@ -1691,6 +1691,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           newPhase = 'initial';
         }
+
+        // CRITICAL: Detect if user agreed to start the search
+        const lowerMessage = message.toLowerCase().trim();
+        const searchAgreementKeywords = [
+          'internal', 'external', 'yes', 'proceed', 'start', 'go ahead', 
+          'sure', 'ok', 'okay', 'create job', 'begin', 'let\'s do it'
+        ];
+        
+        const userAgreedToSearch = searchAgreementKeywords.some(keyword => 
+          lowerMessage.includes(keyword)
+        ) && (newPhase === 'ready_to_create_job' || updatedSearchContext.title);
+
+        // If user agreed AND we have enough context, create job + run search
+        if (userAgreedToSearch && updatedSearchContext.title && !conversation.jobId) {
+          console.log('🎯 USER AGREED TO SEARCH - Creating job order and running search...');
+          
+          // Get or create default company (for demo)
+          let companyId = 1; // Default company ID
+          const companies = await storage.getCompanies();
+          if (companies.length > 0) {
+            companyId = companies[0].id;
+          }
+
+          // Create job order in database
+          const newJob = await storage.createJob({
+            title: updatedSearchContext.title,
+            department: updatedSearchContext.department || 'General',
+            companyId: companyId,
+            jdText: updatedSearchContext.description || `Job: ${updatedSearchContext.title}`,
+            parsedData: updatedSearchContext,
+            skills: updatedSearchContext.skills || [],
+            urgency: updatedSearchContext.urgency || 'medium',
+            status: 'active'
+          });
+
+          createdJobId = newJob.id;
+          console.log(`✅ Job order created: #${createdJobId} - ${newJob.title}`);
+
+          // Run candidate search
+          console.log('🔍 Running candidate search...');
+          const allCandidates = await storage.getCandidates();
+          const jobSkills = updatedSearchContext.skills || [];
+          const jobText = updatedSearchContext.description || updatedSearchContext.title || '';
+          
+          // Map candidates to expected format for generateCandidateLonglist
+          const candidatesForSearch = allCandidates.map(c => ({
+            id: c.id,
+            firstName: c.firstName,
+            lastName: c.lastName,
+            currentTitle: c.currentTitle || '',
+            skills: c.skills || [],
+            cvText: c.cvText || undefined
+          }));
+          
+          const searchResults = await generateCandidateLonglist(
+            candidatesForSearch,
+            jobSkills,
+            jobText,
+            20 // limit
+          );
+          
+          if (searchResults && searchResults.length > 0) {
+            matchedCandidates = searchResults.map(r => ({
+              candidateId: r.candidateId,
+              matchScore: r.matchScore,
+              reasoning: `Matched ${r.matchScore}% on skills and experience`
+            }));
+            console.log(`✅ Found ${matchedCandidates.length} matched candidates`);
+          } else {
+            console.log('⚠️ No candidates matched');
+            matchedCandidates = [];
+          }
+
+          // Override AI response to direct user to Jobs page
+          aiResponse = `✅ **Job Order Created!**\n\n` +
+            `I've created **Job Order #${createdJobId}** for the **${updatedSearchContext.title}** position and completed the internal search.\n\n` +
+            `**Results**: ${matchedCandidates.length > 0 ? `Found ${matchedCandidates.length} matched candidates` : 'No matches found in our current database'}\n\n` +
+            `👉 **Visit the Jobs page** to review candidates and manage this job order.\n\n` +
+            (matchedCandidates.length === 0 
+              ? `Would you like me to run an **Extended External Search** to find candidates from LinkedIn and other sources?`
+              : `Need more candidates? I can run an Extended External Search for additional options.`);
+
+          newPhase = 'job_order_created';
+        }
       }
 
       // Add AI response
@@ -1709,13 +1793,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updatedMessages = [...messages, assistantMessage];
 
-      // Update conversation with all changes in a single call
+      // Update conversation with all changes in a single call (including job link)
       await storage.updateConversation(conversationId, {
         messages: updatedMessages,
         searchContext: updatedSearchContext,
         matchedCandidates: matchedCandidates,
         jdFileInfo: jdFileInfo,
-        phase: newPhase
+        phase: newPhase,
+        jobId: createdJobId || conversation.jobId // Link to created job
       });
 
       // Return updated conversation
