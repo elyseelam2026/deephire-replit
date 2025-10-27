@@ -1,12 +1,12 @@
 /**
- * Embeddings Service - xAI Grok Integration
- * Generates vector embeddings for semantic search
+ * Embeddings Service - Multi-AI Platform Architecture
+ * Uses Voyage AI for semantic embeddings (xAI Grok embeddings not yet available)
  */
 
-const XAI_API_KEY = process.env.XAI_API_KEY;
-const XAI_API_BASE = "https://api.x.ai/v1";
+const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY;
+const VOYAGE_API_BASE = "https://api.voyageai.com/v1";
 
-interface EmbeddingResponse {
+interface VoyageEmbeddingResponse {
   object: string;
   data: Array<{
     object: string;
@@ -15,51 +15,92 @@ interface EmbeddingResponse {
   }>;
   model: string;
   usage: {
-    prompt_tokens: number;
     total_tokens: number;
   };
 }
 
 /**
- * Generate embedding for text using xAI Grok
+ * Generate embedding for text using Voyage AI
+ * Using voyage-2 model optimized for general-purpose semantic search
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  if (!XAI_API_KEY) {
-    throw new Error("XAI_API_KEY is not configured");
+  if (!VOYAGE_API_KEY) {
+    throw new Error("VOYAGE_API_KEY is not configured");
   }
 
-  // Clean and truncate text if needed (most models have token limits)
-  const cleanText = text.trim().substring(0, 50000); // ~12k tokens max
+  // Clean and truncate text if needed (Voyage supports up to 32k tokens)
+  const cleanText = text.trim().substring(0, 100000); // ~25k tokens max
 
   try {
-    const response = await fetch(`${XAI_API_BASE}/embeddings`, {
+    const response = await fetch(`${VOYAGE_API_BASE}/embeddings`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${XAI_API_KEY}`,
+        "Authorization": `Bearer ${VOYAGE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "embedding-model", // xAI embedding model
+        model: "voyage-2", // General-purpose embedding model, 1024 dimensions
         input: cleanText,
-        dimensions: 1024,
-        encoding_format: "float",
+        input_type: "document", // Optimize for document retrieval
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`xAI embeddings API error: ${response.status} - ${errorText}`);
+      throw new Error(`Voyage AI embeddings API error: ${response.status} - ${errorText}`);
     }
 
-    const data: EmbeddingResponse = await response.json();
+    const data: VoyageEmbeddingResponse = await response.json();
     
     if (!data.data || data.data.length === 0) {
-      throw new Error("No embedding data returned from xAI API");
+      throw new Error("No embedding data returned from Voyage AI API");
     }
 
     return data.data[0].embedding;
   } catch (error) {
     console.error("Error generating embedding:", error);
+    throw error;
+  }
+}
+
+/**
+ * Generate query embedding (optimized for search queries)
+ */
+export async function generateQueryEmbedding(query: string): Promise<number[]> {
+  if (!VOYAGE_API_KEY) {
+    throw new Error("VOYAGE_API_KEY is not configured");
+  }
+
+  const cleanQuery = query.trim().substring(0, 10000);
+
+  try {
+    const response = await fetch(`${VOYAGE_API_BASE}/embeddings`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${VOYAGE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "voyage-2",
+        input: cleanQuery,
+        input_type: "query", // Optimize for query matching
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Voyage AI query embedding error: ${response.status} - ${errorText}`);
+    }
+
+    const data: VoyageEmbeddingResponse = await response.json();
+    
+    if (!data.data || data.data.length === 0) {
+      throw new Error("No embedding data returned from Voyage AI API");
+    }
+
+    return data.data[0].embedding;
+  } catch (error) {
+    console.error("Error generating query embedding:", error);
     throw error;
   }
 }

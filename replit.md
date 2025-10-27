@@ -37,10 +37,30 @@ Preferred communication style: Simple, everyday language.
 -   **Custom Fields System**: Flexible architecture for candidate data using `custom_field_sections`, `custom_field_definitions`, and JSONB storage for values.
 -   **Soft Delete**: Candidates are soft-deleted using a `deleted_at` timestamp.
 
-### AI and Machine Learning
--   **Language Model**: xAI Grok-2-1212 (131k token context window).
--   **Capabilities**: Automated job description parsing, intelligent candidate longlist generation, structured JSON output, AI biography generation, AI-powered team discovery, and AI-powered office discovery.
+### AI and Machine Learning - Multi-Platform Architecture
+-   **Hybrid AI Strategy**: Best-of-breed approach using specialized AI services for different capabilities.
+-   **xAI Grok-2-1212** (Conversational Intelligence):
+    -   131k token context window for complex reasoning
+    -   Job description parsing and requirement extraction
+    -   Intelligent candidate longlist generation with scoring
+    -   AI biography generation and career history analysis
+    -   Team discovery and office location extraction
+    -   Multi-turn conversational interface for clarifying requirements
+-   **Voyage AI** (Semantic Search & Embeddings):
+    -   voyage-2 model for general-purpose semantic embeddings (1024 dimensions)
+    -   Document embeddings for candidate profiles (input_type="document")
+    -   Query embeddings for search optimization (input_type="query")
+    -   Enables true semantic matching beyond keyword search
+    -   Accessible from Hong Kong (OpenAI alternative)
+-   **PostgreSQL pgvector** (Vector Database):
+    -   Native vector similarity search using cosine distance
+    -   Efficient indexed lookups for large candidate databases
+    -   1024-dimension vector columns for cv_embedding
 -   **Company Intelligence Engine**: Auto-categorizes companies and lays the foundation for pattern learning.
+-   **Embeddings Infrastructure**:
+    -   API endpoints: POST `/api/embeddings/generate` (batch), POST `/api/embeddings/search` (query)
+    -   Automatic embedding refresh (7-day staleness threshold)
+    -   Storage.semanticSearchCandidates() for database-level vector search
 
 ### Design System
 -   **Philosophy**: Enterprise-first, professional, and usable.
@@ -75,7 +95,8 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### AI Services
--   **xAI Grok API**: Core AI model for various functionalities.
+-   **xAI Grok API**: Conversational intelligence, job parsing, candidate matching logic.
+-   **Voyage AI**: Semantic embeddings and vector search capabilities.
 
 ### Data Services
 -   **SerpAPI**: For search engine results, LinkedIn profile discovery, and email pattern research.

@@ -9,7 +9,7 @@ interface MulterRequest extends Request {
 import { storage } from "./storage";
 import { db } from "./db";
 import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV } from "./ai";
-import { generateEmbedding, buildCandidateEmbeddingText } from "./embeddings";
+import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
@@ -3799,8 +3799,8 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(400).json({ error: "Query is required" });
       }
 
-      // Generate embedding for the search query
-      const queryEmbedding = await generateEmbedding(query);
+      // Generate query-optimized embedding for the search query
+      const queryEmbedding = await generateQueryEmbedding(query);
 
       // Perform vector similarity search using PostgreSQL
       const candidates = await storage.semanticSearchCandidates(queryEmbedding, limit);
