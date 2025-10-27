@@ -1448,6 +1448,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create a new conversation
+  app.post("/api/conversations", async (req, res) => {
+    try {
+      const conversation = await storage.createConversation({
+        messages: [],
+        status: 'active',
+        phase: 'initial',
+      });
+      res.json(conversation);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      res.status(500).json({ error: "Failed to create conversation" });
+    }
+  });
+
+  // Send a message in a conversation
+  app.post("/api/conversations/:id/messages", upload.single('file'), async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      const message = req.body.message;
+      const file = req.file;
+
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // Add user message to conversation
+      const userMessage = {
+        role: 'user' as const,
+        content: message,
+        timestamp: new Date().toISOString(),
+        metadata: file ? {
+          type: 'jd_upload' as const,
+          fileName: file.originalname
+        } : undefined
+      };
+
+      const messages = Array.isArray(conversation.messages) ? [...conversation.messages, userMessage] : [userMessage];
+
+      // Process the message and get AI response
+      let aiResponse: string;
+      let matchedCandidates: any[] | undefined;
+
+      if (file) {
+        // Handle JD upload
+        const jdText = await extractTextFromDocument(file);
+        
+        // Parse JD using AI
+        const parsedJD = await parseJobDescription(jdText);
+        
+        aiResponse = `I've analyzed the job description. Here's what I found:\n\n` +
+          `**Position**: ${parsedJD.title || 'Not specified'}\n` +
+          `**Skills Required**: ${parsedJD.skills?.join(', ') || 'Not specified'}\n` +
+          `**Location**: ${parsedJD.location || 'Not specified'}\n\n` +
+          `Let me search for matching candidates...`;
+
+        // Update search context
+        await storage.updateConversation(conversationId, {
+          searchContext: parsedJD,
+          jdFileInfo: {
+            fileName: file.originalname,
+            fileSize: file.size,
+            uploadedAt: new Date().toISOString(),
+            parsedData: parsedJD
+          }
+        });
+      } else {
+        // Handle text message - parse intent and respond
+        aiResponse = `I understand you're looking for someone. Could you tell me more about:\n\n` +
+          `1. What specific role or title?\n2. Required skills or experience?\n` +
+          `3. Preferred location?\n4. Any other important criteria?`;
+      }
+
+      // Add AI response
+      const assistantMessage = {
+        role: 'assistant' as const,
+        content: aiResponse,
+        timestamp: new Date().toISOString(),
+        metadata: matchedCandidates ? {
+          type: 'candidate_results' as const,
+          candidateIds: matchedCandidates.map(c => c.candidateId)
+        } : undefined
+      };
+
+      const updatedMessages = [...messages, assistantMessage];
+
+      // Update conversation
+      await storage.updateConversation(conversationId, {
+        messages: updatedMessages,
+        phase: file ? 'clarifying' : 'initial'
+      });
+
+      // Return updated conversation
+      const updatedConversation = await storage.getConversation(conversationId);
+      res.json(updatedConversation);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
   // Email outreach endpoints  
   app.get("/api/outreach", async (req, res) => {
     try {

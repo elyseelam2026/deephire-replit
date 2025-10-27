@@ -75,7 +75,7 @@ export interface IStorage {
   
   // Conversation management
   createConversation(conversation: InsertNapConversation): Promise<NapConversation>;
-  getConversations(): Promise<(NapConversation & { job: Job & { company: Company }, candidate?: Candidate })[]>;
+  getConversations(): Promise<NapConversation[]>;
   getConversation(id: number): Promise<NapConversation | undefined>;
   updateConversation(id: number, updates: Partial<InsertNapConversation>): Promise<NapConversation | undefined>;
   
@@ -741,39 +741,11 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
-  async getConversations(): Promise<(NapConversation & { job: Job & { company: Company }, candidate?: Candidate })[]> {
-    const results = await db.select({
-      id: napConversations.id,
-      jobId: napConversations.jobId,
-      candidateId: napConversations.candidateId,
-      messages: napConversations.messages,
-      status: napConversations.status,
-      createdAt: napConversations.createdAt,
-      updatedAt: napConversations.updatedAt,
-      job: jobs,
-      company: companies,
-      candidate: candidates
-    })
-    .from(napConversations)
-    .innerJoin(jobs, eq(napConversations.jobId, jobs.id))
-    .innerJoin(companies, eq(jobs.companyId, companies.id))
-    .leftJoin(candidates, eq(napConversations.candidateId, candidates.id))
-    .orderBy(desc(napConversations.updatedAt));
-
-    return results.map(r => ({
-      id: r.id,
-      jobId: r.jobId,
-      candidateId: r.candidateId,
-      messages: r.messages,
-      status: r.status,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-      job: {
-        ...r.job,
-        company: r.company
-      },
-      candidate: r.candidate || undefined
-    }));
+  async getConversations(): Promise<NapConversation[]> {
+    const conversations = await db.select()
+      .from(napConversations)
+      .orderBy(desc(napConversations.updatedAt));
+    return conversations;
   }
 
   async getConversation(id: number): Promise<NapConversation | undefined> {
