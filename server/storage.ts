@@ -67,6 +67,7 @@ export interface IStorage {
   getDeletedCandidates(): Promise<Candidate[]>; // Recycling bin
   restoreCandidate(id: number): Promise<Candidate | undefined>; // Restore from recycling bin
   permanentlyDeleteCandidate(id: number): Promise<void>; // Hard delete
+  semanticSearchCandidates(queryEmbedding: number[], limit?: number): Promise<Array<Candidate & { similarity: number }>>; // Vector similarity search
   
   // Job matching
   createJobMatch(match: InsertJobMatch): Promise<JobMatch>;
@@ -625,6 +626,24 @@ export class DatabaseStorage implements IStorage {
   async permanentlyDeleteCandidate(id: number): Promise<void> {
     // Hard delete - permanently remove from database
     await db.delete(candidates).where(eq(candidates.id, id));
+  }
+
+  async semanticSearchCandidates(queryEmbedding: number[], limit: number = 10): Promise<Array<Candidate & { similarity: number }>> {
+    // Perform vector similarity search using PostgreSQL pgvector
+    // Uses cosine distance (1 - <=> operator returns similarity, not distance)
+    const results = await db.execute<Candidate & { similarity: number }>(sql`
+      SELECT 
+        *,
+        1 - (cv_embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
+      FROM ${candidates}
+      WHERE 
+        cv_embedding IS NOT NULL 
+        AND deleted_at IS NULL
+      ORDER BY cv_embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+      LIMIT ${limit}
+    `);
+
+    return results.rows;
   }
 
   async searchCandidates(query: string): Promise<Candidate[]> {

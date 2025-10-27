@@ -9,6 +9,7 @@ interface MulterRequest extends Request {
 import { storage } from "./storage";
 import { db } from "./db";
 import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV } from "./ai";
+import { generateEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
@@ -3714,6 +3715,100 @@ CRITICAL RULES - You MUST follow these strictly:
     } catch (error) {
       console.error("Error updating candidate custom fields:", error);
       res.status(500).json({ error: "Failed to update candidate custom fields" });
+    }
+  });
+
+  // ==================== EMBEDDINGS & SEMANTIC SEARCH ====================
+
+  // Generate embeddings for all candidates (or single candidate)
+  app.post("/api/embeddings/generate", async (req, res) => {
+    try {
+      const { candidateId } = req.body;
+      
+      let candidates = [];
+      
+      if (candidateId) {
+        // Generate for single candidate
+        const candidate = await storage.getCandidate(candidateId);
+        if (!candidate) {
+          return res.status(404).json({ error: "Candidate not found" });
+        }
+        candidates = [candidate];
+      } else {
+        // Generate for all candidates
+        candidates = await storage.getCandidates();
+      }
+
+      let processed = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const candidate of candidates) {
+        try {
+          // Skip if already has recent embedding (within 7 days)
+          if (candidate.embeddingGeneratedAt) {
+            const daysSince = (Date.now() - new Date(candidate.embeddingGeneratedAt).getTime()) / (1000 * 60 * 60 * 24);
+            if (daysSince < 7) {
+              console.log(`Skipping candidate ${candidate.id} - embedding generated ${daysSince.toFixed(1)} days ago`);
+              continue;
+            }
+          }
+
+          // Build embedding text from candidate data
+          const embeddingText = buildCandidateEmbeddingText(candidate);
+          
+          // Generate embedding using xAI Grok
+          const embedding = await generateEmbedding(embeddingText);
+          
+          // Update candidate with embedding
+          await storage.updateCandidate(candidate.id, {
+            cvEmbedding: embedding,
+            embeddingGeneratedAt: new Date(),
+            embeddingModel: 'grok-embedding'
+          });
+          
+          processed++;
+          console.log(`Generated embedding for candidate ${candidate.id}: ${candidate.firstName} ${candidate.lastName}`);
+        } catch (error) {
+          failed++;
+          const errorMsg = `Failed for candidate ${candidate.id}: ${error instanceof Error ? error.message : String(error)}`;
+          errors.push(errorMsg);
+          console.error(errorMsg);
+        }
+      }
+
+      res.json({
+        success: true,
+        processed,
+        failed,
+        total: candidates.length,
+        errors: errors.slice(0, 10) // Return first 10 errors
+      });
+    } catch (error) {
+      console.error("Error generating embeddings:", error);
+      res.status(500).json({ error: "Failed to generate embeddings" });
+    }
+  });
+
+  // Semantic search for candidates
+  app.post("/api/embeddings/search", async (req, res) => {
+    try {
+      const { query, limit = 10 } = req.body;
+
+      if (!query) {
+        return res.status(400).json({ error: "Query is required" });
+      }
+
+      // Generate embedding for the search query
+      const queryEmbedding = await generateEmbedding(query);
+
+      // Perform vector similarity search using PostgreSQL
+      const candidates = await storage.semanticSearchCandidates(queryEmbedding, limit);
+
+      res.json({ candidates });
+    } catch (error) {
+      console.error("Error performing semantic search:", error);
+      res.status(500).json({ error: "Failed to perform semantic search" });
     }
   });
 

@@ -1,5 +1,6 @@
 import { sql, relations } from "drizzle-orm";
 import { pgTable, text, varchar, integer, timestamp, real, boolean, jsonb } from "drizzle-orm/pg-core";
+import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -343,6 +344,12 @@ export const candidates = pgTable("candidates", {
   
   // System fields (existing)
   cvText: text("cv_text"), // extracted CV text
+  
+  // Semantic Search - Vector Embeddings (xAI Grok)
+  cvEmbedding: vector("cv_embedding", { dimensions: 1024 }), // Grok embedding for semantic search
+  embeddingGeneratedAt: timestamp("embedding_generated_at"), // when embedding was last generated
+  embeddingModel: text("embedding_model").default("grok-embedding"), // model used for embedding
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
