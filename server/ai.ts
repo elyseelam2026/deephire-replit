@@ -22,6 +22,127 @@ function stripMarkdownJson(text: string): string {
 }
 
 /**
+ * Generate conversational AI response for recruiting assistant
+ * Uses Grok to handle natural dialogue, detect intent, and guide conversation
+ */
+export async function generateConversationalResponse(
+  userMessage: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  companyContext?: {
+    companyName?: string;
+    industry?: string;
+    companySize?: string;
+    companyStage?: string;
+  },
+  currentJobContext?: {
+    title?: string;
+    skills?: string[];
+    location?: string;
+    industry?: string;
+    yearsExperience?: number;
+    salary?: string;
+    urgency?: string;
+    companySize?: string;
+  }
+): Promise<{
+  response: string;
+  intent: 'greeting' | 'job_inquiry' | 'clarification' | 'ready_to_search';
+  extractedInfo?: {
+    title?: string;
+    skills?: string[];
+    location?: string;
+    industry?: string;
+    yearsExperience?: number;
+    salary?: string;
+    urgency?: string;
+    companySize?: string;
+  };
+}> {
+  try {
+    const systemPrompt = `You are a senior executive recruiter AI assistant for DeepHire, a talent acquisition platform. Your role is to have natural, consultative conversations with clients to understand their hiring needs.
+
+**Your personality:**
+- Warm, professional, and conversational
+- Like a senior recruiter, not a chatbot
+- Ask clarifying questions to understand requirements fully
+- Acknowledge what you already know from company profile
+
+**Conversation guidelines:**
+1. **Greetings**: Respond warmly to casual greetings ("Hi", "Hello", "How are you?") without forcing job questions
+2. **Progressive engagement**: Stay casual until they mention hiring needs
+3. **Consultative approach**: When they mention hiring, ask clarifying questions BEFORE offering to search
+4. **Context-aware**: Acknowledge information from their company profile (industry, size) - don't ask what you already know
+5. **Two-tier search**: When ready, explain Internal (15 min) vs External (premium) search options
+
+${companyContext ? `**Company context you already know:**
+- Company: ${companyContext.companyName}
+- Industry: ${companyContext.industry || 'Not specified'}
+- Size: ${companyContext.companySize || 'Not specified'}
+- Stage: ${companyContext.companyStage || 'Not specified'}
+
+DON'T ask about industry if you already know it. Acknowledge it instead.` : ''}
+
+${currentJobContext && Object.keys(currentJobContext).length > 0 ? `**Job context accumulated so far:**
+${currentJobContext.title ? `- Position: ${currentJobContext.title}` : ''}
+${currentJobContext.skills?.length ? `- Skills: ${currentJobContext.skills.join(', ')}` : ''}
+${currentJobContext.location ? `- Location: ${currentJobContext.location}` : ''}
+${currentJobContext.industry ? `- Industry: ${currentJobContext.industry}` : ''}
+${currentJobContext.yearsExperience ? `- Experience: ${currentJobContext.yearsExperience} years` : ''}
+${currentJobContext.salary ? `- Salary: ${currentJobContext.salary}` : ''}
+${currentJobContext.urgency ? `- Urgency: ${currentJobContext.urgency}` : ''}
+${currentJobContext.companySize ? `- Company size: ${currentJobContext.companySize}` : ''}` : ''}
+
+**Your response should be natural and conversational, not a templated form.**`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...conversationHistory.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: "user", content: userMessage }
+      ],
+      temperature: 0.7, // More natural, less robotic
+    });
+
+    const aiResponse = response.choices[0].message.content || "I'm here to help you find talent. How can I assist you today?";
+
+    // Determine intent from the conversation
+    const lowerMessage = userMessage.toLowerCase();
+    const greetingPatterns = ['hi', 'hello', 'hey', 'good morning', 'how are you'];
+    const hiringKeywords = ['hire', 'hiring', 'recruit', 'candidate', 'looking for', 'need', 'position', 'role', 'job'];
+    
+    const isGreeting = greetingPatterns.some(p => lowerMessage.includes(p));
+    const mentionsHiring = hiringKeywords.some(k => lowerMessage.includes(k));
+    const hasJobContext = currentJobContext && Object.keys(currentJobContext).length > 0;
+
+    let intent: 'greeting' | 'job_inquiry' | 'clarification' | 'ready_to_search';
+    if (isGreeting && !mentionsHiring && !hasJobContext) {
+      intent = 'greeting';
+    } else if (mentionsHiring || hasJobContext) {
+      // Check if we have enough info to search
+      const hasEnoughInfo = currentJobContext?.title && 
+                           currentJobContext?.skills?.length && 
+                           currentJobContext?.location;
+      intent = hasEnoughInfo ? 'ready_to_search' : 'clarification';
+    } else {
+      intent = 'job_inquiry';
+    }
+
+    return {
+      response: aiResponse,
+      intent,
+      extractedInfo: undefined // Grok will handle extraction in its response
+    };
+  } catch (error) {
+    console.error("Error generating conversational response:", error);
+    return {
+      response: "I'm here to help you find exceptional talent. How can I assist you today?",
+      intent: 'greeting'
+    };
+  }
+}
+
+/**
  * Use Playwright browser automation to scrape paginated team pages
  * This handles JavaScript-rendered pagination that static HTML scraping can't reach
  */

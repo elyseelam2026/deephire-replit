@@ -8,7 +8,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse } from "./ai";
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
@@ -1621,172 +1621,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `Which would you prefer?`;
         }
       } else {
-        // Handle text message - detect if it's casual/greeting vs job requirement
-        const lowerMessage = message.toLowerCase().trim();
+        // Handle text message using Grok's conversational AI
+        // Extract and merge job requirements first
+        const parsedRequirements = await parseJobDescription(message);
         
-        // Strip common punctuation to improve greeting detection
-        const cleanMessage = lowerMessage.replace(/[!?.,:;]+$/g, '').trim();
+        const existingSkills = updatedSearchContext?.skills || [];
+        const newSkills = parsedRequirements.skills || [];
+        const mergedSkills = Array.from(new Set([...existingSkills, ...newSkills]));
+
+        updatedSearchContext = {
+          ...updatedSearchContext,
+          title: parsedRequirements.title || updatedSearchContext.title,
+          skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
+          location: parsedRequirements.location || updatedSearchContext.location,
+          yearsExperience: parsedRequirements.yearsExperience || updatedSearchContext.yearsExperience,
+          description: parsedRequirements.description || updatedSearchContext.description,
+          requirements: parsedRequirements.requirements || updatedSearchContext.requirements,
+          responsibilities: parsedRequirements.responsibilities || updatedSearchContext.responsibilities,
+          company: parsedRequirements.company || updatedSearchContext.company,
+          salary: parsedRequirements.salary || updatedSearchContext.salary,
+          industry: parsedRequirements.industry || updatedSearchContext.industry,
+          urgency: parsedRequirements.urgency || updatedSearchContext.urgency,
+          companySize: parsedRequirements.companySize || updatedSearchContext.companySize,
+        };
+
+        // Build conversation history for Grok
+        const conversationHistory = messages.slice(0, -1).map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        }));
+
+        // Prepare company context
+        const companyContext = updatedSearchContext.companyName ? {
+          companyName: updatedSearchContext.companyName,
+          industry: updatedSearchContext.industry,
+          companySize: updatedSearchContext.companySize,
+          companyStage: updatedSearchContext.companyStage,
+        } : undefined;
+
+        // Prepare current job context
+        const currentJobContext = {
+          title: updatedSearchContext.title,
+          skills: updatedSearchContext.skills,
+          location: updatedSearchContext.location,
+          industry: updatedSearchContext.industry,
+          yearsExperience: updatedSearchContext.yearsExperience,
+          salary: updatedSearchContext.salary,
+          urgency: updatedSearchContext.urgency,
+          companySize: updatedSearchContext.companySize,
+        };
+
+        // Let Grok handle the conversation
+        const grokResponse = await generateConversationalResponse(
+          message,
+          conversationHistory,
+          companyContext,
+          currentJobContext
+        );
+
+        aiResponse = grokResponse.response;
         
-        // Detect greetings and casual messages
-        const greetingPatterns = [
-          'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
-          'how are you', 'how are you doing', 'what\'s up', 'whats up',
-          'greetings', 'hi there', 'hello there', 'good day', 'howdy'
-        ];
-        
-        const isGreeting = greetingPatterns.some(pattern => {
-          // Match exact greeting, or greeting followed by any punctuation/word
-          const regex = new RegExp(`^${pattern}(\\s|$|[!?.,:;])`, 'i');
-          return cleanMessage === pattern || regex.test(lowerMessage);
-        });
-        
-        // Check if user is asking for help or mentioning hiring needs
-        const hiringKeywords = [
-          'hire', 'hiring', 'recruit', 'candidate', 'looking for', 'need',
-          'position', 'role', 'job', 'vacancy', 'opening', 'search for',
-          'find someone', 'help me', 'can you help'
-        ];
-        
-        const mentionsHiring = hiringKeywords.some(keyword => lowerMessage.includes(keyword));
-        
-        // Check if message is purely conversational (no hiring context and no job info extracted yet)
-        const hasNoJobContext = !updatedSearchContext.title && 
-                                !updatedSearchContext.skills?.length && 
-                                !updatedSearchContext.requirements?.length;
-        
-        // If it's just a greeting without hiring context, respond conversationally
-        if (isGreeting && !mentionsHiring && hasNoJobContext) {
-          const knownContext = [];
-          if (updatedSearchContext.companyName) {
-            knownContext.push(`from **${updatedSearchContext.companyName}**`);
-          }
-          
-          const greetingResponses = [
-            `Hi there! I'm doing great, thank you for asking! ${knownContext.length > 0 ? `Great to work with you ${knownContext.join(' ')}.` : ''}`,
-            `Hello! I'm doing well, thanks! ${knownContext.length > 0 ? `Nice to connect with you ${knownContext.join(' ')}.` : ''}`,
-          ];
-          
-          const randomGreeting = greetingResponses[Math.floor(Math.random() * greetingResponses.length)];
-          
-          aiResponse = `${randomGreeting}\n\n` +
-            `I'm here to help you find exceptional talent. Whether you're looking to fill a critical role or building out your team, I can assist with:\n\n` +
-            `• **Executive Search** - C-suite and senior leadership\n` +
-            `• **Specialized Hiring** - Tech, Finance, Operations, and more\n` +
-            `• **Market Intelligence** - Insights on talent availability\n\n` +
-            `What brings you here today?`;
-          
+        // Map Grok's intent to our phase system
+        if (grokResponse.intent === 'greeting') {
           newPhase = 'initial';
+        } else if (grokResponse.intent === 'clarification') {
+          newPhase = 'clarifying';
+        } else if (grokResponse.intent === 'ready_to_search') {
+          newPhase = 'ready_to_create_job';
         } else {
-          // Extract and merge requirements
-          const parsedRequirements = await parseJobDescription(message);
-          
-          // Merge with existing context
-          const existingSkills = updatedSearchContext?.skills || [];
-          const newSkills = parsedRequirements.skills || [];
-          const mergedSkills = Array.from(new Set([...existingSkills, ...newSkills]));
-
-          // Check if message contains answers to our questions
-          if (!updatedSearchContext.industry && (lowerMessage.includes('industry') || lowerMessage.includes('finance') || lowerMessage.includes('tech') || lowerMessage.includes('retail'))) {
-            updatedSearchContext.industry = parsedRequirements.company || message;
-          }
-          if (!updatedSearchContext.urgency && (lowerMessage.includes('urgent') || lowerMessage.includes('fast') || lowerMessage.includes('asap') || lowerMessage.includes('standard'))) {
-            updatedSearchContext.urgency = lowerMessage.includes('urgent') || lowerMessage.includes('fast') || lowerMessage.includes('asap') ? 'urgent' : 'standard';
-          }
-          if (!updatedSearchContext.companySize && (lowerMessage.includes('startup') || lowerMessage.includes('enterprise') || lowerMessage.includes('mid') || lowerMessage.includes('small') || lowerMessage.includes('large'))) {
-            if (lowerMessage.includes('startup')) updatedSearchContext.companySize = 'startup';
-            else if (lowerMessage.includes('enterprise') || lowerMessage.includes('large')) updatedSearchContext.companySize = 'enterprise';
-            else if (lowerMessage.includes('mid')) updatedSearchContext.companySize = 'mid-size';
-          }
-
-          updatedSearchContext = {
-            ...updatedSearchContext,
-            title: parsedRequirements.title || updatedSearchContext.title,
-            skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
-            location: parsedRequirements.location || updatedSearchContext.location,
-            yearsExperience: parsedRequirements.yearsExperience || updatedSearchContext.yearsExperience,
-            description: parsedRequirements.description || updatedSearchContext.description,
-            requirements: parsedRequirements.requirements || updatedSearchContext.requirements,
-            responsibilities: parsedRequirements.responsibilities || updatedSearchContext.responsibilities,
-            company: parsedRequirements.company || updatedSearchContext.company,
-            salary: parsedRequirements.salary || updatedSearchContext.salary,
-          };
-
-        // CONSULTATIVE: Determine what to ask next (but skip what we already know)
-        const hasBasicInfo = updatedSearchContext.title || (updatedSearchContext.skills && updatedSearchContext.skills.length > 0);
-        
-        // Build acknowledgment of known context from user's company
-        const knownContext = [];
-        if (updatedSearchContext.companyName && messages.length <= 2) {
-          // Only acknowledge company context in first few messages
-          knownContext.push(`from **${updatedSearchContext.companyName}**`);
-        }
-        
-        // Check if this is the first user message (need friendly greeting)
-        const isFirstMessage = messages.length <= 1;
-
-        if (!hasBasicInfo) {
-          // No requirements yet - ask for basics
-          const greeting = knownContext.length > 0
-            ? `Great to work with you ${knownContext.join(' ')}! I'm here to help you find the perfect candidate.\n\n`
-            : isFirstMessage
-            ? `Hi there! I'm here to help you find the perfect candidate.\n\n`
-            : `I'm here to help you find the perfect candidate!\n\n`;
-          
-          aiResponse = greeting +
-            `To get started, could you tell me:\n\n` +
-            `• What **role/position** are you hiring for?\n` +
-            `• What **key skills** are essential?\n\n` +
-            `Or feel free to upload a job description if you have one!`;
           newPhase = 'initial';
-        } else {
-          // Have basic info - ask for missing details (skip what we already know from company profile)
-          const missingInfo = [];
-          if (!updatedSearchContext.industry) missingInfo.push("• Which **industry** is this role in? (e.g., Private Equity, Tech, Finance, Retail)");
-          if (!updatedSearchContext.location) missingInfo.push("• What **location** are you targeting? (e.g., Hong Kong, Singapore, Remote)");
-          if (!updatedSearchContext.companySize) missingInfo.push("• What's the **company size**? (startup, mid-size, or enterprise)");
-          if (!updatedSearchContext.urgency) missingInfo.push("• How **urgent** is this hire? (standard timeline or need someone fast)");
-          if (!updatedSearchContext.salary) missingInfo.push("• What's the **salary range** for this role?");
-
-          if (missingInfo.length > 0) {
-            // Build contextual greeting and acknowledgment
-            let greeting = '';
-            if (isFirstMessage) {
-              greeting = knownContext.length > 0
-                ? `Hi there! Great to work with you ${knownContext.join(' ')}.\n\n`
-                : `Hi there! Thanks for reaching out.\n\n`;
-            }
-            
-            const contextIntro = updatedSearchContext.industry
-              ? `in the **${updatedSearchContext.industry}** industry`
-              : '';
-            
-            aiResponse = greeting +
-              `I'm building a profile for a **${updatedSearchContext.title || 'candidate'}** ` +
-              `${contextIntro ? contextIntro + ' ' : ''}` +
-              `${updatedSearchContext.skills && updatedSearchContext.skills.length > 0 ? `with skills in **${updatedSearchContext.skills.join(', ')}**` : ''}.\n\n` +
-              `To create a comprehensive job order, I need just a bit more information:\n\n` +
-              missingInfo.slice(0, 3).join('\n'); // Ask max 3 questions at a time
-            newPhase = 'clarifying';
-          } else {
-            // Have enough info - ready to create job order
-            newPhase = 'ready_to_create_job';
-            const contextIntro = knownContext.length > 0
-              ? `Excellent! Since you're ${knownContext.join(' ')}, I have everything I need:\n\n`
-              : `Excellent! I have everything I need:\n\n`;
-            
-            aiResponse = contextIntro +
-              `**Position**: ${updatedSearchContext.title}\n` +
-              `**Industry**: ${updatedSearchContext.industry}\n` +
-              `**Location**: ${updatedSearchContext.location}\n` +
-              `**Company Size**: ${updatedSearchContext.companySize}\n` +
-              `**Skills**: ${updatedSearchContext.skills?.join(', ')}\n` +
-              `**Urgency**: ${updatedSearchContext.urgency}\n\n` +
-              `Ready to create a formal job order and begin the search? Choose your search tier:\n\n` +
-              `✓ **Internal Database** (~15 min) - Search our ${await storage.getCandidates().then(c => c.length)} existing candidates\n` +
-              `✓ **Extended External** (longer) - Include LinkedIn + external sources (premium pricing)\n\n` +
-              `Type "internal" or "external" to proceed, or "create job order" to formalize this first.`;
-          }
-        }
         }
       }
 
