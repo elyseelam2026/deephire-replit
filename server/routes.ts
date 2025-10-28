@@ -1739,6 +1739,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (userAgreedToSearch && updatedSearchContext.title && !conversation.jobId) {
           console.log('🎯 USER AGREED TO SEARCH - Creating job order and running search...');
           
+          // Detect search tier from user's message
+          const searchTier = lowerMessage.includes('external') ? 'external' : 'internal';
+          const feePercentage = searchTier === 'external' ? 25 : 15;
+          
+          // Calculate estimated placement fee if salary is available
+          let estimatedFee: number | undefined;
+          if (updatedSearchContext.salary) {
+            // Extract salary number (e.g., "400000" from "$400K" or "USD400K")
+            const salaryMatch = updatedSearchContext.salary.match(/(\d+(?:,\d{3})*(?:\.\d+)?)\s*[kK]?/);
+            if (salaryMatch) {
+              const salaryValue = parseFloat(salaryMatch[1].replace(/,/g, ''));
+              const multiplier = updatedSearchContext.salary.toLowerCase().includes('k') ? 1000 : 1;
+              const annualSalary = salaryValue * multiplier;
+              estimatedFee = Math.round(annualSalary * (feePercentage / 100));
+            }
+          }
+          
           // Get or create default company (for demo)
           let companyId = 1; // Default company ID
           const companies = await storage.getCompanies();
@@ -1746,7 +1763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             companyId = companies[0].id;
           }
 
-          // Create job order in database
+          // Create job order in database with pricing
           const newJob = await storage.createJob({
             title: updatedSearchContext.title,
             department: updatedSearchContext.department || 'General',
@@ -1755,7 +1772,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             parsedData: updatedSearchContext,
             skills: updatedSearchContext.skills || [],
             urgency: updatedSearchContext.urgency || 'medium',
-            status: 'active'
+            status: 'active',
+            searchTier: searchTier,
+            feePercentage: feePercentage,
+            estimatedPlacementFee: estimatedFee,
+            feeStatus: 'pending'
           });
 
           createdJobId = newJob.id;
@@ -1796,14 +1817,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             matchedCandidates = [];
           }
 
+          // Format pricing info
+          const pricingInfo = estimatedFee 
+            ? `\n**Estimated Placement Fee**: $${estimatedFee.toLocaleString()} (${feePercentage}% of base salary)`
+            : `\n**Fee Structure**: ${feePercentage}% of first-year base salary`;
+          
           // Override AI response to direct user to Jobs page
           aiResponse = `✅ **Job Order Created!**\n\n` +
-            `I've created **Job Order #${createdJobId}** for the **${updatedSearchContext.title}** position and completed the internal search.\n\n` +
+            `I've created **Job Order #${createdJobId}** for the **${updatedSearchContext.title}** position and completed the ${searchTier} search.\n\n` +
+            `**Search Tier**: ${searchTier === 'internal' ? 'Internal Database (~15 min)' : 'Extended External Search'}` +
+            pricingInfo + `\n\n` +
             `**Results**: ${matchedCandidates.length > 0 ? `Found ${matchedCandidates.length} matched candidates` : 'No matches found in our current database'}\n\n` +
-            `👉 **Visit the Jobs page** to review candidates and manage this job order.\n\n` +
+            `🔗 **[View Candidate Pipeline →](/jobs/${createdJobId})**\n\n` +
+            `You can now review candidates, move them through stages (Shortlist → Interview → Offer), and manage this search.` +
             (matchedCandidates.length === 0 
-              ? `Would you like me to run an **Extended External Search** to find candidates from LinkedIn and other sources?`
-              : `Need more candidates? I can run an Extended External Search for additional options.`);
+              ? `\n\nWould you like me to run an **Extended External Search** to find candidates from LinkedIn and other sources?`
+              : `\n\nNeed more candidates? I can run an Extended External Search for additional options.`);
 
           newPhase = 'job_order_created';
         }

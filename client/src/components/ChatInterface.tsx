@@ -80,10 +80,50 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
   };
 
   const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
+    return new Date(timestamp).toLocaleString('en-US', {
       hour: 'numeric',
       minute: '2-digit'
     });
+  };
+
+  // Helper to render markdown links in message content
+  const renderMessageContent = (content: string) => {
+    // Split content by markdown links [text](url)
+    const parts = [];
+    let lastIndex = 0;
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    let match;
+
+    while ((match = linkRegex.exec(content)) !== null) {
+      // Add text before the link
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      
+      // Add the link
+      const linkText = match[1];
+      const linkUrl = match[2];
+      parts.push(
+        <a 
+          key={match.index}
+          href={linkUrl} 
+          className="text-primary underline hover:text-primary/80 font-medium"
+          target={linkUrl.startsWith('http') ? '_blank' : '_self'}
+          rel={linkUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
+        >
+          {linkText}
+        </a>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : content;
   };
 
   return (
@@ -145,7 +185,7 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
                 )}
 
                 {/* Message text */}
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="text-sm whitespace-pre-wrap">{renderMessageContent(message.content)}</p>
 
                 {/* Candidate results indicator */}
                 {message.metadata?.type === 'candidate_results' && message.metadata.candidateIds && (
