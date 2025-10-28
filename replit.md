@@ -82,13 +82,20 @@ Preferred communication style: Simple, everyday language.
     -   **Phase Tracking**: Conversation progresses through phases: initial → clarifying → ready_to_create_job → job_order_created
     -   **Dual Input Methods**: Accepts both JD file uploads (PDF/DOCX) and natural language text messages
     -   **Two-Tier Search Pricing**: AI explains options before searching (15-min internal database vs extended external search with premium pricing)
+    -   **Success-Based Pricing Model**: 
+        -   **Internal Search**: 15% of first-year base salary (lower effort, existing database)
+        -   **External Search**: 25% of first-year base salary (higher effort, active sourcing)
+        -   Fee calculated automatically from salary data during NAP collection
+        -   Stored in jobs table: `searchTier`, `feePercentage`, `estimatedPlacementFee`, `actualPlacementFee`, `feeStatus`
+        -   Payment triggered on successful placement (industry-standard contingency model)
     -   **Company Context Pre-Population**: POST `/api/conversations` accepts userId/companyId to auto-populate searchContext with company metadata from database
-    -   **Immediate Job Order Creation**: When user agrees to search (keywords: "internal", "yes", "start", "proceed"), system immediately:
-        1. Creates job order in database with all accumulated context
+    -   **Immediate Job Order Creation with Pipeline Link**: When user agrees to search (keywords: "internal", "yes", "start", "proceed"), system immediately:
+        1. Creates job order in database with all accumulated context and pricing fields
         2. Runs `generateCandidateLonglist()` to search all candidates
         3. Stores matched candidates in conversation.matchedCandidates
         4. Links conversation to job via conversation.jobId
-        5. Directs user to Jobs page to review results (no waiting in chat)
+        5. Provides clickable markdown link to pipeline: `[View Candidate Pipeline →](/jobs/{id})`
+        6. Displays pricing summary (tier, fee percentage, estimated placement fee)
     -   **Search Agreement Detection**: Two-tier system for detecting user agreement:
         -   **Strong Explicit Phrases** (override phase checks): "start internal search", "start external search", "yes, start internal", "yes, start external", "begin search"
         -   **Weak Agreement Keywords** (require ready_to_create_job phase): "internal search", "external search", "proceed", "go ahead", "create job", "let's do it"
