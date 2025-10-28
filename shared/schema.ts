@@ -162,6 +162,13 @@ export const jobs = pgTable("jobs", {
   searchExecutionStatus: text("search_execution_status").default("pending"), // pending, planning, executing, completed
   searchProgress: jsonb("search_progress"), // Real-time search progress tracking
   
+  // Pricing & Fees
+  searchTier: text("search_tier"), // 'internal' or 'external'
+  feePercentage: real("fee_percentage"), // 15 for internal, 25 for external
+  estimatedPlacementFee: real("estimated_placement_fee"), // calculated from salary range
+  actualPlacementFee: real("actual_placement_fee"), // actual fee when candidate placed
+  feeStatus: text("fee_status").default("pending"), // pending, invoiced, paid
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
