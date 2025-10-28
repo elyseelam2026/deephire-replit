@@ -155,8 +155,37 @@ export const jobs = pgTable("jobs", {
   skills: text("skills").array(), // required skills array
   urgency: text("urgency"), // low, medium, high, urgent
   status: text("status").default("active").notNull(), // draft, active, paused, closed
+  
+  // NAP (Need Analysis Profile) - Consultative recruitment data
+  needAnalysis: jsonb("need_analysis"), // Complete NAP responses from conversation
+  searchStrategy: jsonb("search_strategy"), // AI-generated search plan with priorities
+  searchExecutionStatus: text("search_execution_status").default("pending"), // pending, planning, executing, completed
+  searchProgress: jsonb("search_progress"), // Real-time search progress tracking
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
+// Job Candidates - Pipeline tracking for candidates matched to jobs
+export const jobCandidates = pgTable("job_candidates", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  
+  // Pipeline status tracking
+  status: text("status").notNull().default("recommended"), // recommended, reviewed, shortlisted, presented, interview, offer, placed, rejected
+  
+  // AI matching data
+  matchScore: integer("match_score"), // 0-100 percentage
+  aiReasoning: jsonb("ai_reasoning"), // Detailed match reasoning from AI
+  searchTier: integer("search_tier"), // Which priority tier candidate was found in (1, 2, 3)
+  
+  // Recruiter notes
+  recruiterNotes: text("recruiter_notes"),
+  
+  // Timestamps
+  addedAt: timestamp("added_at").default(sql`now()`).notNull(),
+  statusChangedAt: timestamp("status_changed_at").default(sql`now()`).notNull(),
 });
 
 // Candidates table - comprehensive candidate profiles
@@ -758,6 +787,12 @@ export const insertJobSchema = createInsertSchema(jobs).omit({
   updatedAt: true,
 });
 
+export const insertJobCandidateSchema = createInsertSchema(jobCandidates).omit({
+  id: true,
+  addedAt: true,
+  statusChangedAt: true,
+});
+
 export const insertCandidateSchema = createInsertSchema(candidates).omit({
   id: true,
   createdAt: true,
@@ -1238,6 +1273,9 @@ export type Company = typeof companies.$inferSelect;
 
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobs.$inferSelect;
+
+export type InsertJobCandidate = z.infer<typeof insertJobCandidateSchema>;
+export type JobCandidate = typeof jobCandidates.$inferSelect;
 
 export type InsertCandidate = z.infer<typeof insertCandidateSchema>;
 export type Candidate = typeof candidates.$inferSelect;
