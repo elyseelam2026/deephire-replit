@@ -1576,8 +1576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           parsedData: parsedJD
         };
 
-        // CONSULTATIVE: Ask clarifying questions even with JD (but skip what we already know)
-        const missingInfo = [];
+        // CONSULTATIVE NAP: Ask ONE question at a time, prioritized by importance
         const knownContext = [];
         
         // Build acknowledgment of known info
@@ -1588,20 +1587,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           knownContext.push(`in the **${updatedSearchContext.industry}** industry`);
         }
         
-        // Only ask about what we don't know
-        if (!updatedSearchContext.industry) missingInfo.push("• Which **industry** is this role in?");
-        if (!updatedSearchContext.companySize) missingInfo.push("• What's the **company size**? (startup, mid-size, enterprise)");
-        if (!updatedSearchContext.urgency) missingInfo.push("• How **urgent** is this hire? (standard timeline or fast-track)");
-        if (!updatedSearchContext.salary) missingInfo.push("• What's the **salary range**?");
+        const contextIntro = knownContext.length > 0 
+          ? `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}** ${knownContext.join(' ')}.\n\n`
+          : `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n`;
+        
+        // NAP Priority: Ask ONE critical question at a time
+        // Priority order: Salary > Urgency > Success criteria > Cultural fit
+        let nextQuestion = null;
+        
+        if (!updatedSearchContext.salary || updatedSearchContext.salary === 'unknown') {
+          nextQuestion = "What's the **salary range** for this role? (Please provide a range, not a single number)";
+        } else if (!updatedSearchContext.urgency || updatedSearchContext.urgency === 'low' || updatedSearchContext.urgency === 'unknown') {
+          nextQuestion = "How **urgent** is this hire? Are we looking at a standard 30-60 day timeline, or is this a fast-track search?";
+        } else if (!updatedSearchContext.companySize || updatedSearchContext.companySize === 'unknown') {
+          nextQuestion = "What's the **company size**? (e.g., startup, mid-market, enterprise with 500+ employees)";
+        } else if (!updatedSearchContext.successCriteria) {
+          nextQuestion = "What does **success look like** for this person in the first 90 days? This helps me understand what you're really looking for.";
+        } else if (!updatedSearchContext.teamDynamics) {
+          nextQuestion = "Tell me about the **team dynamics** they'll be joining. What's the leadership style and culture like?";
+        }
 
-        if (missingInfo.length > 0) {
-          const contextIntro = knownContext.length > 0 
-            ? `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}** ${knownContext.join(' ')}.\n\n`
-            : `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n`;
-          
-          aiResponse = contextIntro +
-            `Before I create a formal job order and start searching, let me clarify a few more details to ensure we find the perfect match:\n\n` +
-            missingInfo.join('\n');
+        if (nextQuestion) {
+          aiResponse = contextIntro + nextQuestion;
           newPhase = 'clarifying';
         } else {
           // Have enough info - would create job order here
@@ -1659,7 +1666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           companyStage: updatedSearchContext.companyStage,
         } : undefined;
 
-        // Prepare current job context
+        // Prepare current job context with NAP fields
         const currentJobContext = {
           title: updatedSearchContext.title,
           skills: updatedSearchContext.skills,
@@ -1669,9 +1676,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           salary: updatedSearchContext.salary,
           urgency: updatedSearchContext.urgency,
           companySize: updatedSearchContext.companySize,
+          successCriteria: updatedSearchContext.successCriteria,
+          teamDynamics: updatedSearchContext.teamDynamics,
         };
 
-        // Let Grok handle the conversation
+        // Let Grok handle the conversation with NAP guidance
         const grokResponse = await generateConversationalResponse(
           message,
           conversationHistory,
@@ -1680,6 +1689,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         aiResponse = grokResponse.response;
+        
+        // Update search context with any new info from user's response
+        if (message.toLowerCase().includes('salary') || message.toLowerCase().includes('compensation') || message.match(/\$|USD|EUR|GBP/i)) {
+          updatedSearchContext.salary = parsedRequirements.salary || message;
+        }
+        if (message.toLowerCase().includes('urgent') || message.toLowerCase().includes('asap') || message.toLowerCase().includes('fast')) {
+          updatedSearchContext.urgency = 'urgent';
+        }
+        if (message.toLowerCase().includes('success') || message.toLowerCase().includes('90 days') || message.toLowerCase().includes('achieve')) {
+          updatedSearchContext.successCriteria = message;
+        }
+        if (message.toLowerCase().includes('team') || message.toLowerCase().includes('culture') || message.toLowerCase().includes('dynamic')) {
+          updatedSearchContext.teamDynamics = message;
+        }
         
         // Map Grok's intent to our phase system
         if (grokResponse.intent === 'greeting') {

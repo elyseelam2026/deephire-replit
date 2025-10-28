@@ -43,6 +43,8 @@ export async function generateConversationalResponse(
     salary?: string;
     urgency?: string;
     companySize?: string;
+    successCriteria?: string;
+    teamDynamics?: string;
   }
 ): Promise<{
   response: string;
@@ -56,6 +58,8 @@ export async function generateConversationalResponse(
     salary?: string;
     urgency?: string;
     companySize?: string;
+    successCriteria?: string;
+    teamDynamics?: string;
   };
 }> {
   try {
@@ -110,15 +114,19 @@ ${companyContext ? `**Company context you already know:**
 
 ACKNOWLEDGE this context naturally - don't re-ask!` : ''}
 
-${currentJobContext && Object.keys(currentJobContext).length > 0 ? `**Job requirements collected so far:**
+${currentJobContext && Object.keys(currentJobContext).length > 0 ? `**NAP Data collected so far:**
 ${currentJobContext.title ? `✓ Position: ${currentJobContext.title}` : '✗ Position: Not yet specified'}
 ${currentJobContext.skills?.length ? `✓ Skills: ${currentJobContext.skills.join(', ')}` : '✗ Skills: Not yet specified'}
 ${currentJobContext.location ? `✓ Location: ${currentJobContext.location}` : '✗ Location: Not yet specified'}
 ${currentJobContext.yearsExperience ? `✓ Experience: ${currentJobContext.yearsExperience} years` : '✗ Experience: Not yet specified'}
-${currentJobContext.salary ? `✓ Salary: ${currentJobContext.salary}` : '✗ Salary: Not yet specified'}
-${currentJobContext.urgency ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: Not yet specified'}
+${currentJobContext.salary && currentJobContext.salary !== 'unknown' ? `✓ Salary: ${currentJobContext.salary}` : '✗ Salary: CRITICAL - must ask'}
+${currentJobContext.urgency && currentJobContext.urgency !== 'low' && currentJobContext.urgency !== 'unknown' ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: CRITICAL - must ask'}
+${currentJobContext.companySize && currentJobContext.companySize !== 'unknown' ? `✓ Company Size: ${currentJobContext.companySize}` : '✗ Company Size: Important - should ask'}
+${currentJobContext.successCriteria ? `✓ Success Criteria: ${currentJobContext.successCriteria}` : '✗ Success Criteria: Important - should ask'}
+${currentJobContext.teamDynamics ? `✓ Team/Culture: ${currentJobContext.teamDynamics}` : '✗ Team/Culture: Important - should ask'}
 
-Based on what's missing, ask the MOST IMPORTANT next question.` : ''}
+**Your next action:** Ask the MOST IMPORTANT missing question. Priority: Salary > Urgency > Company Size > Success Criteria > Team Dynamics.
+If salary/urgency are missing, these are CRITICAL - ask now!` : ''}
 
 **Conversation style:**
 - Natural and flowing, not a rigid questionnaire
