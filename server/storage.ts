@@ -1,10 +1,10 @@
 import { 
-  companies, jobs, candidates, jobMatches, users, napConversations, emailOutreach,
+  companies, jobs, candidates, jobMatches, jobCandidates, users, napConversations, emailOutreach,
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
   companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions,
-  type Company, type Job, type Candidate, type JobMatch, type User,
-  type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertUser,
+  type Company, type Job, type Candidate, type JobMatch, type JobCandidate, type User,
+  type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertJobCandidate, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
   type DataIngestionJob, type InsertDataIngestionJob, type DuplicateDetection, type InsertDuplicateDetection,
   type DataReviewQueue, type InsertDataReviewQueue, type StagingCandidate, type InsertStagingCandidate,
@@ -73,6 +73,21 @@ export interface IStorage {
   createJobMatch(match: InsertJobMatch): Promise<JobMatch>;
   getJobMatches(jobId: number): Promise<(JobMatch & { candidate: Candidate })[]>;
   getCandidateMatches(candidateId: number): Promise<(JobMatch & { job: Job & { company: Partial<Company> } })[]>;
+  
+  // Job Candidates Pipeline (Salesforce-style)
+  getJobCandidates(jobId: number): Promise<Array<{
+    id: number;
+    status: string;
+    matchScore: number | null;
+    aiReasoning: any;
+    searchTier: number | null;
+    recruiterNotes: string | null;
+    addedAt: Date;
+    statusChangedAt: Date;
+    candidate: Candidate;
+    currentCompany: Company | null;
+  }>>;
+  updateJobCandidateStatus(id: number, status: string, notes?: string): Promise<void>;
   
   // Conversation management
   createConversation(conversation: InsertNapConversation): Promise<NapConversation>;
@@ -752,6 +767,66 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }));
+  }
+
+  // Job Candidates Pipeline (Salesforce-style)
+  async getJobCandidates(jobId: number): Promise<Array<{
+    id: number;
+    status: string;
+    matchScore: number | null;
+    aiReasoning: any;
+    searchTier: number | null;
+    recruiterNotes: string | null;
+    addedAt: Date;
+    statusChangedAt: Date;
+    candidate: Candidate;
+    currentCompany: Company | null;
+  }>> {
+    const results = await db.select({
+      id: jobCandidates.id,
+      status: jobCandidates.status,
+      matchScore: jobCandidates.matchScore,
+      aiReasoning: jobCandidates.aiReasoning,
+      searchTier: jobCandidates.searchTier,
+      recruiterNotes: jobCandidates.recruiterNotes,
+      addedAt: jobCandidates.addedAt,
+      statusChangedAt: jobCandidates.statusChangedAt,
+      candidate: candidates,
+      currentCompany: companies
+    })
+    .from(jobCandidates)
+    .innerJoin(candidates, eq(jobCandidates.candidateId, candidates.id))
+    .leftJoin(companies, eq(candidates.currentCompanyId, companies.id))
+    .where(eq(jobCandidates.jobId, jobId))
+    .orderBy(desc(jobCandidates.matchScore));
+
+    return results.map(r => ({
+      id: r.id,
+      status: r.status,
+      matchScore: r.matchScore,
+      aiReasoning: r.aiReasoning,
+      searchTier: r.searchTier,
+      recruiterNotes: r.recruiterNotes,
+      addedAt: r.addedAt,
+      statusChangedAt: r.statusChangedAt,
+      candidate: r.candidate,
+      currentCompany: r.currentCompany
+    }));
+  }
+
+  async updateJobCandidateStatus(id: number, status: string, notes?: string): Promise<void> {
+    const updates: any = {
+      status,
+      statusChangedAt: sql`now()`
+    };
+    
+    if (notes !== undefined) {
+      updates.recruiterNotes = notes;
+    }
+
+    await db.update(jobCandidates)
+      .set(updates)
+      .where(eq(jobCandidates.id, id));
   }
 
   // Conversation management

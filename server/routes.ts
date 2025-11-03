@@ -278,6 +278,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get job candidates pipeline (Salesforce-style)
+  app.get("/api/jobs/:id/candidates", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const candidates = await storage.getJobCandidates(jobId);
+      res.json(candidates);
+    } catch (error) {
+      console.error("Error fetching job candidates:", error);
+      res.status(500).json({ error: "Failed to fetch job candidates" });
+    }
+  });
+
+  // Update job candidate status
+  app.patch("/api/job-candidates/:id/status", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, notes } = req.body;
+      
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+      
+      await storage.updateJobCandidateStatus(id, status, notes);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating job candidate status:", error);
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+
   // Create candidate endpoint
   app.post("/api/candidates", async (req, res) => {
     try {
