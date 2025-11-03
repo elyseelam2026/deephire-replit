@@ -1354,6 +1354,115 @@ export async function generateCandidateLonglist(
     .slice(0, limit);
 }
 
+/**
+ * Generate search strategy for a job order using AI
+ * Returns a transparent "thinking process" like Manus AI
+ */
+export async function generateSearchStrategy(jobData: {
+  title: string;
+  skills?: string[];
+  industry?: string;
+  yearsExperience?: number;
+  location?: string;
+  salary?: string;
+  urgency?: string;
+  successCriteria?: string;
+  searchTier: string;
+}): Promise<{
+  summary: string;
+  steps: string[];
+  searchCriteria: {
+    mustHave: string[];
+    niceToHave: string[];
+    dealBreakers?: string[];
+  };
+  expectedSources: string[];
+}> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an AI search strategist for executive recruiting. Create transparent, detailed search strategies that explain your thinking process. Be specific and actionable."
+        },
+        {
+          role: "user",
+          content: `Generate a search strategy for finding candidates for this role:
+
+**Position**: ${jobData.title}
+**Skills**: ${jobData.skills?.join(', ') || 'Not specified'}
+**Industry**: ${jobData.industry || 'Any'}
+**Experience**: ${jobData.yearsExperience ? `${jobData.yearsExperience}+ years` : 'Not specified'}
+**Location**: ${jobData.location || 'Any'}
+**Salary**: ${jobData.salary || 'Not specified'}
+**Urgency**: ${jobData.urgency || 'Standard'}
+**Success Criteria**: ${jobData.successCriteria || 'Not specified'}
+**Search Tier**: ${jobData.searchTier === 'internal' ? 'Internal Database Only' : 'Extended External Search'}
+
+Return a JSON object with:
+{
+  "summary": "Brief 1-2 sentence strategy overview",
+  "steps": ["Step 1", "Step 2", ...], // 5-7 specific search execution steps
+  "searchCriteria": {
+    "mustHave": ["Critical requirement 1", ...],
+    "niceToHave": ["Preferred requirement 1", ...],
+    "dealBreakers": ["Disqualifying factor 1", ...] // optional
+  },
+  "expectedSources": ["Source 1", "Source 2", ...] // Where you'll search
+}
+
+Be specific and actionable. Show your thinking process.`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0].message.content || "{}";
+    const strategy = JSON.parse(stripMarkdownJson(content));
+    
+    return {
+      summary: strategy.summary || "Analyzing requirements and planning search...",
+      steps: strategy.steps || [
+        "Analyze job requirements and identify key skills",
+        "Search internal database for matching profiles",
+        "Score candidates based on skill match and experience",
+        "Review top matches for cultural fit",
+        "Prepare candidate shortlist for review"
+      ],
+      searchCriteria: strategy.searchCriteria || {
+        mustHave: jobData.skills || [],
+        niceToHave: [],
+        dealBreakers: []
+      },
+      expectedSources: strategy.expectedSources || jobData.searchTier === 'internal' 
+        ? ["Internal Candidate Database"]
+        : ["Internal Database", "LinkedIn", "Industry Networks"]
+    };
+  } catch (error) {
+    console.error("Error generating search strategy:", error);
+    
+    // Return fallback strategy
+    return {
+      summary: `Searching for ${jobData.title} with ${jobData.skills?.length || 0} required skills in ${jobData.searchTier} database.`,
+      steps: [
+        "Analyze job requirements and identify key skills",
+        "Search candidate database for matching profiles",
+        "Score candidates based on skill match and experience",
+        "Filter by location and availability",
+        "Rank candidates by overall fit"
+      ],
+      searchCriteria: {
+        mustHave: jobData.skills || [],
+        niceToHave: [],
+      },
+      expectedSources: jobData.searchTier === 'internal' 
+        ? ["Internal Candidate Database"]
+        : ["Internal Database", "LinkedIn", "Professional Networks"]
+    };
+  }
+}
+
 // Generate executive biography from CV text
 export async function generateBiographyFromCV(cvText: string, candidateName: string): Promise<string> {
   try {

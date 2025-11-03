@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Briefcase, MapPin, Clock, Users, TrendingUp } from "lucide-react";
 import { Job } from "@shared/schema";
+import { Link } from "wouter";
 
 const formatDate = (dateString: string | Date) => {
   const date = new Date(dateString);
@@ -179,18 +180,25 @@ export default function Jobs() {
               )}
 
               <div className="pt-2 space-y-2">
+                <Link href={`/recruiting/jobs/${job.id}`}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full" 
+                    data-testid={`button-view-job-${job.id}`}
+                  >
+                    View Pipeline
+                  </Button>
+                </Link>
                 <Button 
-                  variant="outline" 
+                  variant="secondary" 
                   size="sm" 
                   className="w-full" 
                   onClick={() => setSelectedJob(job)}
-                  data-testid={`button-view-job-${job.id}`}
+                  data-testid={`button-view-candidates-${job.id}`}
                 >
-                  View Details
-                </Button>
-                <Button variant="secondary" size="sm" className="w-full" data-testid={`button-view-candidates-${job.id}`}>
                   <Users className="h-4 w-4 mr-2" />
-                  View Candidates
+                  Quick View
                 </Button>
               </div>
             </CardContent>

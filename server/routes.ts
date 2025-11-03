@@ -8,7 +8,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse } from "./ai";
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
@@ -1763,7 +1763,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             companyId = companies[0].id;
           }
 
-          // Create job order in database with pricing
+          // Generate search strategy using AI
+          console.log('🤖 Generating search strategy...');
+          const searchStrategy = await generateSearchStrategy({
+            title: updatedSearchContext.title,
+            skills: updatedSearchContext.skills || [],
+            industry: updatedSearchContext.industry,
+            yearsExperience: updatedSearchContext.yearsExperience,
+            location: updatedSearchContext.location,
+            salary: updatedSearchContext.salary,
+            urgency: updatedSearchContext.urgency,
+            successCriteria: updatedSearchContext.successCriteria,
+            searchTier: searchTier
+          });
+          
+          // Create job order in database with pricing and search strategy
           const newJob = await storage.createJob({
             title: updatedSearchContext.title,
             department: updatedSearchContext.department || 'General',
@@ -1776,7 +1790,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             searchTier: searchTier,
             feePercentage: feePercentage,
             estimatedPlacementFee: estimatedFee,
-            feeStatus: 'pending'
+            feeStatus: 'pending',
+            searchStrategy: searchStrategy,
+            searchExecutionStatus: 'executing',
+            searchProgress: {
+              candidatesSearched: 0,
+              matchesFound: 0,
+              currentStep: 'Initializing search...'
+            }
           });
 
           createdJobId = newJob.id;
@@ -1816,19 +1837,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log('⚠️ No candidates matched');
             matchedCandidates = [];
           }
+          
+          // Update job search progress
+          await storage.updateJob(createdJobId, {
+            searchExecutionStatus: 'completed',
+            searchProgress: {
+              candidatesSearched: allCandidates.length,
+              matchesFound: matchedCandidates.length,
+              currentStep: 'Search completed successfully'
+            }
+          });
 
           // Format pricing info
           const pricingInfo = estimatedFee 
             ? `\n**Estimated Placement Fee**: $${estimatedFee.toLocaleString()} (${feePercentage}% of base salary)`
             : `\n**Fee Structure**: ${feePercentage}% of first-year base salary`;
           
-          // Override AI response to direct user to Jobs page
+          // Override AI response to direct user to Jobs page  
           aiResponse = `✅ **Job Order Created!**\n\n` +
             `I've created **Job Order #${createdJobId}** for the **${updatedSearchContext.title}** position and completed the ${searchTier} search.\n\n` +
             `**Search Tier**: ${searchTier === 'internal' ? 'Internal Database (~15 min)' : 'Extended External Search'}` +
             pricingInfo + `\n\n` +
             `**Results**: ${matchedCandidates.length > 0 ? `Found ${matchedCandidates.length} matched candidates` : 'No matches found in our current database'}\n\n` +
-            `🔗 **[View Candidate Pipeline →](/jobs/${createdJobId})**\n\n` +
+            `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
             `You can now review candidates, move them through stages (Shortlist → Interview → Offer), and manage this search.` +
             (matchedCandidates.length === 0 
               ? `\n\nWould you like me to run an **Extended External Search** to find candidates from LinkedIn and other sources?`

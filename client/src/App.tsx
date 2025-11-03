@@ -14,6 +14,7 @@ import ClientPortal from "@/pages/ClientPortal";
 import CandidatePortal from "@/pages/CandidatePortal";
 import Companies from "@/pages/Companies";
 import Jobs from "@/pages/Jobs";
+import JobDetail from "@/pages/JobDetail";
 import Candidates from "@/pages/Candidates";
 import RecyclingBin from "@/pages/RecyclingBin";
 import Staging from "@/pages/Staging";
@@ -58,6 +59,7 @@ function RecruitingApp() {
             <Switch>
               <Route path="/recruiting" component={Dashboard} />
               <Route path="/recruiting/companies" component={Companies} />
+              <Route path="/recruiting/jobs/:id" component={JobDetail} />
               <Route path="/recruiting/jobs" component={Jobs} />
               <Route path="/recruiting/candidates" component={Candidates} />
               <Route path="/recruiting/recycling-bin" component={RecyclingBin} />
