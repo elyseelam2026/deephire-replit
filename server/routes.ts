@@ -1909,7 +1909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `**Search Tier**: ${searchTier === 'internal' ? 'Internal Database (~15 min)' : 'Extended External Search'}` +
             pricingInfo + `\n\n` +
             `**Results**: ${matchedCandidates.length > 0 ? `Found ${matchedCandidates.length} matched candidates` : 'No matches found in our current database'}\n\n` +
-            `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
+            `🔗 **[View Candidate Pipeline →](/jobs/${createdJobId})**\n\n` +
             `You can now review candidates, move them through stages (Shortlist → Interview → Offer), and manage this search.` +
             (matchedCandidates.length === 0 
               ? `\n\nWould you like me to run an **Extended External Search** to find candidates from LinkedIn and other sources?`
