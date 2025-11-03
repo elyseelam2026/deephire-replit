@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Send, Upload, Loader2, Sparkles, User, FileText } from "lucide-react";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 
 type Message = {
   role: 'user' | 'assistant' | 'system';
@@ -44,6 +44,7 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [, setLocation] = useLocation();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -105,7 +106,7 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
       const linkText = match[1];
       const linkUrl = match[2];
       
-      // Use Link component for internal links, <a> for external
+      // Use anchor with click handler for internal links, <a> for external
       if (linkUrl.startsWith('http') || linkUrl.startsWith('mailto:')) {
         parts.push(
           <a 
@@ -120,13 +121,17 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
         );
       } else {
         parts.push(
-          <Link
+          <a
             key={match.index}
-            href={linkUrl}
-            className="text-primary underline hover:text-primary/80 font-medium"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setLocation(`/recruiting${linkUrl}`);
+            }}
+            className="text-primary underline hover:text-primary/80 font-medium cursor-pointer"
           >
             {linkText}
-          </Link>
+          </a>
         );
       }
       
