@@ -935,6 +935,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all jobs for a company
+  app.get("/api/companies/:id/jobs", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      const allJobs = await storage.getJobs();
+      const companyJobs = allJobs.filter(job => job.companyId === companyId);
+      res.json(companyJobs);
+    } catch (error) {
+      console.error("Error fetching company jobs:", error);
+      res.status(500).json({ error: "Failed to fetch company jobs" });
+    }
+  });
+
+  // Get all candidates associated with a company (current or past employees)
+  app.get("/api/companies/:id/candidates", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      const allCandidates = await storage.getCandidates();
+      const companyCandidates = allCandidates.filter(c => c.currentCompanyId === companyId);
+      res.json(companyCandidates);
+    } catch (error) {
+      console.error("Error fetching company candidates:", error);
+      res.status(500).json({ error: "Failed to fetch company candidates" });
+    }
+  });
+
   // Convert company to hierarchy (create child companies from office locations)
   app.post("/api/companies/:id/convert-to-hierarchy", async (req, res) => {
     try {

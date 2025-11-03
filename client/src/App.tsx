@@ -17,6 +17,7 @@ import Jobs from "@/pages/Jobs";
 import JobDetail from "@/pages/JobDetail";
 import Candidates from "@/pages/Candidates";
 import CandidateDetail from "@/pages/CandidateDetail";
+import CompanyDetail from "@/pages/CompanyDetail";
 import RecyclingBin from "@/pages/RecyclingBin";
 import Staging from "@/pages/Staging";
 import Conversations from "@/pages/Conversations";
@@ -30,6 +31,7 @@ function AppRouter() {
       <Route path="/" component={Landing} />
       <Route path="/recruiting/jobs/:id" component={() => <RecruitingApp><JobDetail /></RecruitingApp>} />
       <Route path="/recruiting/candidates/:id" component={() => <RecruitingApp><CandidateDetail /></RecruitingApp>} />
+      <Route path="/recruiting/companies/:id" component={() => <RecruitingApp><CompanyDetail /></RecruitingApp>} />
       <Route path="/recruiting/:rest*" component={RecruitingApp} />
       <Route path="/recruiting" component={RecruitingApp} />
       <Route path="/admin/:rest*" component={AdminApp} />
