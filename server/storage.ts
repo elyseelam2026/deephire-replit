@@ -806,18 +806,33 @@ export class DatabaseStorage implements IStorage {
     .where(eq(jobCandidates.jobId, jobId))
     .orderBy(desc(jobCandidates.matchScore));
 
-    return results.map(r => ({
-      id: r.id,
-      status: r.status,
-      matchScore: r.matchScore,
-      aiReasoning: r.aiReasoning,
-      searchTier: r.searchTier,
-      recruiterNotes: r.recruiterNotes,
-      addedAt: r.addedAt,
-      statusChangedAt: r.statusChangedAt,
-      candidate: r.candidate,
-      currentCompany: r.currentCompany
+    // Enrich with company data by matching company names if no direct FK
+    const enrichedResults = await Promise.all(results.map(async (r) => {
+      let companyData = r.currentCompany;
+      
+      // If no company from FK but candidate has currentCompany text, try to find it
+      if (!companyData && r.candidate.currentCompany) {
+        const allCompanies = await this.getCompanies(true);
+        companyData = allCompanies.find(c => 
+          c.name.toLowerCase() === r.candidate.currentCompany?.toLowerCase()
+        ) || null;
+      }
+      
+      return {
+        id: r.id,
+        status: r.status,
+        matchScore: r.matchScore,
+        aiReasoning: r.aiReasoning,
+        searchTier: r.searchTier,
+        recruiterNotes: r.recruiterNotes,
+        addedAt: r.addedAt,
+        statusChangedAt: r.statusChangedAt,
+        candidate: r.candidate,
+        currentCompany: companyData
+      };
     }));
+    
+    return enrichedResults;
   }
 
   async updateJobCandidateStatus(id: number, status: string, notes?: string): Promise<void> {
