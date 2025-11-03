@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Router } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -23,10 +23,11 @@ import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
-function Router() {
+function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/recruiting/jobs/:id" component={() => <RecruitingApp><JobDetail /></RecruitingApp>} />
       <Route path="/recruiting/:rest*" component={RecruitingApp} />
       <Route path="/recruiting" component={RecruitingApp} />
       <Route path="/admin/:rest*" component={AdminApp} />
@@ -39,7 +40,7 @@ function Router() {
   );
 }
 
-function RecruitingApp() {
+function RecruitingApp({ children }: { children?: React.ReactNode }) {
   // Custom sidebar width for the recruiting application
   const style = {
     "--sidebar-width": "16rem",       // 256px for recruiting interface
@@ -56,19 +57,22 @@ function RecruitingApp() {
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-y-auto">
-            <Switch>
-              <Route path="/recruiting" component={Dashboard} />
-              <Route path="/recruiting/companies" component={Companies} />
-              <Route path="/recruiting/jobs/:id" component={JobDetail} />
-              <Route path="/recruiting/jobs" component={Jobs} />
-              <Route path="/recruiting/candidates" component={Candidates} />
-              <Route path="/recruiting/recycling-bin" component={RecyclingBin} />
-              <Route path="/recruiting/staging" component={Staging} />
-              <Route path="/recruiting/conversations" component={Conversations} />
-              <Route path="/recruiting/outreach" component={Outreach} />
-              <Route path="/recruiting/settings" component={Settings} />
-              <Route component={Dashboard} />
-            </Switch>
+            {children || (
+              <Router base="/recruiting">
+                <Switch>
+                  <Route path="/" component={Dashboard} />
+                  <Route path="/companies" component={Companies} />
+                  <Route path="/jobs" component={Jobs} />
+                  <Route path="/candidates" component={Candidates} />
+                  <Route path="/recycling-bin" component={RecyclingBin} />
+                  <Route path="/staging" component={Staging} />
+                  <Route path="/conversations" component={Conversations} />
+                  <Route path="/outreach" component={Outreach} />
+                  <Route path="/settings" component={Settings} />
+                  <Route component={Dashboard} />
+                </Switch>
+              </Router>
+            )}
           </main>
         </div>
       </div>
@@ -120,7 +124,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Router />
+        <AppRouter />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
