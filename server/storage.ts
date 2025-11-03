@@ -75,6 +75,7 @@ export interface IStorage {
   getCandidateMatches(candidateId: number): Promise<(JobMatch & { job: Job & { company: Partial<Company> } })[]>;
   
   // Job Candidates Pipeline (Salesforce-style)
+  createJobCandidate(jobCandidate: InsertJobCandidate): Promise<JobCandidate>;
   getJobCandidates(jobId: number): Promise<Array<{
     id: number;
     status: string;
@@ -770,6 +771,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Job Candidates Pipeline (Salesforce-style)
+  async createJobCandidate(insertJobCandidate: InsertJobCandidate): Promise<JobCandidate> {
+    const [candidate] = await db.insert(jobCandidates).values(insertJobCandidate).returning();
+    return candidate;
+  }
+
   async getJobCandidates(jobId: number): Promise<Array<{
     id: number;
     status: string;

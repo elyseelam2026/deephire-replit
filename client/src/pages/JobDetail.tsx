@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Job } from "@shared/schema";
 import { Link } from "wouter";
+import CandidatePipeline from "@/components/CandidatePipeline";
 
 export default function JobDetail() {
   const [, params] = useRoute("/recruiting/jobs/:id");
@@ -179,25 +180,8 @@ export default function JobDetail() {
           </div>
 
           {/* CENTER PANEL - Candidate Pipeline */}
-          <div className="col-span-6 overflow-y-auto" data-testid="panel-pipeline">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Candidate Pipeline
-                </CardTitle>
-                <CardDescription>
-                  Drag and drop candidates through stages
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center text-muted-foreground py-12">
-                  <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Pipeline view coming soon</p>
-                  <p className="text-sm">Kanban-style candidate management</p>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="col-span-6 overflow-y-auto p-2" data-testid="panel-pipeline">
+            <CandidatePipeline jobId={jobId!} />
           </div>
 
           {/* RIGHT PANEL - Search Strategy & Progress */}

@@ -228,12 +228,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           job.jdText
         );
 
-        // Create job matches for top candidates
+        // Create job candidates for top matches (Salesforce-style pipeline)
         for (const match of matches.slice(0, 20)) {
-          await storage.createJobMatch({
+          await storage.createJobCandidate({
             jobId: job.id,
             candidateId: match.candidateId,
-            matchScore: match.matchScore
+            matchScore: match.matchScore,
+            status: "recommended", // Initial pipeline status
+            aiReasoning: null,
+            searchTier: null,
+            recruiterNotes: null
           });
         }
       }
@@ -1877,6 +1881,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               currentStep: 'Search completed successfully'
             }
           });
+
+          // Create job candidates in pipeline (Salesforce-style)
+          if (matchedCandidates.length > 0) {
+            for (const match of matchedCandidates) {
+              await storage.createJobCandidate({
+                jobId: createdJobId,
+                candidateId: match.candidateId,
+                matchScore: match.matchScore,
+                status: "recommended", // Initial pipeline status
+                aiReasoning: match.reasoning ? { reasoning: match.reasoning } : null,
+                searchTier: null,
+                recruiterNotes: null
+              });
+            }
+            console.log(`✅ Added ${matchedCandidates.length} candidates to pipeline`);
+          }
 
           // Format pricing info
           const pricingInfo = estimatedFee 

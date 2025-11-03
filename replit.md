@@ -1,14 +1,14 @@
 # DeepHire - AI-Powered Talent Acquisition Platform
 
 ## Overview
-DeepHire is an enterprise-grade B2B recruiting platform that uses AI to transform talent acquisition across industries. Starting with Private Equity as the initial vertical (high-value placements, specialized talent), the platform will expand to finance, technology, healthcare, and other sectors. It functions as an AI-powered executive search consultant, learning hiring patterns, understanding career trajectories, and semantically matching candidates. The platform provides intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows for recruiting firms, their clients, and candidates. It features a multi-portal architecture, AI-driven candidate longlisting, and comprehensive management systems for candidates and jobs, emphasizing enterprise design, professional aesthetics, and data-heavy interfaces.
+DeepHire is an enterprise-grade B2B recruiting platform that leverages AI to revolutionize talent acquisition, initially focusing on Private Equity and expanding to other sectors. It acts as an AI-powered executive search consultant, learning hiring patterns, understanding career trajectories, and semantically matching candidates. The platform offers intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows for recruiting firms, their clients, and candidates, featuring a multi-portal architecture and comprehensive management systems.
 
-The long-term vision focuses on a bottom-up intelligence system:
-1.  **Company Intelligence**: AI extracts and categorizes data from 1000+ company websites (industry, stage, funding, geography, size).
-2.  **Organization Chart Mapping**: Gradually builds org charts by discovering team members.
-3.  **Pattern Learning**: Analyzes org charts to identify hiring patterns.
-4.  **Semantic Matching**: Matches candidates based on learned patterns and career path similarity.
-5.  **Culture Insights**: Learns company culture through recruiter/candidate interactions.
+The long-term vision involves a bottom-up intelligence system that includes:
+-   **Company Intelligence**: AI extracts and categorizes data from 1000+ company websites.
+-   **Organization Chart Mapping**: Gradually builds organizational charts.
+-   **Pattern Learning**: Analyzes org charts to identify hiring patterns.
+-   **Semantic Matching**: Matches candidates based on learned patterns and career paths.
+-   **Culture Insights**: Learns company culture through interactions.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -17,50 +17,33 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend
 -   **Framework**: React 18 with TypeScript.
--   **UI/Styling**: Radix UI primitives, shadcn/ui components, Tailwind CSS with a custom enterprise design system.
--   **State Management**: TanStack Query for server state.
+-   **UI/Styling**: Radix UI, shadcn/ui, Tailwind CSS with a custom enterprise design system.
+-   **State Management**: TanStack Query.
 -   **Routing**: Wouter.
--   **Theme**: Dark/light mode.
+-   **Theme**: Dark/light mode support.
 
 ### Backend
 -   **Runtime**: Node.js with Express.js.
 -   **Language**: TypeScript.
--   **AI Integration**: xAI's Grok model for job description parsing and candidate matching.
+-   **AI Integration**: xAI's Grok model.
 -   **Session Management**: Express sessions with PostgreSQL store.
 
 ### Database
 -   **Primary Database**: PostgreSQL with Neon serverless hosting.
--   **ORM**: Drizzle ORM for type-safe operations.
--   **Schema**: Comprehensive models for Companies, Candidates, Jobs, Job matches, Users, Data ingestion jobs, and Duplicate detection, with multi-language name support.
+-   **ORM**: Drizzle ORM.
+-   **Schema**: Models for Companies, Candidates, Jobs, Job matches, Users, Data ingestion jobs, and Duplicate detection, with multi-language name support and custom fields.
 -   **Company Role Architecture**: Companies can have roles like `['client', 'sourcing', 'prospecting']`.
--   **Duplicate Detection**: Prioritizes website domain matching (40% weight) to prevent duplicates.
--   **Custom Fields System**: Flexible architecture for candidate data using `custom_field_sections`, `custom_field_definitions`, and JSONB storage for values.
+-   **Duplicate Detection**: Prioritizes website domain matching.
+-   **Custom Fields System**: Flexible architecture using `custom_field_sections`, `custom_field_definitions`, and JSONB storage.
 -   **Soft Delete**: Candidates are soft-deleted using a `deleted_at` timestamp.
 
 ### AI and Machine Learning - Multi-Platform Architecture
--   **Hybrid AI Strategy**: Best-of-breed approach using specialized AI services for different capabilities.
--   **xAI Grok-2-1212** (Conversational Intelligence):
-    -   131k token context window for complex reasoning
-    -   Job description parsing and requirement extraction
-    -   Intelligent candidate longlist generation with scoring
-    -   AI biography generation and career history analysis
-    -   Team discovery and office location extraction
-    -   Multi-turn conversational interface for clarifying requirements
--   **Voyage AI** (Semantic Search & Embeddings):
-    -   voyage-2 model for general-purpose semantic embeddings (1024 dimensions)
-    -   Document embeddings for candidate profiles (input_type="document")
-    -   Query embeddings for search optimization (input_type="query")
-    -   Enables true semantic matching beyond keyword search
-    -   Accessible from Hong Kong (OpenAI alternative)
--   **PostgreSQL pgvector** (Vector Database):
-    -   Native vector similarity search using cosine distance
-    -   Efficient indexed lookups for large candidate databases
-    -   1024-dimension vector columns for cv_embedding
--   **Company Intelligence Engine**: Auto-categorizes companies and lays the foundation for pattern learning.
--   **Embeddings Infrastructure**:
-    -   API endpoints: POST `/api/embeddings/generate` (batch), POST `/api/embeddings/search` (query)
-    -   Automatic embedding refresh (7-day staleness threshold)
-    -   Storage.semanticSearchCandidates() for database-level vector search
+-   **Hybrid AI Strategy**: Utilizes specialized AI services for different capabilities.
+-   **xAI Grok-2-1212**: Conversational intelligence, job description parsing, candidate longlist generation, AI biography generation, team discovery, and multi-turn conversational interfaces.
+-   **Voyage AI**: Semantic embeddings for candidate profiles and search optimization using `voyage-2` model.
+-   **PostgreSQL pgvector**: Native vector similarity search for efficient indexed lookups.
+-   **Company Intelligence Engine**: Auto-categorizes companies and supports pattern learning.
+-   **Embeddings Infrastructure**: API endpoints for generating and searching embeddings, with automatic refresh.
 
 ### Design System
 -   **Philosophy**: Enterprise-first, professional, and usable.
@@ -68,76 +51,27 @@ Preferred communication style: Simple, everyday language.
 -   **Typography**: Inter font family.
 -   **Components**: Reusable components for data tables, cards, forms, navigation.
 
-### Key Technical Implementations
--   **Manus AI-Style Search Strategy Viewer**: Transparent three-panel job detail interface:
-    -   **Left Panel - Job Info & NAP**: Job details, NAP data (salary, urgency, success criteria), pricing information, required skills
-    -   **Center Panel - Candidate Pipeline**: Kanban-style pipeline management (placeholder for future implementation)
-    -   **Right Panel - Search Strategy & Progress**: AI-generated search plan showing transparent "thinking process":
-        -   Search strategy summary and execution steps
-        -   Search criteria (must-have vs nice-to-have skills)
-        -   Expected sources (internal database, LinkedIn, networks)
-        -   Real-time progress tracking (candidates searched, matches found, current step)
-    -   **AI Strategy Generation**: Uses Grok-2-1212 to create detailed, transparent search plans
-    -   **Progress Tracking**: Real-time updates showing search execution status (planning → executing → completed)
-    -   **Route**: `/recruiting/jobs/:id` displays full job detail with three-panel layout
--   **Conversational AI Recruiting Assistant with NAP Collection** (MVP Feature): ChatGPT-style interface for investor demos where clients interact with AI to find candidates:
-    -   **Grok-Powered Conversational AI**: All responses generated by xAI's Grok-2-1212 model, not hardcoded templates - enables natural, dynamic dialogue
-    -   **NAP (Need Analysis Profile) Collection**: Consultative interview framework asking one intelligent question at a time based on context, covering Role Context, Strategic Context, Success Profile, Cultural Fit, and Compensation
-    -   **Consultative AI Approach**: Grok asks clarifying questions BEFORE searching, working like a $500/hr executive search consultant instead of an order-taking chatbot
-    -   **Context-Aware Intelligence**: Auto-loads user's company metadata (industry, size, stage) on conversation start; Grok only asks for missing information to avoid redundant questions
-    -   **Dialogue-Based Interaction**: Grok detects greetings/casual messages vs hiring intent, responds conversationally to "Hi, how are you?" without forcing job questions
-    -   **Progressive Engagement**: Stays casual until user mentions hiring needs, then transitions smoothly to NAP interview guided by Grok's conversational intelligence
-    -   **Conversation Memory**: Full conversation history passed to Grok for context-aware multi-turn dialogue
-    -   **Enhanced Job Parsing**: Extracts 13 fields (title, skills, location, years of experience, industry, company size, urgency, salary, department, requirements, responsibilities, benefits) with flexible yearsExperience parsing ("5+ years", "5-7 years")
-    -   **Multi-Turn Context Accumulation**: AI remembers and merges requirements across conversation turns (skills accumulated via deduplicated union, not replaced)
-    -   **Phase Tracking**: Conversation progresses through phases: initial → clarifying → ready_to_create_job → job_order_created
-    -   **Dual Input Methods**: Accepts both JD file uploads (PDF/DOCX) and natural language text messages
-    -   **Two-Tier Search Pricing**: AI explains options before searching (15-min internal database vs extended external search with premium pricing)
-    -   **Success-Based Pricing Model**: 
-        -   **Internal Search**: 15% of first-year base salary (lower effort, existing database)
-        -   **External Search**: 25% of first-year base salary (higher effort, active sourcing)
-        -   Fee calculated automatically from salary data during NAP collection
-        -   Stored in jobs table: `searchTier`, `feePercentage`, `estimatedPlacementFee`, `actualPlacementFee`, `feeStatus`
-        -   Payment triggered on successful placement (industry-standard contingency model)
-    -   **Company Context Pre-Population**: POST `/api/conversations` accepts userId/companyId to auto-populate searchContext with company metadata from database
-    -   **Immediate Job Order Creation with Pipeline Link**: When user agrees to search (keywords: "internal", "yes", "start", "proceed"), system immediately:
-        1. Creates job order in database with all accumulated context and pricing fields
-        2. Runs `generateCandidateLonglist()` to search all candidates
-        3. Stores matched candidates in conversation.matchedCandidates
-        4. Links conversation to job via conversation.jobId
-        5. Provides clickable markdown link to pipeline: `[View Candidate Pipeline →](/jobs/{id})`
-        6. Displays pricing summary (tier, fee percentage, estimated placement fee)
-    -   **Search Agreement Detection**: Two-tier system for detecting user agreement:
-        -   **Strong Explicit Phrases** (override phase checks): "start internal search", "start external search", "yes, start internal", "yes, start external", "begin search"
-        -   **Weak Agreement Keywords** (require ready_to_create_job phase): "internal search", "external search", "proceed", "go ahead", "create job", "let's do it"
-    -   **Intelligent Candidate Matching**: Uses `generateCandidateLonglist` with skill matching and experience scoring
-    -   **Conversation Schema**: `nap_conversations` table with JSONB for messages, searchContext, matchedCandidates, jdFileInfo, and jobId reference
-    -   **API Endpoints**: POST `/api/conversations` (create with optional userId/companyId), GET `/api/conversations/:id` (fetch), POST `/api/conversations/:id/messages` (send message with optional file)
-    -   **UI Components**: ChatInterface with message bubbles, file upload, auto-scroll; Dashboard manages conversation lifecycle; Conversations page shows all chats with null-safe job references
-    -   **Data Flow**: Single storage update at end of message handler ensures React Query invalidation provides complete updated conversation to UI
-    -   **Demo Testing**: Dashboard accepts `?companyId=X` URL parameter to simulate authenticated user from specific company
--   **Hybrid LinkedIn Search**: Two-stage search (exact then loose) for candidate finding.
--   **LinkedIn Profile Validation**: Multi-result scoring with confidence thresholds via SerpAPI.
--   **Boolean Search**: Advanced LinkedIn search for Quick Add.
--   **Enhanced Team Discovery**: Supports pagination, multi-language sites, and uses a 3-tier scraping system with Google Search fallback.
--   **Multi-Language Name System**: 3-step transliteration pipeline for international candidate names (ASCII detection, auto-transliteration, initials fallback) and email inference.
--   **Salesforce-Style Custom Fields**: Allows flexible, user-defined fields for candidate data with various field types and a complete REST API.
--   **Candidate Management**: Full CRUD operations for candidates with comprehensive editing, document management, and interaction tracking.
-    -   **Edit Functionality**: PATCH `/api/candidates/:id` with field whitelisting for security
-    -   **Document Upload**: Intelligent text extraction (PDF via pdf-parse, DOCX via mammoth, TXT direct)
-    -   **Notes System**: JSONB `interactionHistory` field storing typed notes (note/call/email/meeting)
--   **Flexible Processing Modes**: Four modes for candidate uploads (`full`, `career_only`, `bio_only`, `data_only`) to optimize credit usage, with a retroactive processing feature for selective processing of uploaded candidates.
--   **Recycling Bin Feature**: Soft delete for candidates with restore functionality and a dedicated UI.
--   **Multi-Layer Office Extraction System**: 4-layer pipeline (JSON-LD, Microdata, CSS Selectors, AI) for reliable office location extraction, with retry logic and HTML parsing using Cheerio.
+### Technical Implementations
+-   **Manus AI-Style Search Strategy Viewer**: A three-panel job detail interface showing job info, candidate pipeline (future), and an AI-generated, transparent search strategy.
+-   **Conversational AI Recruiting Assistant with NAP Collection**: A Grok-powered ChatGPT-style interface for collecting Need Analysis Profile (NAP) information, generating job orders, and creating candidate pipelines. It supports JD file uploads, natural language input, and offers two-tier search pricing (internal vs. external).
+-   **Hybrid LinkedIn Search**: Two-stage search for candidate finding, integrated with LinkedIn profile validation via SerpAPI.
+-   **Boolean Search**: Advanced LinkedIn search for quick additions.
+-   **Enhanced Team Discovery**: Supports pagination, multi-language sites, and uses a 3-tier scraping system.
+-   **Multi-Language Name System**: Transliteration pipeline for international candidate names and email inference.
+-   **Salesforce-Style Custom Fields**: Allows user-defined fields for candidate data with a REST API.
+-   **Candidate Management**: Full CRUD operations, intelligent document upload with text extraction, and interaction tracking.
+-   **Flexible Processing Modes**: Four modes for candidate uploads (`full`, `career_only`, `bio_only`, `data_only`) and retroactive processing.
+-   **Recycling Bin Feature**: Soft delete with restore functionality.
+-   **Multi-Layer Office Extraction System**: A 4-layer pipeline for reliable office location extraction.
 
 ## External Dependencies
 
 ### AI Services
--   **xAI Grok API**: Conversational intelligence, job parsing, candidate matching logic.
--   **Voyage AI**: Semantic embeddings and vector search capabilities.
+-   **xAI Grok API**: For conversational AI, job parsing, and matching logic.
+-   **Voyage AI**: For semantic embeddings and vector search.
 
 ### Data Services
--   **SerpAPI**: For search engine results, LinkedIn profile discovery, and email pattern research.
+-   **SerpAPI**: For search engine results, LinkedIn profile discovery, and email research.
 -   **Bright Data**: For LinkedIn profile scraping.
 
 ### Database
@@ -145,4 +79,4 @@ Preferred communication style: Simple, everyday language.
 -   **Drizzle ORM**: Database interactions.
 
 ### Email Services
--   **SendGrid**: Transactional email delivery.
+-   **SendGrid**: For transactional email delivery.

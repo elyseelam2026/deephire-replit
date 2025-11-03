@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Send, Upload, Loader2, Sparkles, User, FileText } from "lucide-react";
+import { Link } from "wouter";
 
 type Message = {
   role: 'user' | 'assistant' | 'system';
@@ -103,17 +104,31 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
       // Add the link
       const linkText = match[1];
       const linkUrl = match[2];
-      parts.push(
-        <a 
-          key={match.index}
-          href={linkUrl} 
-          className="text-primary underline hover:text-primary/80 font-medium"
-          target={linkUrl.startsWith('http') ? '_blank' : '_self'}
-          rel={linkUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
-        >
-          {linkText}
-        </a>
-      );
+      
+      // Use Link component for internal links, <a> for external
+      if (linkUrl.startsWith('http') || linkUrl.startsWith('mailto:')) {
+        parts.push(
+          <a 
+            key={match.index}
+            href={linkUrl} 
+            className="text-primary underline hover:text-primary/80 font-medium"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {linkText}
+          </a>
+        );
+      } else {
+        parts.push(
+          <Link
+            key={match.index}
+            href={linkUrl}
+            className="text-primary underline hover:text-primary/80 font-medium"
+          >
+            {linkText}
+          </Link>
+        );
+      }
       
       lastIndex = match.index + match[0].length;
     }
