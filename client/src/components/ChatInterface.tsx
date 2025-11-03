@@ -126,7 +126,8 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              setLocation(`/recruiting${linkUrl}`);
+              // Navigate using full absolute path by setting window.location
+              window.location.href = `/recruiting${linkUrl}`;
             }}
             className="text-primary underline hover:text-primary/80 font-medium cursor-pointer"
           >
