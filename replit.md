@@ -94,14 +94,15 @@ An intelligent, self-healing data quality system that continuously monitors data
 2. **AI Remediation**: Attempts automatic fixes with confidence scoring (90%+ = auto-apply)
 3. **Manual Queue**: Routes unsolvable issues to human reviewers with SLA tracking
 
-**Phase 2 - User Interface:**
+**Phase 2 - User Interface (Complete):**
 - **Data Quality Dashboard** (accessible via `/admin` → "Data Quality" tab): Real-time metrics showing quality score, issue breakdown, AI performance, and audit history
-- **Drill-Down Dialogs**: Interactive modal dialogs for exploring metrics in detail
-  - **Total Issues**: View all issues with filtering by status (All/Pending/Resolved/Auto-Fixed)
-  - **AI Auto-Fixed**: See AI reasoning, confidence scores, data sources, and applied changes for each fix
-  - **Manual Queue**: Review items requiring human intervention with priorities, SLA deadlines, and AI suggestions
-  - **AI Performance**: Track historical success rates and quality improvements over time
-- **Issue Resolution Dialog**: Allows humans to approve, reject, or modify AI suggestions with notes for feedback learning
+- **Interactive Drill-Down Dialogs**: Clickable metric cards open modal dialogs with detailed information
+  - **Total Issues**: View all issues with filtering by status tabs (All/Pending/Resolved/Auto-Fixed), clickable entity links to navigate to actual records
+  - **AI Auto-Fixed**: See complete AI activity logs including reasoning, confidence scores (e.g., 95%), data sources used (web research URLs, fuzzy matching), and applied changes in JSON format
+  - **Manual Queue**: Review items requiring human intervention with clickable "Review & Resolve" buttons, showing priorities (P0/P1/P2), SLA deadlines, AI suggestions, and entity navigation
+  - **AI Performance**: Track historical success rates and quality improvements across multiple audit runs
+- **Entity Navigation**: All dialogs include clickable links to navigate directly to affected entities (companies/candidates) for manual review and updates
+- **Issue Resolution Dialog**: Nested dialog for manual queue items allowing humans to approve/reject AI suggestions with resolution notes for feedback learning
 - **Reporting**: CSV download and HTML email preview for audit results
 
 ### Database Schema

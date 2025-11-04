@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { Link } from 'wouter';
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -13,7 +17,8 @@ import {
   TrendingUp,
   ExternalLink,
   Code,
-  Sparkles
+  Sparkles,
+  ArrowUpRight
 } from 'lucide-react';
 
 interface AutoFixedItem {
@@ -79,6 +84,57 @@ interface DataQualityDetailDialogProps {
 
 export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: DataQualityDetailDialogProps) {
   const [selectedTab, setSelectedTab] = useState('all');
+  const [selectedIssue, setSelectedIssue] = useState<ManualQueueItem | null>(null);
+  const [resolutionNotes, setResolutionNotes] = useState('');
+
+  const resolveIssueMutation = useMutation({
+    mutationFn: async (params: { queueId: number; action: string; notes: string; applyAiSuggestion: boolean }) => {
+      return apiRequest('POST', '/api/data-quality/resolve-issue', params);
+    },
+    onSuccess: () => {
+      // Invalidate all affected queries
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && (
+          key.startsWith('/api/data-quality/manual-queue') ||
+          key.startsWith('/api/data-quality/dashboard') ||
+          key.startsWith('/api/data-quality/issues') ||
+          key.startsWith('/api/data-quality/auto-fixed')
+        );
+      }});
+      setSelectedIssue(null);
+      setResolutionNotes('');
+    }
+  });
+
+  const handleResolve = (action: 'approve' | 'reject') => {
+    if (!selectedIssue) return;
+
+    resolveIssueMutation.mutate({
+      queueId: selectedIssue.id,
+      action,
+      notes: resolutionNotes,
+      applyAiSuggestion: action === 'approve'
+    });
+  };
+
+  const getEntityLink = (entityType: string, entityId: number) => {
+    if (entityType === 'candidate') {
+      return `/recruiting/candidates/${entityId}`;
+    } else if (entityType === 'company') {
+      return `/recruiting/companies/${entityId}`;
+    }
+    return null;
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'P0': return 'bg-red-500';
+      case 'P1': return 'bg-orange-500';
+      case 'P2': return 'bg-blue-500';
+      default: return 'bg-gray-500';
+    }
+  };
 
   // Fetch auto-fixed details
   const { data: autoFixedData, isLoading: loadingAutoFixed } = useQuery<{ fixes: AutoFixedItem[] }>({
@@ -104,7 +160,9 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
   // Fetch manual queue items
   const { data: queueData, isLoading: loadingQueue } = useQuery<{ items: ManualQueueItem[] }>({
     queryKey: ['/api/data-quality/manual-queue'],
-    enabled: isOpen && type === 'manual-queue'
+    queryFn: () => apiRequest('GET', '/api/data-quality/manual-queue'),
+    enabled: isOpen && type === 'manual-queue',
+    refetchInterval: 30000
   });
 
   // Fetch performance data
@@ -120,6 +178,23 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
       case 'info': return 'bg-blue-500';
       default: return 'bg-gray-500';
     }
+  };
+
+  const EntityLink = ({ entityType, entityId }: { entityType: string; entityId: number }) => {
+    const link = getEntityLink(entityType, entityId);
+    if (!link) return <span>{entityType} #{entityId}</span>;
+    
+    return (
+      <Link href={link}>
+        <a
+          className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center cursor-pointer"
+          data-testid={`link-${entityType}-${entityId}`}
+        >
+          {entityType} #{entityId}
+          <ArrowUpRight className="ml-1 h-3 w-3" />
+        </a>
+      </Link>
+    );
   };
 
   const renderAutoFixedContent = () => {
@@ -153,8 +228,9 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       {fix.issue.description}
                     </CardTitle>
-                    <CardDescription className="mt-1">
-                      {fix.issue.entityType} #{fix.issue.entityId} • Fixed in {fix.attempt.executionTimeMs}ms
+                    <CardDescription className="mt-1 flex items-center gap-2">
+                      <EntityLink entityType={fix.issue.entityType} entityId={fix.issue.entityId} />
+                      <span>• Fixed in {fix.attempt.executionTimeMs}ms</span>
                     </CardDescription>
                   </div>
                   <Badge className="bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200">
@@ -254,16 +330,14 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
                 <Card key={issue.id} className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Badge className={getSeverityColor(issue.severity)}>
                           {issue.severity.toUpperCase()}
                         </Badge>
-                        <Badge variant="outline">
-                          {issue.entityType} #{issue.entityId}
-                        </Badge>
+                        <EntityLink entityType={issue.entityType} entityId={issue.entityId} />
                         <Badge variant="secondary">{issue.status}</Badge>
                       </div>
-                      <p className="text-sm font-medium">{issue.description}</p>
+                      <p className="text-sm font-medium mt-2">{issue.description}</p>
                       {issue.suggestedFix && (
                         <p className="text-xs text-muted-foreground mt-1">
                           Suggested: {issue.suggestedFix}
@@ -313,21 +387,19 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
       <ScrollArea className="h-[500px]">
         <div className="space-y-3 pr-4">
           {items.map((item) => (
-            <Card key={item.id}>
+            <Card key={item.id} className="hover-elevate">
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Badge className={getPriorityColor(item.priority)}>
                           {item.priority}
                         </Badge>
-                        <Badge variant="outline">
-                          {item.issue.entityType} #{item.issue.entityId}
-                        </Badge>
+                        <EntityLink entityType={item.issue.entityType} entityId={item.issue.entityId} />
                         <Badge variant="secondary">{item.status}</Badge>
                       </div>
-                      <p className="text-sm font-medium">{item.issue.description}</p>
+                      <p className="text-sm font-medium mt-2">{item.issue.description}</p>
                     </div>
                   </div>
 
@@ -352,6 +424,14 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
                     <span>SLA Deadline: {new Date(item.slaDeadline).toLocaleString()}</span>
                     <span>Created: {new Date(item.createdAt).toLocaleString()}</span>
                   </div>
+
+                  <Button 
+                    onClick={() => setSelectedIssue(item)}
+                    size="sm"
+                    data-testid={`button-resolve-${item.id}`}
+                  >
+                    Review & Resolve
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -448,14 +528,111 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
   const { title, description, content } = getDialogContent();
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
-        </DialogHeader>
-        {content}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            {description && <DialogDescription>{description}</DialogDescription>}
+          </DialogHeader>
+          {content}
+        </DialogContent>
+      </Dialog>
+
+      {/* Resolution Dialog for Manual Queue Items */}
+      <Dialog open={!!selectedIssue} onOpenChange={(open) => !open && setSelectedIssue(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Resolve Issue</DialogTitle>
+            <DialogDescription>
+              {selectedIssue?.issue.description}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <h4 className="font-semibold mb-2">Issue Details</h4>
+              <div className="bg-muted p-3 rounded-lg space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Entity:</span>
+                  <EntityLink 
+                    entityType={selectedIssue?.issue.entityType || ''} 
+                    entityId={selectedIssue?.issue.entityId || 0} 
+                  />
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Priority:</span>
+                  <Badge className={getPriorityColor(selectedIssue?.priority || '')}>
+                    {selectedIssue?.priority}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Queued At:</span>
+                  <span className="font-medium">
+                    {new Date(selectedIssue?.createdAt || '').toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {selectedIssue?.remediationAttempt && (
+              <div>
+                <h4 className="font-semibold mb-2">AI Suggestions ({selectedIssue.remediationAttempt.confidenceScore}% confidence)</h4>
+                <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg text-sm space-y-2">
+                  <div>
+                    <span className="font-medium">Reasoning:</span>
+                    <p className="mt-1">{selectedIssue.remediationAttempt.reasoning}</p>
+                  </div>
+                  {selectedIssue.remediationAttempt.suggestedAction && (
+                    <div>
+                      <span className="font-medium">Suggested Action:</span>
+                      <pre className="whitespace-pre-wrap mt-1 text-xs">
+                        {JSON.stringify(selectedIssue.remediationAttempt.suggestedAction, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h4 className="font-semibold mb-2">Resolution Notes</h4>
+              <Textarea
+                placeholder="Add notes about how you resolved this issue (helps AI learn)..."
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                rows={4}
+                data-testid="textarea-resolution-notes"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setSelectedIssue(null)}
+              data-testid="button-cancel-resolve"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => handleResolve('reject')}
+              disabled={resolveIssueMutation.isPending}
+              data-testid="button-reject-suggestion"
+            >
+              Reject AI Suggestion
+            </Button>
+            <Button 
+              onClick={() => handleResolve('approve')}
+              disabled={resolveIssueMutation.isPending || !resolutionNotes}
+              data-testid="button-approve-suggestion"
+            >
+              {resolveIssueMutation.isPending ? 'Resolving...' : 'Approve & Apply'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
