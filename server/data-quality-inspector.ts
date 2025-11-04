@@ -282,13 +282,34 @@ async function checkCompanyDataQuality(): Promise<ValidationIssue[]> {
     if (!company.website) missingInfo.push('website');
     
     if (missingInfo.length >= 2) {
+      // Determine primary missing field and business impact
+      const primaryField = missingInfo[0];
+      let businessImpact = '';
+      
+      if (missingInfo.includes('industry')) {
+        businessImpact = 'Prevents accurate company categorization and sector analysis';
+      } else if (missingInfo.includes('headquarters')) {
+        businessImpact = 'Missing geographic information for location-based searches';
+      } else if (missingInfo.includes('website')) {
+        businessImpact = 'Cannot research company or verify legitimacy';
+      }
+      
       issues.push({
         rule: 'COMPANY_DATA_QUALITY',
         severity: 'info',
         entity: 'company',
         entityId: company.id,
         message: `Company "${company.name}" missing ${missingInfo.length} fields: ${missingInfo.join(', ')}`,
-        suggestedFix: `Enrich company data through web research or AI extraction`
+        suggestedFix: `Enrich company data through web research or AI extraction`,
+        metadata: {
+          fieldName: primaryField || undefined,
+          currentValue: null,
+          expectedValue: undefined,
+          businessImpact: businessImpact || `Missing ${missingInfo.length} critical company ${missingInfo.length === 1 ? 'field' : 'fields'}`,
+          editableFields: missingInfo,
+          entityName: company.name,
+          relatedEntity: undefined
+        }
       });
     }
   }
