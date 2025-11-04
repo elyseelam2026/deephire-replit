@@ -35,8 +35,50 @@ import {
   TrendingUp,
   BarChart3,
   ArrowRight,
-  Search
+  Search,
+  Shield
 } from "lucide-react";
+import DataQualityDashboard from "@/pages/DataQualityDashboard";
+import ManualQueue from "@/pages/ManualQueue";
+
+function DataQualityTabContent() {
+  const [showQueue, setShowQueue] = useState(false);
+  
+  if (showQueue) {
+    return (
+      <div>
+        <Button 
+          variant="ghost" 
+          onClick={() => setShowQueue(false)}
+          className="mb-4"
+          data-testid="button-back-to-dashboard"
+        >
+          ← Back to Dashboard
+        </Button>
+        <ManualQueue />
+      </div>
+    );
+  }
+  
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-2xl font-bold">Data Quality System</h2>
+          <p className="text-muted-foreground">AI-powered data integrity monitoring</p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={() => setShowQueue(true)}
+          data-testid="button-view-queue"
+        >
+          View Manual Queue
+        </Button>
+      </div>
+      <DataQualityDashboard />
+    </div>
+  );
+}
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
 
@@ -1026,7 +1068,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="quick-add" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="quick-add" data-testid="tab-quick-add">
             <UserPlus className="h-4 w-4 mr-2" />
             Quick Add
@@ -1050,6 +1092,10 @@ export default function Admin() {
           <TabsTrigger value="history" data-testid="tab-history">
             <FileText className="h-4 w-4 mr-2" />
             Upload History
+          </TabsTrigger>
+          <TabsTrigger value="data-quality" data-testid="tab-data-quality">
+            <Shield className="h-4 w-4 mr-2" />
+            Data Quality
           </TabsTrigger>
         </TabsList>
 
@@ -2302,6 +2348,11 @@ export default function Admin() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Data Quality Tab Content */}
+        <TabsContent value="data-quality" className="space-y-6">
+          <DataQualityTabContent />
         </TabsContent>
       </Tabs>
 
