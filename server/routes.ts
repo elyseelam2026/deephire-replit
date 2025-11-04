@@ -1421,11 +1421,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Company not found" });
       }
 
-      // Define allowed fields for update
+      // Define allowed fields for update - expanded to cover all comprehensive fields
       const allowedFields = [
-        'name', 'industry', 'headquarters', 'website', 'location',
-        'companySize', 'companyStage', 'description', 'fundingInfo',
-        'linkedinUrl', 'employeeSize', 'subsector', 'stage'
+        // Basic Information
+        'name', 'legalName', 'tradingName', 'parentCompany', 'companyType',
+        'stockSymbol', 'isPublic', 'foundedYear',
+        
+        // Business & Industry
+        'industry', 'subIndustry', 'businessModel', 'targetMarket', 'companyStage',
+        'employeeSize', 'employeeSizeRange', 'description', 'subsector', 'stage',
+        
+        // Financial
+        'annualRevenue', 'revenueRange', 'fundingStage', 'totalFundingRaised',
+        'valuation', 'fundingInfo',
+        
+        // Contact & Location
+        'location', 'website', 'linkedinUrl', 'primaryEmail', 'primaryPhone',
+        'headquarters',
+        
+        // Culture & Hiring
+        'missionStatement', 'coreValues', 'remoteWorkPolicy', 'typicalHiringTimeline',
+        'visaSponsorshipAvailable', 'salaryNegotiable',
+        
+        // Legacy fields
+        'companySize'
       ];
 
       // Filter and sanitize update data
