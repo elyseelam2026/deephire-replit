@@ -1,14 +1,19 @@
 import { useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Building2, MapPin, Globe, Users, Briefcase, TrendingUp,
-  Calendar, ArrowLeft, ExternalLink, Mail, Phone
+  Calendar, ArrowLeft, ExternalLink, Mail, Phone, Edit, Save, X
 } from "lucide-react";
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type Company = {
   id: number;
@@ -47,6 +52,20 @@ type Candidate = {
 export default function CompanyDetail() {
   const [, params] = useRoute("/recruiting/companies/:id");
   const companyId = params?.id ? parseInt(params.id) : null;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<Partial<Company>>({});
+  const { toast } = useToast();
+
+  // Check for edit query parameter and auto-open edit mode
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('edit') === 'true') {
+      setIsEditing(true);
+      // Remove the query parameter from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   const { data: company, isLoading: loadingCompany } = useQuery<Company>({
     queryKey: ['/api/companies', companyId],
@@ -57,6 +76,50 @@ export default function CompanyDetail() {
     },
     enabled: !!companyId,
   });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<Company>) => {
+      const response = await apiRequest('PATCH', `/api/companies/${companyId}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/companies', companyId] });
+      toast({
+        title: "Company Updated",
+        description: "The company has been updated successfully.",
+      });
+      setIsEditing(false);
+      setEditData({});
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update company",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditToggle = () => {
+    if (!isEditing && company) {
+      // Entering edit mode - populate editData
+      setEditData({
+        industry: company.industry,
+        headquarters: company.headquarters,
+        website: company.website,
+      });
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const handleSave = () => {
+    updateMutation.mutate(editData);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditData({});
+  };
 
   const { data: jobs = [], isLoading: loadingJobs } = useQuery<Job[]>({
     queryKey: ['/api/companies', companyId, 'jobs'],
@@ -102,6 +165,23 @@ export default function CompanyDetail() {
             </Button>
           </Link>
           <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm" data-testid="button-save">
+                  <Save className="h-4 w-4 mr-2" />
+                  Save
+                </Button>
+                <Button onClick={handleCancel} variant="outline" size="sm" data-testid="button-cancel">
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button onClick={handleEditToggle} variant="outline" size="sm" data-testid="button-edit">
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )}
             {isPEFirm && (
               <Badge variant="default">PE Firm</Badge>
             )}
@@ -116,7 +196,18 @@ export default function CompanyDetail() {
         <div className="flex items-start gap-4">
           <div className="flex-1">
             <h1 className="text-2xl font-bold" data-testid="company-name">{company.name}</h1>
-            {company.industry && (
+            {isEditing ? (
+              <div className="mt-2 space-y-2">
+                <Label htmlFor="industry">Industry</Label>
+                <Input
+                  id="industry"
+                  value={editData.industry || ''}
+                  onChange={(e) => setEditData({...editData, industry: e.target.value})}
+                  placeholder="Private Equity, Technology, Healthcare..."
+                  data-testid="input-industry"
+                />
+              </div>
+            ) : company.industry && (
               <p className="text-muted-foreground">{company.industry}</p>
             )}
           </div>
@@ -148,14 +239,41 @@ export default function CompanyDetail() {
                 <CardTitle className="text-sm">Company Overview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {company.headquarters && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div className="flex-1">
-                      <div className="text-xs text-muted-foreground">Headquarters</div>
-                      <div className="font-medium" data-testid="company-hq">{company.headquarters}</div>
+                {isEditing ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="headquarters">Headquarters</Label>
+                      <Input
+                        id="headquarters"
+                        value={editData.headquarters || ''}
+                        onChange={(e) => setEditData({...editData, headquarters: e.target.value})}
+                        placeholder="New York, NY, USA"
+                        data-testid="input-headquarters"
+                      />
                     </div>
-                  </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="website">Website</Label>
+                      <Input
+                        id="website"
+                        value={editData.website || ''}
+                        onChange={(e) => setEditData({...editData, website: e.target.value})}
+                        placeholder="https://example.com"
+                        data-testid="input-website"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {company.headquarters && (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div className="flex-1">
+                          <div className="text-xs text-muted-foreground">Headquarters</div>
+                          <div className="font-medium" data-testid="company-hq">{company.headquarters}</div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {company.companySize && (
