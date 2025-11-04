@@ -664,6 +664,142 @@ export const dataReviewQueue = pgTable("data_review_queue", {
   reviewedAt: timestamp("reviewed_at"),
 });
 
+// ============================================================================
+// AI-POWERED DATA QUALITY SYSTEM
+// ============================================================================
+
+// Audit Runs - tracks each scheduled data quality audit execution
+export const auditRuns = pgTable("audit_runs", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Timing
+  scheduledAt: timestamp("scheduled_at").default(sql`now()`).notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Status
+  status: text("status").default("pending").notNull(), // pending, running, completed, failed
+  
+  // Results summary
+  totalIssues: integer("total_issues").default(0).notNull(),
+  errors: integer("errors").default(0).notNull(), // P0 - critical
+  warnings: integer("warnings").default(0).notNull(), // P1 - important
+  info: integer("info").default(0).notNull(), // P2 - nice to have
+  
+  // AI remediation stats
+  autoFixed: integer("auto_fixed").default(0).notNull(), // Issues AI fixed automatically
+  flaggedForReview: integer("flagged_for_review").default(0).notNull(), // Medium confidence fixes applied
+  manualQueue: integer("manual_queue").default(0).notNull(), // Issues sent to manual queue
+  
+  // Quality metrics
+  dataQualityScore: real("data_quality_score"), // 0-100 overall quality score
+  improvementFromLast: real("improvement_from_last"), // +/- change from previous run
+  
+  // Output
+  reportUrl: text("report_url"), // Link to downloadable CSV/PDF report
+  errorMessage: text("error_message"), // If audit failed
+  executionTimeMs: integer("execution_time_ms"), // How long the audit took
+});
+
+// Audit Issues - individual data quality problems discovered
+export const auditIssues = pgTable("audit_issues", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Audit relationship
+  auditRunId: integer("audit_run_id").references(() => auditRuns.id).notNull(),
+  
+  // Issue classification
+  ruleName: text("rule_name").notNull(), // Which validation rule triggered
+  severity: text("severity").notNull(), // error, warning, info
+  priority: text("priority").notNull(), // P0, P1, P2
+  issueType: text("issue_type").notNull(), // missing_link, duplicate, missing_data, orphaned_record
+  
+  // Affected entity
+  entityType: text("entity_type").notNull(), // candidate, company, job, job_candidate
+  entityId: integer("entity_id").notNull(), // Which record has the issue
+  entityDescription: text("entity_description"), // Human-readable: "Candidate: John Smith"
+  
+  // Issue details
+  description: text("description").notNull(), // Human-readable issue description
+  suggestedFix: text("suggested_fix"), // What should be done to fix
+  
+  // Status tracking
+  status: text("status").default("pending").notNull(), // pending, auto_fixed, queued, resolved, dismissed
+  aiAttempted: boolean("ai_attempted").default(false).notNull(), // Did AI try to fix?
+  
+  // Resolution
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"), // ai_auto, ai_manual_approved, human
+  resolutionNotes: text("resolution_notes"),
+  
+  // Timestamps
+  detectedAt: timestamp("detected_at").default(sql`now()`).notNull(),
+});
+
+// Remediation Attempts - AI fix attempts with confidence scoring
+export const remediationAttempts = pgTable("remediation_attempts", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Issue relationship
+  issueId: integer("issue_id").references(() => auditIssues.id).notNull(),
+  
+  // AI model used
+  aiModel: text("ai_model").notNull(), // grok-2-1212, voyage-2, rule-based
+  attemptedAt: timestamp("attempted_at").default(sql`now()`).notNull(),
+  
+  // Proposed fix
+  proposedFix: jsonb("proposed_fix").notNull(), // What AI suggests changing
+  reasoning: text("reasoning").notNull(), // Why AI thinks this is the fix
+  confidenceScore: real("confidence_score").notNull(), // 0-100 how confident AI is
+  
+  // Actions taken
+  autoApplied: boolean("auto_applied").default(false).notNull(), // Was it applied automatically?
+  outcome: text("outcome").notNull(), // success, failed, needs_review, applied_with_flag
+  
+  // Human feedback (for learning)
+  humanFeedback: text("human_feedback"), // approved, rejected, modified
+  feedbackNotes: text("feedback_notes"), // Why human approved/rejected
+  learned: boolean("learned").default(false).notNull(), // Used for training data
+  
+  // Rollback capability
+  beforeState: jsonb("before_state"), // Original data before fix
+  afterState: jsonb("after_state"), // Data after fix
+  rolledBack: boolean("rolled_back").default(false).notNull(),
+  rollbackReason: text("rollback_reason"),
+});
+
+// Manual Intervention Queue - issues that need human review
+export const manualInterventionQueue = pgTable("manual_intervention_queue", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Issue relationship
+  issueId: integer("issue_id").references(() => auditIssues.id).notNull(),
+  
+  // Queue management
+  priority: text("priority").notNull(), // P0, P1, P2
+  status: text("status").default("pending").notNull(), // pending, in_progress, resolved, dismissed
+  
+  // Assignment
+  assignedTo: text("assigned_to"), // Which researcher/admin
+  queuedAt: timestamp("queued_at").default(sql`now()`).notNull(),
+  
+  // AI assistance
+  aiSuggestions: jsonb("ai_suggestions"), // Array of options AI provides
+  aiReasoning: text("ai_reasoning"), // Why AI couldn't auto-fix
+  
+  // Human resolution
+  resolutionAction: jsonb("resolution_action"), // What human decided to do
+  resolvedAt: timestamp("resolved_at"),
+  timeToResolveMinutes: integer("time_to_resolve_minutes"), // For SLA metrics
+  
+  // Notes
+  notes: text("notes"), // Human notes about the resolution
+  
+  // SLA tracking
+  slaDeadline: timestamp("sla_deadline"), // When this must be resolved by
+  slaMissed: boolean("sla_missed").default(false).notNull(),
+});
+
 // Relations
 export const companiesRelations = relations(companies, ({ one, many }) => ({
   jobs: many(jobs),
@@ -1390,3 +1526,32 @@ export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldD
 });
 export type InsertCustomFieldDefinition = z.infer<typeof insertCustomFieldDefinitionSchema>;
 export type CustomFieldDefinition = typeof customFieldDefinitions.$inferSelect;
+
+// Audit System schemas
+export const insertAuditRunSchema = createInsertSchema(auditRuns).omit({
+  id: true,
+  scheduledAt: true,
+});
+export type InsertAuditRun = z.infer<typeof insertAuditRunSchema>;
+export type AuditRun = typeof auditRuns.$inferSelect;
+
+export const insertAuditIssueSchema = createInsertSchema(auditIssues).omit({
+  id: true,
+  detectedAt: true,
+});
+export type InsertAuditIssue = z.infer<typeof insertAuditIssueSchema>;
+export type AuditIssue = typeof auditIssues.$inferSelect;
+
+export const insertRemediationAttemptSchema = createInsertSchema(remediationAttempts).omit({
+  id: true,
+  attemptedAt: true,
+});
+export type InsertRemediationAttempt = z.infer<typeof insertRemediationAttemptSchema>;
+export type RemediationAttempt = typeof remediationAttempts.$inferSelect;
+
+export const insertManualInterventionQueueSchema = createInsertSchema(manualInterventionQueue).omit({
+  id: true,
+  queuedAt: true,
+});
+export type InsertManualInterventionQueue = z.infer<typeof insertManualInterventionQueueSchema>;
+export type ManualInterventionQueue = typeof manualInterventionQueue.$inferSelect;

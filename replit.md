@@ -63,6 +63,7 @@ Preferred communication style: Simple, everyday language.
 -   **Flexible Processing Modes**: Four modes for candidate uploads (`full`, `career_only`, `bio_only`, `data_only`) and retroactive processing.
 -   **Recycling Bin Feature**: Soft delete with restore functionality.
 -   **Multi-Layer Office Extraction System**: A 4-layer pipeline for reliable office location extraction.
+-   **AI-Powered Data Quality System** (Phase 1): Automated audit system that runs validation rules, attempts AI-powered fixes, and queues issues for manual review with comprehensive reporting and SLA tracking.
 
 ## External Dependencies
 
@@ -80,3 +81,72 @@ Preferred communication style: Simple, everyday language.
 
 ### Email Services
 -   **SendGrid**: For transactional email delivery.
+
+## AI-Powered Data Quality System
+
+### Overview
+An intelligent, self-healing data quality system that continuously monitors database integrity, automatically fixes issues using AI, and escalates complex problems to human reviewers. The system learns from human decisions to improve over time.
+
+### Architecture (Phase 1 - Complete)
+
+**Three-Layer Processing:**
+1. **Detection**: Runs 6 validation rules to identify data quality issues
+2. **AI Remediation**: Attempts automatic fixes with confidence scoring (90%+ = auto-apply)
+3. **Manual Queue**: Routes unsolvable issues to human reviewers with SLA tracking
+
+### Database Schema
+- **audit_runs**: Tracks each audit execution and summary metrics
+- **audit_issues**: Individual data quality problems discovered
+- **remediation_attempts**: AI fix attempts with confidence scores and rollback capability
+- **manual_intervention_queue**: Issues requiring human review with SLA deadlines
+
+### Validation Rules
+1. **Candidate Company Links**: Ensures all candidates with company names have proper FK relationships
+2. **Career History Links**: Validates company links in career history arrays
+3. **Duplicate Companies**: Detects potential duplicate company records
+4. **Required Fields**: Checks for missing contact information
+5. **Job Candidate Integrity**: Validates referential integrity of job-candidate relationships
+6. **Company Data Quality**: Ensures companies have minimal required information
+
+### AI Remediation Capabilities
+
+**High Confidence (>90%) - Auto-Apply:**
+- Company linking via fuzzy matching
+- Missing company creation and linking
+- Data normalization
+
+**Medium Confidence (70-90%) - Apply with Flag:**
+- Email inference using company patterns
+- Company data enrichment via web research
+
+**Low Confidence (<70%) - Manual Queue:**
+- Ambiguous matches requiring human decision
+- Missing data with no findable sources
+
+### Usage
+
+**Run Manual Audit:**
+```bash
+npx tsx scripts/run-audit.ts
+```
+
+**Outputs:**
+- Console report with summary statistics
+- CSV report for detailed analysis
+- HTML email report for stakeholders
+
+### Metrics Tracked
+- **Data Quality Score**: 0-100 overall health metric
+- **AI Success Rate**: Percentage of issues auto-fixed
+- **Execution Time**: Performance monitoring
+- **SLA Compliance**: Tracks issue resolution times by priority
+
+### Priority Levels
+- **P0 (Critical)**: 4-hour SLA - Blocking issues requiring immediate attention
+- **P1 (Important)**: 24-hour SLA - Data integrity issues
+- **P2 (Enhancement)**: 7-day SLA - Optional improvements
+
+### Future Roadmap
+- Phase 2: Confidence learning system (AI learns from human feedback)
+- Phase 3: Real-time quality dashboard and email alerts
+- Phase 4: Anomaly detection and progressive enrichment
