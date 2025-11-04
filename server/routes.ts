@@ -417,9 +417,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Define allowed fields for update
       const allowedFields = [
+        // Personal Info
         'firstName', 'lastName', 'nativeName', 'latinName', 'nativeNameLocale',
-        'email', 'linkedinUrl', 'currentCompany', 'currentTitle', 'location',
-        'biography', 'displayName', 'emailFirstName', 'emailLastName'
+        'displayName', 'emailFirstName', 'emailLastName',
+        'email', 'phone', 'linkedinUrl', 'portfolioUrl', 'githubUrl', 'personalWebsite',
+        'street', 'city', 'state', 'postalCode', 'country', 'location',
+        
+        // Professional Background
+        'currentCompany', 'currentCompanyId', 'currentTitle', 'currentDepartment', 
+        'currentIndustry', 'employmentType',
+        'yearsExperience', 'yearsInCurrentRole',
+        'careerLevel', 'biography',
+        
+        // Education & Skills
+        'highestDegree', 'fieldOfStudy',
+        
+        // Career Preferences
+        'isActivelyLooking', 'availableStartDate', 'willingToRelocate',
+        'workAuthorizationStatus', 'workArrangement',
+        
+        // Compensation
+        'basicSalary', 'salaryExpectations', 'salaryCurrency', 
+        'equityExpectations', 'bonusStructure'
       ];
 
       // Filter and sanitize update data
