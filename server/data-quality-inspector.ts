@@ -22,6 +22,16 @@ export interface ValidationIssue {
   entityId: number | string;
   message: string;
   suggestedFix?: string;
+  // Rich metadata for inline editing (NEW)
+  metadata?: {
+    fieldName?: string; // Which field has the issue
+    currentValue?: any; // Current (problematic) value
+    expectedValue?: any; // What it should be (if known)
+    businessImpact?: string; // Why this matters
+    editableFields?: string[]; // Fields that can be edited to fix this
+    entityName?: string; // Human-readable entity name (e.g., "Eugene Baek")
+    relatedEntity?: string; // Related entity info (e.g., "Samsung Electronics")
+  };
 }
 
 export interface ValidationReport {
@@ -161,10 +171,34 @@ async function checkRequiredFields(): Promise<ValidationIssue[]> {
   
   for (const candidate of incompleteCandidates) {
     const missing: string[] = [];
+    const editableFields: string[] = [];
+    let primaryField: string | null = null;
+    let businessImpact: string = '';
     
-    if (!candidate.email) missing.push('email');
-    if (!candidate.phoneNumber) missing.push('phone');
-    if (!candidate.linkedinUrl) missing.push('LinkedIn URL');
+    if (!candidate.email) {
+      missing.push('email');
+      editableFields.push('email');
+      if (!primaryField) {
+        primaryField = 'email';
+        businessImpact = 'Prevents email outreach and candidate engagement';
+      }
+    }
+    if (!candidate.phoneNumber) {
+      missing.push('phone number');
+      editableFields.push('phoneNumber');
+      if (!primaryField) {
+        primaryField = 'phoneNumber';
+        businessImpact = 'Prevents direct contact and phone screening';
+      }
+    }
+    if (!candidate.linkedinUrl) {
+      missing.push('LinkedIn URL');
+      editableFields.push('linkedinUrl');
+      if (!primaryField) {
+        primaryField = 'linkedinUrl';
+        businessImpact = 'Cannot verify candidate background or scrape additional data';
+      }
+    }
     
     if (missing.length > 0) {
       issues.push({
@@ -173,7 +207,16 @@ async function checkRequiredFields(): Promise<ValidationIssue[]> {
         entity: 'candidate',
         entityId: candidate.id,
         message: `Candidate "${candidate.firstName} ${candidate.lastName}" missing: ${missing.join(', ')}`,
-        suggestedFix: `Enrich candidate data through research or LinkedIn scraping`
+        suggestedFix: `Enrich candidate data through research or LinkedIn scraping`,
+        metadata: {
+          fieldName: primaryField || undefined,
+          currentValue: null,
+          expectedValue: undefined,
+          businessImpact: businessImpact || `Missing ${missing.length} critical contact ${missing.length === 1 ? 'field' : 'fields'}`,
+          editableFields,
+          entityName: `${candidate.firstName} ${candidate.lastName}`,
+          relatedEntity: undefined
+        }
       });
     }
   }

@@ -723,6 +723,16 @@ export const auditIssues = pgTable("audit_issues", {
   description: text("description").notNull(), // Human-readable issue description
   suggestedFix: text("suggested_fix"), // What should be done to fix
   
+  // Rich context for inline editing (NEW)
+  metadata: jsonb("metadata"), // { fieldName, currentValue, expectedValue, businessImpact, editableFields }
+  // Example: { 
+  //   fieldName: "email", 
+  //   currentValue: null, 
+  //   expectedValue: "john.doe@company.com",
+  //   businessImpact: "Prevents outreach and candidate engagement",
+  //   editableFields: ["email", "phone"] 
+  // }
+  
   // Status tracking
   status: text("status").default("pending").notNull(), // pending, auto_fixed, queued, resolved, dismissed
   aiAttempted: boolean("ai_attempted").default(false).notNull(), // Did AI try to fix?

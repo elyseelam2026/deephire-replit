@@ -76,9 +76,12 @@ export async function runFullAudit(): Promise<AuditRunSummary> {
           issueType: determineIssueType(issue.rule),
           entityType: issue.entity,
           entityId: typeof issue.entityId === 'number' ? issue.entityId : parseInt(issue.entityId as string),
-          entityDescription: `${issue.entity} #${issue.entityId}`,
+          entityDescription: issue.metadata?.entityName 
+            ? `${issue.entity}: ${issue.metadata.entityName}`
+            : `${issue.entity} #${issue.entityId}`,
           description: issue.message,
           suggestedFix: issue.suggestedFix || null,
+          metadata: issue.metadata || null,
           status: 'pending',
           aiAttempted: false
         })

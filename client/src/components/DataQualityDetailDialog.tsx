@@ -50,6 +50,16 @@ interface Issue {
   entityId: number;
   suggestedFix: string;
   detectedAt: string;
+  entityDescription: string;
+  metadata?: {
+    fieldName?: string;
+    currentValue?: any;
+    expectedValue?: any;
+    businessImpact?: string;
+    editableFields?: string[];
+    entityName?: string;
+    relatedEntity?: string;
+  };
 }
 
 interface ManualQueueItem {
@@ -160,7 +170,10 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
   // Fetch manual queue items
   const { data: queueData, isLoading: loadingQueue } = useQuery<{ items: ManualQueueItem[] }>({
     queryKey: ['/api/data-quality/manual-queue'],
-    queryFn: () => apiRequest('GET', '/api/data-quality/manual-queue'),
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/data-quality/manual-queue');
+      return response as unknown as { items: ManualQueueItem[] };
+    },
     enabled: isOpen && type === 'manual-queue',
     refetchInterval: 30000
   });
@@ -337,11 +350,73 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
                         <EntityLink entityType={issue.entityType} entityId={issue.entityId} />
                         <Badge variant="secondary">{issue.status}</Badge>
                       </div>
+                      
+                      {/* Enhanced context display */}
                       <p className="text-sm font-medium mt-2">{issue.description}</p>
+                      
+                      {/* Show rich metadata if available */}
+                      {issue.metadata && (
+                        <div className="mt-3 space-y-2">
+                          {issue.metadata.fieldName && (
+                            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                              <span className="font-semibold text-foreground">Field:</span>
+                              <span className="text-muted-foreground">{issue.metadata.fieldName}</span>
+                              
+                              {issue.metadata.currentValue !== undefined && (
+                                <>
+                                  <span className="font-semibold text-foreground">Current:</span>
+                                  <span className="text-muted-foreground">
+                                    {issue.metadata.currentValue === null ? '(empty)' : String(issue.metadata.currentValue)}
+                                  </span>
+                                </>
+                              )}
+                              
+                              {issue.metadata.expectedValue !== undefined && (
+                                <>
+                                  <span className="font-semibold text-foreground">Expected:</span>
+                                  <span className="text-green-600 dark:text-green-400">
+                                    {String(issue.metadata.expectedValue)}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          
+                          {issue.metadata.editableFields && issue.metadata.editableFields.length > 0 && (
+                            <div className="flex items-baseline gap-2 text-xs">
+                              <span className="font-semibold text-foreground">Can fix by editing:</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {issue.metadata.editableFields.map((field) => (
+                                  <Badge key={field} variant="outline" className="text-xs">
+                                    {field}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {issue.metadata.businessImpact && (
+                            <div className="bg-amber-50 dark:bg-amber-950 p-2 rounded text-xs">
+                              <span className="font-semibold text-amber-900 dark:text-amber-100">Impact: </span>
+                              <span className="text-amber-800 dark:text-amber-200">{issue.metadata.businessImpact}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       {issue.suggestedFix && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Suggested: {issue.suggestedFix}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          <span className="font-semibold">Suggested Fix:</span> {issue.suggestedFix}
                         </p>
+                      )}
+                      
+                      {/* Quick fix button */}
+                      {issue.status === 'pending' && issue.metadata?.editableFields && (
+                        <Button size="sm" className="mt-3" data-testid={`button-fix-${issue.id}`} asChild>
+                          <Link href={`/recruiting/${issue.entityType}s/${issue.entityId}`}>
+                            Fix This Issue →
+                          </Link>
+                        </Button>
                       )}
                     </div>
                     <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
