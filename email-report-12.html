@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 8px;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .score {
+      font-size: 48px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    .improvement {
+      font-size: 18px;
+      opacity: 0.9;
+    }
+    .section {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #667eea;
+      font-size: 20px;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      border-left: 4px solid #667eea;
+    }
+    .stat-card.error { border-left-color: #ef4444; }
+    .stat-card.warning { border-left-color: #f59e0b; }
+    .stat-card.info { border-left-color: #3b82f6; }
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+    .progress-bar {
+      background: #e5e7eb;
+      border-radius: 10px;
+      height: 20px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .progress-fill {
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .action-items {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 20px;
+    }
+    .action-items h3 {
+      margin-top: 0;
+      color: #92400e;
+    }
+    .action-items ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    .action-items li {
+      margin: 8px 0;
+      color: #78350f;
+    }
+    .footer {
+      text-align: center;
+      color: #6b7280;
+      font-size: 14px;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📊 Data Quality Audit Report</h1>
+    <div class="score">54/100</div>
+    
+    <div style="margin-top: 15px; opacity: 0.9;">Tuesday, November 4, 2025</div>
+  </div>
+
+  <div class="section">
+    <h2>Issues Detected</h2>
+    <div class="stat-grid">
+      <div class="stat-card error">
+        <div class="stat-value">0</div>
+        <div class="stat-label">🔴 Critical (P0)</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-value">15</div>
+        <div class="stat-label">🟡 Important (P1)</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-value">62</div>
+        <div class="stat-label">🔵 Enhancement (P2)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">77</div>
+        <div class="stat-label">📋 Total Issues</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🤖 AI Remediation</h2>
+    <p><strong>15 issues</strong> fixed automatically (19% success rate)</p>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: 19%">
+        19% Auto-Fixed
+      </div>
+    </div>
+    <ul style="margin: 15px 0; padding-left: 20px;">
+      <li>✅ 15 automatically resolved</li>
+      <li>⚠️  0 flagged for review</li>
+      <li>👤 62 queued for manual intervention</li>
+    </ul>
+  </div>
+
+  <div class="action-items">
+    <h3>🎯 Next Steps</h3>
+    <ul>
+      <li><strong>Immediate:</strong> Review 62 items in manual intervention queue</li>
+      
+      <li><strong>Today:</strong> Review 15 P1 issues (SLA: 24 hours)</li>
+      <li>Download CSV report for detailed analysis</li>
+      <li>Batch P2 issues for weekly review session</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <p>Automated Data Quality System | Execution Time: 44.69s</p>
+    <p>Audit Run ID: 12</p>
+  </div>
+</body>
+</html>
