@@ -13,7 +13,7 @@ import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText 
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
@@ -4130,6 +4130,261 @@ CRITICAL RULES - You MUST follow these strictly:
     } catch (error) {
       console.error("Error performing semantic search:", error);
       res.status(500).json({ error: "Failed to perform semantic search" });
+    }
+  });
+
+  // ==================== DATA QUALITY SYSTEM ====================
+
+  // Import data quality modules
+  const { runFullAudit, generateCsvReport } = await import('./audit-runner');
+  const { generateEmailReport } = await import('./email-report-generator');
+  const { auditRuns, auditIssues, manualInterventionQueue, remediationAttempts } = await import('../shared/schema');
+
+  // Dashboard - overall metrics
+  app.get('/api/data-quality/dashboard', async (req, res) => {
+    try {
+      const [latestRun] = await db.select()
+        .from(auditRuns)
+        .orderBy(sql`id DESC`)
+        .limit(1);
+      
+      if (!latestRun) {
+        return res.json({
+          hasData: false,
+          message: 'No audit runs yet. Run your first audit!'
+        });
+      }
+      
+      const [previousRun] = await db.select()
+        .from(auditRuns)
+        .where(sql`id < ${latestRun.id}`)
+        .orderBy(sql`id DESC`)
+        .limit(1);
+      
+      const [queueStats] = await db.select({
+        pending: sql<number>`COUNT(*) FILTER (WHERE status = 'pending')`,
+        inProgress: sql<number>`COUNT(*) FILTER (WHERE status = 'in_progress')`,
+        total: sql<number>`COUNT(*)`
+      })
+      .from(manualInterventionQueue);
+      
+      const [aiStats] = await db.select({
+        totalAttempts: sql<number>`COUNT(*)`,
+        successful: sql<number>`COUNT(*) FILTER (WHERE outcome = 'success')`,
+        avgConfidence: sql<number>`AVG(confidence_score)`
+      })
+      .from(remediationAttempts);
+      
+      const improvement = previousRun 
+        ? latestRun.dataQualityScore! - previousRun.dataQualityScore!
+        : 0;
+      
+      res.json({
+        hasData: true,
+        currentScore: latestRun.dataQualityScore,
+        improvement,
+        trend: improvement > 0 ? 'improving' : improvement < 0 ? 'declining' : 'stable',
+        latestAudit: {
+          id: latestRun.id,
+          runAt: latestRun.completedAt,
+          totalIssues: latestRun.totalIssues,
+          errors: latestRun.errors,
+          warnings: latestRun.warnings,
+          info: latestRun.info,
+          autoFixed: latestRun.autoFixed,
+          flaggedForReview: latestRun.flaggedForReview,
+          manualQueue: latestRun.manualQueue
+        },
+        manualQueue: {
+          pending: Number(queueStats?.pending || 0),
+          inProgress: Number(queueStats?.inProgress || 0),
+          total: Number(queueStats?.total || 0)
+        },
+        aiPerformance: {
+          totalAttempts: Number(aiStats?.totalAttempts || 0),
+          successRate: aiStats?.totalAttempts 
+            ? Math.round((Number(aiStats.successful) / Number(aiStats.totalAttempts)) * 100)
+            : 0,
+          avgConfidence: Math.round(Number(aiStats?.avgConfidence || 0))
+        }
+      });
+      
+    } catch (error) {
+      console.error('Dashboard error:', error);
+      res.status(500).json({ error: 'Failed to load dashboard' });
+    }
+  });
+
+  // Audit history
+  app.get('/api/data-quality/audit-history', async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const runs = await db.select()
+        .from(auditRuns)
+        .orderBy(sql`id DESC`)
+        .limit(limit);
+      
+      res.json({ runs });
+    } catch (error) {
+      console.error('Audit history error:', error);
+      res.status(500).json({ error: 'Failed to load audit history' });
+    }
+  });
+
+  // Trigger audit
+  app.post('/api/data-quality/run-audit', async (req, res) => {
+    try {
+      runFullAudit().catch(error => {
+        console.error('Background audit failed:', error);
+      });
+      
+      res.json({ 
+        message: 'Audit started in background',
+        status: 'running'
+      });
+    } catch (error) {
+      console.error('Run audit error:', error);
+      res.status(500).json({ error: 'Failed to start audit' });
+    }
+  });
+
+  // Manual intervention queue
+  app.get('/api/data-quality/manual-queue', async (req, res) => {
+    try {
+      const priority = req.query.priority as string;
+      const status = (req.query.status as string) || 'pending';
+      
+      const items = await db.select({
+        queueItem: manualInterventionQueue,
+        issue: auditIssues
+      })
+      .from(manualInterventionQueue)
+      .innerJoin(auditIssues, eq(manualInterventionQueue.issueId, auditIssues.id))
+      .where(
+        priority 
+          ? sql`${manualInterventionQueue.status} = ${status} AND ${manualInterventionQueue.priority} = ${priority}`
+          : sql`${manualInterventionQueue.status} = ${status}`
+      )
+      .orderBy(
+        sql`CASE ${manualInterventionQueue.priority} WHEN 'P0' THEN 1 WHEN 'P1' THEN 2 WHEN 'P2' THEN 3 END`,
+        sql`${manualInterventionQueue.queuedAt} DESC`
+      );
+      
+      res.json({ items });
+    } catch (error) {
+      console.error('Manual queue error:', error);
+      res.status(500).json({ error: 'Failed to load queue' });
+    }
+  });
+
+  // Resolve issue
+  app.post('/api/data-quality/resolve-issue', async (req, res) => {
+    try {
+      const { queueId, action, notes, applyAiSuggestion } = req.body;
+      
+      const [queueItem] = await db.select()
+        .from(manualInterventionQueue)
+        .where(eq(manualInterventionQueue.id, queueId));
+      
+      if (!queueItem) {
+        return res.status(404).json({ error: 'Queue item not found' });
+      }
+      
+      const startTime = new Date(queueItem.queuedAt!);
+      const resolveTime = new Date();
+      const timeToResolveMinutes = Math.round((resolveTime.getTime() - startTime.getTime()) / 60000);
+      const slaMissed = queueItem.slaDeadline 
+        ? resolveTime > new Date(queueItem.slaDeadline)
+        : false;
+      
+      await db.update(manualInterventionQueue)
+        .set({
+          status: 'resolved',
+          resolvedAt: sql`now()`,
+          timeToResolveMinutes,
+          slaMissed,
+          notes,
+          resolutionAction: { action, applyAiSuggestion }
+        })
+        .where(eq(manualInterventionQueue.id, queueId));
+      
+      await db.update(auditIssues)
+        .set({
+          status: 'resolved',
+          resolvedBy: 'human',
+          resolvedAt: sql`now()`,
+          resolutionNotes: notes
+        })
+        .where(eq(auditIssues.id, queueItem.issueId));
+      
+      if (applyAiSuggestion && queueItem.aiSuggestions) {
+        const [attempt] = await db.select()
+          .from(remediationAttempts)
+          .where(eq(remediationAttempts.issueId, queueItem.issueId))
+          .orderBy(sql`id DESC`)
+          .limit(1);
+        
+        if (attempt) {
+          await db.update(remediationAttempts)
+            .set({
+              humanFeedback: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'modified',
+              feedbackNotes: notes,
+              learned: true
+            })
+            .where(eq(remediationAttempts.id, attempt.id));
+        }
+      }
+      
+      res.json({ 
+        success: true,
+        message: 'Issue resolved successfully',
+        slaMissed
+      });
+      
+    } catch (error) {
+      console.error('Resolve issue error:', error);
+      res.status(500).json({ error: 'Failed to resolve issue' });
+    }
+  });
+
+  // Download CSV report
+  app.get('/api/data-quality/report/:auditId', async (req, res) => {
+    try {
+      const auditId = parseInt(req.params.auditId);
+      const csvContent = await generateCsvReport(auditId);
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=audit-report-${auditId}.csv`);
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('Report download error:', error);
+      res.status(500).json({ error: 'Failed to generate report' });
+    }
+  });
+
+  // Email preview
+  app.get('/api/data-quality/email-preview/:auditId', async (req, res) => {
+    try {
+      const auditId = parseInt(req.params.auditId);
+      
+      const [auditRun] = await db.select()
+        .from(auditRuns)
+        .where(eq(auditRuns.id, auditId));
+      
+      if (!auditRun) {
+        return res.status(404).json({ error: 'Audit run not found' });
+      }
+      
+      const emailReport = generateEmailReport(auditRun);
+      
+      res.setHeader('Content-Type', 'text/html');
+      res.send(emailReport.htmlBody);
+      
+    } catch (error) {
+      console.error('Email preview error:', error);
+      res.status(500).json({ error: 'Failed to generate email preview' });
     }
   });
 

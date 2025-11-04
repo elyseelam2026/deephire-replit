@@ -23,6 +23,8 @@ import Staging from "@/pages/Staging";
 import Conversations from "@/pages/Conversations";
 import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
+import DataQualityDashboard from "@/pages/DataQualityDashboard";
+import ManualQueue from "@/pages/ManualQueue";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -34,6 +36,8 @@ function AppRouter() {
       <Route path="/recruiting/companies/:id" component={() => <RecruitingApp><CompanyDetail /></RecruitingApp>} />
       <Route path="/recruiting/:rest*" component={RecruitingApp} />
       <Route path="/recruiting" component={RecruitingApp} />
+      <Route path="/admin/data-quality/queue" component={() => <AdminApp><ManualQueue /></AdminApp>} />
+      <Route path="/admin/data-quality" component={() => <AdminApp><DataQualityDashboard /></AdminApp>} />
       <Route path="/admin/:rest*" component={AdminApp} />
       <Route path="/admin" component={AdminApp} />
       <Route path="/client-portal" component={ClientPortal} />
@@ -104,7 +108,7 @@ function CandidatesOnly() {
   );
 }
 
-function AdminApp() {
+function AdminApp({ children }: { children?: React.ReactNode }) {
   const [, setLocation] = useLocation();
 
   return (
@@ -118,7 +122,7 @@ function AdminApp() {
         <ThemeToggle />
       </header>
       <main>
-        <Admin />
+        {children || <Admin />}
       </main>
     </div>
   );
