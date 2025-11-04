@@ -198,14 +198,13 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
     if (!link) return <span>{entityType} #{entityId}</span>;
     
     return (
-      <Link href={link}>
-        <a
-          className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center cursor-pointer"
-          data-testid={`link-${entityType}-${entityId}`}
-        >
-          {entityType} #{entityId}
-          <ArrowUpRight className="ml-1 h-3 w-3" />
-        </a>
+      <Link 
+        href={link}
+        className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center cursor-pointer"
+        data-testid={`link-${entityType}-${entityId}`}
+      >
+        {entityType} #{entityId}
+        <ArrowUpRight className="ml-1 h-3 w-3" />
       </Link>
     );
   };
