@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, MapPin, Briefcase, DollarSign, Search, Mail, Linkedin, ExternalLink, Trash2, Edit, FileText, Building2, Calendar, Sparkles, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Candidate, CareerHistoryEntry } from "@shared/schema";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -579,17 +580,48 @@ export default function Candidates() {
                 onClick={() => {
                   if (selectedCandidate) {
                     setEditFormData({
-                      firstName: selectedCandidate.firstName || '',
-                      lastName: selectedCandidate.lastName || '',
-                      nativeName: (selectedCandidate as any).nativeName || '',
-                      latinName: (selectedCandidate as any).latinName || '',
-                      nativeNameLocale: (selectedCandidate as any).nativeNameLocale || '',
-                      email: selectedCandidate.email || '',
-                      linkedinUrl: selectedCandidate.linkedinUrl || '',
-                      currentCompany: selectedCandidate.currentCompany || '',
-                      currentTitle: selectedCandidate.currentTitle || '',
-                      location: selectedCandidate.location || '',
-                      biography: selectedCandidate.biography || '',
+                      firstName: selectedCandidate.firstName,
+                      lastName: selectedCandidate.lastName,
+                      middleName: selectedCandidate.middleName,
+                      preferredName: selectedCandidate.preferredName,
+                      nativeName: selectedCandidate.nativeName,
+                      latinName: selectedCandidate.latinName,
+                      nativeNameLocale: selectedCandidate.nativeNameLocale,
+                      pronouns: selectedCandidate.pronouns,
+                      email: selectedCandidate.email,
+                      phoneNumber: selectedCandidate.phoneNumber,
+                      alternatePhone: selectedCandidate.alternatePhone,
+                      street: selectedCandidate.street,
+                      city: selectedCandidate.city,
+                      state: selectedCandidate.state,
+                      postalCode: selectedCandidate.postalCode,
+                      country: selectedCandidate.country,
+                      location: selectedCandidate.location,
+                      linkedinUrl: selectedCandidate.linkedinUrl,
+                      portfolioUrl: selectedCandidate.portfolioUrl,
+                      githubUrl: selectedCandidate.githubUrl,
+                      personalWebsite: selectedCandidate.personalWebsite,
+                      currentCompany: selectedCandidate.currentCompany,
+                      currentTitle: selectedCandidate.currentTitle,
+                      currentDepartment: selectedCandidate.currentDepartment,
+                      currentIndustry: selectedCandidate.currentIndustry,
+                      employmentType: selectedCandidate.employmentType,
+                      yearsExperience: selectedCandidate.yearsExperience,
+                      yearsInCurrentRole: selectedCandidate.yearsInCurrentRole,
+                      careerLevel: selectedCandidate.careerLevel,
+                      highestDegree: selectedCandidate.highestDegree,
+                      fieldOfStudy: selectedCandidate.fieldOfStudy,
+                      isActivelyLooking: selectedCandidate.isActivelyLooking,
+                      availableStartDate: selectedCandidate.availableStartDate,
+                      willingToRelocate: selectedCandidate.willingToRelocate,
+                      workAuthorizationStatus: selectedCandidate.workAuthorizationStatus,
+                      workArrangement: selectedCandidate.workArrangement,
+                      basicSalary: selectedCandidate.basicSalary,
+                      salaryExpectations: selectedCandidate.salaryExpectations,
+                      salaryCurrency: selectedCandidate.salaryCurrency,
+                      equityExpectations: selectedCandidate.equityExpectations,
+                      bonusStructure: selectedCandidate.bonusStructure,
+                      biography: selectedCandidate.biography,
                     });
                     setEditDialogOpen(true);
                   }
@@ -1288,18 +1320,26 @@ export default function Candidates() {
 
       {/* Edit Candidate Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Candidate</DialogTitle>
             <DialogDescription>
-              Update candidate information including multi-language names and profile details
+              Update comprehensive candidate information across all sections
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            {/* Basic Information Section */}
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm">Basic Information</h4>
-              <div className="grid grid-cols-2 gap-3">
+          
+          <Tabs defaultValue="personal" className="w-full">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="personal">Personal</TabsTrigger>
+              <TabsTrigger value="professional">Professional</TabsTrigger>
+              <TabsTrigger value="education">Education</TabsTrigger>
+              <TabsTrigger value="preferences">Preferences</TabsTrigger>
+              <TabsTrigger value="compensation">Compensation</TabsTrigger>
+            </TabsList>
+
+            {/* Personal Info Tab */}
+            <TabsContent value="personal" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="edit-firstName">First Name</Label>
                   <Input
@@ -1318,98 +1358,233 @@ export default function Candidates() {
                     data-testid="input-edit-lastName"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-middleName">Middle Name</Label>
+                  <Input
+                    id="edit-middleName"
+                    value={editFormData.middleName || ''}
+                    onChange={(e) => setEditFormData({...editFormData, middleName: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-preferredName">Preferred Name</Label>
+                  <Input
+                    id="edit-preferredName"
+                    value={editFormData.preferredName || ''}
+                    onChange={(e) => setEditFormData({...editFormData, preferredName: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-nativeName">Native Name (e.g., 李嘉冕)</Label>
+                  <Input
+                    id="edit-nativeName"
+                    value={editFormData.nativeName || ''}
+                    onChange={(e) => setEditFormData({...editFormData, nativeName: e.target.value})}
+                    placeholder="李嘉冕"
+                    data-testid="input-edit-nativeName"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-latinName">Latin/Romanized Name</Label>
+                  <Input
+                    id="edit-latinName"
+                    value={editFormData.latinName || ''}
+                    onChange={(e) => setEditFormData({...editFormData, latinName: e.target.value})}
+                    placeholder="Li Jiamian"
+                    data-testid="input-edit-latinName"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-nativeNameLocale">Name Locale</Label>
+                  <Input
+                    id="edit-nativeNameLocale"
+                    value={editFormData.nativeNameLocale || ''}
+                    onChange={(e) => setEditFormData({...editFormData, nativeNameLocale: e.target.value})}
+                    placeholder="zh-CN, ko-KR, ja-JP"
+                    data-testid="input-edit-nativeNameLocale"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-pronouns">Pronouns</Label>
+                  <Input
+                    id="edit-pronouns"
+                    value={editFormData.pronouns || ''}
+                    onChange={(e) => setEditFormData({...editFormData, pronouns: e.target.value})}
+                    placeholder="he/him, she/her, they/them"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editFormData.email || ''}
+                    onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                    data-testid="input-edit-email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phoneNumber">Phone Number</Label>
+                  <Input
+                    id="edit-phoneNumber"
+                    value={editFormData.phoneNumber || ''}
+                    onChange={(e) => setEditFormData({...editFormData, phoneNumber: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-alternatePhone">Alternate Phone</Label>
+                  <Input
+                    id="edit-alternatePhone"
+                    value={editFormData.alternatePhone || ''}
+                    onChange={(e) => setEditFormData({...editFormData, alternatePhone: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-linkedinUrl">LinkedIn URL</Label>
+                  <Input
+                    id="edit-linkedinUrl"
+                    value={editFormData.linkedinUrl || ''}
+                    onChange={(e) => setEditFormData({...editFormData, linkedinUrl: e.target.value})}
+                    data-testid="input-edit-linkedinUrl"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-email">Email</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  value={editFormData.email || ''}
-                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                  data-testid="input-edit-email"
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-street">Street Address</Label>
+                  <Input
+                    id="edit-street"
+                    value={editFormData.street || ''}
+                    onChange={(e) => setEditFormData({...editFormData, street: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-city">City</Label>
+                  <Input
+                    id="edit-city"
+                    value={editFormData.city || ''}
+                    onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-state">State/Province</Label>
+                  <Input
+                    id="edit-state"
+                    value={editFormData.state || ''}
+                    onChange={(e) => setEditFormData({...editFormData, state: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-postalCode">Postal Code</Label>
+                  <Input
+                    id="edit-postalCode"
+                    value={editFormData.postalCode || ''}
+                    onChange={(e) => setEditFormData({...editFormData, postalCode: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-country">Country</Label>
+                  <Input
+                    id="edit-country"
+                    value={editFormData.country || ''}
+                    onChange={(e) => setEditFormData({...editFormData, country: e.target.value})}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-linkedinUrl">LinkedIn URL</Label>
-                <Input
-                  id="edit-linkedinUrl"
-                  value={editFormData.linkedinUrl || ''}
-                  onChange={(e) => setEditFormData({...editFormData, linkedinUrl: e.target.value})}
-                  data-testid="input-edit-linkedinUrl"
-                />
-              </div>
-            </div>
+            </TabsContent>
 
-            {/* Multi-Language Names Section */}
-            <div className="space-y-3 border-t pt-4">
-              <h4 className="font-medium text-sm">Multi-Language Names</h4>
-              <div className="space-y-2">
-                <Label htmlFor="edit-nativeName">Native Name (e.g., 李嘉冕)</Label>
-                <Input
-                  id="edit-nativeName"
-                  value={editFormData.nativeName || ''}
-                  onChange={(e) => setEditFormData({...editFormData, nativeName: e.target.value})}
-                  placeholder="李嘉冕"
-                  data-testid="input-edit-nativeName"
-                />
+            {/* Professional Background Tab */}
+            <TabsContent value="professional" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-currentCompany">Current Company</Label>
+                  <Input
+                    id="edit-currentCompany"
+                    value={editFormData.currentCompany || ''}
+                    onChange={(e) => setEditFormData({...editFormData, currentCompany: e.target.value})}
+                    data-testid="input-edit-currentCompany"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-currentTitle">Current Title</Label>
+                  <Input
+                    id="edit-currentTitle"
+                    value={editFormData.currentTitle || ''}
+                    onChange={(e) => setEditFormData({...editFormData, currentTitle: e.target.value})}
+                    data-testid="input-edit-currentTitle"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-currentDepartment">Department</Label>
+                  <Input
+                    id="edit-currentDepartment"
+                    value={editFormData.currentDepartment || ''}
+                    onChange={(e) => setEditFormData({...editFormData, currentDepartment: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-currentIndustry">Industry</Label>
+                  <Input
+                    id="edit-currentIndustry"
+                    value={editFormData.currentIndustry || ''}
+                    onChange={(e) => setEditFormData({...editFormData, currentIndustry: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-employmentType">Employment Type</Label>
+                  <Select
+                    value={editFormData.employmentType || ''}
+                    onValueChange={(value) => setEditFormData({...editFormData, employmentType: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full-time">Full-Time</SelectItem>
+                      <SelectItem value="part-time">Part-Time</SelectItem>
+                      <SelectItem value="contract">Contract</SelectItem>
+                      <SelectItem value="freelance">Freelance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-yearsExperience">Total Years of Experience</Label>
+                  <Input
+                    id="edit-yearsExperience"
+                    type="number"
+                    value={editFormData.yearsExperience ?? ''}
+                    onChange={(e) => setEditFormData({...editFormData, yearsExperience: e.target.value ? parseInt(e.target.value) : null})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-yearsInCurrentRole">Years in Current Role</Label>
+                  <Input
+                    id="edit-yearsInCurrentRole"
+                    type="number"
+                    value={editFormData.yearsInCurrentRole ?? ''}
+                    onChange={(e) => setEditFormData({...editFormData, yearsInCurrentRole: e.target.value ? parseInt(e.target.value) : null})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-careerLevel">Career Level</Label>
+                  <Select
+                    value={editFormData.careerLevel || ''}
+                    onValueChange={(value) => setEditFormData({...editFormData, careerLevel: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="entry">Entry Level</SelectItem>
+                      <SelectItem value="junior">Junior</SelectItem>
+                      <SelectItem value="mid">Mid-Level</SelectItem>
+                      <SelectItem value="senior">Senior</SelectItem>
+                      <SelectItem value="executive">Executive</SelectItem>
+                      <SelectItem value="c-level">C-Level</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-latinName">Latin Name (e.g., Li Jiamian)</Label>
-                <Input
-                  id="edit-latinName"
-                  value={editFormData.latinName || ''}
-                  onChange={(e) => setEditFormData({...editFormData, latinName: e.target.value})}
-                  placeholder="Li Jiamian"
-                  data-testid="input-edit-latinName"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-nativeNameLocale">Locale (e.g., zh-CN, ko-KR, ja-JP)</Label>
-                <Input
-                  id="edit-nativeNameLocale"
-                  value={editFormData.nativeNameLocale || ''}
-                  onChange={(e) => setEditFormData({...editFormData, nativeNameLocale: e.target.value})}
-                  placeholder="zh-CN"
-                  data-testid="input-edit-nativeNameLocale"
-                />
-              </div>
-            </div>
-
-            {/* Professional Information Section */}
-            <div className="space-y-3 border-t pt-4">
-              <h4 className="font-medium text-sm">Professional Information</h4>
-              <div className="space-y-2">
-                <Label htmlFor="edit-currentCompany">Current Company</Label>
-                <Input
-                  id="edit-currentCompany"
-                  value={editFormData.currentCompany || ''}
-                  onChange={(e) => setEditFormData({...editFormData, currentCompany: e.target.value})}
-                  data-testid="input-edit-currentCompany"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-currentTitle">Current Title</Label>
-                <Input
-                  id="edit-currentTitle"
-                  value={editFormData.currentTitle || ''}
-                  onChange={(e) => setEditFormData({...editFormData, currentTitle: e.target.value})}
-                  data-testid="input-edit-currentTitle"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-location">Location</Label>
-                <Input
-                  id="edit-location"
-                  value={editFormData.location || ''}
-                  onChange={(e) => setEditFormData({...editFormData, location: e.target.value})}
-                  data-testid="input-edit-location"
-                />
-              </div>
-            </div>
-
-            {/* Biography Section */}
-            <div className="space-y-3 border-t pt-4">
-              <h4 className="font-medium text-sm">Biography</h4>
               <div className="space-y-2">
                 <Label htmlFor="edit-biography">Executive Biography</Label>
                 <Textarea
@@ -1420,32 +1595,207 @@ export default function Candidates() {
                   data-testid="textarea-edit-biography"
                 />
               </div>
-            </div>
+            </TabsContent>
 
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setEditDialogOpen(false)}
-                data-testid="button-cancel-edit"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (selectedCandidate) {
-                    updateMutation.mutate({
-                      id: selectedCandidate.id,
-                      data: editFormData
-                    });
-                  }
-                }}
-                disabled={updateMutation.isPending}
-                data-testid="button-save-edit"
-              >
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </div>
+            {/* Education & Skills Tab */}
+            <TabsContent value="education" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-highestDegree">Highest Degree</Label>
+                  <Select
+                    value={editFormData.highestDegree || ''}
+                    onValueChange={(value) => setEditFormData({...editFormData, highestDegree: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="high_school">High School</SelectItem>
+                      <SelectItem value="associates">Associate's Degree</SelectItem>
+                      <SelectItem value="bachelors">Bachelor's Degree</SelectItem>
+                      <SelectItem value="masters">Master's Degree</SelectItem>
+                      <SelectItem value="mba">MBA</SelectItem>
+                      <SelectItem value="phd">PhD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-fieldOfStudy">Field of Study</Label>
+                  <Input
+                    id="edit-fieldOfStudy"
+                    value={editFormData.fieldOfStudy || ''}
+                    onChange={(e) => setEditFormData({...editFormData, fieldOfStudy: e.target.value})}
+                    placeholder="Computer Science, Finance..."
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Career Preferences Tab */}
+            <TabsContent value="preferences" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-isActivelyLooking">Job Search Status</Label>
+                  <Select
+                    value={editFormData.isActivelyLooking?.toString() || ''}
+                    onValueChange={(value) => setEditFormData({...editFormData, isActivelyLooking: value === 'true'})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="false">Not Looking</SelectItem>
+                      <SelectItem value="true">Actively Looking</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-availableStartDate">Available From</Label>
+                  <Input
+                    id="edit-availableStartDate"
+                    type="date"
+                    value={editFormData.availableStartDate ? new Date(editFormData.availableStartDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => setEditFormData({...editFormData, availableStartDate: e.target.value ? new Date(e.target.value) : null})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-willingToRelocate">Willing to Relocate</Label>
+                  <Select
+                    value={editFormData.willingToRelocate?.toString() || ''}
+                    onValueChange={(value) => setEditFormData({...editFormData, willingToRelocate: value === 'true'})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Yes</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-workAuthorizationStatus">Work Authorization</Label>
+                  <Select
+                    value={editFormData.workAuthorizationStatus || ''}
+                    onValueChange={(value) => setEditFormData({...editFormData, workAuthorizationStatus: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="citizen">Citizen</SelectItem>
+                      <SelectItem value="permanent_resident">Permanent Resident</SelectItem>
+                      <SelectItem value="work_visa">Work Visa</SelectItem>
+                      <SelectItem value="needs_sponsorship">Needs Sponsorship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-workArrangement">Work Arrangement Preference</Label>
+                  <Select
+                    value={editFormData.workArrangement || ''}
+                    onValueChange={(value) => setEditFormData({...editFormData, workArrangement: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select preference" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="on-site">On-Site</SelectItem>
+                      <SelectItem value="hybrid">Hybrid</SelectItem>
+                      <SelectItem value="remote">Remote</SelectItem>
+                      <SelectItem value="flexible">Flexible</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Compensation Tab */}
+            <TabsContent value="compensation" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-basicSalary">Current Base Salary ($)</Label>
+                  <Input
+                    id="edit-basicSalary"
+                    type="number"
+                    value={editFormData.basicSalary ?? ''}
+                    onChange={(e) => setEditFormData({...editFormData, basicSalary: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="150000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-salaryExpectations">Salary Expectations ($)</Label>
+                  <Input
+                    id="edit-salaryExpectations"
+                    type="number"
+                    value={editFormData.salaryExpectations ?? ''}
+                    onChange={(e) => setEditFormData({...editFormData, salaryExpectations: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="180000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-salaryCurrency">Currency</Label>
+                  <Select
+                    value={editFormData.salaryCurrency || 'USD'}
+                    onValueChange={(value) => setEditFormData({...editFormData, salaryCurrency: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="EUR">EUR</SelectItem>
+                      <SelectItem value="GBP">GBP</SelectItem>
+                      <SelectItem value="CAD">CAD</SelectItem>
+                      <SelectItem value="AUD">AUD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-equityExpectations">Equity Expectations</Label>
+                  <Input
+                    id="edit-equityExpectations"
+                    value={editFormData.equityExpectations || ''}
+                    onChange={(e) => setEditFormData({...editFormData, equityExpectations: e.target.value})}
+                    placeholder="0.5% - 1.0%"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-bonusStructure">Bonus Structure</Label>
+                  <Input
+                    id="edit-bonusStructure"
+                    value={editFormData.bonusStructure || ''}
+                    onChange={(e) => setEditFormData({...editFormData, bonusStructure: e.target.value})}
+                    placeholder="20% annual bonus"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2 border-t pt-4 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              data-testid="button-cancel-edit"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedCandidate) {
+                  updateMutation.mutate({
+                    id: selectedCandidate.id,
+                    data: editFormData
+                  });
+                }
+              }}
+              disabled={updateMutation.isPending}
+              data-testid="button-save-edit"
+            >
+              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
