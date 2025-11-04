@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Link } from 'wouter';
+import { DataQualityDetailDialog } from '@/components/DataQualityDetailDialog';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -46,6 +48,16 @@ interface DashboardData {
 }
 
 export default function DataQualityDashboard() {
+  const [detailDialog, setDetailDialog] = useState<{
+    isOpen: boolean;
+    type: 'total' | 'auto-fixed' | 'manual-queue' | 'performance' | null;
+    auditId: number | null;
+  }>({
+    isOpen: false,
+    type: null,
+    auditId: null
+  });
+
   const { data: dashboard, isLoading, refetch } = useQuery<DashboardData>({
     queryKey: ['/api/data-quality/dashboard']
   });
@@ -53,6 +65,22 @@ export default function DataQualityDashboard() {
   const runAudit = async () => {
     await fetch('/api/data-quality/run-audit', { method: 'POST' });
     setTimeout(() => refetch(), 2000); // Refresh after 2 seconds
+  };
+
+  const openDetailDialog = (type: 'total' | 'auto-fixed' | 'manual-queue' | 'performance') => {
+    setDetailDialog({
+      isOpen: true,
+      type,
+      auditId: dashboard?.latestAudit?.id || null
+    });
+  };
+
+  const closeDetailDialog = () => {
+    setDetailDialog({
+      isOpen: false,
+      type: null,
+      auditId: null
+    });
   };
 
   if (isLoading) {
@@ -98,11 +126,13 @@ export default function DataQualityDashboard() {
           <p className="text-muted-foreground">AI-powered data integrity monitoring</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild data-testid="button-manual-queue">
-            <Link href="/admin/data-quality/queue">
-              <Clock className="mr-2 h-4 w-4" />
-              Manual Queue ({dashboard.manualQueue?.pending || 0})
-            </Link>
+          <Button 
+            variant="outline" 
+            onClick={() => openDetailDialog('manual-queue')}
+            data-testid="button-manual-queue"
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            Manual Queue ({dashboard.manualQueue?.pending || 0})
           </Button>
           <Button onClick={runAudit} data-testid="button-run-audit">
             <Play className="mr-2 h-4 w-4" />
@@ -143,7 +173,11 @@ export default function DataQualityDashboard() {
 
       {/* Latest Audit Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card 
+          className="cursor-pointer hover-elevate active-elevate-2" 
+          onClick={() => openDetailDialog('total')}
+          data-testid="card-total-issues"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Issues</CardTitle>
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
@@ -160,7 +194,11 @@ export default function DataQualityDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover-elevate active-elevate-2" 
+          onClick={() => openDetailDialog('auto-fixed')}
+          data-testid="card-auto-fixed"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">AI Auto-Fixed</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -176,7 +214,11 @@ export default function DataQualityDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover-elevate active-elevate-2" 
+          onClick={() => openDetailDialog('manual-queue')}
+          data-testid="card-manual-queue"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Manual Queue</CardTitle>
             <Clock className="h-4 w-4 text-orange-600" />
@@ -191,7 +233,11 @@ export default function DataQualityDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover-elevate active-elevate-2" 
+          onClick={() => openDetailDialog('performance')}
+          data-testid="card-ai-performance"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">AI Success Rate</CardTitle>
             <TrendingUp className="h-4 w-4 text-blue-600" />
@@ -281,6 +327,14 @@ export default function DataQualityDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Detail Dialog */}
+      <DataQualityDetailDialog
+        isOpen={detailDialog.isOpen}
+        onClose={closeDetailDialog}
+        type={detailDialog.type}
+        auditId={detailDialog.auditId}
+      />
     </div>
   );
 }

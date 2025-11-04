@@ -13,7 +13,7 @@ import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText 
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, desc } from "drizzle-orm";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
@@ -4385,6 +4385,90 @@ CRITICAL RULES - You MUST follow these strictly:
     } catch (error) {
       console.error('Email preview error:', error);
       res.status(500).json({ error: 'Failed to generate email preview' });
+    }
+  });
+
+  // Get detailed issues for an audit run
+  app.get('/api/data-quality/issues/:auditId', async (req, res) => {
+    try {
+      const auditId = parseInt(req.params.auditId);
+      const status = req.query.status as string;
+      
+      // Build filter conditions
+      const conditions = [eq(auditIssues.auditRunId, auditId)];
+      if (status) {
+        conditions.push(eq(auditIssues.status, status));
+      }
+      
+      const issues = await db.select()
+        .from(auditIssues)
+        .where(and(...conditions))
+        .orderBy(sql`
+          CASE ${auditIssues.severity}
+            WHEN 'error' THEN 1
+            WHEN 'warning' THEN 2
+            WHEN 'info' THEN 3
+          END
+        `);
+      
+      res.json({ issues });
+    } catch (error) {
+      console.error('Issues fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch issues' });
+    }
+  });
+
+  // Get AI auto-fixed details with reasoning and sources
+  app.get('/api/data-quality/auto-fixed/:auditId', async (req, res) => {
+    try {
+      const auditId = parseInt(req.params.auditId);
+      
+      // Get all successful remediation attempts for this audit
+      const fixes = await db.select({
+        attempt: remediationAttempts,
+        issue: auditIssues
+      })
+      .from(remediationAttempts)
+      .innerJoin(auditIssues, eq(remediationAttempts.issueId, auditIssues.id))
+      .where(and(
+        eq(auditIssues.auditRunId, auditId),
+        eq(remediationAttempts.outcome, 'success'),
+        eq(remediationAttempts.applied, true)
+      ))
+      .orderBy(desc(remediationAttempts.completedAt));
+      
+      res.json({ fixes });
+    } catch (error) {
+      console.error('Auto-fixed fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch auto-fixed details' });
+    }
+  });
+
+  // Get AI performance metrics over time
+  app.get('/api/data-quality/ai-performance', async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const runs = await db.select()
+        .from(auditRuns)
+        .orderBy(sql`${auditRuns.id} DESC`)
+        .limit(limit);
+      
+      const performance = runs.reverse().map(run => ({
+        auditId: run.id,
+        runAt: run.completedAt,
+        totalIssues: run.totalIssues,
+        autoFixed: run.autoFixed,
+        successRate: run.totalIssues > 0 
+          ? Math.round((run.autoFixed / run.totalIssues) * 100)
+          : 0,
+        qualityScore: run.dataQualityScore
+      }));
+      
+      res.json({ performance });
+    } catch (error) {
+      console.error('Performance fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch performance data' });
     }
   });
 
