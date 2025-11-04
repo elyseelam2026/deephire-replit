@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Link } from 'wouter';
 import { DataQualityDetailDialog } from '@/components/DataQualityDetailDialog';
+import { useToast } from '@/hooks/use-toast';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -15,7 +16,8 @@ import {
   Clock, 
   Download,
   Play,
-  Mail
+  Mail,
+  Loader2
 } from 'lucide-react';
 
 interface DashboardData {
@@ -57,14 +59,39 @@ export default function DataQualityDashboard() {
     type: null,
     auditId: null
   });
+  const [isAuditRunning, setIsAuditRunning] = useState(false);
+  const { toast } = useToast();
 
   const { data: dashboard, isLoading, refetch } = useQuery<DashboardData>({
     queryKey: ['/api/data-quality/dashboard']
   });
 
   const runAudit = async () => {
-    await fetch('/api/data-quality/run-audit', { method: 'POST' });
-    setTimeout(() => refetch(), 2000); // Refresh after 2 seconds
+    try {
+      setIsAuditRunning(true);
+      toast({
+        title: "Audit Started",
+        description: "Running data quality audit... This may take a few moments.",
+      });
+      
+      const response = await fetch('/api/data-quality/run-audit', { method: 'POST' });
+      const result = await response.json();
+      
+      await refetch(); // Refresh immediately after completion
+      
+      toast({
+        title: "Audit Complete",
+        description: `Found ${result.summary?.totalIssues || 0} issues. ${result.summary?.autoFixed || 0} auto-fixed.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Audit Failed",
+        description: "Failed to run data quality audit. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuditRunning(false);
+    }
   };
 
   const openDetailDialog = (type: 'total' | 'auto-fixed' | 'manual-queue' | 'performance') => {
@@ -104,9 +131,9 @@ export default function DataQualityDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p>Run your first audit to start monitoring data quality.</p>
-            <Button onClick={runAudit} data-testid="button-run-first-audit">
-              <Play className="mr-2 h-4 w-4" />
-              Run First Audit
+            <Button onClick={runAudit} disabled={isAuditRunning} data-testid="button-run-first-audit">
+              {isAuditRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+              {isAuditRunning ? 'Running Audit...' : 'Run First Audit'}
             </Button>
           </CardContent>
         </Card>
@@ -134,9 +161,9 @@ export default function DataQualityDashboard() {
             <Clock className="mr-2 h-4 w-4" />
             Manual Queue ({dashboard.manualQueue?.pending || 0})
           </Button>
-          <Button onClick={runAudit} data-testid="button-run-audit">
-            <Play className="mr-2 h-4 w-4" />
-            Run Audit
+          <Button onClick={runAudit} disabled={isAuditRunning} data-testid="button-run-audit">
+            {isAuditRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+            {isAuditRunning ? 'Running...' : 'Run Audit'}
           </Button>
         </div>
       </div>
