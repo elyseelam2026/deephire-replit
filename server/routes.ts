@@ -1411,6 +1411,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Patch company (partial update)
+  app.patch("/api/companies/:id", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      const company = await storage.getCompany(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      // Define allowed fields for update
+      const allowedFields = [
+        'name', 'industry', 'headquarters', 'website', 'location',
+        'companySize', 'companyStage', 'description', 'fundingInfo',
+        'linkedinUrl', 'employeeSize', 'subsector', 'stage'
+      ];
+
+      // Filter and sanitize update data
+      const updateData: any = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      }
+
+      // Validate at least one field is being updated
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "No valid fields provided for update" });
+      }
+
+      const updatedCompany = await storage.updateCompany(companyId, updateData);
+      res.json(updatedCompany);
+    } catch (error) {
+      console.error("Error updating company:", error);
+      res.status(500).json({ error: "Failed to update company" });
+    }
+  });
+
   // Update company
   app.put("/api/companies/:id", async (req, res) => {
     try {
