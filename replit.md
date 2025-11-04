@@ -65,6 +65,8 @@ Preferred communication style: Simple, everyday language.
 -   **Multi-Layer Office Extraction System**: A 4-layer pipeline for reliable office location extraction.
 -   **AI-Powered Data Quality System** (Phase 1 & 2 Complete): Automated audit system with comprehensive UI that runs validation rules, attempts AI-powered fixes, and queues issues for manual review with real-time dashboard, SLA tracking, and human feedback collection.
 -   **Company Inline Edit Mode**: CompanyDetail page includes inline edit functionality with auto-open from data quality issues (?edit=true), editable fields for industry, location, and website, PATCH /api/companies/:id endpoint, and seamless integration with data quality workflow.
+-   **Comprehensive Edit Forms**: Professional 5-tab edit dialogs for Companies (Basic Info, Contact, Business Details, Financial, Notes) and Candidates (Personal Info, Professional, Education & Skills, Career Preferences, Compensation) with 30-40+ "fill in the blanks" fields organized into logical sections for complete data capture.
+-   **Custom Fields Settings Management**: Self-service UI at `/recruiting/settings` → "Custom Fields" tab allowing users to define additional fields for Companies, Candidates, and Jobs. Features include section organization, 10 field types (text, number, currency, date, select, multi_select, checkbox, url, email, phone), full CRUD operations with edit dialogs, delete confirmations, and real-time TanStack Query integration. Backend supports JSONB storage via `custom_field_sections` and `custom_field_definitions` tables.
 
 ## External Dependencies
 
