@@ -98,6 +98,7 @@ export default function CompanyDetail() {
   // Helper function to populate all edit fields from company data
   const populateEditData = (companyData: Company) => {
     setEditData({
+      name: companyData.name,
       legalName: companyData.legalName,
       tradingName: companyData.tradingName,
       parentCompany: companyData.parentCompany,

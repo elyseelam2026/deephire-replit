@@ -49,6 +49,7 @@ export const companies = pgTable("companies", {
   businessModel: text("business_model"), // b2b, b2c, b2b2c, marketplace
   targetMarket: text("target_market").array(),
   competitorCompanies: text("competitor_companies").array(),
+  description: text("description"), // company overview/description
   
   // Size & Stage (existing + enhanced)
   employeeSize: integer("employee_size"), // maintained for backward compatibility

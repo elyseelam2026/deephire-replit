@@ -10,6 +10,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Company } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -189,7 +191,7 @@ export default function Companies() {
   // Update company mutation
   const updateCompany = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: Partial<Company> }) => {
-      const response = await apiRequest('PUT', `/api/companies/${id}`, updates);
+      const response = await apiRequest('PATCH', `/api/companies/${id}`, updates);
       return await response.json();
     },
     onSuccess: (updatedCompany) => {
@@ -269,12 +271,36 @@ export default function Companies() {
     if (selectedCompany) {
       setEditFormData({
         name: selectedCompany.name,
-        industry: selectedCompany.industry || '',
-        website: selectedCompany.website || '',
-        primaryPhone: selectedCompany.primaryPhone || '',
-        annualRevenue: selectedCompany.annualRevenue,
+        legalName: selectedCompany.legalName,
+        tradingName: selectedCompany.tradingName,
+        parentCompany: selectedCompany.parentCompany,
+        companyType: selectedCompany.companyType,
+        stockSymbol: selectedCompany.stockSymbol,
+        foundedYear: selectedCompany.foundedYear,
+        industry: selectedCompany.industry,
+        subIndustry: selectedCompany.subIndustry,
+        businessModel: selectedCompany.businessModel,
+        targetMarket: selectedCompany.targetMarket,
+        companyStage: selectedCompany.companyStage,
         employeeSize: selectedCompany.employeeSize,
-        missionStatement: selectedCompany.missionStatement || '',
+        employeeSizeRange: selectedCompany.employeeSizeRange,
+        description: selectedCompany.description,
+        annualRevenue: selectedCompany.annualRevenue,
+        revenueRange: selectedCompany.revenueRange,
+        fundingStage: selectedCompany.fundingStage,
+        totalFundingRaised: selectedCompany.totalFundingRaised,
+        valuation: selectedCompany.valuation,
+        location: selectedCompany.location,
+        website: selectedCompany.website,
+        linkedinUrl: selectedCompany.linkedinUrl,
+        primaryEmail: selectedCompany.primaryEmail,
+        primaryPhone: selectedCompany.primaryPhone,
+        missionStatement: selectedCompany.missionStatement,
+        coreValues: selectedCompany.coreValues,
+        remoteWorkPolicy: selectedCompany.remoteWorkPolicy,
+        typicalHiringTimeline: selectedCompany.typicalHiringTimeline,
+        visaSponsorshipAvailable: selectedCompany.visaSponsorshipAvailable,
+        salaryNegotiable: selectedCompany.salaryNegotiable,
       });
       setIsEditing(true);
     }
@@ -567,76 +593,316 @@ export default function Companies() {
             <div className="space-y-6">
               {/* Edit Form */}
               {isEditing ? (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="edit-name">Company Name</Label>
-                    <Input
-                      id="edit-name"
-                      value={editFormData.name || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                      data-testid="input-edit-name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-industry">Industry</Label>
-                    <Input
-                      id="edit-industry"
-                      value={editFormData.industry || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, industry: e.target.value })}
-                      data-testid="input-edit-industry"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-website">Website</Label>
-                    <Input
-                      id="edit-website"
-                      value={editFormData.website || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, website: e.target.value })}
-                      placeholder="https://example.com"
-                      data-testid="input-edit-website"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-phone">Phone</Label>
-                    <Input
-                      id="edit-phone"
-                      value={editFormData.primaryPhone || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, primaryPhone: e.target.value })}
-                      data-testid="input-edit-phone"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-revenue">Annual Revenue</Label>
-                    <Input
-                      id="edit-revenue"
-                      type="number"
-                      value={editFormData.annualRevenue ?? ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, annualRevenue: e.target.value ? parseFloat(e.target.value) : null })}
-                      placeholder="1000000"
-                      data-testid="input-edit-revenue"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-employees">Employee Size</Label>
-                    <Input
-                      id="edit-employees"
-                      type="number"
-                      value={editFormData.employeeSize ?? ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, employeeSize: e.target.value ? parseInt(e.target.value) : null })}
-                      data-testid="input-edit-employees"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-mission">Mission Statement</Label>
-                    <Textarea
-                      id="edit-mission"
-                      value={editFormData.missionStatement || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, missionStatement: e.target.value })}
-                      rows={4}
-                      data-testid="input-edit-mission"
-                    />
-                  </div>
-                </div>
+                <Tabs defaultValue="basic" className="w-full">
+                  <TabsList className="grid w-full grid-cols-5">
+                    <TabsTrigger value="basic">Basic</TabsTrigger>
+                    <TabsTrigger value="business">Business</TabsTrigger>
+                    <TabsTrigger value="financial">Financial</TabsTrigger>
+                    <TabsTrigger value="contact">Contact</TabsTrigger>
+                    <TabsTrigger value="culture">Culture</TabsTrigger>
+                  </TabsList>
+
+                  {/* Basic Tab */}
+                  <TabsContent value="basic" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-legal-name">Legal Name</Label>
+                        <Input
+                          id="edit-legal-name"
+                          value={editFormData.legalName || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, legalName: e.target.value })}
+                          placeholder="Official registered name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-trading-name">Trading Name (DBA)</Label>
+                        <Input
+                          id="edit-trading-name"
+                          value={editFormData.tradingName || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, tradingName: e.target.value })}
+                          placeholder="Doing Business As"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-company-type">Company Type</Label>
+                        <Select
+                          value={editFormData.companyType || ''}
+                          onValueChange={(value) => setEditFormData({ ...editFormData, companyType: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="corporation">Corporation</SelectItem>
+                            <SelectItem value="llc">LLC</SelectItem>
+                            <SelectItem value="partnership">Partnership</SelectItem>
+                            <SelectItem value="nonprofit">Non-Profit</SelectItem>
+                            <SelectItem value="public">Public Company</SelectItem>
+                            <SelectItem value="private">Private Company</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-founded-year">Founded Year</Label>
+                        <Input
+                          id="edit-founded-year"
+                          type="number"
+                          value={editFormData.foundedYear || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, foundedYear: parseInt(e.target.value) })}
+                          placeholder="2010"
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Business Tab */}
+                  <TabsContent value="business" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-industry">Industry</Label>
+                        <Input
+                          id="edit-industry"
+                          value={editFormData.industry || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, industry: e.target.value })}
+                          placeholder="Private Equity, Technology..."
+                          data-testid="input-edit-industry"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-sub-industry">Sub-Industry</Label>
+                        <Input
+                          id="edit-sub-industry"
+                          value={editFormData.subIndustry || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, subIndustry: e.target.value })}
+                          placeholder="Growth Equity, SaaS..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-business-model">Business Model</Label>
+                        <Select
+                          value={editFormData.businessModel || ''}
+                          onValueChange={(value) => setEditFormData({ ...editFormData, businessModel: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="b2b">B2B</SelectItem>
+                            <SelectItem value="b2c">B2C</SelectItem>
+                            <SelectItem value="b2b2c">B2B2C</SelectItem>
+                            <SelectItem value="marketplace">Marketplace</SelectItem>
+                            <SelectItem value="saas">SaaS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-employee-size-range">Employee Size Range</Label>
+                        <Select
+                          value={editFormData.employeeSizeRange || ''}
+                          onValueChange={(value) => setEditFormData({ ...editFormData, employeeSizeRange: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select range" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1-10">1-10</SelectItem>
+                            <SelectItem value="11-50">11-50</SelectItem>
+                            <SelectItem value="51-200">51-200</SelectItem>
+                            <SelectItem value="201-500">201-500</SelectItem>
+                            <SelectItem value="501-1000">501-1000</SelectItem>
+                            <SelectItem value="1001-5000">1001-5000</SelectItem>
+                            <SelectItem value="5000+">5000+</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-employees">Exact Employee Count</Label>
+                        <Input
+                          id="edit-employees"
+                          type="number"
+                          value={editFormData.employeeSize ?? ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, employeeSize: e.target.value ? parseInt(e.target.value) : null })}
+                          placeholder="250"
+                          data-testid="input-edit-employees"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-description">Company Description</Label>
+                      <Textarea
+                        id="edit-description"
+                        value={editFormData.description || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                        placeholder="Brief overview of the company's business..."
+                        rows={4}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  {/* Financial Tab */}
+                  <TabsContent value="financial" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-revenue">Annual Revenue ($)</Label>
+                        <Input
+                          id="edit-revenue"
+                          type="number"
+                          value={editFormData.annualRevenue ?? ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, annualRevenue: e.target.value ? parseFloat(e.target.value) : null })}
+                          placeholder="50000000"
+                          data-testid="input-edit-revenue"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-revenue-range">Revenue Range</Label>
+                        <Select
+                          value={editFormData.revenueRange || ''}
+                          onValueChange={(value) => setEditFormData({ ...editFormData, revenueRange: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select range" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="<1M">&lt;$1M</SelectItem>
+                            <SelectItem value="1M-10M">$1M-$10M</SelectItem>
+                            <SelectItem value="10M-50M">$10M-$50M</SelectItem>
+                            <SelectItem value="50M-100M">$50M-$100M</SelectItem>
+                            <SelectItem value="100M-500M">$100M-$500M</SelectItem>
+                            <SelectItem value="500M-1B">$500M-$1B</SelectItem>
+                            <SelectItem value="1B+">$1B+</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-funding-stage">Funding Stage</Label>
+                        <Select
+                          value={editFormData.fundingStage || ''}
+                          onValueChange={(value) => setEditFormData({ ...editFormData, fundingStage: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select stage" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bootstrapped">Bootstrapped</SelectItem>
+                            <SelectItem value="pre-seed">Pre-Seed</SelectItem>
+                            <SelectItem value="seed">Seed</SelectItem>
+                            <SelectItem value="series_a">Series A</SelectItem>
+                            <SelectItem value="series_b">Series B</SelectItem>
+                            <SelectItem value="series_c">Series C</SelectItem>
+                            <SelectItem value="ipo">IPO</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-total-funding">Total Funding Raised ($)</Label>
+                        <Input
+                          id="edit-total-funding"
+                          type="number"
+                          value={editFormData.totalFundingRaised ?? ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, totalFundingRaised: e.target.value ? parseFloat(e.target.value) : null })}
+                          placeholder="25000000"
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Contact Tab */}
+                  <TabsContent value="contact" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-website">Website</Label>
+                        <Input
+                          id="edit-website"
+                          value={editFormData.website || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, website: e.target.value })}
+                          placeholder="https://example.com"
+                          data-testid="input-edit-website"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-phone">Primary Phone</Label>
+                        <Input
+                          id="edit-phone"
+                          value={editFormData.primaryPhone || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, primaryPhone: e.target.value })}
+                          placeholder="+1 (555) 123-4567"
+                          data-testid="input-edit-phone"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-primary-email">Primary Email</Label>
+                        <Input
+                          id="edit-primary-email"
+                          type="email"
+                          value={editFormData.primaryEmail || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, primaryEmail: e.target.value })}
+                          placeholder="info@company.com"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-location">Location</Label>
+                        <Input
+                          id="edit-location"
+                          value={editFormData.location || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                          placeholder="New York, NY, USA"
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Culture Tab */}
+                  <TabsContent value="culture" className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-mission">Mission Statement</Label>
+                      <Textarea
+                        id="edit-mission"
+                        value={editFormData.missionStatement || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, missionStatement: e.target.value })}
+                        placeholder="Company's mission and vision..."
+                        rows={4}
+                        data-testid="input-edit-mission"
+                      />
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-remote-policy">Remote Work Policy</Label>
+                        <Select
+                          value={editFormData.remoteWorkPolicy || ''}
+                          onValueChange={(value) => setEditFormData({ ...editFormData, remoteWorkPolicy: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select policy" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="no_remote">On-Site Only</SelectItem>
+                            <SelectItem value="hybrid">Hybrid</SelectItem>
+                            <SelectItem value="fully_remote">Fully Remote</SelectItem>
+                            <SelectItem value="flexible">Flexible</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-hiring-timeline">Typical Hiring Timeline</Label>
+                        <Select
+                          value={editFormData.typicalHiringTimeline || ''}
+                          onValueChange={(value) => setEditFormData({ ...editFormData, typicalHiringTimeline: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select timeline" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1_week">1 Week</SelectItem>
+                            <SelectItem value="2_weeks">2 Weeks</SelectItem>
+                            <SelectItem value="1_month">1 Month</SelectItem>
+                            <SelectItem value="2_months">2 Months</SelectItem>
+                            <SelectItem value="3_months+">3+ Months</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               ) : (
                 <>
                   {/* Parent Company Link */}
