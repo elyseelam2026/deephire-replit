@@ -37,6 +37,11 @@ interface DashboardData {
     flaggedForReview: number;
     manualQueue: number;
   };
+  entityBreakdown?: {
+    candidateIssues: number;
+    companyIssues: number;
+    jobIssues: number;
+  };
   manualQueue?: {
     pending: number;
     inProgress: number;

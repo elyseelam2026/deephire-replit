@@ -4213,6 +4213,19 @@ CRITICAL RULES - You MUST follow these strictly:
       })
       .from(remediationAttempts);
       
+      // Get entity-specific issue counts for the latest audit
+      const entityCounts = await db.select({
+        entityType: auditIssues.entityType,
+        count: sql<number>`COUNT(*)`
+      })
+      .from(auditIssues)
+      .where(sql`audit_run_id = ${latestRun.id}`)
+      .groupBy(auditIssues.entityType);
+      
+      const candidateIssues = entityCounts.find(e => e.entityType === 'candidate')?.count || 0;
+      const companyIssues = entityCounts.find(e => e.entityType === 'company')?.count || 0;
+      const jobIssues = entityCounts.find(e => e.entityType === 'job')?.count || 0;
+      
       const improvement = previousRun 
         ? latestRun.dataQualityScore! - previousRun.dataQualityScore!
         : 0;
@@ -4232,6 +4245,11 @@ CRITICAL RULES - You MUST follow these strictly:
           autoFixed: latestRun.autoFixed,
           flaggedForReview: latestRun.flaggedForReview,
           manualQueue: latestRun.manualQueue
+        },
+        entityBreakdown: {
+          candidateIssues: Number(candidateIssues),
+          companyIssues: Number(companyIssues),
+          jobIssues: Number(jobIssues)
         },
         manualQueue: {
           pending: Number(queueStats?.pending || 0),

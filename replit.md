@@ -64,6 +64,7 @@ Preferred communication style: Simple, everyday language.
 -   **Recycling Bin Feature**: Soft delete with restore functionality.
 -   **Multi-Layer Office Extraction System**: A 4-layer pipeline for reliable office location extraction.
 -   **AI-Powered Data Quality System** (Phase 1 & 2 Complete): Automated audit system with comprehensive UI that runs validation rules, attempts AI-powered fixes, and queues issues for manual review with real-time dashboard, SLA tracking, and human feedback collection.
+-   **Company Inline Edit Mode**: CompanyDetail page includes inline edit functionality with auto-open from data quality issues (?edit=true), editable fields for industry, location, and website, PATCH /api/companies/:id endpoint, and seamless integration with data quality workflow.
 
 ## External Dependencies
 
