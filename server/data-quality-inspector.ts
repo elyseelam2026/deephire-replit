@@ -278,7 +278,7 @@ async function checkCompanyDataQuality(): Promise<ValidationIssue[]> {
     // Check for minimal company info
     const missingInfo: string[] = [];
     if (!company.industry) missingInfo.push('industry');
-    if (!company.headquarters) missingInfo.push('headquarters');
+    if (!company.location) missingInfo.push('location');
     if (!company.website) missingInfo.push('website');
     
     if (missingInfo.length >= 2) {
@@ -288,7 +288,7 @@ async function checkCompanyDataQuality(): Promise<ValidationIssue[]> {
       
       if (missingInfo.includes('industry')) {
         businessImpact = 'Prevents accurate company categorization and sector analysis';
-      } else if (missingInfo.includes('headquarters')) {
+      } else if (missingInfo.includes('location')) {
         businessImpact = 'Missing geographic information for location-based searches';
       } else if (missingInfo.includes('website')) {
         businessImpact = 'Cannot research company or verify legitimacy';

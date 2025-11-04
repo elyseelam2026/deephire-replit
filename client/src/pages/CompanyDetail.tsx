@@ -22,7 +22,7 @@ type Company = {
   industry?: string;
   companySize?: string;
   companyStage?: string;
-  headquarters?: string;
+  location?: string;
   description?: string;
   fundingInfo?: string;
   linkedinUrl?: string;
@@ -56,17 +56,6 @@ export default function CompanyDetail() {
   const [editData, setEditData] = useState<Partial<Company>>({});
   const { toast } = useToast();
 
-  // Check for edit query parameter and auto-open edit mode
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.get('edit') === 'true') {
-      setIsEditing(true);
-      // Remove the query parameter from the URL
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
-    }
-  }, []);
-
   const { data: company, isLoading: loadingCompany } = useQuery<Company>({
     queryKey: ['/api/companies', companyId],
     queryFn: async () => {
@@ -76,6 +65,23 @@ export default function CompanyDetail() {
     },
     enabled: !!companyId,
   });
+
+  // Check for edit query parameter and auto-open edit mode
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('edit') === 'true' && company) {
+      // Populate editData when auto-opening
+      setEditData({
+        industry: company.industry,
+        location: company.location,
+        website: company.website,
+      });
+      setIsEditing(true);
+      // Remove the query parameter from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [company]);
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<Company>) => {
@@ -105,7 +111,7 @@ export default function CompanyDetail() {
       // Entering edit mode - populate editData
       setEditData({
         industry: company.industry,
-        headquarters: company.headquarters,
+        location: company.location,
         website: company.website,
       });
     }
@@ -242,13 +248,13 @@ export default function CompanyDetail() {
                 {isEditing ? (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="headquarters">Headquarters</Label>
+                      <Label htmlFor="location">Location</Label>
                       <Input
-                        id="headquarters"
-                        value={editData.headquarters || ''}
-                        onChange={(e) => setEditData({...editData, headquarters: e.target.value})}
+                        id="location"
+                        value={editData.location || ''}
+                        onChange={(e) => setEditData({...editData, location: e.target.value})}
                         placeholder="New York, NY, USA"
-                        data-testid="input-headquarters"
+                        data-testid="input-location"
                       />
                     </div>
                     <div className="space-y-2">
@@ -264,12 +270,12 @@ export default function CompanyDetail() {
                   </>
                 ) : (
                   <>
-                    {company.headquarters && (
+                    {company.location && (
                       <div className="flex items-start gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                         <div className="flex-1">
-                          <div className="text-xs text-muted-foreground">Headquarters</div>
-                          <div className="font-medium" data-testid="company-hq">{company.headquarters}</div>
+                          <div className="text-xs text-muted-foreground">Location</div>
+                          <div className="font-medium" data-testid="company-location">{company.location}</div>
                         </div>
                       </div>
                     )}
