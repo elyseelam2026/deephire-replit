@@ -412,7 +412,7 @@ export function DataQualityDetailDialog({ isOpen, onClose, type, auditId }: Data
                       {/* Quick fix button */}
                       {issue.status === 'pending' && issue.metadata?.editableFields && (
                         <Button size="sm" className="mt-3" data-testid={`button-fix-${issue.id}`} asChild>
-                          <Link href={`/recruiting/${issue.entityType}s/${issue.entityId}`}>
+                          <Link href={`/recruiting/${issue.entityType}s/${issue.entityId}?edit=true`}>
                             Fix This Issue →
                           </Link>
                         </Button>

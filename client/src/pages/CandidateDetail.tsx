@@ -11,7 +11,7 @@ import {
   Award, Loader2, ArrowLeft, Globe, Linkedin, Edit, Save, X
 } from "lucide-react";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -40,6 +40,17 @@ export default function CandidateDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Candidate>>({});
   const { toast } = useToast();
+
+  // Check for edit query parameter and auto-open edit mode
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('edit') === 'true') {
+      setIsEditing(true);
+      // Remove the query parameter from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   const { data: candidate, isLoading } = useQuery<Candidate>({
     queryKey: ['/api/candidates', candidateId],
