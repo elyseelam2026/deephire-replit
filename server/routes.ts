@@ -353,11 +353,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Either status or note is required" });
       }
       
+      // Validate and convert IDs to numbers
+      const validIds: number[] = [];
+      const invalidIds: any[] = [];
+      
+      for (const id of jobCandidateIds) {
+        const numericId = typeof id === 'number' ? id : parseInt(String(id), 10);
+        if (Number.isNaN(numericId) || !Number.isFinite(numericId)) {
+          invalidIds.push(id);
+        } else {
+          validIds.push(numericId);
+        }
+      }
+      
+      if (invalidIds.length > 0) {
+        return res.status(400).json({ 
+          error: `Invalid job candidate IDs: ${invalidIds.join(', ')}` 
+        });
+      }
+      
+      if (validIds.length === 0) {
+        return res.status(400).json({ error: "No valid job candidate IDs provided" });
+      }
+      
       const changedBy = req.user?.username || 'system';
       
       if (status) {
-        const updatePromises = jobCandidateIds.map(id => {
-          const numericId = typeof id === 'number' ? id : parseInt(id);
+        const updatePromises = validIds.map(numericId => {
           return storage.updateJobCandidateStatus(numericId, status, {
             note,
             changedBy
@@ -365,8 +387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         await Promise.all(updatePromises);
       } else if (note) {
-        const updatePromises = jobCandidateIds.map(async (id) => {
-          const numericId = typeof id === 'number' ? id : parseInt(id);
+        const updatePromises = validIds.map(async (numericId) => {
           const jc = await db.select().from(jobCandidates).where(eq(jobCandidates.id, numericId)).limit(1);
           if (jc.length > 0) {
             const currentNotes = jc[0].recruiterNotes || '';
@@ -381,7 +402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ 
         success: true, 
-        updated: jobCandidateIds.length
+        updated: validIds.length
       });
     } catch (error) {
       console.error("Error bulk updating job candidate statuses:", error);
