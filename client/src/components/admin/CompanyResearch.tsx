@@ -37,19 +37,12 @@ export function CompanyResearch() {
     setLinkedinUrl(null);
 
     try {
-      const response = await apiRequest('/api/research/company', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyName: companyName.trim() })
+      const response = await apiRequest('POST', '/api/research/company', {
+        companyName: companyName.trim()
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to start research');
-      }
-
-      setResearchId(data.researchId);
       setLinkedinUrl(data.linkedinUrl);
       setStatus({ status: 'processing', progress: 0 });
 
@@ -58,7 +51,7 @@ export function CompanyResearch() {
         description: `Sourcing employees from ${companyName}...`
       });
 
-      pollStatus(data.researchId);
+      pollStatus(data.snapshotId);
     } catch (error) {
       console.error('Research error:', error);
       toast({
@@ -70,7 +63,7 @@ export function CompanyResearch() {
     }
   };
 
-  const pollStatus = async (id: number) => {
+  const pollStatus = async (snapshotId: string) => {
     const maxAttempts = 60;
     let attempts = 0;
 
@@ -86,7 +79,7 @@ export function CompanyResearch() {
       }
 
       try {
-        const response = await fetch(`/api/research/status/${id}`);
+        const response = await fetch(`/api/research/status/${snapshotId}`);
         const data: ResearchStatus = await response.json();
 
         setStatus(data);

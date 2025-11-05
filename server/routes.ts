@@ -4757,25 +4757,14 @@ CRITICAL RULES - You MUST follow these strictly:
       
       console.log(`✓ Bright Data snapshot initiated: ${snapshotId}`);
       
-      // Create a research tracking record
-      const researchResult = await storage.createCompanyResearchResult({
-        query: companyName,
-        normalizedQuery: companyName.toLowerCase().trim(),
-        snapshotId,
-        status: 'processing',
-        results: [],
-        totalResults: 0
-      });
-      
-      // Return immediately with snapshot ID for polling
+      // Return immediately with snapshot ID for polling (no database storage to save credits)
       res.json({
         success: true,
         message: `Research started for ${companyName}`,
-        researchId: researchResult.id,
         snapshotId,
         linkedinUrl,
         status: 'processing',
-        pollUrl: `/api/research/status/${researchResult.id}`
+        pollUrl: `/api/research/status/${snapshotId}`
       });
       
     } catch (error) {
@@ -4788,70 +4777,56 @@ CRITICAL RULES - You MUST follow these strictly:
   });
   
   // Check research status and retrieve results
-  app.get('/api/research/status/:id', async (req, res) => {
+  app.get('/api/research/status/:snapshotId', async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      const research = await storage.getCompanyResearchResult(id);
+      const snapshotId = req.params.snapshotId;
+      const brightDataKey = process.env.BRIGHTDATA_API_KEY;
       
-      if (!research) {
-        return res.status(404).json({ error: 'Research not found' });
+      if (!brightDataKey) {
+        return res.status(500).json({ error: 'Bright Data API key not configured' });
       }
       
-      // If still processing, check Bright Data status
-      if (research.status === 'processing' && research.snapshotId) {
-        const brightDataKey = process.env.BRIGHTDATA_API_KEY;
-        const statusUrl = `https://api.brightdata.com/datasets/v3/progress/${research.snapshotId}`;
-        
-        const statusResponse = await fetch(statusUrl, {
-          headers: {
-            'Authorization': `Bearer ${brightDataKey}`
-          }
-        });
-        
-        if (statusResponse.ok) {
-          const statusData: any = await statusResponse.json();
-          
-          // If done, fetch results
-          if (statusData.status === 'ready') {
-            const resultsUrl = `https://api.brightdata.com/datasets/v3/snapshot/${research.snapshotId}`;
-            const resultsResponse = await fetch(resultsUrl, {
-              headers: {
-                'Authorization': `Bearer ${brightDataKey}`
-              }
-            });
-            
-            if (resultsResponse.ok) {
-              const results: any[] = await resultsResponse.json();
-              
-              // Update research record with results
-              await storage.updateCompanyResearchResult(id, {
-                status: 'completed',
-                results,
-                totalResults: results.length,
-                completedAt: sql`now()`
-              });
-              
-              return res.json({
-                status: 'completed',
-                results,
-                totalResults: results.length
-              });
-            }
-          }
-          
-          // Still processing
-          return res.json({
-            status: 'processing',
-            progress: statusData.progress || 0
-          });
+      const statusUrl = `https://api.brightdata.com/datasets/v3/progress/${snapshotId}`;
+      
+      const statusResponse = await fetch(statusUrl, {
+        headers: {
+          'Authorization': `Bearer ${brightDataKey}`
         }
+      });
+      
+      if (statusResponse.ok) {
+        const statusData: any = await statusResponse.json();
+        
+        // If done, fetch results
+        if (statusData.status === 'ready') {
+          const resultsUrl = `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}`;
+          const resultsResponse = await fetch(resultsUrl, {
+            headers: {
+              'Authorization': `Bearer ${brightDataKey}`
+            }
+          });
+          
+          if (resultsResponse.ok) {
+            const results: any[] = await resultsResponse.json();
+            
+            return res.json({
+              status: 'completed',
+              results,
+              totalResults: results.length
+            });
+          }
+        }
+        
+        // Still processing
+        return res.json({
+          status: 'processing',
+          progress: statusData.progress || 0
+        });
       }
       
-      // Return current state
       res.json({
-        status: research.status,
-        results: research.results || [],
-        totalResults: research.totalResults || 0
+        status: 'failed',
+        error: 'Failed to check snapshot status'
       });
       
     } catch (error) {
