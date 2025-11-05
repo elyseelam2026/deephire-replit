@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Building2, Mail, Phone, Briefcase, Star, Columns3, List, GanttChart, BarChart3 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import KanbanView from "./pipeline/KanbanView";
 import ListView from "./pipeline/ListView";
 import { TimelineView } from "./pipeline/TimelineView";
 import { ConversionFunnel } from "./pipeline/ConversionFunnel";
 import PipelineControls, { PipelineFilters } from "./pipeline/PipelineControls";
+import { exportPipelineToCSV } from "@/lib/exportPipeline";
 
 interface JobCandidate {
   id: number;
@@ -64,7 +66,13 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<PipelineFilters>({});
+  const { toast } = useToast();
   
+  const { data: job } = useQuery<{ title: string }>({
+    queryKey: ['/api/jobs', jobId],
+    enabled: !!jobId
+  });
+
   const { data: candidates = [], isLoading } = useQuery<JobCandidate[]>({
     queryKey: ['/api/jobs', jobId, 'candidates'],
     enabled: !!jobId
@@ -116,6 +124,23 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
       return true;
     });
   }, [candidates, searchQuery, filters]);
+
+  const handleExport = (format: 'csv' | 'pdf') => {
+    if (format === 'csv') {
+      const jobTitle = job?.title || `Job-${jobId}`;
+      exportPipelineToCSV(filteredCandidates, jobTitle);
+      toast({
+        title: "Export successful",
+        description: `Downloaded ${filteredCandidates.length} candidates as CSV`,
+      });
+    } else {
+      toast({
+        title: "PDF Export",
+        description: "PDF export coming soon",
+        variant: "default",
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -184,6 +209,7 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
         filters={filters}
         onSearch={setSearchQuery}
         onFilterChange={setFilters}
+        onExport={handleExport}
       />
 
       {totalCandidates === 0 ? (
