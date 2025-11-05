@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Building2, Mail, Phone, Briefcase, Star, Columns3, List, GanttChart } from "lucide-react";
+import { Building2, Mail, Phone, Briefcase, Star, Columns3, List, GanttChart, BarChart3 } from "lucide-react";
 import KanbanView from "./pipeline/KanbanView";
 import ListView from "./pipeline/ListView";
 import { TimelineView } from "./pipeline/TimelineView";
+import { ConversionFunnel } from "./pipeline/ConversionFunnel";
 import PipelineControls, { PipelineFilters } from "./pipeline/PipelineControls";
 
 interface JobCandidate {
@@ -46,7 +47,7 @@ interface CandidatePipelineProps {
   jobId: number;
 }
 
-type ViewMode = 'list' | 'kanban' | 'timeline';
+type ViewMode = 'list' | 'kanban' | 'timeline' | 'analytics';
 
 const statusCategories = [
   { key: "recommended", label: "Recommended", color: "bg-blue-500" },
@@ -164,6 +165,15 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
             <GanttChart className="h-4 w-4 mr-2" />
             Timeline
           </Button>
+          <Button
+            variant={viewMode === 'analytics' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('analytics')}
+            data-testid="button-view-analytics"
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analytics
+          </Button>
         </div>
       </div>
 
@@ -186,6 +196,16 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
         <KanbanView jobId={jobId} candidates={filteredCandidates} />
       ) : viewMode === 'timeline' ? (
         <TimelineView 
+          jobId={jobId} 
+          candidates={filteredCandidates.map(jc => ({
+            ...jc,
+            jobId: jobId,
+            candidateId: jc.candidate.id,
+            createdAt: jc.addedAt
+          }))} 
+        />
+      ) : viewMode === 'analytics' ? (
+        <ConversionFunnel 
           jobId={jobId} 
           candidates={filteredCandidates.map(jc => ({
             ...jc,
