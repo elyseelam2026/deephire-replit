@@ -182,14 +182,22 @@ export const jobCandidates = pgTable("job_candidates", {
   
   // Pipeline status tracking
   status: text("status").notNull().default("recommended"), // recommended, reviewed, shortlisted, presented, interview, offer, placed, rejected
+  statusHistory: jsonb("status_history").default(sql`'[]'::jsonb`), // Array of {status, changedAt, changedBy, note}
   
   // AI matching data
   matchScore: integer("match_score"), // 0-100 percentage
   aiReasoning: jsonb("ai_reasoning"), // Detailed match reasoning from AI
   searchTier: integer("search_tier"), // Which priority tier candidate was found in (1, 2, 3)
   
-  // Recruiter notes
+  // Recruiter notes & rejection tracking
   recruiterNotes: text("recruiter_notes"),
+  rejectedReason: text("rejected_reason"), // Reason for rejection if status = rejected
+  
+  // Activity tracking
+  lastActionAt: timestamp("last_action_at").default(sql`now()`), // Last time any action was taken
+  
+  // AI suggestions
+  aiSuggestion: jsonb("ai_suggestion"), // AI-generated action recommendations {type, priority, message, suggestedAction}
   
   // Timestamps
   addedAt: timestamp("added_at").default(sql`now()`).notNull(),

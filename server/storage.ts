@@ -79,16 +79,25 @@ export interface IStorage {
   getJobCandidates(jobId: number): Promise<Array<{
     id: number;
     status: string;
+    statusHistory: any;
     matchScore: number | null;
     aiReasoning: any;
     searchTier: number | null;
     recruiterNotes: string | null;
+    rejectedReason: string | null;
+    lastActionAt: Date | null;
+    aiSuggestion: any;
     addedAt: Date;
     statusChangedAt: Date;
     candidate: Candidate;
     currentCompany: Company | null;
   }>>;
-  updateJobCandidateStatus(id: number, status: string, notes?: string): Promise<void>;
+  updateJobCandidateStatus(id: number, status: string, options?: {
+    note?: string;
+    rejectedReason?: string;
+    changedBy?: string;
+  }): Promise<void>;
+  addCandidatesToJob(jobId: number, candidateIds: number[]): Promise<JobCandidate[]>;
   
   // Conversation management
   createConversation(conversation: InsertNapConversation): Promise<NapConversation>;
@@ -779,10 +788,14 @@ export class DatabaseStorage implements IStorage {
   async getJobCandidates(jobId: number): Promise<Array<{
     id: number;
     status: string;
+    statusHistory: any;
     matchScore: number | null;
     aiReasoning: any;
     searchTier: number | null;
     recruiterNotes: string | null;
+    rejectedReason: string | null;
+    lastActionAt: Date | null;
+    aiSuggestion: any;
     addedAt: Date;
     statusChangedAt: Date;
     candidate: Candidate;
@@ -791,10 +804,14 @@ export class DatabaseStorage implements IStorage {
     const results = await db.select({
       id: jobCandidates.id,
       status: jobCandidates.status,
+      statusHistory: jobCandidates.statusHistory,
       matchScore: jobCandidates.matchScore,
       aiReasoning: jobCandidates.aiReasoning,
       searchTier: jobCandidates.searchTier,
       recruiterNotes: jobCandidates.recruiterNotes,
+      rejectedReason: jobCandidates.rejectedReason,
+      lastActionAt: jobCandidates.lastActionAt,
+      aiSuggestion: jobCandidates.aiSuggestion,
       addedAt: jobCandidates.addedAt,
       statusChangedAt: jobCandidates.statusChangedAt,
       candidate: candidates,
@@ -821,10 +838,14 @@ export class DatabaseStorage implements IStorage {
       return {
         id: r.id,
         status: r.status,
+        statusHistory: r.statusHistory,
         matchScore: r.matchScore,
         aiReasoning: r.aiReasoning,
         searchTier: r.searchTier,
         recruiterNotes: r.recruiterNotes,
+        rejectedReason: r.rejectedReason,
+        lastActionAt: r.lastActionAt,
+        aiSuggestion: r.aiSuggestion,
         addedAt: r.addedAt,
         statusChangedAt: r.statusChangedAt,
         candidate: r.candidate,
@@ -835,19 +856,80 @@ export class DatabaseStorage implements IStorage {
     return enrichedResults;
   }
 
-  async updateJobCandidateStatus(id: number, status: string, notes?: string): Promise<void> {
+  async updateJobCandidateStatus(id: number, status: string, options?: {
+    note?: string;
+    rejectedReason?: string;
+    changedBy?: string;
+  }): Promise<void> {
+    // Get current record to append to history
+    const [current] = await db.select().from(jobCandidates).where(eq(jobCandidates.id, id));
+    
+    if (!current) {
+      throw new Error(`JobCandidate ${id} not found`);
+    }
+
+    // Build status history entry
+    const historyEntry = {
+      status,
+      changedAt: new Date().toISOString(),
+      changedBy: options?.changedBy || 'system',
+      note: options?.note || null
+    };
+
+    // Get current history array and append new entry
+    const currentHistory = Array.isArray(current.statusHistory) ? current.statusHistory : [];
+    const updatedHistory = [...currentHistory, historyEntry];
+
     const updates: any = {
       status,
-      statusChangedAt: sql`now()`
+      statusChangedAt: sql`now()`,
+      lastActionAt: sql`now()`,
+      statusHistory: updatedHistory
     };
     
-    if (notes !== undefined) {
-      updates.recruiterNotes = notes;
+    if (options?.note !== undefined) {
+      updates.recruiterNotes = options.note;
+    }
+
+    if (options?.rejectedReason !== undefined) {
+      updates.rejectedReason = options.rejectedReason;
     }
 
     await db.update(jobCandidates)
       .set(updates)
       .where(eq(jobCandidates.id, id));
+  }
+
+  async addCandidatesToJob(jobId: number, candidateIds: number[]): Promise<JobCandidate[]> {
+    const insertedCandidates: JobCandidate[] = [];
+    
+    for (const candidateId of candidateIds) {
+      // Check if candidate is already in this job's pipeline
+      const existing = await db.select()
+        .from(jobCandidates)
+        .where(
+          and(
+            eq(jobCandidates.jobId, jobId),
+            eq(jobCandidates.candidateId, candidateId)
+          )
+        )
+        .limit(1);
+      
+      // Only add if not already in pipeline
+      if (existing.length === 0) {
+        const [inserted] = await db.insert(jobCandidates).values({
+          jobId,
+          candidateId,
+          status: 'recommended',
+          matchScore: null,
+          searchTier: null
+        }).returning();
+        
+        insertedCandidates.push(inserted);
+      }
+    }
+    
+    return insertedCandidates;
   }
 
   // Conversation management

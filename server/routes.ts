@@ -294,21 +294,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update job candidate status
+  // Update job candidate status with history tracking
   app.patch("/api/job-candidates/:id/status", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { status, notes } = req.body;
+      const { status, note, rejectedReason, changedBy } = req.body;
       
       if (!status) {
         return res.status(400).json({ error: "Status is required" });
       }
       
-      await storage.updateJobCandidateStatus(id, status, notes);
+      await storage.updateJobCandidateStatus(id, status, {
+        note,
+        rejectedReason,
+        changedBy: changedBy || req.user?.username || 'system'
+      });
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating job candidate status:", error);
       res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+
+  // Bulk add candidates to job pipeline
+  app.post("/api/jobs/:jobId/candidates/bulk", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const { candidateIds } = req.body;
+      
+      if (!Array.isArray(candidateIds) || candidateIds.length === 0) {
+        return res.status(400).json({ error: "candidateIds array is required" });
+      }
+      
+      const addedCandidates = await storage.addCandidatesToJob(jobId, candidateIds);
+      
+      res.json({ 
+        success: true, 
+        added: addedCandidates.length,
+        candidates: addedCandidates 
+      });
+    } catch (error) {
+      console.error("Error adding candidates to job:", error);
+      res.status(500).json({ error: "Failed to add candidates to job" });
     }
   });
 
