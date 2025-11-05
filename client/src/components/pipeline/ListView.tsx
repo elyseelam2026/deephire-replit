@@ -21,21 +21,21 @@ export type JobCandidate = {
   id: number;
   jobId: number;
   candidateId: number;
-  matchScore?: number;
-  searchTier?: number;
+  matchScore: number | null;
+  searchTier: number | null;
   status: string;
-  recruiterNotes?: string;
+  recruiterNotes: string | null;
   createdAt: string;
-  lastActionAt?: string;
+  lastActionAt: string | null;
   candidate: {
     id: number;
     firstName: string;
     lastName: string;
-    currentTitle?: string;
-    currentCompany?: string;
-    location?: string;
-    email?: string;
-    yearsExperience?: number;
+    currentTitle?: string | null;
+    currentCompany?: string | null;
+    location?: string | null;
+    email?: string | null;
+    yearsExperience?: number | null;
   };
 };
 

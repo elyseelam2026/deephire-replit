@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Building2, Mail, Phone, Briefcase, Star, Columns3, List } from "lucide-react";
+import { Building2, Mail, Phone, Briefcase, Star, Columns3, List, GanttChart } from "lucide-react";
 import KanbanView from "./pipeline/KanbanView";
 import ListView from "./pipeline/ListView";
+import { TimelineView } from "./pipeline/TimelineView";
 import PipelineControls, { PipelineFilters } from "./pipeline/PipelineControls";
 
 interface JobCandidate {
@@ -45,7 +46,7 @@ interface CandidatePipelineProps {
   jobId: number;
 }
 
-type ViewMode = 'list' | 'kanban';
+type ViewMode = 'list' | 'kanban' | 'timeline';
 
 const statusCategories = [
   { key: "recommended", label: "Recommended", color: "bg-blue-500" },
@@ -154,6 +155,15 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
             <Columns3 className="h-4 w-4 mr-2" />
             Kanban
           </Button>
+          <Button
+            variant={viewMode === 'timeline' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('timeline')}
+            data-testid="button-view-timeline"
+          >
+            <GanttChart className="h-4 w-4 mr-2" />
+            Timeline
+          </Button>
         </div>
       </div>
 
@@ -174,11 +184,23 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
         </Card>
       ) : viewMode === 'kanban' ? (
         <KanbanView jobId={jobId} candidates={filteredCandidates} />
+      ) : viewMode === 'timeline' ? (
+        <TimelineView 
+          jobId={jobId} 
+          candidates={filteredCandidates.map(jc => ({
+            ...jc,
+            jobId: jobId,
+            candidateId: jc.candidate.id,
+            createdAt: jc.addedAt
+          }))} 
+        />
       ) : (
         <ListView 
           jobId={jobId} 
           candidates={filteredCandidates.map(jc => ({
             ...jc,
+            jobId: jobId,
+            candidateId: jc.candidate.id,
             createdAt: jc.addedAt
           }))} 
         />
