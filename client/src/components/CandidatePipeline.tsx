@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Building2, Mail, Phone, Briefcase, Star, Columns3, List } from "lucide-react";
 import KanbanView from "./pipeline/KanbanView";
+import PipelineControls, { PipelineFilters } from "./pipeline/PipelineControls";
 
 interface JobCandidate {
   id: number;
@@ -58,11 +59,60 @@ const statusCategories = [
 
 export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState<PipelineFilters>({});
   
   const { data: candidates = [], isLoading } = useQuery<JobCandidate[]>({
     queryKey: ['/api/jobs', jobId, 'candidates'],
     enabled: !!jobId
   });
+
+  // Filter candidates based on search and filters
+  const filteredCandidates = useMemo(() => {
+    return candidates.filter(jc => {
+      const candidate = jc.candidate;
+      const displayName = candidate.displayName || `${candidate.firstName} ${candidate.lastName}`;
+      
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const searchableText = [
+          displayName,
+          candidate.currentTitle,
+          candidate.currentCompany,
+          jc.currentCompany?.name,
+          candidate.email,
+        ].filter(Boolean).join(' ').toLowerCase();
+        
+        if (!searchableText.includes(query)) {
+          return false;
+        }
+      }
+      
+      // Status filter
+      if (filters.status && filters.status.length > 0) {
+        if (!filters.status.includes(jc.status)) {
+          return false;
+        }
+      }
+      
+      // Score filter - exclude candidates with null scores when filter is active
+      if (filters.minScore !== undefined) {
+        if (jc.matchScore === null || jc.matchScore < filters.minScore) {
+          return false;
+        }
+      }
+      
+      // Tier filter - exclude candidates with null tiers when filter is active
+      if (filters.searchTier && filters.searchTier.length > 0) {
+        if (jc.searchTier === null || !filters.searchTier.includes(jc.searchTier)) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [candidates, searchQuery, filters]);
 
   if (isLoading) {
     return (
@@ -75,7 +125,7 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   // Group candidates by status
   const groupedCandidates = statusCategories.map(category => ({
     ...category,
-    candidates: candidates.filter(c => c.status === category.key)
+    candidates: filteredCandidates.filter(c => c.status === category.key)
   }));
 
   const totalCandidates = candidates.length;
@@ -84,32 +134,36 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
     <div className="space-y-4" data-testid="candidate-pipeline">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Candidate Pipeline</h3>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              data-testid="button-view-list"
-            >
-              <List className="h-4 w-4 mr-2" />
-              List
-            </Button>
-            <Button
-              variant={viewMode === 'kanban' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('kanban')}
-              data-testid="button-view-kanban"
-            >
-              <Columns3 className="h-4 w-4 mr-2" />
-              Kanban
-            </Button>
-          </div>
-          <Badge variant="outline" data-testid="total-candidates">
-            {totalCandidates} Total
-          </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+            data-testid="button-view-list"
+          >
+            <List className="h-4 w-4 mr-2" />
+            List
+          </Button>
+          <Button
+            variant={viewMode === 'kanban' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('kanban')}
+            data-testid="button-view-kanban"
+          >
+            <Columns3 className="h-4 w-4 mr-2" />
+            Kanban
+          </Button>
         </div>
       </div>
+
+      <PipelineControls
+        totalCount={totalCandidates}
+        filteredCount={filteredCandidates.length}
+        searchQuery={searchQuery}
+        filters={filters}
+        onSearch={setSearchQuery}
+        onFilterChange={setFilters}
+      />
 
       {totalCandidates === 0 ? (
         <Card>
@@ -118,7 +172,7 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
           </CardContent>
         </Card>
       ) : viewMode === 'kanban' ? (
-        <KanbanView jobId={jobId} candidates={candidates} />
+        <KanbanView jobId={jobId} candidates={filteredCandidates} />
       ) : (
         <div className="space-y-4">
           {groupedCandidates.map(category => category.candidates.length > 0 && (

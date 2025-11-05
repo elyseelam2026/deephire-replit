@@ -65,16 +65,25 @@ const statusCategories = [
 
 export default function KanbanView({ jobId, candidates, onStatusChange }: KanbanViewProps) {
   const { toast } = useToast();
-  const [localCandidates, setLocalCandidates] = useState(candidates);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<number, string>>(new Map());
+
+  // Use candidates from props, applying any optimistic updates
+  const displayCandidates = candidates.map(c => {
+    const optimisticStatus = optimisticUpdates.get(c.id);
+    return optimisticStatus ? { ...c, status: optimisticStatus } : c;
+  });
 
   // Group candidates by status
   const groupedCandidates = statusCategories.reduce((acc, category) => {
-    acc[category.key] = localCandidates.filter(c => c.status === category.key);
+    acc[category.key] = displayCandidates.filter(c => c.status === category.key);
     return acc;
   }, {} as Record<string, JobCandidate[]>);
 
   const handleDragEnd = async (result: DropResult) => {
     const { source, destination, draggableId } = result;
+
+    setDraggingId(null);
 
     // Dropped outside the list
     if (!destination) return;
@@ -87,11 +96,8 @@ export default function KanbanView({ jobId, candidates, onStatusChange }: Kanban
     const candidateId = parseInt(draggableId.split('-')[1]);
     const newStatus = destination.droppableId;
 
-    // Optimistically update UI
-    const updatedCandidates = localCandidates.map(c => 
-      c.id === candidateId ? { ...c, status: newStatus } : c
-    );
-    setLocalCandidates(updatedCandidates);
+    // Optimistically update UI - add to map
+    setOptimisticUpdates(prev => new Map(prev).set(candidateId, newStatus));
 
     try {
       // Update on server
@@ -104,6 +110,13 @@ export default function KanbanView({ jobId, candidates, onStatusChange }: Kanban
         }
       );
 
+      // Remove this candidate's optimistic update and let server data take over
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(candidateId);
+        return next;
+      });
+
       // Invalidate cache to refresh from server
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'candidates'] });
 
@@ -114,8 +127,13 @@ export default function KanbanView({ jobId, candidates, onStatusChange }: Kanban
 
       onStatusChange?.(candidateId, newStatus);
     } catch (error) {
-      // Revert on error
-      setLocalCandidates(localCandidates);
+      // Remove optimistic update to revert to actual data
+      setOptimisticUpdates(prev => {
+        const next = new Map(prev);
+        next.delete(candidateId);
+        return next;
+      });
+      
       toast({
         title: "Error",
         description: "Failed to update status",
@@ -125,7 +143,7 @@ export default function KanbanView({ jobId, candidates, onStatusChange }: Kanban
   };
 
   const handleQuickAction = async (candidateId: number, action: string) => {
-    const candidate = localCandidates.find(c => c.id === candidateId);
+    const candidate = candidates.find(c => c.id === candidateId);
     if (!candidate) return;
 
     switch (action) {
