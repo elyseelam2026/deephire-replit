@@ -74,6 +74,8 @@ Preferred communication style: Simple, everyday language.
   - **Smart Filtering**: Null value exclusion when filters active (prevents skewing filtered counts for match scores and tiers)
   - **View Switching**: Toggle between Kanban and List views with unified state management
   - **Routing Fix**: All internal navigation uses relative paths compatible with nested Router base="/recruiting"
+  - **Bulk Operations**: Fixed NaN validation bug, enabling checkbox selection, Select All, status updates, note addition, and batch deletion with proper integer validation
+-   **AI Company Employee Research** (Complete): Targeted sourcing system for finding employees from specific companies. Uses SerpAPI to discover LinkedIn company URLs, then Bright Data's LinkedIn scraper to extract employee profiles. Features async polling pattern with progress tracking, automatic candidate staging for review, and credit-efficient stateless design. Accessible via Admin portal "AI Research" tab.
 
 ## External Dependencies
 
