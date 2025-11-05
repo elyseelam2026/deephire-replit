@@ -39,6 +39,7 @@ import {
   Shield
 } from "lucide-react";
 import DataQualityDashboard from "@/pages/DataQualityDashboard";
+import { CompanyResearch } from "@/components/admin/CompanyResearch";
 
 function DataQualityTabContent() {
   return <DataQualityDashboard />;
@@ -1700,6 +1701,10 @@ export default function Admin() {
 
         {/* AI Research Tab Content */}
         <TabsContent value="research" className="space-y-6">
+          {/* Company Employee Research */}
+          <CompanyResearch />
+          
+          {/* Broad Company Discovery */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
