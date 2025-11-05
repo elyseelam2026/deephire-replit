@@ -12,8 +12,8 @@ import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy,
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults } from "@shared/schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates } from "@shared/schema";
+import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
@@ -337,6 +337,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error adding candidates to job:", error);
       res.status(500).json({ error: "Failed to add candidates to job" });
+    }
+  });
+
+  // Bulk update job candidate statuses and/or notes
+  app.patch("/api/job-candidates/bulk/status", async (req, res) => {
+    try {
+      const { jobCandidateIds, status, note } = req.body;
+      
+      if (!Array.isArray(jobCandidateIds) || jobCandidateIds.length === 0) {
+        return res.status(400).json({ error: "jobCandidateIds array is required" });
+      }
+      
+      if (!status && !note) {
+        return res.status(400).json({ error: "Either status or note is required" });
+      }
+      
+      const changedBy = req.user?.username || 'system';
+      
+      if (status) {
+        const updatePromises = jobCandidateIds.map(id => {
+          const numericId = typeof id === 'number' ? id : parseInt(id);
+          return storage.updateJobCandidateStatus(numericId, status, {
+            note,
+            changedBy
+          });
+        });
+        await Promise.all(updatePromises);
+      } else if (note) {
+        const updatePromises = jobCandidateIds.map(async (id) => {
+          const numericId = typeof id === 'number' ? id : parseInt(id);
+          const jc = await db.select().from(jobCandidates).where(eq(jobCandidates.id, numericId)).limit(1);
+          if (jc.length > 0) {
+            const currentNotes = jc[0].recruiterNotes || '';
+            const newNotes = currentNotes ? `${currentNotes}\n\n${note}` : note;
+            await db.update(jobCandidates)
+              .set({ recruiterNotes: newNotes })
+              .where(eq(jobCandidates.id, numericId));
+          }
+        });
+        await Promise.all(updatePromises);
+      }
+      
+      res.json({ 
+        success: true, 
+        updated: jobCandidateIds.length
+      });
+    } catch (error) {
+      console.error("Error bulk updating job candidate statuses:", error);
+      res.status(500).json({ error: "Failed to update statuses" });
+    }
+  });
+
+  // Bulk delete job candidates from pipeline
+  app.delete("/api/job-candidates/bulk", async (req, res) => {
+    try {
+      const { jobCandidateIds } = req.body;
+      
+      if (!Array.isArray(jobCandidateIds) || jobCandidateIds.length === 0) {
+        return res.status(400).json({ error: "jobCandidateIds array is required" });
+      }
+      
+      await db.delete(jobCandidates).where(
+        inArray(jobCandidates.id, jobCandidateIds.map(id => parseInt(id)))
+      );
+      
+      res.json({ 
+        success: true, 
+        deleted: jobCandidateIds.length
+      });
+    } catch (error) {
+      console.error("Error bulk deleting job candidates:", error);
+      res.status(500).json({ error: "Failed to delete candidates" });
     }
   });
 

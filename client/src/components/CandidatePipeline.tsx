@@ -12,7 +12,9 @@ import { TimelineView } from "./pipeline/TimelineView";
 import { ConversionFunnel } from "./pipeline/ConversionFunnel";
 import PipelineControls, { PipelineFilters } from "./pipeline/PipelineControls";
 import { AddCandidatesModal } from "./pipeline/AddCandidatesModal";
+import { BulkActionsToolbar } from "./pipeline/BulkActionsToolbar";
 import { exportPipelineToCSV } from "@/lib/exportPipeline";
+import { queryClient } from "@/lib/queryClient";
 
 interface JobCandidate {
   id: number;
@@ -68,7 +70,8 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<PipelineFilters>({});
   const [showAddModal, setShowAddModal] = useState(false);
-  const { toast } = useToast();
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<number>>(new Set());
+  const { toast} = useToast();
   
   const { data: job } = useQuery<{ title: string }>({
     queryKey: ['/api/jobs', jobId],
@@ -126,6 +129,60 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
       return true;
     });
   }, [candidates, searchQuery, filters]);
+
+  const handleBulkStatusChange = async (status: string) => {
+    const jobCandidateIds = Array.from(selectedCandidateIds);
+    
+    const res = await fetch('/api/job-candidates/bulk/status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ jobCandidateIds, status })
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to update statuses');
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'candidates'] });
+    setSelectedCandidateIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const jobCandidateIds = Array.from(selectedCandidateIds);
+    
+    const res = await fetch('/api/job-candidates/bulk', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ jobCandidateIds })
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to remove candidates');
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'candidates'] });
+    setSelectedCandidateIds(new Set());
+  };
+
+  const handleBulkAddNotes = async (notes: string) => {
+    const jobCandidateIds = Array.from(selectedCandidateIds);
+    
+    const res = await fetch('/api/job-candidates/bulk/status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ jobCandidateIds, note: notes })
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to add notes');
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'candidates'] });
+    setSelectedCandidateIds(new Set());
+  };
 
   const handleExport = (format: 'csv' | 'pdf') => {
     if (format === 'csv') {
@@ -222,6 +279,14 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
         existingCandidateIds={candidates.map(jc => jc.candidate.id)}
       />
 
+      <BulkActionsToolbar
+        selectedCount={selectedCandidateIds.size}
+        onClearSelection={() => setSelectedCandidateIds(new Set())}
+        onBulkStatusChange={handleBulkStatusChange}
+        onBulkDelete={handleBulkDelete}
+        onBulkAddNotes={handleBulkAddNotes}
+      />
+
       {totalCandidates === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
@@ -258,7 +323,24 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
             jobId: jobId,
             candidateId: jc.candidate.id,
             createdAt: jc.addedAt
-          }))} 
+          }))}
+          selectedIds={selectedCandidateIds}
+          onToggleSelect={(id) => {
+            const newSelected = new Set(selectedCandidateIds);
+            if (newSelected.has(id)) {
+              newSelected.delete(id);
+            } else {
+              newSelected.add(id);
+            }
+            setSelectedCandidateIds(newSelected);
+          }}
+          onToggleSelectAll={() => {
+            if (selectedCandidateIds.size === filteredCandidates.length) {
+              setSelectedCandidateIds(new Set());
+            } else {
+              setSelectedCandidateIds(new Set(filteredCandidates.map(jc => jc.id)));
+            }
+          }}
         />
       )}
     </div>

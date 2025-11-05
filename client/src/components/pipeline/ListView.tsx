@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,9 @@ interface ListViewProps {
   jobId: number;
   candidates: JobCandidate[];
   onStatusChange?: (candidateId: number, newStatus: string) => void;
+  selectedIds?: Set<number>;
+  onToggleSelect?: (id: number) => void;
+  onToggleSelectAll?: () => void;
 }
 
 type SortField = 'name' | 'company' | 'matchScore' | 'status' | 'addedDate';
@@ -59,7 +63,7 @@ const statusCategories = [
   { key: "rejected", label: "Rejected", color: "bg-red-500" }
 ];
 
-export default function ListView({ jobId, candidates, onStatusChange }: ListViewProps) {
+export default function ListView({ jobId, candidates, onStatusChange, selectedIds = new Set(), onToggleSelect, onToggleSelectAll }: ListViewProps) {
   const { toast } = useToast();
   const [sortField, setSortField] = useState<SortField>('addedDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -171,8 +175,17 @@ export default function ListView({ jobId, candidates, onStatusChange }: ListView
     <div className="space-y-4" data-testid="list-view">
       {/* Table Header */}
       <Card>
-        <div className="grid grid-cols-12 gap-4 p-4 border-b bg-muted/30">
-          <div className="col-span-3">
+        <div className="grid grid-cols-13 gap-4 p-4 border-b bg-muted/30">
+          {onToggleSelectAll && (
+            <div className="col-span-1 flex items-center justify-center">
+              <Checkbox
+                checked={candidates.length > 0 && selectedIds.size === candidates.length}
+                onCheckedChange={onToggleSelectAll}
+                data-testid="checkbox-select-all"
+              />
+            </div>
+          )}
+          <div className={onToggleSelectAll ? "col-span-3" : "col-span-4"}>
             <SortButton field="name">Candidate</SortButton>
           </div>
           <div className="col-span-2">
@@ -204,11 +217,20 @@ export default function ListView({ jobId, candidates, onStatusChange }: ListView
             return (
               <div 
                 key={jobCandidate.id} 
-                className="grid grid-cols-12 gap-4 p-4 hover-elevate transition-colors"
+                className="grid grid-cols-13 gap-4 p-4 hover-elevate transition-colors"
                 data-testid={`list-row-${jobCandidate.id}`}
               >
+                {onToggleSelect && (
+                  <div className="col-span-1 flex items-center justify-center">
+                    <Checkbox
+                      checked={selectedIds.has(jobCandidate.id)}
+                      onCheckedChange={() => onToggleSelect(jobCandidate.id)}
+                      data-testid={`checkbox-candidate-${jobCandidate.id}`}
+                    />
+                  </div>
+                )}
                 {/* Candidate Info */}
-                <div className="col-span-3 flex flex-col">
+                <div className={`flex flex-col ${onToggleSelect ? "col-span-3" : "col-span-4"}`}>
                   <Link 
                     href={`/recruiting/candidates/${candidate.id}`}
                     className="font-medium text-sm hover:underline text-primary"
