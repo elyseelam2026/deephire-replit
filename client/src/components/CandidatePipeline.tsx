@@ -1,16 +1,23 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Building2, Mail, Phone, Briefcase, Star } from "lucide-react";
+import { Building2, Mail, Phone, Briefcase, Star, Columns3, List } from "lucide-react";
+import KanbanView from "./pipeline/KanbanView";
 
 interface JobCandidate {
   id: number;
   status: string;
+  statusHistory: any;
   matchScore: number | null;
   aiReasoning: any;
   searchTier: number | null;
   recruiterNotes: string | null;
+  rejectedReason: string | null;
+  lastActionAt: string | null;
+  aiSuggestion: any;
   addedAt: string;
   statusChangedAt: string;
   candidate: {
@@ -36,6 +43,8 @@ interface CandidatePipelineProps {
   jobId: number;
 }
 
+type ViewMode = 'list' | 'kanban';
+
 const statusCategories = [
   { key: "recommended", label: "Recommended", color: "bg-blue-500" },
   { key: "reviewed", label: "Reviewed", color: "bg-purple-500" },
@@ -48,6 +57,8 @@ const statusCategories = [
 ];
 
 export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
+  
   const { data: candidates = [], isLoading } = useQuery<JobCandidate[]>({
     queryKey: ['/api/jobs', jobId, 'candidates'],
     enabled: !!jobId
@@ -73,9 +84,31 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
     <div className="space-y-4" data-testid="candidate-pipeline">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Candidate Pipeline</h3>
-        <Badge variant="outline" data-testid="total-candidates">
-          {totalCandidates} Total
-        </Badge>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              data-testid="button-view-list"
+            >
+              <List className="h-4 w-4 mr-2" />
+              List
+            </Button>
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              data-testid="button-view-kanban"
+            >
+              <Columns3 className="h-4 w-4 mr-2" />
+              Kanban
+            </Button>
+          </div>
+          <Badge variant="outline" data-testid="total-candidates">
+            {totalCandidates} Total
+          </Badge>
+        </div>
       </div>
 
       {totalCandidates === 0 ? (
@@ -84,6 +117,8 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
             No candidates in pipeline yet
           </CardContent>
         </Card>
+      ) : viewMode === 'kanban' ? (
+        <KanbanView jobId={jobId} candidates={candidates} />
       ) : (
         <div className="space-y-4">
           {groupedCandidates.map(category => category.candidates.length > 0 && (
