@@ -4687,6 +4687,179 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // AI Company Research: Auto-source employees from company name
+  app.post('/api/research/company', async (req, res) => {
+    try {
+      const { companyName } = req.body;
+      
+      if (!companyName || typeof companyName !== 'string') {
+        return res.status(400).json({ error: 'Company name is required' });
+      }
+      
+      console.log(`🔍 Researching company: ${companyName}`);
+      
+      // Step 1: Find company LinkedIn URL using SerpAPI
+      const serpApiKey = process.env.SERPAPI_API_KEY;
+      if (!serpApiKey) {
+        return res.status(500).json({ error: 'SerpAPI key not configured' });
+      }
+      
+      const searchQuery = `${companyName} site:linkedin.com/company`;
+      const serpUrl = `https://serpapi.com/search?engine=google&q=${encodeURIComponent(searchQuery)}&api_key=${serpApiKey}`;
+      
+      const serpResponse = await fetch(serpUrl);
+      const serpData: any = await serpResponse.json();
+      
+      const linkedinUrl = serpData.organic_results?.[0]?.link;
+      if (!linkedinUrl) {
+        return res.status(404).json({ 
+          error: 'Company LinkedIn page not found',
+          suggestion: 'Try a more specific company name' 
+        });
+      }
+      
+      console.log(`✓ Found LinkedIn URL: ${linkedinUrl}`);
+      
+      // Step 2: Use Bright Data to scrape company + employees
+      const brightDataKey = process.env.BRIGHTDATA_API_KEY;
+      if (!brightDataKey) {
+        return res.status(500).json({ error: 'Bright Data API key not configured' });
+      }
+      
+      // Trigger Bright Data company scrape (async)
+      const brightDataUrl = 'https://api.brightdata.com/datasets/v3/trigger';
+      const brightDataPayload = [{
+        url: linkedinUrl,
+        include_employees: true,
+        max_employees: 50
+      }];
+      
+      const brightDataResponse = await fetch(brightDataUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${brightDataKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(brightDataPayload)
+      });
+      
+      if (!brightDataResponse.ok) {
+        const error = await brightDataResponse.text();
+        console.error('Bright Data error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to initiate company research',
+          details: error
+        });
+      }
+      
+      const brightDataResult: any = await brightDataResponse.json();
+      const snapshotId = brightDataResult.snapshot_id;
+      
+      console.log(`✓ Bright Data snapshot initiated: ${snapshotId}`);
+      
+      // Create a research tracking record
+      const researchResult = await storage.createCompanyResearchResult({
+        query: companyName,
+        normalizedQuery: companyName.toLowerCase().trim(),
+        snapshotId,
+        status: 'processing',
+        results: [],
+        totalResults: 0
+      });
+      
+      // Return immediately with snapshot ID for polling
+      res.json({
+        success: true,
+        message: `Research started for ${companyName}`,
+        researchId: researchResult.id,
+        snapshotId,
+        linkedinUrl,
+        status: 'processing',
+        pollUrl: `/api/research/status/${researchResult.id}`
+      });
+      
+    } catch (error) {
+      console.error('Company research error:', error);
+      res.status(500).json({ 
+        error: 'Failed to research company',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // Check research status and retrieve results
+  app.get('/api/research/status/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const research = await storage.getCompanyResearchResult(id);
+      
+      if (!research) {
+        return res.status(404).json({ error: 'Research not found' });
+      }
+      
+      // If still processing, check Bright Data status
+      if (research.status === 'processing' && research.snapshotId) {
+        const brightDataKey = process.env.BRIGHTDATA_API_KEY;
+        const statusUrl = `https://api.brightdata.com/datasets/v3/progress/${research.snapshotId}`;
+        
+        const statusResponse = await fetch(statusUrl, {
+          headers: {
+            'Authorization': `Bearer ${brightDataKey}`
+          }
+        });
+        
+        if (statusResponse.ok) {
+          const statusData: any = await statusResponse.json();
+          
+          // If done, fetch results
+          if (statusData.status === 'ready') {
+            const resultsUrl = `https://api.brightdata.com/datasets/v3/snapshot/${research.snapshotId}`;
+            const resultsResponse = await fetch(resultsUrl, {
+              headers: {
+                'Authorization': `Bearer ${brightDataKey}`
+              }
+            });
+            
+            if (resultsResponse.ok) {
+              const results: any[] = await resultsResponse.json();
+              
+              // Update research record with results
+              await storage.updateCompanyResearchResult(id, {
+                status: 'completed',
+                results,
+                totalResults: results.length,
+                completedAt: sql`now()`
+              });
+              
+              return res.json({
+                status: 'completed',
+                results,
+                totalResults: results.length
+              });
+            }
+          }
+          
+          // Still processing
+          return res.json({
+            status: 'processing',
+            progress: statusData.progress || 0
+          });
+        }
+      }
+      
+      // Return current state
+      res.json({
+        status: research.status,
+        results: research.results || [],
+        totalResults: research.totalResults || 0
+      });
+      
+    } catch (error) {
+      console.error('Research status error:', error);
+      res.status(500).json({ error: 'Failed to check research status' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
