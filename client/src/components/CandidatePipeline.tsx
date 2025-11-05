@@ -11,6 +11,7 @@ import ListView from "./pipeline/ListView";
 import { TimelineView } from "./pipeline/TimelineView";
 import { ConversionFunnel } from "./pipeline/ConversionFunnel";
 import PipelineControls, { PipelineFilters } from "./pipeline/PipelineControls";
+import { AddCandidatesModal } from "./pipeline/AddCandidatesModal";
 import { exportPipelineToCSV } from "@/lib/exportPipeline";
 
 interface JobCandidate {
@@ -66,6 +67,7 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<PipelineFilters>({});
+  const [showAddModal, setShowAddModal] = useState(false);
   const { toast } = useToast();
   
   const { data: job } = useQuery<{ title: string }>({
@@ -210,6 +212,14 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
         onSearch={setSearchQuery}
         onFilterChange={setFilters}
         onExport={handleExport}
+        onAddCandidates={() => setShowAddModal(true)}
+      />
+
+      <AddCandidatesModal
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
+        jobId={jobId}
+        existingCandidateIds={candidates.map(jc => jc.candidate.id)}
       />
 
       {totalCandidates === 0 ? (
