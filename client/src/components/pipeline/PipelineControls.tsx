@@ -95,7 +95,7 @@ export default function PipelineControls({
   };
 
   const handleScoreFilter = (minScore: string) => {
-    const score = minScore ? parseInt(minScore) : undefined;
+    const score = minScore === "any" ? undefined : parseInt(minScore);
     const newFilters = { ...filters, minScore: score };
     onFilterChange?.(newFilters);
   };
@@ -200,14 +200,14 @@ export default function PipelineControls({
               <div className="space-y-2">
                 <label className="text-sm font-medium">Minimum Match Score</label>
                 <Select
-                  value={filters.minScore?.toString() || ""}
+                  value={filters.minScore?.toString() || "any"}
                   onValueChange={handleScoreFilter}
                 >
                   <SelectTrigger data-testid="select-min-score">
                     <SelectValue placeholder="Any score" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any score</SelectItem>
+                    <SelectItem value="any">Any score</SelectItem>
                     <SelectItem value="90">90%+</SelectItem>
                     <SelectItem value="80">80%+</SelectItem>
                     <SelectItem value="70">70%+</SelectItem>

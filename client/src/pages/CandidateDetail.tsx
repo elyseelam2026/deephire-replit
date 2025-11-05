@@ -128,7 +128,7 @@ export default function CandidateDetail() {
       {/* Header */}
       <div className="border-b bg-background p-4">
         <div className="flex items-center justify-between mb-2">
-          <Link href="/recruiting/candidates">
+          <Link href="/candidates">
             <Button variant="ghost" size="sm" data-testid="button-back-to-candidates">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Candidates

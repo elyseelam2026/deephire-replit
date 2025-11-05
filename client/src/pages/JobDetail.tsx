@@ -45,7 +45,7 @@ export default function JobDetail() {
       {/* Header */}
       <div className="border-b bg-background p-4">
         <div className="flex items-center justify-between mb-2">
-          <Link href="/recruiting/jobs">
+          <Link href="/jobs">
             <Button variant="ghost" size="sm" data-testid="button-back-to-jobs">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Jobs

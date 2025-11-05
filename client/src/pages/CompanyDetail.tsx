@@ -222,7 +222,7 @@ export default function CompanyDetail() {
       {/* Header */}
       <div className="border-b bg-background p-4">
         <div className="flex items-center justify-between mb-2">
-          <Link href="/recruiting/companies">
+          <Link href="/companies">
             <Button variant="ghost" size="sm" data-testid="button-back-to-companies">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Companies
@@ -391,7 +391,7 @@ export default function CompanyDetail() {
                 ) : (
                   <div className="space-y-3">
                     {jobs.map((job) => (
-                      <Link key={job.id} href={`/recruiting/jobs/${job.id}`}>
+                      <Link key={job.id} href={`/jobs/${job.id}`}>
                         <Card className="hover-elevate cursor-pointer" data-testid={`job-card-${job.id}`}>
                           <CardHeader className="pb-3">
                             <div className="flex items-start justify-between">

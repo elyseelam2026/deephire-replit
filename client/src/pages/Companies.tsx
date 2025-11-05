@@ -1072,7 +1072,7 @@ export default function Companies() {
                                     <div className="flex-1">
                                       {member.candidateId ? (
                                         <Link 
-                                          href={`/recruiting/candidates?id=${member.candidateId}`}
+                                          href={`/candidates?id=${member.candidateId}`}
                                           className="font-medium text-sm text-primary hover:underline cursor-pointer inline-flex items-center gap-1"
                                           data-testid={`link-candidate-${member.candidateId}`}
                                         >
@@ -1120,7 +1120,7 @@ export default function Companies() {
                                     <div className="flex-1">
                                       {member.candidateId ? (
                                         <Link 
-                                          href={`/recruiting/candidates?id=${member.candidateId}`}
+                                          href={`/candidates?id=${member.candidateId}`}
                                           className="font-medium text-sm text-primary hover:underline cursor-pointer inline-flex items-center gap-1"
                                           data-testid={`link-candidate-${member.candidateId}`}
                                         >

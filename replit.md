@@ -67,6 +67,13 @@ Preferred communication style: Simple, everyday language.
 -   **Company Inline Edit Mode**: CompanyDetail page includes inline edit functionality with auto-open from data quality issues (?edit=true), editable fields for industry, location, and website, PATCH /api/companies/:id endpoint, and seamless integration with data quality workflow.
 -   **Comprehensive Edit Forms**: Professional 5-tab edit dialogs for Companies (Basic Info, Contact, Business Details, Financial, Notes) and Candidates (Personal Info, Professional, Education & Skills, Career Preferences, Compensation) with 30-40+ "fill in the blanks" fields organized into logical sections for complete data capture.
 -   **Custom Fields Settings Management**: Self-service UI at `/recruiting/settings` → "Custom Fields" tab allowing users to define additional fields for Companies, Candidates, and Jobs. Features include section organization, 10 field types (text, number, currency, date, select, multi_select, checkbox, url, email, phone), full CRUD operations with edit dialogs, delete confirmations, and real-time TanStack Query integration. Backend supports JSONB storage via `custom_field_sections` and `custom_field_definitions` tables.
+-   **Production-Grade ATS Pipeline System** (Phase 1 Complete): Comprehensive candidate pipeline management with 8-stage workflow (recommended → reviewed → shortlisted → presented → interview → offer → placed → rejected). Features include:
+  - **KanbanView**: Drag-and-drop interface using @hello-pangea/dnd with Map-based optimistic updates supporting multiple concurrent drags
+  - **PipelineControls**: Advanced filtering by search query, status (multi-select), match score (minimum threshold), and search tier with active filter badges and clear functionality
+  - **Status Management**: Backend PATCH endpoint with status_history tracking, rejected_reason, last_action_at, and ai_suggestion columns
+  - **Smart Filtering**: Null value exclusion when filters active (prevents skewing filtered counts for match scores and tiers)
+  - **View Switching**: Toggle between Kanban and List views with unified state management
+  - **Routing Fix**: All internal navigation uses relative paths compatible with nested Router base="/recruiting"
 
 ## External Dependencies
 

@@ -180,7 +180,7 @@ export default function Jobs() {
               )}
 
               <div className="pt-2 space-y-2">
-                <Link href={`/recruiting/jobs/${job.id}`}>
+                <Link href={`/jobs/${job.id}`}>
                   <Button 
                     variant="outline" 
                     size="sm" 
