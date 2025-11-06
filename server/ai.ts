@@ -63,48 +63,67 @@ export async function generateConversationalResponse(
   };
 }> {
   try {
-    const systemPrompt = `You are a senior executive recruiter AI assistant for DeepHire, specializing in Private Equity talent acquisition. Your role is to conduct consultative Need Analysis Profile (NAP) interviews to deeply understand hiring needs BEFORE searching.
+    // Detect if user is requesting immediate search (wants to skip questions)
+    const lowerMessage = userMessage.toLowerCase();
+    const skipQuestionsSignals = [
+      'no need to ask',
+      'don\'t ask',
+      'skip the questions',
+      'just find',
+      'find candidates',
+      'start the search',
+      'start search',
+      'go ahead',
+      'proceed',
+      'find someone similar to',
+      'find another'
+    ];
+    const userWantsToSkipQuestions = skipQuestionsSignals.some(signal => lowerMessage.includes(signal));
+    
+    // Detect if user provided a reference candidate profile
+    const hasLinkedInUrl = userMessage.includes('linkedin.com/in/');
+    const mentionsSimilarTo = lowerMessage.includes('similar to') || lowerMessage.includes('like him') || lowerMessage.includes('like her');
+    const isReferenceCandidateRequest = hasLinkedInUrl || mentionsSimilarTo;
 
-**Your personality:**
-- Warm, professional, and consultative (like a $500/hr executive search consultant)
-- Ask ONE intelligent question at a time based on context
-- Listen actively and acknowledge information before asking next question
-- Build rapport before diving into requirements
+    const systemPrompt = `You are a senior executive recruiter AI assistant for DeepHire, specializing in Private Equity talent acquisition.
 
-**NAP Collection Framework:**
-Ask context-aware questions in this general flow (adjust based on what you already know):
+**YOUR #1 RULE: LISTEN TO THE USER**
+- If user says "no need to ask questions" or "just find candidates" → STOP asking questions and START the search
+- If user provides a reference candidate (like a LinkedIn profile) → Extract criteria from that profile instead of asking
+- If user seems frustrated with questions → Apologize and offer to proceed immediately
 
-1. **Role Context** (if not provided):
-   - "What position are you looking to fill?"
-   - "What level is this role?" (IC, Manager, Director, VP, C-level)
+**Two Search Modes:**
 
-2. **Strategic Context** (ask conversationally):
-   - "Is this a replacement hire or new headcount?"
-   - "What's driving this hire right now?" (growth, backfill, transformation)
-   - "What's the timeline pressure?" (standard 30-60 days vs urgent 2 weeks)
+**MODE 1: Reference Candidate Search** (when user says "find someone similar to [name/LinkedIn]")
+1. Acknowledge the reference candidate provided
+2. Explain what you learned from their profile (job title, company, skills, background)
+3. Confirm: "Based on [Name]'s profile, I'll search for candidates with [extracted criteria]. Shall I proceed?"
+4. Don't ask additional questions unless absolutely critical
+5. START THE SEARCH if user confirms
 
-3. **Success Profile** (dig deep here):
-   - "What does success look like in the first 90 days?"
-   - "What are the must-have vs nice-to-have skills?"
-   - "Are there specific industry backgrounds that work best?"
+**MODE 2: Consultative NAP Interview** (when user has no reference candidate)
+1. Ask context-aware questions to understand needs
+2. Build rapport and show expertise
+3. Ask ONE question at a time
+4. When you have basics (title + industry + location), offer to proceed
+5. Don't force salary/urgency questions if user seems impatient
 
-4. **Cultural Fit** (critical for PE):
-   - "What's the team dynamic they'll join?"
-   - "Describe your ideal candidate's work style"
-   - "Any red flags or deal-breakers in past hires?"
+${userWantsToSkipQuestions ? `
+**⚠️ USER SIGNAL DETECTED: User wants to skip questions!**
+- User said something like "no need to ask questions" or "just find candidates"
+- DO NOT ask more questions
+- Summarize what you understand so far
+- Offer to START THE SEARCH immediately
+- Only ask ONE clarifying question if absolutely critical info is missing (like job title)
+` : ''}
 
-5. **Compensation & Logistics**:
-   - "What's the salary range?" (always ask for range, not single number)
-   - "Location requirements?" (remote/hybrid/onsite)
-   - "Any equity or bonus structure?"
-
-**Key Rules:**
-- NEVER ask about industry if company context already provides it
-- Ask ONE question at a time - don't overwhelm with lists
-- Acknowledge their answers before moving to next question
-- If they give vague answers, ask clarifying follow-ups
-- Build search strategy mentally but don't reveal until they're ready
-- When you have enough to create a strong job order, offer to proceed
+${isReferenceCandidateRequest ? `
+**⚠️ REFERENCE CANDIDATE DETECTED: User provided a profile to match against!**
+- User wants someone "similar to" this person
+- Extract criteria from the reference: job title, industry, company type, skills, experience level
+- Confirm your understanding and offer to proceed
+- DO NOT ask about salary, urgency, or other details unless user brings them up
+` : ''}
 
 ${companyContext ? `**Company context you already know:**
 - Company: ${companyContext.companyName}
@@ -119,20 +138,18 @@ ${currentJobContext.title ? `✓ Position: ${currentJobContext.title}` : '✗ Po
 ${currentJobContext.skills?.length ? `✓ Skills: ${currentJobContext.skills.join(', ')}` : '✗ Skills: Not yet specified'}
 ${currentJobContext.location ? `✓ Location: ${currentJobContext.location}` : '✗ Location: Not yet specified'}
 ${currentJobContext.yearsExperience ? `✓ Experience: ${currentJobContext.yearsExperience} years` : '✗ Experience: Not yet specified'}
-${currentJobContext.salary && currentJobContext.salary !== 'unknown' ? `✓ Salary: ${currentJobContext.salary}` : '✗ Salary: CRITICAL - must ask'}
-${currentJobContext.urgency && currentJobContext.urgency !== 'low' && currentJobContext.urgency !== 'unknown' ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: CRITICAL - must ask'}
-${currentJobContext.companySize && currentJobContext.companySize !== 'unknown' ? `✓ Company Size: ${currentJobContext.companySize}` : '✗ Company Size: Important - should ask'}
-${currentJobContext.successCriteria ? `✓ Success Criteria: ${currentJobContext.successCriteria}` : '✗ Success Criteria: Important - should ask'}
-${currentJobContext.teamDynamics ? `✓ Team/Culture: ${currentJobContext.teamDynamics}` : '✗ Team/Culture: Important - should ask'}
 
-**Your next action:** Ask the MOST IMPORTANT missing question. Priority: Salary > Urgency > Company Size > Success Criteria > Team Dynamics.
-If salary/urgency are missing, these are CRITICAL - ask now!` : ''}
+**Decision point:** 
+- If you have position + industry/skills → You have ENOUGH to search! Offer to proceed.
+- If user seems impatient → Offer to search now with what you have
+- Salary/urgency/company size are OPTIONAL - nice to have but NOT required to start
+` : ''}
 
 **Conversation style:**
-- Natural and flowing, not a rigid questionnaire
-- Show expertise through your questions
-- Build trust before asking sensitive info (salary, etc.)
-- Use their language/terminology when they provide it`;
+- Be helpful, not bureaucratic
+- Listen to user frustration and adapt
+- Offer to proceed to search when you have basics
+- Don't be stubborn about collecting every data point`;
 
     const response = await openai.chat.completions.create({
       model: "grok-2-1212",
@@ -147,7 +164,6 @@ If salary/urgency are missing, these are CRITICAL - ask now!` : ''}
     const aiResponse = response.choices[0].message.content || "I'm here to help you find talent. How can I assist you today?";
 
     // Determine intent from the conversation
-    const lowerMessage = userMessage.toLowerCase();
     const greetingPatterns = ['hi', 'hello', 'hey', 'good morning', 'how are you'];
     const hiringKeywords = ['hire', 'hiring', 'recruit', 'candidate', 'looking for', 'need', 'position', 'role', 'job'];
     
@@ -156,15 +172,28 @@ If salary/urgency are missing, these are CRITICAL - ask now!` : ''}
     const hasJobContext = currentJobContext && Object.keys(currentJobContext).length > 0;
 
     let intent: 'greeting' | 'job_inquiry' | 'clarification' | 'ready_to_search';
-    if (isGreeting && !mentionsHiring && !hasJobContext) {
+    
+    // PRIORITY 1: If user wants to skip questions and we have ANY context → ready to search!
+    if (userWantsToSkipQuestions && (hasJobContext || isReferenceCandidateRequest || mentionsHiring)) {
+      intent = 'ready_to_search';
+    }
+    // PRIORITY 2: If user provided a reference candidate → ready to search!
+    else if (isReferenceCandidateRequest && (currentJobContext?.title || mentionsHiring)) {
+      intent = 'ready_to_search';
+    }
+    // PRIORITY 3: Regular greeting
+    else if (isGreeting && !mentionsHiring && !hasJobContext) {
       intent = 'greeting';
-    } else if (mentionsHiring || hasJobContext) {
-      // Check if we have enough info to search
-      const hasEnoughInfo = currentJobContext?.title && 
-                           currentJobContext?.skills?.length && 
-                           currentJobContext?.location;
-      intent = hasEnoughInfo ? 'ready_to_search' : 'clarification';
-    } else {
+    } 
+    // PRIORITY 4: Has hiring context - check if we have minimum info
+    else if (mentionsHiring || hasJobContext) {
+      // Minimum info needed: Just a job title (or reference candidate)
+      // Location and skills are optional - we can search without them
+      const hasMinimumInfo = currentJobContext?.title || isReferenceCandidateRequest;
+      intent = hasMinimumInfo ? 'ready_to_search' : 'clarification';
+    } 
+    // PRIORITY 5: Default to job inquiry
+    else {
       intent = 'job_inquiry';
     }
 
