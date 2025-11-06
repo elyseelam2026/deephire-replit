@@ -76,6 +76,16 @@ Preferred communication style: Simple, everyday language.
   - **Routing Fix**: All internal navigation uses relative paths compatible with nested Router base="/recruiting"
   - **Bulk Operations**: Fixed NaN validation bug, enabling checkbox selection, Select All, status updates, note addition, and batch deletion with proper integer validation
 -   **AI Company Employee Research** (Complete): Targeted sourcing system for finding employees from specific companies. Uses SerpAPI to discover LinkedIn company URLs, then Bright Data's LinkedIn scraper to extract employee profiles. Features async polling pattern with progress tracking, automatic candidate staging for review, and credit-efficient stateless design. Accessible via Admin portal "AI Research" tab.
+-   **LinkedIn Reference Candidate Integration** (Phase 1 Complete): Intelligent search by example using LinkedIn profiles as reference. When users provide a LinkedIn URL in the chatbox (e.g., "Find someone like https://linkedin.com/in/username"), the system automatically:
+  - Detects LinkedIn URLs via regex pattern matching
+  - Fetches complete profile data via Bright Data API (~30-45 seconds)
+  - Analyzes profile using xAI Grok to extract search criteria (title, skills, industry, experience level)
+  - Generates strategic sourcing plan with target companies and reasoning
+  - Presents comprehensive analysis to user with extracted criteria
+  - Stores reference candidate context in searchContext for downstream job creation
+  - Executes database search upon user confirmation
+  - Creates job order with matched candidates in pipeline
+  - **Future Phases**: Company pattern learning (analyze hiring DNA), external candidate research, AI pre-screening interviews, advanced funnel reporting
 
 ## External Dependencies
 
