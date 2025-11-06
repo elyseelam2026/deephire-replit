@@ -2202,6 +2202,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Search Promise endpoints - Track AI commitments
+  app.get("/api/search-promises", async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const conversationId = req.query.conversationId ? parseInt(req.query.conversationId as string) : undefined;
+      
+      let promises;
+      if (status === 'pending') {
+        promises = await storage.getPendingSearchPromises();
+      } else if (conversationId) {
+        promises = await storage.getSearchPromisesByConversation(conversationId);
+      } else {
+        // Get all promises
+        promises = await storage.getSearchPromises();
+      }
+      
+      res.json(promises);
+    } catch (error) {
+      console.error("Error fetching search promises:", error);
+      res.status(500).json({ error: "Failed to fetch search promises" });
+    }
+  });
+
+  app.get("/api/search-promises/:id", async (req, res) => {
+    try {
+      const promiseId = parseInt(req.params.id);
+      const promise = await storage.getSearchPromise(promiseId);
+      
+      if (!promise) {
+        return res.status(404).json({ error: "Promise not found" });
+      }
+      
+      res.json(promise);
+    } catch (error) {
+      console.error("Error fetching search promise:", error);
+      res.status(500).json({ error: "Failed to fetch search promise" });
+    }
+  });
+
+  app.get("/api/conversations/:id/promises", async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      const promises = await storage.getSearchPromisesByConversation(conversationId);
+      res.json(promises);
+    } catch (error) {
+      console.error("Error fetching conversation promises:", error);
+      res.status(500).json({ error: "Failed to fetch conversation promises" });
+    }
+  });
+
   // Email outreach endpoints  
   app.get("/api/outreach", async (req, res) => {
     try {
