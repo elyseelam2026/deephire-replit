@@ -863,6 +863,218 @@ Return this EXACT JSON structure:
 }
 
 /**
+ * PHASE 2: Learn company's hiring DNA by analyzing their team
+ * This is what transforms DeepHire from database search to strategic consultant
+ * 
+ * @param companyName - Company to research (e.g., "Boyu Capital")
+ * @param referenceProfile - The reference candidate's profile for context
+ * @returns Adjusted search criteria based on learned patterns + discovered patterns
+ */
+export async function learnCompanyPatterns(
+  companyName: string,
+  referenceProfile: any
+): Promise<{
+  patterns: {
+    education: string[];  // e.g., ["70% Tsinghua/Peking", "40% Wharton MBAs"]
+    experience: string[]; // e.g., ["3 years avg IB experience", "2-3y PE transition"]
+    skills: string[];     // e.g., ["Financial modeling 80%", "Healthcare M&A 60%"]
+    languages: string[];  // e.g., ["Mandarin + English 90%"]
+    geography: string[];  // e.g., ["Beijing/Hong Kong 85%", "US education 40%"]
+  };
+  adjustedCriteria: {
+    title?: string;
+    level?: string;
+    industry?: string;
+    skills?: string[];
+    education?: string[];
+    yearsExperience?: number;
+    languages?: string[];
+    locations?: string[];
+    mustHavePatterns?: string[];  // e.g., ["Top China university", "US MBA"]
+  };
+  teamSize: number;  // How many profiles analyzed
+  confidence: number; // 0-100, based on data quality
+}> {
+  try {
+    console.log(`🧬 [Company DNA] Learning hiring patterns for: ${companyName}`);
+    
+    // Step 1: Research company's team using multiple sources
+    const teamProfiles = await researchCompanyTeam(companyName);
+    
+    if (teamProfiles.length < 3) {
+      console.log(`⚠ [Company DNA] Only found ${teamProfiles.length} profiles - using fallback strategy`);
+      // Fallback: Use reference profile as the pattern
+      return generateFallbackPatterns(referenceProfile);
+    }
+    
+    console.log(`✓ [Company DNA] Analyzed ${teamProfiles.length} team members`);
+    
+    // Step 2: Use AI to extract hiring patterns
+    const prompt = `You are analyzing a company's hiring patterns to understand their "hiring DNA".
+
+**COMPANY:** ${companyName}
+
+**REFERENCE CANDIDATE (who we're trying to match):**
+- Name: ${referenceProfile.name}
+- Title: ${referenceProfile.position}
+- Education: ${referenceProfile.education?.map((e: any) => e.school).join(', ') || 'Unknown'}
+
+**TEAM PROFILES ANALYZED (${teamProfiles.length} people):**
+${teamProfiles.slice(0, 20).map((profile: any, i: number) => `
+${i + 1}. ${profile.name || 'Unknown'}
+   Title: ${profile.title || 'Unknown'}
+   Education: ${profile.education || 'Unknown'}
+   Experience: ${profile.experience || 'Unknown'}
+   Skills: ${profile.skills || 'Unknown'}
+`).join('\n')}
+
+**YOUR TASK:**
+1. **Identify PATTERNS** in this company's hiring:
+   - Education: What universities appear most? (e.g., "70% Tsinghua/Peking alums")
+   - Experience: Career paths? (e.g., "3 years avg IB before PE", "2-3y transition pattern")
+   - Skills: Common expertise? (e.g., "Financial modeling 80%", "Healthcare M&A 60%")
+   - Languages: Required languages? (e.g., "Mandarin + English 90%")
+   - Geography: Common locations/backgrounds? (e.g., "Beijing/HK 85%", "US education 40%")
+
+2. **Adjust search criteria** based on these patterns:
+   - What education requirements match this DNA?
+   - What experience level/trajectory fits?
+   - What skills are must-haves vs nice-to-haves?
+   - Any geographic/language requirements?
+
+3. **Focus on Private Equity patterns if relevant:**
+   - Investment banking → PE transitions
+   - Healthcare/sector specialization
+   - Deal experience
+   - Top-tier education (Tsinghua, Peking, Ivy League, Wharton, etc.)
+
+**OUTPUT FORMAT (JSON only):**
+{
+  "patterns": {
+    "education": ["Pattern 1", "Pattern 2"],
+    "experience": ["Pattern 1", "Pattern 2"],
+    "skills": ["Pattern 1", "Pattern 2"],
+    "languages": ["Pattern 1", "Pattern 2"],
+    "geography": ["Pattern 1", "Pattern 2"]
+  },
+  "adjustedCriteria": {
+    "title": "Job title",
+    "level": "Seniority level",
+    "industry": "Industry focus",
+    "skills": ["Skill 1", "Skill 2"],
+    "education": ["University 1", "University 2"],
+    "yearsExperience": 3,
+    "languages": ["Mandarin", "English"],
+    "locations": ["Beijing", "Hong Kong"],
+    "mustHavePatterns": ["Top China university", "Investment banking background"]
+  },
+  "confidence": 85
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        { role: "system", content: "You are an expert at analyzing company hiring patterns and identifying DNA. Always respond with valid JSON." },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    
+    console.log('✅ [Company DNA] Patterns learned:');
+    console.log(`   Education: ${result.patterns?.education?.join(', ')}`);
+    console.log(`   Experience: ${result.patterns?.experience?.join(', ')}`);
+    console.log(`   Confidence: ${result.confidence}%`);
+    
+    return {
+      patterns: result.patterns || {},
+      adjustedCriteria: result.adjustedCriteria || {},
+      teamSize: teamProfiles.length,
+      confidence: result.confidence || 50
+    };
+    
+  } catch (error) {
+    console.error('[Company DNA] Failed to learn patterns:', error);
+    // Fallback to reference profile
+    return generateFallbackPatterns(referenceProfile);
+  }
+}
+
+/**
+ * Research company's team members using web scraping
+ * Combines company website scraping + LinkedIn company page
+ */
+async function researchCompanyTeam(companyName: string): Promise<any[]> {
+  const profiles: any[] = [];
+  
+  try {
+    // Method 1: Search for LinkedIn company page employees
+    const { searchLinkedInProfiles } = await import('./serpapi');
+    const linkedInQuery = `${companyName} employees site:linkedin.com/in`;
+    
+    console.log(`🔍 [Company DNA] Searching for team members: "${linkedInQuery}"`);
+    const linkedInResults = await searchLinkedInProfiles(linkedInQuery, 20);
+    
+    if (linkedInResults && linkedInResults.length > 0) {
+      // Extract basic info from search results (don't scrape full profiles to save credits)
+      for (const result of linkedInResults.slice(0, 15)) {
+        profiles.push({
+          name: result.name,
+          title: result.title,
+          company: companyName,
+          education: result.extensions?.find((e: string) => e.includes('University') || e.includes('College'))|| 'Unknown',
+          experience: result.snippet || 'Unknown',
+          skills: 'Unknown' // Would need full profile scrape
+        });
+      }
+    }
+    
+    console.log(`✓ [Company DNA] Found ${profiles.length} team members via LinkedIn search`);
+    
+  } catch (error) {
+    console.error(`[Company DNA] Team research failed: ${error}`);
+  }
+  
+  return profiles;
+}
+
+/**
+ * Generate fallback patterns when we don't have enough team data
+ * Uses the reference profile as the pattern
+ */
+function generateFallbackPatterns(referenceProfile: any): any {
+  console.log('⚠ [Company DNA] Using fallback patterns based on reference candidate');
+  
+  const education = referenceProfile.education?.map((e: any) => e.school) || [];
+  const skills = referenceProfile.skills || [];
+  
+  return {
+    patterns: {
+      education: education.length > 0 ? [`Similar to ${education[0]}`] : ['Top university'],
+      experience: [`Similar experience level to reference`],
+      skills: skills.slice(0, 5),
+      languages: ['Professional proficiency'],
+      geography: [referenceProfile.city || 'Flexible']
+    },
+    adjustedCriteria: {
+      title: referenceProfile.position,
+      level: 'Similar to reference',
+      industry: referenceProfile.current_company_name || 'Unknown',
+      skills: skills.slice(0, 10),
+      education: education,
+      yearsExperience: 3,
+      languages: ['English'],
+      locations: [referenceProfile.city || 'Beijing'],
+      mustHavePatterns: ['Similar background to reference candidate']
+    },
+    teamSize: 1,
+    confidence: 30
+  };
+}
+
+/**
  * Extract keywords from company name for domain validation
  */
 function extractCompanyKeywords(companyName: string): string[] {
