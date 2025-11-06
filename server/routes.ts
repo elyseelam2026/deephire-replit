@@ -12,6 +12,7 @@ import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy,
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
+import { detectPromise, createPromiseFromConversation } from "./promise-detection";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
@@ -1947,6 +1948,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         aiResponse = grokResponse.response;
+        
+        // ✨ PROMISE DETECTION: Check if AI made a delivery commitment
+        const detectedPromise = detectPromise(aiResponse);
+        if (detectedPromise && !conversation.jobId) {
+          // AI made a promise to deliver candidates!
+          console.log(`🎯 AI Promise detected: "${detectedPromise.promiseText}"`);
+          console.log(`   Deadline: ${detectedPromise.deadlineAt.toISOString()}`);
+          
+          try {
+            const promiseRecord = createPromiseFromConversation(
+              detectedPromise,
+              conversationId,
+              updatedSearchContext
+            );
+            
+            const created = await storage.createSearchPromise(promiseRecord);
+            console.log(`✅ Created search promise #${created.id} - will execute at ${created.deadlineAt}`);
+          } catch (error) {
+            console.error('❌ Failed to create search promise:', error);
+            // Don't fail the whole request if promise creation fails
+          }
+        }
         
         // Update search context with any new info from user's response
         if (message.toLowerCase().includes('salary') || message.toLowerCase().includes('compensation') || message.match(/\$|USD|EUR|GBP/i)) {
