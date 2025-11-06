@@ -1834,7 +1834,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           console.log('[Reference Candidate] Profile fetched:', profileData.name);
           
-          // Step 2: Analyze profile and generate strategy
+          // PHASE 2: Learn company hiring DNA
+          const companyName = profileData.current_company_name || profileData.current_company;
+          let companyDNA: any = null;
+          
+          if (companyName) {
+            console.log(`[Company DNA] Learning patterns for: ${companyName}`);
+            const { learnCompanyPatterns } = await import('./ai');
+            try {
+              companyDNA = await learnCompanyPatterns(companyName, profileData);
+              console.log(`[Company DNA] Learned patterns from ${companyDNA.teamSize} team members`);
+            } catch (error) {
+              console.error('[Company DNA] Failed to learn patterns, continuing with basic criteria:', error);
+            }
+          }
+          
+          // Step 2: Analyze profile and generate strategy (keep for criteria extraction)
           const { analyzeReferenceCandidateAndGenerateStrategy } = await import('./ai');
           const strategy = await analyzeReferenceCandidateAndGenerateStrategy(
             profileData,
@@ -1846,45 +1861,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           console.log('[Reference Candidate] Strategy generated');
           
-          // Step 3: Update search context with extracted criteria
+          // Step 3: Update search context with DNA-adjusted criteria (or fallback to basic)
+          const finalCriteria = companyDNA?.adjustedCriteria || strategy.criteria;
+          
           updatedSearchContext = {
             ...updatedSearchContext,
-            title: strategy.criteria.title || updatedSearchContext.title,
-            skills: strategy.criteria.skills || updatedSearchContext.skills,
-            industry: strategy.criteria.industry || updatedSearchContext.industry,
-            yearsExperience: strategy.criteria.yearsExperience || updatedSearchContext.yearsExperience,
-            location: updatedSearchContext.location, // Keep existing or let user specify
+            title: finalCriteria.title || updatedSearchContext.title,
+            skills: finalCriteria.skills || updatedSearchContext.skills,
+            industry: finalCriteria.industry || updatedSearchContext.industry,
+            yearsExperience: finalCriteria.yearsExperience || updatedSearchContext.yearsExperience,
+            location: finalCriteria.locations?.[0] || updatedSearchContext.location,
             referenceCandidate: {
               name: profileData.name,
               linkedInUrl: linkedInUrl,
+              companyName: companyName,
+              companyDNA: companyDNA,
               analysis: strategy.analysis,
-              criteria: strategy.criteria,
+              criteria: finalCriteria,
               sourcingStrategy: strategy.sourcingStrategy
             }
           };
           
-          // Step 4: Present analysis to user
-          aiResponse = `✅ **Profile Analysis Complete**\n\n` +
-            `📊 **Reference Candidate:** ${profileData.name}\n` +
-            `**Current Role:** ${profileData.position || 'Not specified'}\n` +
-            `**Company:** ${profileData.current_company_name || profileData.current_company || 'Not specified'}\n` +
-            `**Location:** ${profileData.city || 'Not specified'}\n\n` +
-            `**Analysis:**\n${strategy.analysis}\n\n` +
-            `🎯 **Extracted Search Criteria:**\n` +
-            `• **Title:** ${strategy.criteria.title || 'Not specified'}\n` +
-            `• **Level:** ${strategy.criteria.level || 'Not specified'}\n` +
-            `• **Industry:** ${strategy.criteria.industry || 'Not specified'}\n` +
-            `• **Skills:** ${strategy.criteria.skills?.join(', ') || 'Not specified'}\n` +
-            `• **Experience:** ${strategy.criteria.yearsExperience ? `${strategy.criteria.yearsExperience} years` : 'Not specified'}\n\n` +
-            `**Strategic Sourcing Plan:**\n${strategy.sourcingStrategy.reasoning}\n\n` +
-            `**Target Companies (${strategy.sourcingStrategy.targetCompanies?.length || 0} identified):**\n` +
-            `${strategy.sourcingStrategy.targetCompanies?.slice(0, 10).map((c: string) => `• ${c}`).join('\n') || 'None'}\n\n` +
-            `Would you like me to search for similar candidates? I can:\n` +
-            `✓ **Search Internal Database** - Find matches in our existing candidates\n` +
-            `✓ **Execute External Research** - Research the target companies above for new candidates\n\n` +
-            `Just say "start search" or "go ahead" to proceed!`;
+          // Step 4: AUTO-EXECUTE SEARCH (no asking permission)
+          console.log('[Reference Candidate] Auto-executing search...');
           
-          newPhase = 'ready_to_create_job';
+          // Search database for matches
+          const searchResults = await storage.intelligentCandidateSearch({
+            query: finalCriteria.title || '',
+            filters: {
+              yearsExperience: finalCriteria.yearsExperience,
+              skills: finalCriteria.skills,
+              industry: finalCriteria.industry
+            },
+            limit: 50
+          });
+          
+          console.log(`[Reference Candidate] Found ${searchResults.candidates?.length || 0} initial matches`);
+          
+          // Create job order
+          const jobTitle = finalCriteria.title || `${profileData.position} - ${companyName}`;
+          const job = await storage.createJob({
+            title: jobTitle,
+            description: `Find candidates similar to ${profileData.name} at ${companyName}`,
+            requirements: finalCriteria.mustHavePatterns?.join(', ') || strategy.criteria.education || '',
+            location: finalCriteria.locations?.join(', '),
+            salary: updatedSearchContext.salary,
+            status: 'active',
+            searchTier: 'internal',
+            aiGenerated: true,
+            searchStrategy: companyDNA ? 
+              `Learned ${companyName}'s hiring DNA: ${companyDNA.patterns.education?.slice(0, 2).join(', ')}. ${companyDNA.patterns.experience?.slice(0, 2).join(', ')}.` :
+              strategy.sourcingStrategy.reasoning
+          });
+          
+          createdJobId = job.id;
+          
+          // Add top candidates to pipeline
+          const topCandidates = searchResults.candidates?.slice(0, 20) || [];
+          for (const candidate of topCandidates) {
+            await storage.addCandidateToJob({
+              jobId: job.id,
+              candidateId: candidate.id,
+              status: 'recommended',
+              matchScore: candidate.matchScore || 0,
+              searchTier: 'internal',
+              aiSuggestion: `Matches ${companyName} hiring pattern`
+            });
+          }
+          
+          console.log(`[Reference Candidate] Created job #${job.id} with ${topCandidates.length} candidates`);
+          
+          // Step 5: SHOW RESULTS ONLY (consultant delivery, not methodology)
+          const dnaInsight = companyDNA && companyDNA.confidence > 50
+            ? `Learned ${companyName}'s hiring DNA from ${companyDNA.teamSize} team members. Key patterns: ${companyDNA.patterns.education?.slice(0, 2).join(', ') || 'Similar backgrounds'}.`
+            : `Analyzed ${profileData.name}'s background at ${companyName}.`;
+          
+          aiResponse = `✅ **Found ${topCandidates.length} candidates similar to ${profileData.name}**\n\n` +
+            `${dnaInsight}\n\n` +
+            `🔗 **View Pipeline** → [Job #${job.id}](/recruiting/jobs/${job.id})\n\n` +
+            `All candidates have been staged in the pipeline for your review.`;
+          
+          newPhase = 'completed';
           
         } catch (error) {
           console.error('[Reference Candidate] Error:', error);
