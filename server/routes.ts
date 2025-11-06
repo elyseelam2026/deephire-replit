@@ -1801,7 +1801,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let newPhase = conversation.phase || 'initial';
       let createdJobId: number | undefined;
 
-      if (file) {
+      // PHASE 1: Check for LinkedIn reference candidate URL
+      const linkedInUrlMatch = message.match(/linkedin\.com\/in\/([\w-]+)/);
+      
+      if (linkedInUrlMatch && !file) {
+        console.log('[Reference Candidate] LinkedIn URL detected:', linkedInUrlMatch[0]);
+        
+        const linkedInUrl = message.includes('http') 
+          ? message.match(/(https?:\/\/[^\s]+linkedin\.com\/in\/[\w-]+)/)?.[0]
+          : `https://www.linkedin.com/in/${linkedInUrlMatch[1]}`;
+        
+        try {
+          // Step 1: Fetch LinkedIn profile
+          aiResponse = "🔍 **Fetching LinkedIn profile...**\n\nThis will take about 30 seconds. I'll analyze their background and extract search criteria.";
+          
+          // Add initial response to show progress
+          const progressMessage = {
+            role: 'assistant' as const,
+            content: aiResponse,
+            timestamp: new Date().toISOString()
+          };
+          
+          await storage.updateConversation(conversationId, {
+            messages: [...messages, progressMessage],
+            searchContext: updatedSearchContext,
+            phase: 'analyzing_reference'
+          });
+          
+          // Fetch profile via Bright Data
+          const { scrapeLinkedInProfile } = await import('./brightdata');
+          const profileData = await scrapeLinkedInProfile(linkedInUrl);
+          
+          console.log('[Reference Candidate] Profile fetched:', profileData.name);
+          
+          // Step 2: Analyze profile and generate strategy
+          const { analyzeReferenceCandidateAndGenerateStrategy } = await import('./ai');
+          const strategy = await analyzeReferenceCandidateAndGenerateStrategy(
+            profileData,
+            {
+              company: updatedSearchContext.companyName,
+              industry: updatedSearchContext.industry
+            }
+          );
+          
+          console.log('[Reference Candidate] Strategy generated');
+          
+          // Step 3: Update search context with extracted criteria
+          updatedSearchContext = {
+            ...updatedSearchContext,
+            title: strategy.criteria.title || updatedSearchContext.title,
+            skills: strategy.criteria.skills || updatedSearchContext.skills,
+            industry: strategy.criteria.industry || updatedSearchContext.industry,
+            yearsExperience: strategy.criteria.yearsExperience || updatedSearchContext.yearsExperience,
+            location: updatedSearchContext.location, // Keep existing or let user specify
+            referenceCandidate: {
+              name: profileData.name,
+              linkedInUrl: linkedInUrl,
+              analysis: strategy.analysis,
+              criteria: strategy.criteria,
+              sourcingStrategy: strategy.sourcingStrategy
+            }
+          };
+          
+          // Step 4: Present analysis to user
+          aiResponse = `✅ **Profile Analysis Complete**\n\n` +
+            `📊 **Reference Candidate:** ${profileData.name}\n` +
+            `**Current Role:** ${profileData.position || 'Not specified'}\n` +
+            `**Company:** ${profileData.current_company_name || profileData.current_company || 'Not specified'}\n` +
+            `**Location:** ${profileData.city || 'Not specified'}\n\n` +
+            `**Analysis:**\n${strategy.analysis}\n\n` +
+            `🎯 **Extracted Search Criteria:**\n` +
+            `• **Title:** ${strategy.criteria.title || 'Not specified'}\n` +
+            `• **Level:** ${strategy.criteria.level || 'Not specified'}\n` +
+            `• **Industry:** ${strategy.criteria.industry || 'Not specified'}\n` +
+            `• **Skills:** ${strategy.criteria.skills?.join(', ') || 'Not specified'}\n` +
+            `• **Experience:** ${strategy.criteria.yearsExperience ? `${strategy.criteria.yearsExperience} years` : 'Not specified'}\n\n` +
+            `**Strategic Sourcing Plan:**\n${strategy.sourcingStrategy.reasoning}\n\n` +
+            `**Target Companies (${strategy.sourcingStrategy.targetCompanies?.length || 0} identified):**\n` +
+            `${strategy.sourcingStrategy.targetCompanies?.slice(0, 10).map((c: string) => `• ${c}`).join('\n') || 'None'}\n\n` +
+            `Would you like me to search for similar candidates? I can:\n` +
+            `✓ **Search Internal Database** - Find matches in our existing candidates\n` +
+            `✓ **Execute External Research** - Research the target companies above for new candidates\n\n` +
+            `Just say "start search" or "go ahead" to proceed!`;
+          
+          newPhase = 'ready_to_create_job';
+          
+        } catch (error) {
+          console.error('[Reference Candidate] Error:', error);
+          aiResponse = `❌ **Error fetching LinkedIn profile**\n\n` +
+            `I encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
+            `This could be due to:\n` +
+            `• Invalid LinkedIn URL\n` +
+            `• Profile privacy settings\n` +
+            `• API rate limits\n\n` +
+            `Please try again with a different profile, or describe the role you're looking for instead.`;
+          newPhase = 'initial';
+        }
+      } else if (file) {
         // Handle JD upload
         const jdText = await extractCvText(file);
         
