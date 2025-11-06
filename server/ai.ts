@@ -1010,28 +1010,43 @@ async function researchCompanyTeam(companyName: string): Promise<any[]> {
   const profiles: any[] = [];
   
   try {
-    // Method 1: Search for LinkedIn company page employees
-    const { searchLinkedInProfiles } = await import('./serpapi');
-    const linkedInQuery = `${companyName} employees site:linkedin.com/in`;
-    
-    console.log(`🔍 [Company DNA] Searching for team members: "${linkedInQuery}"`);
-    const linkedInResults = await searchLinkedInProfiles(linkedInQuery, 20);
-    
-    if (linkedInResults && linkedInResults.length > 0) {
-      // Extract basic info from search results (don't scrape full profiles to save credits)
-      for (const result of linkedInResults.slice(0, 15)) {
-        profiles.push({
-          name: result.name,
-          title: result.title,
-          company: companyName,
-          education: result.extensions?.find((e: string) => e.includes('University') || e.includes('College'))|| 'Unknown',
-          experience: result.snippet || 'Unknown',
-          skills: 'Unknown' // Would need full profile scrape
-        });
-      }
+    // Use SerpAPI to search for company team members
+    const apiKey = process.env.SERPAPI_API_KEY;
+    if (!apiKey) {
+      console.log('[Company DNA] SERPAPI_API_KEY not configured');
+      return profiles;
     }
     
-    console.log(`✓ [Company DNA] Found ${profiles.length} team members via LinkedIn search`);
+    const query = `${companyName} employees site:linkedin.com/in`;
+    console.log(`🔍 [Company DNA] Searching for team members: "${query}"`);
+    
+    const url = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(query)}&engine=google&num=20`;
+    const response = await fetch(url);
+    
+    if (response.ok) {
+      const data = await response.json();
+      const results = data.organic_results || [];
+      
+      // Extract basic info from search results (don't scrape full profiles to save credits)
+      for (const result of results.slice(0, 15)) {
+        const title = result.title || '';
+        const snippet = result.snippet || '';
+        
+        // Try to extract education from snippet
+        const education = snippet.match(/(Tsinghua|Peking|Harvard|Stanford|MIT|Wharton|Columbia|Yale|Princeton|University of [A-Z][a-z]+)/)?.[0] || 'Unknown';
+        
+        profiles.push({
+          name: title.split(' - ')[0] || 'Unknown',
+          title: title.split(' - ')[1] || 'Unknown',
+          company: companyName,
+          education: education,
+          experience: snippet,
+          skills: 'Unknown'
+        });
+      }
+      
+      console.log(`✓ [Company DNA] Found ${profiles.length} team members via LinkedIn search`);
+    }
     
   } catch (error) {
     console.error(`[Company DNA] Team research failed: ${error}`);

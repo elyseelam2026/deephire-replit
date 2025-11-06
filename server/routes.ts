@@ -1885,48 +1885,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Step 4: AUTO-EXECUTE SEARCH (no asking permission)
           console.log('[Reference Candidate] Auto-executing search...');
           
-          // Search database for matches
-          const searchResults = await storage.intelligentCandidateSearch({
-            query: finalCriteria.title || '',
-            filters: {
-              yearsExperience: finalCriteria.yearsExperience,
-              skills: finalCriteria.skills,
-              industry: finalCriteria.industry
-            },
-            limit: 50
-          });
+          // Search database for matches using title
+          const searchQuery = finalCriteria.title || profileData.position || '';
+          const allCandidates = await storage.searchCandidates(searchQuery);
           
-          console.log(`[Reference Candidate] Found ${searchResults.candidates?.length || 0} initial matches`);
+          console.log(`[Reference Candidate] Found ${allCandidates.length} initial matches`);
+          
+          // Find or create company for the job
+          let jobCompanyId: number | undefined;
+          if (companyName) {
+            try {
+              // Search for existing company
+              const existingCompanies = await storage.searchCompanies(companyName);
+              if (existingCompanies.length > 0) {
+                jobCompanyId = existingCompanies[0].parent.id;
+                console.log(`[Reference Candidate] Using existing company: ${companyName} (ID: ${jobCompanyId})`);
+              } else {
+                // Create company if it doesn't exist
+                const newCompany = await storage.createCompany({
+                  name: companyName,
+                  roles: ['prospecting'],
+                  status: 'active'
+                });
+                jobCompanyId = newCompany.id;
+                console.log(`[Reference Candidate] Created new company: ${companyName} (ID: ${jobCompanyId})`);
+              }
+            } catch (companyError) {
+              console.error('[Reference Candidate] Error handling company, using fallback:', companyError);
+            }
+          }
+          
+          // Final fallback: find ANY company
+          if (!jobCompanyId) {
+            const allCompanies = await storage.getAllCompanies();
+            if (allCompanies.length > 0) {
+              jobCompanyId = allCompanies[0].id;
+              console.log(`[Reference Candidate] Using fallback company ID: ${jobCompanyId}`);
+            } else {
+              throw new Error('No companies available in database - cannot create job');
+            }
+          }
           
           // Create job order
           const jobTitle = finalCriteria.title || `${profileData.position} - ${companyName}`;
+          const jobDescription = companyDNA ? 
+            `Learned ${companyName}'s hiring DNA: ${companyDNA.patterns.education?.slice(0, 2).join(', ')}. ${companyDNA.patterns.experience?.slice(0, 2).join(', ')}.` :
+            strategy.sourcingStrategy.reasoning;
+          
           const job = await storage.createJob({
             title: jobTitle,
-            description: `Find candidates similar to ${profileData.name} at ${companyName}`,
-            requirements: finalCriteria.mustHavePatterns?.join(', ') || strategy.criteria.education || '',
-            location: finalCriteria.locations?.join(', '),
+            companyId: jobCompanyId,
+            jdText: `Find candidates similar to ${profileData.name} at ${companyName}\n\nRequirements: ${finalCriteria.mustHavePatterns?.join(', ') || strategy.criteria.education || ''}`,
+            skills: finalCriteria.skills,
             salary: updatedSearchContext.salary,
             status: 'active',
             searchTier: 'internal',
             aiGenerated: true,
-            searchStrategy: companyDNA ? 
-              `Learned ${companyName}'s hiring DNA: ${companyDNA.patterns.education?.slice(0, 2).join(', ')}. ${companyDNA.patterns.experience?.slice(0, 2).join(', ')}.` :
-              strategy.sourcingStrategy.reasoning
+            searchStrategy: jobDescription
           });
           
           createdJobId = job.id;
           
           // Add top candidates to pipeline
-          const topCandidates = searchResults.candidates?.slice(0, 20) || [];
-          for (const candidate of topCandidates) {
-            await storage.addCandidateToJob({
-              jobId: job.id,
-              candidateId: candidate.id,
-              status: 'recommended',
-              matchScore: candidate.matchScore || 0,
-              searchTier: 'internal',
-              aiSuggestion: `Matches ${companyName} hiring pattern`
-            });
+          const topCandidates = allCandidates.slice(0, 20);
+          if (topCandidates.length > 0) {
+            await storage.addCandidatesToJob(
+              job.id,
+              topCandidates.map((c: any) => ({
+                candidateId: c.id,
+                status: 'recommended',
+                matchScore: 80,
+                searchTier: 'internal',
+                aiSuggestion: `Matches ${companyName} hiring pattern`
+              }))
+            );
           }
           
           console.log(`[Reference Candidate] Created job #${job.id} with ${topCandidates.length} candidates`);
@@ -1938,7 +1970,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           aiResponse = `✅ **Found ${topCandidates.length} candidates similar to ${profileData.name}**\n\n` +
             `${dnaInsight}\n\n` +
-            `🔗 **View Pipeline** → [Job #${job.id}](/recruiting/jobs/${job.id})\n\n` +
+            `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;
           
           newPhase = 'completed';
