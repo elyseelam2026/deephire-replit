@@ -756,6 +756,113 @@ export async function extractOfficesWithPlaywright(websiteUrl: string): Promise<
 }
 
 /**
+ * Analyze a reference candidate's LinkedIn profile and generate intelligent sourcing strategy
+ * This is what makes DeepHire smart - understanding WHO the reference is and WHERE to find similar people
+ */
+export async function analyzeReferenceCandidateAndGenerateStrategy(
+  linkedInProfileData: any,
+  jobContext?: {title?: string; company?: string; industry?: string}
+): Promise<{
+  analysis: string; // What we learned about the reference candidate
+  criteria: {
+    title?: string;
+    level?: string; // Associate, Analyst, VP, etc.
+    industry?: string;
+    skills?: string[];
+    education?: string;
+    yearsExperience?: number;
+  };
+  sourcingStrategy: {
+    targetCompanies: string[]; // Where to find similar candidates
+    targetTitles: string[]; // What job titles to search for
+    reasoning: string; // Why these targets make sense
+  };
+}> {
+  try {
+    console.log('🧠 [AI Strategy] Analyzing reference candidate and generating sourcing plan...');
+    
+    const prompt = `You are a senior executive recruiter analyzing a reference candidate to develop an intelligent sourcing strategy.
+
+**REFERENCE CANDIDATE PROFILE:**
+Name: ${linkedInProfileData.name || 'Unknown'}
+Current Title: ${linkedInProfileData.position || 'Unknown'}
+Current Company: ${linkedInProfileData.current_company_name || linkedInProfileData.current_company || 'Unknown'}
+Location: ${linkedInProfileData.city || 'Unknown'}
+About: ${linkedInProfileData.about || 'Not available'}
+
+**EXPERIENCE:**
+${linkedInProfileData.experience?.slice(0, 3).map((exp: any) => 
+  `- ${exp.title} at ${exp.company} (${exp.start_date || '?'} - ${exp.end_date || 'Present'})`
+).join('\n') || 'No experience data'}
+
+**EDUCATION:**
+${linkedInProfileData.education?.map((edu: any) => 
+  `- ${edu.degree || 'Degree'} in ${edu.field_of_study || 'Unknown'} from ${edu.school}`
+).join('\n') || 'No education data'}
+
+**SKILLS:**
+${linkedInProfileData.skills?.slice(0, 10).join(', ') || 'No skills data'}
+
+**YOUR TASK:**
+1. **Analyze** this candidate's profile to understand their background
+2. **Extract** key criteria (seniority level, industry focus, core skills)
+3. **Identify TARGET COMPANIES** where similar candidates work (be specific! Name 10-15 actual companies)
+4. **Identify TARGET JOB TITLES** to search for at those companies
+5. **Explain your reasoning** - why these targets?
+
+${jobContext?.company ? `\nCONTEXT: Client is ${jobContext.company}${jobContext.industry ? ` in ${jobContext.industry}` : ''}` : ''}
+
+Return this EXACT JSON structure:
+{
+  "analysis": "2-3 sentence summary of who this person is and their background",
+  "criteria": {
+    "title": "Specific job title or role",
+    "level": "Seniority level (Analyst/Associate/VP/Director/etc)",
+    "industry": "Industry or sector focus",
+    "skills": ["skill1", "skill2", "skill3"],
+    "education": "Education background if relevant",
+    "yearsExperience": estimated_years_number
+  },
+  "sourcingStrategy": {
+    "targetCompanies": [
+      "Company Name 1",
+      "Company Name 2",
+      "... (10-15 specific, real company names)"
+    ],
+    "targetTitles": [
+      "Job Title 1",
+      "Job Title 2",
+      "Job Title 3"
+    ],
+    "reasoning": "Explain why these companies and titles make sense for finding similar candidates"
+  }
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        { role: "system", content: "You are an expert executive recruiter who develops strategic sourcing plans. Always respond with valid JSON." },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    console.log('✅ [AI Strategy] Generated sourcing strategy:');
+    console.log(`   Analysis: ${result.analysis}`);
+    console.log(`   Target Companies: ${result.sourcingStrategy?.targetCompanies?.length || 0} identified`);
+    console.log(`   Target Titles: ${result.sourcingStrategy?.targetTitles?.join(', ')}`);
+    
+    return result;
+    
+  } catch (error) {
+    console.error('[AI Strategy] Failed to analyze reference candidate:', error);
+    throw error;
+  }
+}
+
+/**
  * Extract keywords from company name for domain validation
  */
 function extractCompanyKeywords(companyName: string): string[] {
