@@ -40,6 +40,7 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       status: 'executing',
       executionStartedAt: sql`now()`,
       executionLog: [
+        ...(promise.executionLog || []),
         {
           timestamp: new Date().toISOString(),
           event: 'execution_started',
@@ -47,6 +48,13 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         }
       ]
     });
+    
+    // Re-fetch to get latest executionLog for subsequent updates
+    const updatedPromise = await storage.getSearchPromise(promiseId);
+    if (!updatedPromise) {
+      console.error(`[Promise Worker] Promise #${promiseId} disappeared after status update`);
+      return;
+    }
     
     console.log(`[Promise Worker] Running search for: ${promise.searchParams.title || 'position'}`);
     
@@ -73,13 +81,34 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
     if (!jobId) {
       // Get conversation to find company context
       const conversation = await storage.getConversation(promise.conversationId);
-      let companyId = 1; // Default fallback
+      let companyId: number;
       
+      // Try to find company from conversation context
       if (conversation?.searchContext?.companyName) {
         const companies = await storage.searchCompanies(conversation.searchContext.companyName);
         if (companies.length > 0) {
           companyId = companies[0].parent.id;
+        } else {
+          // Create placeholder company for this search
+          const placeholderCompany = await storage.createCompany({
+            name: conversation.searchContext.companyName || 'AI Search Client',
+            industry: conversation.searchContext.industry || 'General',
+            location: conversation.searchContext.location || 'Global',
+            roles: ['client']
+          });
+          companyId = placeholderCompany.id;
+          console.log(`📝 Created placeholder company #${companyId} for promise`);
         }
+      } else {
+        // No company name in context - create a generic placeholder
+        const placeholderCompany = await storage.createCompany({
+          name: 'AI Search Client',
+          industry: promise.searchParams.industry || 'General',
+          location: promise.searchParams.location || 'Global',
+          roles: ['client']
+        });
+        companyId = placeholderCompany.id;
+        console.log(`📝 Created generic placeholder company #${companyId} for promise`);
       }
       
       // Create job order
@@ -111,7 +140,7 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       console.log(`[Promise Worker] Added ${candidateIds.length} candidates to job #${jobId}`);
     }
     
-    // Update promise as completed
+    // Update promise as completed (using latest executionLog)
     await storage.updateSearchPromise(promiseId, {
       status: 'completed',
       completedAt: sql`now()`,
@@ -119,7 +148,7 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       candidatesFound: candidateIds.length,
       candidateIds,
       executionLog: [
-        ...(promise.executionLog || []),
+        ...(updatedPromise.executionLog || []),
         {
           timestamp: new Date().toISOString(),
           event: 'search_completed',
@@ -138,13 +167,16 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
   } catch (error) {
     console.error(`[Promise Worker] ❌ Error executing promise #${promiseId}:`, error);
     
+    // Re-fetch to get latest log before marking as failed
+    const failedPromise = await storage.getSearchPromise(promiseId);
+    
     // Mark as failed and log error
     await storage.updateSearchPromise(promiseId, {
       status: 'failed',
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
       retryCount: (promise.retryCount || 0) + 1,
       executionLog: [
-        ...(promise.executionLog || []),
+        ...(failedPromise?.executionLog || promise.executionLog || []),
         {
           timestamp: new Date().toISOString(),
           event: 'execution_failed',
