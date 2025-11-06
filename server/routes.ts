@@ -11,6 +11,7 @@ import { db } from "./db";
 import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse } from "./ai";
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
+import { startPromiseWorker } from "./promise-worker";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
@@ -4836,5 +4837,9 @@ CRITICAL RULES - You MUST follow these strictly:
   });
 
   const httpServer = createServer(app);
+  
+  // Start the promise worker to execute AI commitments
+  startPromiseWorker();
+  
   return httpServer;
 }
