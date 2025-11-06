@@ -2009,12 +2009,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'yes, start external', 'start the search', 'begin search'
         ];
         
-        // Check for strong explicit agreement (overrides phase) OR phase-based agreement
+        // NEW: Detect "skip questions and start search" signals
+        const skipQuestionsAndSearchPhrases = [
+          'no need to ask',
+          'don\'t ask',
+          'skip the questions',
+          'just find',
+          'find candidates',
+          'find the candidates',
+          'find someone similar',
+          'find another',
+          'please find',
+          'find me candidates'
+        ];
+        
+        // Check for strong explicit agreement (overrides phase) OR phase-based agreement OR skip-questions signal
         const hasStrongAgreement = strongAgreementPhrases.some(phrase => lowerMessage.includes(phrase));
         const hasWeakAgreement = searchAgreementKeywords.some(keyword => lowerMessage.includes(keyword)) 
           && (conversation.phase === 'ready_to_create_job' || newPhase === 'ready_to_create_job');
+        const userWantsToSkipQuestionsAndSearch = skipQuestionsAndSearchPhrases.some(phrase => lowerMessage.includes(phrase));
         
-        const userAgreedToSearch = hasStrongAgreement || hasWeakAgreement;
+        const userAgreedToSearch = hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch;
 
         // If user agreed AND we have enough context, create job + run search
         if (userAgreedToSearch && updatedSearchContext.title && !conversation.jobId) {
