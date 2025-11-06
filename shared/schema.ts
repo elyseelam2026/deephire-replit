@@ -597,6 +597,67 @@ export const napConversations = pgTable("nap_conversations", {
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
 
+// Search Promises - Track AI commitments for automated execution
+export const searchPromises = pgTable("search_promises", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Links to conversation and optional job
+  conversationId: integer("conversation_id").references(() => napConversations.id).notNull(),
+  jobId: integer("job_id").references(() => jobs.id), // Created after execution
+  
+  // Promise details
+  promiseText: text("promise_text").notNull(), // What AI promised: "I'll send candidates in 72 hours"
+  deliveryTimeframe: text("delivery_timeframe").notNull(), // "72 hours", "tomorrow", "next week"
+  deadlineAt: timestamp("deadline_at").notNull(), // Calculated deadline
+  
+  // Search parameters extracted from conversation
+  searchParams: jsonb("search_params").$type<{
+    title?: string;
+    skills?: string[];
+    location?: string;
+    yearsExperience?: string;
+    industry?: string;
+    salary?: string;
+    urgency?: string;
+    searchTier?: 'internal' | 'external';
+    minCandidates?: number; // How many candidates promised
+    [key: string]: any;
+  }>().notNull(),
+  
+  // Execution tracking
+  status: text("status").default("pending").notNull(), 
+  // pending: Waiting for deadline
+  // scheduled: Ready to execute
+  // executing: Search in progress
+  // completed: Candidates delivered
+  // failed: Execution failed
+  // cancelled: User cancelled
+  
+  executionStartedAt: timestamp("execution_started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Results
+  candidatesFound: integer("candidates_found").default(0),
+  candidateIds: integer("candidate_ids").array(), // IDs of matched candidates
+  executionLog: jsonb("execution_log").$type<Array<{
+    timestamp: string;
+    event: string;
+    details?: any;
+  }>>(),
+  
+  // Notifications
+  notificationSent: boolean("notification_sent").default(false),
+  notificationSentAt: timestamp("notification_sent_at"),
+  
+  // Error tracking
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").default(0),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
 // Email outreach tracking
 export const emailOutreach = pgTable("email_outreach", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -1447,6 +1508,14 @@ export type JobMatch = typeof jobMatches.$inferSelect;
 
 export type InsertNapConversation = z.infer<typeof insertNapConversationSchema>;
 export type NapConversation = typeof napConversations.$inferSelect;
+
+export const insertSearchPromiseSchema = createInsertSchema(searchPromises).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+export type InsertSearchPromise = z.infer<typeof insertSearchPromiseSchema>;
+export type SearchPromise = typeof searchPromises.$inferSelect;
 
 export type InsertEmailOutreach = z.infer<typeof insertEmailOutreachSchema>;
 export type EmailOutreach = typeof emailOutreach.$inferSelect;
