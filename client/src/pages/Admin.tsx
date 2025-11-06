@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import DataQualityDashboard from "@/pages/DataQualityDashboard";
 import { CompanyResearch } from "@/components/admin/CompanyResearch";
+import { PromiseStatus } from "@/components/admin/PromiseStatus";
 
 function DataQualityTabContent() {
   return <DataQualityDashboard />;
@@ -1033,7 +1034,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="quick-add" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="quick-add" data-testid="tab-quick-add">
             <UserPlus className="h-4 w-4 mr-2" />
             Quick Add
@@ -1049,6 +1050,10 @@ export default function Admin() {
           <TabsTrigger value="research" data-testid="tab-research">
             <Search className="h-4 w-4 mr-2" />
             AI Research
+          </TabsTrigger>
+          <TabsTrigger value="promises" data-testid="tab-promises">
+            <Zap className="h-4 w-4 mr-2" />
+            AI Promises
           </TabsTrigger>
           <TabsTrigger value="duplicates" data-testid="tab-duplicates">
             <AlertCircle className="h-4 w-4 mr-2" />
@@ -1963,6 +1968,11 @@ export default function Admin() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Promises Tab Content */}
+        <TabsContent value="promises" className="space-y-6">
+          <PromiseStatus />
         </TabsContent>
 
         <TabsContent value="duplicates" className="space-y-6">
