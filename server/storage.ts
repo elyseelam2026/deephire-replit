@@ -2,7 +2,7 @@ import {
   companies, jobs, candidates, jobMatches, jobCandidates, users, napConversations, emailOutreach,
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
-  companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions,
+  companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions, searchPromises,
   type Company, type Job, type Candidate, type JobMatch, type JobCandidate, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertJobCandidate, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
@@ -11,7 +11,8 @@ import {
   type VerificationResult, type InsertVerificationResult, type OrganizationChart, type InsertOrganizationChart,
   type IndustryCampaign, type InsertIndustryCampaign, type CompanyResearchResult, type InsertCompanyResearchResult,
   type CompanyStaging, type InsertCompanyStaging, type CandidateCompany, type InsertCandidateCompany,
-  type CustomFieldSection, type InsertCustomFieldSection, type CustomFieldDefinition, type InsertCustomFieldDefinition
+  type CustomFieldSection, type InsertCustomFieldSection, type CustomFieldDefinition, type InsertCustomFieldDefinition,
+  type SearchPromise, type InsertSearchPromise
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -104,6 +105,14 @@ export interface IStorage {
   getConversations(): Promise<NapConversation[]>;
   getConversation(id: number): Promise<NapConversation | undefined>;
   updateConversation(id: number, updates: Partial<InsertNapConversation>): Promise<NapConversation | undefined>;
+  
+  // Search Promise management
+  createSearchPromise(promise: InsertSearchPromise): Promise<SearchPromise>;
+  getSearchPromises(): Promise<SearchPromise[]>;
+  getSearchPromise(id: number): Promise<SearchPromise | undefined>;
+  getSearchPromisesByConversation(conversationId: number): Promise<SearchPromise[]>;
+  getPendingSearchPromises(): Promise<SearchPromise[]>; // Get promises ready to execute
+  updateSearchPromise(id: number, updates: Partial<InsertSearchPromise>): Promise<SearchPromise | undefined>;
   
   // Email outreach management  
   createEmailOutreach(outreach: InsertEmailOutreach): Promise<EmailOutreach>;
@@ -956,6 +965,59 @@ export class DatabaseStorage implements IStorage {
       .where(eq(napConversations.id, id))
       .returning();
     return conversation || undefined;
+  }
+
+  // Search Promise management
+  async createSearchPromise(insertPromise: InsertSearchPromise): Promise<SearchPromise> {
+    const [promise] = await db.insert(searchPromises).values(insertPromise).returning();
+    return promise;
+  }
+
+  async getSearchPromises(): Promise<SearchPromise[]> {
+    const promises = await db.select()
+      .from(searchPromises)
+      .orderBy(desc(searchPromises.createdAt));
+    return promises;
+  }
+
+  async getSearchPromise(id: number): Promise<SearchPromise | undefined> {
+    const [promise] = await db.select().from(searchPromises).where(eq(searchPromises.id, id));
+    return promise || undefined;
+  }
+
+  async getSearchPromisesByConversation(conversationId: number): Promise<SearchPromise[]> {
+    const promises = await db.select()
+      .from(searchPromises)
+      .where(eq(searchPromises.conversationId, conversationId))
+      .orderBy(desc(searchPromises.createdAt));
+    return promises;
+  }
+
+  async getPendingSearchPromises(): Promise<SearchPromise[]> {
+    // Get promises that are:
+    // 1. Status is 'pending' or 'scheduled'
+    // 2. Deadline has passed (deadlineAt <= now)
+    const promises = await db.select()
+      .from(searchPromises)
+      .where(
+        and(
+          or(
+            eq(searchPromises.status, 'pending'),
+            eq(searchPromises.status, 'scheduled')
+          ),
+          sql`${searchPromises.deadlineAt} <= NOW()`
+        )
+      )
+      .orderBy(searchPromises.deadlineAt);
+    return promises;
+  }
+
+  async updateSearchPromise(id: number, updates: Partial<InsertSearchPromise>): Promise<SearchPromise | undefined> {
+    const [promise] = await db.update(searchPromises)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(searchPromises.id, id))
+      .returning();
+    return promise || undefined;
   }
 
   // Email outreach management
