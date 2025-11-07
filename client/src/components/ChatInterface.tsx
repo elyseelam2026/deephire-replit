@@ -54,6 +54,22 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
     scrollToBottom();
   }, [messages]);
 
+  // Fix old conversation links with duplicate /recruiting prefix (client-side rewrite)
+  useEffect(() => {
+    // Find all internal job links and fix duplicate routing
+    const links = document.querySelectorAll('a[href*="/jobs/"]');
+    links.forEach((link) => {
+      const href = link.getAttribute('href');
+      if (href && !href.startsWith('http')) {
+        // Fix duplicate prefix: /recruiting/recruiting/jobs/X → /recruiting/jobs/X
+        const fixedHref = href.replace('/recruiting/recruiting/jobs/', '/recruiting/jobs/');
+        if (fixedHref !== href) {
+          link.setAttribute('href', fixedHref);
+        }
+      }
+    });
+  }, [messages]);
+
   const handleSend = async () => {
     if (!input.trim() && !selectedFile) return;
 
