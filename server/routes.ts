@@ -1995,7 +1995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           aiResponse = `✅ **Found ${scoredCandidates.length} candidates similar to ${profileData.name}**\n\n` +
             `${dnaInsight}\n\n` +
-            `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
+            `🔗 **View Pipeline** → [Job #${job.id}](/recruiting/jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;
           
           newPhase = 'completed';
