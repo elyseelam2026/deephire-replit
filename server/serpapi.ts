@@ -67,21 +67,23 @@ export async function searchLinkedInPeople(
   console.log(`   Limit: ${limit} profiles`);
   
   try {
-    // Use SerpAPI's linkedin_people engine (NOT google search)
-    // This engine is specifically designed for LinkedIn people search
+    // Use Google search with site:linkedin.com/in filter
+    // This works with basic SerpAPI plans (linkedin_people engine requires premium)
+    const linkedInQuery = `site:linkedin.com/in ${searchQuery}`;
+    
     const url = new URL('https://serpapi.com/search.json');
     url.searchParams.set('api_key', apiKey);
-    url.searchParams.set('engine', 'linkedin_people');  // Use dedicated LinkedIn engine
-    url.searchParams.set('q', searchQuery);
+    url.searchParams.set('engine', 'google');
+    url.searchParams.set('q', linkedInQuery);
+    url.searchParams.set('num', String(Math.min(limit, 100)));
     
-    // Add filters if provided
-    if (params.location) {
-      url.searchParams.set('location', params.location);
-    }
+    console.log(`   🌐 Google query: "${linkedInQuery}"`);
     
     const response = await fetch(url.toString());
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[SerpAPI Error] ${response.status}: ${errorText}`);
       throw new Error(`SerpAPI request failed: ${response.status} ${response.statusText}`);
     }
     
@@ -89,31 +91,44 @@ export async function searchLinkedInPeople(
     
     // Check for API errors
     if (data.error) {
+      console.error(`[SerpAPI Error] ${data.error}`);
       throw new Error(`SerpAPI error: ${data.error}`);
     }
     
-    // Parse results from LinkedIn People Search engine
+    // Parse results from Google organic results
     const profiles: LinkedInProfileResult[] = [];
-    const results = data.profiles || data.organic_results || [];
+    const results = data.organic_results || [];
     
-    console.log(`✅ [LinkedIn People Search] Found ${results.length} raw results`);
+    console.log(`✅ [LinkedIn People Search] Found ${results.length} Google results`);
     
     for (const result of results.slice(0, limit)) {
-      // Extract profile data from SerpAPI response
+      // Extract LinkedIn profile URL
+      const profileUrl = result.link || '';
+      
+      // Only process valid LinkedIn profile URLs
+      if (!profileUrl.includes('linkedin.com/in/')) {
+        continue;
+      }
+      
+      // Extract name from title (Google format: "Name - Title - Company | LinkedIn")
+      const titleParts = (result.title || '').split(/[\-|]/);
+      const name = titleParts[0]?.trim() || 'Unknown';
+      const title = titleParts[1]?.trim() || 'No title available';
+      const company = titleParts[2]?.replace('LinkedIn', '').trim() || 'Unknown';
+      
       const profile: LinkedInProfileResult = {
-        name: result.name || result.title || 'Unknown',
-        title: result.title || result.job_title || result.headline || 'No title available',
-        company: result.company || result.current_company || 'Unknown',
-        location: result.location || params.location || 'Unknown',
-        profileUrl: result.link || result.url || result.profile_url || '',
-        snippet: result.snippet || result.description || result.summary,
-        imageUrl: result.thumbnail || result.image || result.photo_url,
+        name,
+        title,
+        company,
+        location: params.location || 'Unknown',
+        profileUrl,
+        snippet: result.snippet || '',
+        imageUrl: undefined, // Google results don't include profile images
       };
       
-      // Only include results with valid LinkedIn URLs
-      if (profile.profileUrl && profile.profileUrl.includes('linkedin.com/in/')) {
-        profiles.push(profile);
-      }
+      profiles.push(profile);
+      
+      console.log(`   📋 Found: ${profile.name} - ${profile.title} at ${profile.company}`);
     }
     
     console.log(`✅ [LinkedIn People Search] Parsed ${profiles.length} valid profiles`);
