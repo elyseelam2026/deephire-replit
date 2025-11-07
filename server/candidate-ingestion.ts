@@ -115,6 +115,18 @@ export async function createCandidateFromLinkedInProfile(
       isOpenToOpportunities: true,
     };
     
+    // DEBUG: Check for NaN values in integer fields
+    const intFields = {
+      currentCompanyId: candidateData.currentCompanyId,
+      yearsExperience: candidateData.yearsExperience,
+      sourcingRunId: candidateData.sourcingRunId,
+    };
+    for (const [key, val] of Object.entries(intFields)) {
+      if (typeof val === 'number' && isNaN(val)) {
+        console.error(`   ❌ [DEBUG] Field "${key}" is NaN!`);
+      }
+    }
+    
     const [newCandidate] = await db
       .insert(candidates)
       .values([candidateData])
@@ -359,7 +371,9 @@ function calculateYearsExperience(experience: Array<{ start_date?: string; end_d
       const startDate = new Date(exp.start_date);
       const endDate = exp.end_date ? new Date(exp.end_date) : new Date();
       
+      // Validate both dates to prevent NaN
       if (isNaN(startDate.getTime())) continue;
+      if (isNaN(endDate.getTime())) continue;
       
       const months = Math.max(0, 
         (endDate.getFullYear() - startDate.getFullYear()) * 12 +
@@ -369,7 +383,10 @@ function calculateYearsExperience(experience: Array<{ start_date?: string; end_d
       totalMonths += months;
     }
     
-    return Math.floor(totalMonths / 12);
+    const years = Math.floor(totalMonths / 12);
+    
+    // Return null if calculation resulted in NaN or invalid value
+    return isNaN(years) ? null : years;
     
   } catch (error) {
     console.error('[Experience Calculation] Error:', error);
