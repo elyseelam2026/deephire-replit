@@ -7,7 +7,6 @@ import { db } from './db';
 import { candidates, companies, type InsertCandidate } from '../shared/schema';
 import { eq, and, sql, or } from 'drizzle-orm';
 import type { LinkedInProfileData } from './brightdata';
-import { generateGrokEmbedding } from './ai';
 
 export interface CandidateIngestionResult {
   success: boolean;
@@ -65,17 +64,9 @@ export async function createCandidateFromLinkedInProfile(
       companyId = await findOrCreateCompany(parsedData.currentCompany);
     }
     
-    // Step 4: Generate embedding from profile text
+    // Step 4: Build CV text
     const cvText = buildCvText(profileData);
-    let cvEmbedding: number[] | null = null;
-    
-    try {
-      cvEmbedding = await generateGrokEmbedding(cvText);
-      console.log(`   ✅ Generated embedding (${cvEmbedding?.length || 0} dimensions)`);
-    } catch (error) {
-      console.log(`   ⚠️  Failed to generate embedding:`, error);
-      // Continue without embedding - we can generate it later
-    }
+    // Note: Embeddings will be generated in a background job later
     
     // Step 5: Create candidate record
     const candidateData: InsertCandidate = {
@@ -113,10 +104,10 @@ export async function createCandidateFromLinkedInProfile(
       scrapedAt: new Date(),
       scrapingMethod: 'brightdata',
       
-      // Embeddings
-      cvEmbedding: cvEmbedding ? `[${cvEmbedding.join(',')}]` as any : null,
-      embeddingGeneratedAt: cvEmbedding ? new Date() : null,
-      embeddingModel: cvEmbedding ? 'voyage-2' : null,
+      // Embeddings (will be generated later by background job)
+      cvEmbedding: null,
+      embeddingGeneratedAt: null,
+      embeddingModel: null,
       
       // Status
       candidateStatus: 'new',
@@ -126,7 +117,7 @@ export async function createCandidateFromLinkedInProfile(
     
     const [newCandidate] = await db
       .insert(candidates)
-      .values(candidateData)
+      .values([candidateData])
       .returning();
     
     console.log(`   ✅ Created candidate: ${newCandidate.firstName} ${newCandidate.lastName} (ID: ${newCandidate.id})`);
@@ -171,14 +162,15 @@ function parseLinkedInProfile(
   const currentTitle = currentExperience?.title || profileData.position || null;
   const currentCompany = currentExperience?.company || profileData.current_company_name || profileData.current_company || null;
   
-  // Parse career history
+  // Parse career history (matching the exact schema type)
   const careerHistory = profileData.experience?.map(exp => ({
     company: exp.company || 'Unknown',
+    companyId: null as number | null | undefined,
     title: exp.title || 'Unknown',
-    startDate: exp.start_date || null,
+    startDate: exp.start_date || '',
     endDate: exp.end_date || null,
-    description: exp.description || null,
-    location: exp.location || null,
+    description: exp.description,
+    location: exp.location,
   })) || [];
   
   // Parse education

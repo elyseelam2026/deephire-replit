@@ -7,6 +7,7 @@ import { scrapeLinkedInProfile, type LinkedInProfileData } from './brightdata';
 import { db } from './db';
 import { sourcingRuns, candidates } from '../shared/schema';
 import { eq } from 'drizzle-orm';
+import { batchCreateCandidates } from './candidate-ingestion';
 
 export interface SourcingJobConfig {
   sourcingRunId: number;
@@ -153,6 +154,86 @@ export async function orchestrateProfileFetching(
     totalBatches,
     message: `Fetched ${successCount} profiles successfully. Processing candidates...`,
   });
+  
+  // Step 2: Ingest profiles into database (CREATE CANDIDATES)
+  console.log(`\n🔄 [Sourcing Orchestrator] Starting candidate ingestion...`);
+  
+  const successfulProfiles: LinkedInProfileData[] = [];
+  const successfulUrls: string[] = [];
+  
+  for (const result of results) {
+    if (result.success && result.data) {
+      successfulProfiles.push(result.data);
+      successfulUrls.push(result.url);
+    }
+  }
+  
+  if (successfulProfiles.length > 0) {
+    const ingestionResults = await batchCreateCandidates(
+      successfulProfiles,
+      sourcingRunId,
+      successfulUrls
+    );
+    
+    const candidatesCreated = ingestionResults.filter(r => r.success).length;
+    const candidatesDuplicate = ingestionResults.filter(r => r.isDuplicate).length;
+    const candidateIds = ingestionResults
+      .filter(r => r.success && r.candidateId)
+      .map(r => r.candidateId!);
+    
+    // Update sourcing run with final results
+    await db
+      .update(sourcingRuns)
+      .set({
+        status: 'completed',
+        candidatesCreated: candidateIds,
+        completedAt: new Date(),
+        progress: {
+          phase: 'completed',
+          profilesFound: profileUrls.length,
+          profilesFetched: successCount,
+          profilesProcessed: successfulProfiles.length,
+          candidatesCreated,
+          candidatesDuplicate,
+          currentBatch: totalBatches,
+          totalBatches,
+          message: `✅ Completed: Created ${candidatesCreated} candidates (${candidatesDuplicate} duplicates skipped)`,
+        } as any,
+      })
+      .where(eq(sourcingRuns.id, sourcingRunId));
+    
+    console.log(`\n✅ [Sourcing Orchestrator] Job complete!`);
+    console.log(`   Profiles fetched: ${successCount}`);
+    console.log(`   Candidates created: ${candidatesCreated}`);
+    console.log(`   Duplicates skipped: ${candidatesDuplicate}`);
+  } else {
+    // No successful profiles - mark as completed with zero results
+    await db
+      .update(sourcingRuns)
+      .set({
+        status: failedCount === profileUrls.length ? 'failed' : 'completed',
+        candidatesCreated: [],
+        completedAt: new Date(),
+        progress: {
+          phase: failedCount === profileUrls.length ? 'failed' : 'completed',
+          profilesFound: profileUrls.length,
+          profilesFetched: 0,
+          profilesProcessed: 0,
+          candidatesCreated: 0,
+          candidatesDuplicate: 0,
+          currentBatch: totalBatches,
+          totalBatches,
+          message: failedCount === profileUrls.length 
+            ? `❌ Failed: All ${failedCount} profile fetches failed`
+            : `⚠️  Completed: No profiles fetched (${profileUrls.length} URLs provided)`,
+        } as any,
+      })
+      .where(eq(sourcingRuns.id, sourcingRunId));
+    
+    console.log(`\n⚠️  [Sourcing Orchestrator] No candidates created`);
+    console.log(`   Profiles found: ${profileUrls.length}`);
+    console.log(`   Successful fetches: 0`);
+  }
   
   return results;
 }

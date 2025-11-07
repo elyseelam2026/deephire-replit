@@ -3,6 +3,7 @@ import {
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
   companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions, searchPromises,
+  sourcingRuns,
   type Company, type Job, type Candidate, type JobMatch, type JobCandidate, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertJobCandidate, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
@@ -12,7 +13,8 @@ import {
   type IndustryCampaign, type InsertIndustryCampaign, type CompanyResearchResult, type InsertCompanyResearchResult,
   type CompanyStaging, type InsertCompanyStaging, type CandidateCompany, type InsertCandidateCompany,
   type CustomFieldSection, type InsertCustomFieldSection, type CustomFieldDefinition, type InsertCustomFieldDefinition,
-  type SearchPromise, type InsertSearchPromise
+  type SearchPromise, type InsertSearchPromise,
+  type SourcingRun, type InsertSourcingRun
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -198,6 +200,13 @@ export interface IStorage {
   getCustomFieldDefinition(id: number): Promise<CustomFieldDefinition | undefined>;
   updateCustomFieldDefinition(id: number, updates: Partial<InsertCustomFieldDefinition>): Promise<CustomFieldDefinition | undefined>;
   deleteCustomFieldDefinition(id: number): Promise<void>;
+  
+  // External Candidate Sourcing (LinkedIn People Search)
+  createSourcingRun(sourcingRun: InsertSourcingRun): Promise<SourcingRun>;
+  getSourcingRun(id: number): Promise<SourcingRun | undefined>;
+  getSourcingRuns(filters?: { jobId?: number; status?: string }): Promise<SourcingRun[]>;
+  updateSourcingRun(id: number, updates: Partial<InsertSourcingRun>): Promise<SourcingRun | undefined>;
+  getSourcingRunCandidates(sourcingRunId: number): Promise<Candidate[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1735,6 +1744,49 @@ export class DatabaseStorage implements IStorage {
   
   async deleteCustomFieldDefinition(id: number): Promise<void> {
     await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
+  }
+  
+  // External Candidate Sourcing
+  async createSourcingRun(sourcingRun: InsertSourcingRun): Promise<SourcingRun> {
+    const [created] = await db.insert(sourcingRuns).values(sourcingRun).returning();
+    return created;
+  }
+  
+  async getSourcingRun(id: number): Promise<SourcingRun | undefined> {
+    const [run] = await db.select().from(sourcingRuns).where(eq(sourcingRuns.id, id));
+    return run || undefined;
+  }
+  
+  async getSourcingRuns(filters?: { jobId?: number; status?: string }): Promise<SourcingRun[]> {
+    let query = db.select().from(sourcingRuns);
+    
+    const conditions = [];
+    if (filters?.jobId) {
+      conditions.push(eq(sourcingRuns.jobId, filters.jobId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(sourcingRuns.status, filters.status));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    
+    return query.orderBy(desc(sourcingRuns.createdAt));
+  }
+  
+  async updateSourcingRun(id: number, updates: Partial<InsertSourcingRun>): Promise<SourcingRun | undefined> {
+    const [updated] = await db.update(sourcingRuns)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(sourcingRuns.id, id))
+      .returning();
+    return updated || undefined;
+  }
+  
+  async getSourcingRunCandidates(sourcingRunId: number): Promise<Candidate[]> {
+    return await db.select().from(candidates)
+      .where(eq(candidates.sourcingRunId, sourcingRunId))
+      .orderBy(desc(candidates.createdAt));
   }
 }
 
