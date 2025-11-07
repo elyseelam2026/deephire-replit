@@ -387,6 +387,13 @@ export const candidates = pgTable("candidates", {
   interactionHistory: jsonb("interaction_history"), // Array of interaction/note objects
   // Example: [{id: "note_123", type: "note", content: "Great candidate", createdAt: "2025-01-01T12:00:00Z"}]
   
+  // Candidate Provenance & Sourcing (External Candidate Research)
+  sourceType: text("source_type").default("manual"), // manual, linkedin_scrape, referral, company_research, external_search
+  sourcingRunId: integer("sourcing_run_id"), // FK to sourcing_runs table (no formal constraint to avoid circular issues)
+  externalSourceUrl: text("external_source_url"), // Original LinkedIn URL or web source
+  scrapedAt: timestamp("scraped_at"), // When profile was fetched from external source
+  scrapingMethod: text("scraping_method"), // brightdata, serpapi, manual
+  
   // System fields (existing)
   cvText: text("cv_text"), // extracted CV text
   
@@ -398,6 +405,57 @@ export const candidates = pgTable("candidates", {
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
+});
+
+// Sourcing Runs - External candidate sourcing operations
+export const sourcingRuns = pgTable("sourcing_runs", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Source context
+  jobId: integer("job_id").references(() => jobs.id), // Optional: which job triggered this search
+  conversationId: integer("conversation_id").references(() => napConversations.id), // Which chat conversation
+  
+  // Search parameters
+  searchType: text("search_type").notNull(), // linkedin_people_search, company_research, reference_based
+  searchQuery: jsonb("search_query"), // Search criteria: {title, location, keywords, company, etc.}
+  searchIntent: text("search_intent"), // Human-readable description of what we're searching for
+  
+  // Execution tracking
+  status: text("status").default("queued").notNull(), // queued, searching, fetching_profiles, processing, completed, failed, cancelled
+  progress: jsonb("progress").$type<{
+    phase: string;              // Current phase: "searching" | "fetching" | "processing"
+    profilesFound?: number;      // Total profiles discovered
+    profilesFetched?: number;    // Profiles successfully fetched
+    profilesProcessed?: number;  // Profiles parsed and added to DB
+    candidatesCreated?: number;  // New candidates created
+    candidatesDuplicate?: number;// Duplicates skipped
+    currentBatch?: number;       // Current batch number
+    totalBatches?: number;       // Total batches to process
+    message?: string;            // Status message for UI
+  }>(),
+  
+  // Results
+  profileUrls: text("profile_urls").array(), // LinkedIn URLs discovered
+  candidatesCreated: integer("candidates_created").array(), // IDs of candidates created
+  errorLog: jsonb("error_log"), // Array of error objects
+  
+  // Costs & Quotas
+  serpApiCalls: integer("serp_api_calls").default(0), // Number of SerpAPI calls made
+  brightDataCalls: integer("bright_data_calls").default(0), // Number of Bright Data calls
+  estimatedCost: real("estimated_cost"), // Estimated cost in USD
+  
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  duration: integer("duration"), // Duration in seconds
+  
+  // Metadata
+  triggeredBy: text("triggered_by"), // user_id or "system"
+  priority: text("priority").default("normal"), // low, normal, high, urgent
+  
+  // System fields
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
 
 // Custom Field Sections - Salesforce-style field grouping
@@ -1022,6 +1080,14 @@ export const insertCandidateSchema = createInsertSchema(candidates).omit({
   updatedAt: true,
 });
 
+export const insertSourcingRunSchema = createInsertSchema(sourcingRuns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  startedAt: true,
+  completedAt: true,
+});
+
 export const insertJobMatchSchema = createInsertSchema(jobMatches).omit({
   id: true,
   createdAt: true,
@@ -1502,6 +1568,9 @@ export type JobCandidate = typeof jobCandidates.$inferSelect;
 
 export type InsertCandidate = z.infer<typeof insertCandidateSchema>;
 export type Candidate = typeof candidates.$inferSelect;
+
+export type InsertSourcingRun = z.infer<typeof insertSourcingRunSchema>;
+export type SourcingRun = typeof sourcingRuns.$inferSelect;
 
 export type InsertJobMatch = z.infer<typeof insertJobMatchSchema>;
 export type JobMatch = typeof jobMatches.$inferSelect;
