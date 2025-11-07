@@ -2347,6 +2347,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
             matchedCandidates = [];
           }
           
+          // 🚀 EXTERNAL SOURCING: If user requested external search, trigger LinkedIn sourcing
+          let sourcingRunId: number | undefined;
+          if (searchTier === 'external') {
+            console.log('🌐 [External Sourcing] User requested external search - triggering LinkedIn sourcing...');
+            
+            try {
+              // Build search criteria for LinkedIn from job context
+              const linkedInSearchCriteria: any = {
+                title: updatedSearchContext.title,
+                location: updatedSearchContext.location,
+                keywords: updatedSearchContext.skills?.join(' OR ') || undefined
+              };
+              
+              console.log('[External Sourcing] Searching LinkedIn with criteria:', linkedInSearchCriteria);
+              const searchResults = await searchLinkedInPeople(linkedInSearchCriteria, 20);
+              
+              if (!searchResults || searchResults.profiles.length === 0) {
+                console.log('[External Sourcing] No LinkedIn profiles found');
+              } else {
+                const profileUrls = searchResults.profiles.map(r => r.profileUrl).filter(Boolean);
+                console.log(`[External Sourcing] Found ${profileUrls.length} LinkedIn profiles`);
+                
+                // Create sourcing run
+                const sourcingRun = await storage.createSourcingRun({
+                  jobId: createdJobId,
+                  conversationId: conversationId,
+                  searchType: 'linkedin_people_search',
+                  searchQuery: linkedInSearchCriteria,
+                  searchIntent: `External search for ${updatedSearchContext.title}`,
+                  status: 'pending',
+                  progress: {
+                    phase: 'pending',
+                    profilesFound: profileUrls.length,
+                    profilesFetched: 0,
+                    profilesProcessed: 0,
+                    candidatesCreated: 0,
+                    candidatesDuplicate: 0,
+                    currentBatch: 0,
+                    totalBatches: Math.ceil(profileUrls.length / 5),
+                    message: `Found ${profileUrls.length} profiles, starting fetch...`
+                  } as any,
+                  candidatesCreated: []
+                });
+                
+                sourcingRunId = sourcingRun.id;
+                console.log(`[External Sourcing] Created sourcing run #${sourcingRunId}`);
+                
+                // Launch async profile fetching (fire-and-forget)
+                orchestrateProfileFetching({
+                  sourcingRunId: sourcingRun.id,
+                  profileUrls
+                }).catch(error => {
+                  console.error('[External Sourcing] Orchestration failed:', error);
+                });
+              }
+            } catch (error) {
+              console.error('[External Sourcing] Error triggering external search:', error);
+            }
+          }
+          
           // Update job search progress
           await storage.updateJob(createdJobId, {
             searchExecutionStatus: 'completed',
@@ -2379,16 +2439,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : `\n**Fee Structure**: ${feePercentage}% of first-year base salary`;
           
           // Override AI response to direct user to Jobs page  
+          const externalSourcingMessage = sourcingRunId 
+            ? `\n\n🌐 **External Search**: Searching LinkedIn now... I'll add new candidates to the pipeline as they're discovered. Check back in a few minutes!`
+            : '';
+          
           aiResponse = `✅ **Job Order Created!**\n\n` +
             `I've created **Job Order #${createdJobId}** for the **${updatedSearchContext.title}** position and completed the ${searchTier} search.\n\n` +
             `**Search Tier**: ${searchTier === 'internal' ? 'Internal Database (~15 min)' : 'Extended External Search'}` +
             pricingInfo + `\n\n` +
-            `**Results**: ${matchedCandidates.length > 0 ? `Found ${matchedCandidates.length} matched candidates` : 'No matches found in our current database'}\n\n` +
+            `**Internal Database**: ${matchedCandidates.length > 0 ? `${matchedCandidates.length} matched candidates` : 'No matches found'}` +
+            externalSourcingMessage + `\n\n` +
             `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
             `You can now review candidates, move them through stages (Shortlist → Interview → Offer), and manage this search.` +
-            (matchedCandidates.length === 0 
+            (matchedCandidates.length === 0 && !sourcingRunId
               ? `\n\nWould you like me to run an **Extended External Search** to find candidates from LinkedIn and other sources?`
-              : `\n\nNeed more candidates? I can run an Extended External Search for additional options.`);
+              : matchedCandidates.length > 0 && !sourcingRunId
+              ? `\n\nNeed more candidates? I can run an Extended External Search for additional options.`
+              : '');
 
           newPhase = 'job_order_created';
         }
