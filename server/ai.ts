@@ -1588,7 +1588,7 @@ export async function parseJobDescription(jdText: string): Promise<{
       messages: [
         {
           role: "system",
-          content: "You are an expert recruiter. Parse job descriptions and extract structured data in JSON format. Always respond with valid JSON."
+          content: "You are an expert recruiter and executive search consultant. Parse job descriptions and extract structured data in JSON format. Pay special attention to reference candidate patterns like 'Find candidates similar to [Name] at [Company]'. Always respond with valid JSON."
         },
         {
           role: "user",
@@ -1609,6 +1609,17 @@ export async function parseJobDescription(jdText: string): Promise<{
             "industry": "industry (e.g., Private Equity, Technology, Finance, Retail)",
             "companySize": "startup|mid-size|enterprise if mentioned"
           }
+          
+          SPECIAL INSTRUCTIONS FOR REFERENCE CANDIDATE PATTERNS:
+          If the text mentions "similar to [Name] at [Company]" or "like [Name] at [Company]", use your knowledge to infer:
+          1. What role/title that person likely has at that company
+          2. What location that company operates in (use primary office locations)
+          3. What skills are relevant for that industry/company
+          
+          Examples:
+          - "Find candidates similar to Yi Guo at Boyu Capital" → title: "Investment Associate" or "Investment Analyst", location: "Hong Kong" or "Beijing" or "Shanghai", skills: ["Private Equity", "Investment Banking", "Financial Modeling", "Deal Sourcing"], industry: "Private Equity"
+          - "Find someone like Sarah Chen at Google" → title: "Software Engineer", location: "Mountain View" or "San Francisco", skills: ["Software Development", "System Design", "Algorithms"], industry: "Technology"
+          - "Similar to John Smith at Goldman Sachs" → title: "Investment Banking Analyst", location: "New York" or "London", skills: ["Financial Analysis", "M&A", "Capital Markets"], industry: "Investment Banking"
           
           Job Description:
           ${jdText}`
