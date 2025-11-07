@@ -142,9 +142,8 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              // Navigate using absolute path - add /recruiting prefix only if not already present
-              const finalUrl = linkUrl.startsWith('/') ? linkUrl : `/recruiting/${linkUrl}`;
-              window.location.href = finalUrl;
+              // Navigate using wouter - setLocation handles base paths correctly
+              setLocation(linkUrl);
             }}
             className="text-primary underline hover:text-primary/80 font-medium cursor-pointer"
           >
