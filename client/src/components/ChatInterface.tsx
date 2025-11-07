@@ -142,8 +142,11 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              // Navigate using wouter - setLocation handles base paths correctly
-              setLocation(linkUrl);
+              // Strip /recruiting prefix if present since wouter base="/recruiting" will add it
+              const cleanUrl = linkUrl.startsWith('/recruiting/') 
+                ? linkUrl.substring('/recruiting'.length)
+                : linkUrl;
+              setLocation(cleanUrl);
             }}
             className="text-primary underline hover:text-primary/80 font-medium cursor-pointer"
           >
