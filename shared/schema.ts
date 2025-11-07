@@ -419,6 +419,7 @@ export const sourcingRuns = pgTable("sourcing_runs", {
   searchType: text("search_type").notNull(), // linkedin_people_search, company_research, reference_based
   searchQuery: jsonb("search_query"), // Search criteria: {title, location, keywords, company, etc.}
   searchIntent: text("search_intent"), // Human-readable description of what we're searching for
+  searchRationale: text("search_rationale"), // AI's explanation of WHY these search criteria were chosen
   
   // Execution tracking
   status: text("status").default("queued").notNull(), // queued, searching, fetching_profiles, processing, completed, failed, cancelled

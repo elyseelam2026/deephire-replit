@@ -5,8 +5,8 @@
 
 import { scrapeLinkedInProfile, type LinkedInProfileData } from './brightdata';
 import { db } from './db';
-import { sourcingRuns, candidates } from '../shared/schema';
-import { eq } from 'drizzle-orm';
+import { sourcingRuns, candidates, jobCandidates } from '../shared/schema';
+import { eq, and } from 'drizzle-orm';
 import { batchCreateCandidates } from './candidate-ingestion';
 
 export interface SourcingJobConfig {
@@ -180,6 +180,65 @@ export async function orchestrateProfileFetching(
     const candidateIds = ingestionResults
       .filter(r => r.success && r.candidateId)
       .map(r => r.candidateId!);
+    
+    // Step 3: Link candidates to job if jobId exists
+    let jobCandidatesLinked = 0;
+    if (candidateIds.length > 0) {
+      try {
+        // Get sourcing run to check if it has a jobId
+        const [sourcingRun] = await db
+          .select()
+          .from(sourcingRuns)
+          .where(eq(sourcingRuns.id, sourcingRunId))
+          .limit(1);
+        
+        if (sourcingRun?.jobId) {
+          console.log(`\n🔗 [Sourcing Orchestrator] Linking ${candidateIds.length} candidates to job #${sourcingRun.jobId}...`);
+          
+          // Create job_candidates entries for all newly sourced candidates
+          for (const candidateId of candidateIds) {
+            // Check if candidate is already linked to this job (prevent duplicates)
+            const [existing] = await db
+              .select()
+              .from(jobCandidates)
+              .where(
+                and(
+                  eq(jobCandidates.jobId, sourcingRun.jobId),
+                  eq(jobCandidates.candidateId, candidateId)
+                )
+              )
+              .limit(1);
+            
+            if (!existing) {
+              await db.insert(jobCandidates).values({
+                jobId: sourcingRun.jobId,
+                candidateId: candidateId,
+                status: 'recommended',
+                matchScore: 80, // Default score for externally sourced candidates
+                aiReasoning: {
+                  reasoning: `Externally sourced from LinkedIn via automated search (Run #${sourcingRunId})`,
+                  source: 'external_linkedin_search',
+                  sourcingRunId
+                },
+                searchTier: 2, // Tier 2 for external sourcing
+                recruiterNotes: null,
+                lastActionAt: new Date()
+              });
+              jobCandidatesLinked++;
+            } else {
+              console.log(`   [SKIP] Candidate #${candidateId} already linked to job #${sourcingRun.jobId}`);
+            }
+          }
+          
+          console.log(`✅ [Sourcing Orchestrator] Linked ${jobCandidatesLinked} candidates to job #${sourcingRun.jobId}`);
+        } else {
+          console.log(`ℹ️  [Sourcing Orchestrator] No jobId found - candidates saved without job link`);
+        }
+      } catch (error) {
+        console.error(`❌ [Sourcing Orchestrator] Failed to link candidates to job:`, error);
+        // Don't fail the whole operation if linking fails
+      }
+    }
     
     // Update sourcing run with final results
     await db

@@ -2349,6 +2349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // 🚀 EXTERNAL SOURCING: If user requested external search, trigger LinkedIn sourcing
           let sourcingRunId: number | undefined;
+          let searchRationale: string | undefined;
           if (searchTier === 'external') {
             console.log('🌐 [External Sourcing] User requested external search - triggering LinkedIn sourcing...');
             
@@ -2360,6 +2361,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 keywords: updatedSearchContext.skills?.join(' OR ') || undefined
               };
               
+              // Generate search rationale for transparency
+              const topSkills = updatedSearchContext.skills?.slice(0, 3).join(', ') || 'relevant experience';
+              searchRationale = `**Search Strategy**:\n\n` +
+                `**Title**: "${linkedInSearchCriteria.title}" - Targeting professionals with this exact role\n` +
+                `**Location**: "${linkedInSearchCriteria.location}" - Focusing on candidates in your target market\n` +
+                `**Keywords**: ${topSkills} - Matching profiles with the most critical skills from your job description\n\n` +
+                `This search is designed to find active LinkedIn professionals who match your requirements and are likely open to new opportunities.`;
+              
               console.log('[External Sourcing] Searching LinkedIn with criteria:', linkedInSearchCriteria);
               const searchResults = await searchLinkedInPeople(linkedInSearchCriteria, 20);
               
@@ -2369,13 +2378,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const profileUrls = searchResults.profiles.map(r => r.profileUrl).filter(Boolean);
                 console.log(`[External Sourcing] Found ${profileUrls.length} LinkedIn profiles`);
                 
-                // Create sourcing run
+                // Create sourcing run with rationale
                 const sourcingRun = await storage.createSourcingRun({
                   jobId: createdJobId,
                   conversationId: conversationId,
                   searchType: 'linkedin_people_search',
                   searchQuery: linkedInSearchCriteria,
                   searchIntent: `External search for ${updatedSearchContext.title}`,
+                  searchRationale: searchRationale,
                   status: 'pending',
                   progress: {
                     phase: 'pending',
@@ -2440,7 +2450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Override AI response to direct user to Jobs page  
           const externalSourcingMessage = sourcingRunId 
-            ? `\n\n🌐 **External Search**: Searching LinkedIn now... I'll add new candidates to the pipeline as they're discovered. Check back in a few minutes!`
+            ? `\n\n${searchRationale}\n\n🌐 **External Search Status**: Searching LinkedIn now... I'll add new candidates to the pipeline as they're discovered. Check back in a few minutes!`
             : '';
           
           aiResponse = `✅ **Job Order Created!**\n\n` +
