@@ -20,6 +20,9 @@ import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
 import { transliterateName, inferEmail } from "./transliteration";
+import { searchLinkedInPeople } from "./serpapi";
+import { orchestrateProfileFetching } from "./sourcing-orchestrator";
+import { sourcingRuns } from "@shared/schema";
 import { z } from "zod";
 import mammoth from "mammoth";
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -5131,6 +5134,153 @@ CRITICAL RULES - You MUST follow these strictly:
     } catch (error) {
       console.error('Research status error:', error);
       res.status(500).json({ error: 'Failed to check research status' });
+    }
+  });
+
+  // External Candidate Sourcing Routes
+  
+  // POST /api/sourcing/search - Trigger external candidate search
+  app.post("/api/sourcing/search", async (req, res) => {
+    try {
+      const { jobId, searchCriteria } = req.body;
+      
+      if (!searchCriteria || typeof searchCriteria !== 'object') {
+        return res.status(400).json({ error: 'searchCriteria is required and must be an object' });
+      }
+      
+      // Step 1: Execute LinkedIn People Search to get profile URLs
+      console.log(`[Sourcing API] Searching LinkedIn with criteria:`, searchCriteria);
+      const searchResults = await searchLinkedInPeople(searchCriteria);
+      
+      if (!searchResults || searchResults.profiles.length === 0) {
+        console.log(`[Sourcing API] No LinkedIn profiles found`);
+        
+        // Create sourcing run with zero results
+        const sourcingRun = await storage.createSourcingRun({
+          jobId: jobId || null,
+          searchType: 'linkedin_people_search',
+          searchQuery: searchCriteria,
+          searchIntent: `LinkedIn search: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
+          status: 'completed',
+          progress: {
+            phase: 'completed',
+            profilesFound: 0,
+            profilesFetched: 0,
+            profilesProcessed: 0,
+            candidatesCreated: 0,
+            candidatesDuplicate: 0,
+            currentBatch: 0,
+            totalBatches: 0,
+            message: '⚠️ No LinkedIn profiles found for search criteria'
+          } as any,
+          candidatesCreated: [],
+          completedAt: new Date()
+        });
+        
+        return res.json({
+          runId: sourcingRun.id,
+          status: 'completed',
+          message: 'No candidates found',
+          profilesFound: 0
+        });
+      }
+      
+      const profileUrls = searchResults.profiles.map(r => r.profileUrl).filter(Boolean);
+      console.log(`[Sourcing API] Found ${profileUrls.length} LinkedIn profiles`);
+      
+      // Step 2: Create sourcing run record
+      const sourcingRun = await storage.createSourcingRun({
+        jobId: jobId || null,
+        searchType: 'linkedin_people_search',
+        searchQuery: searchCriteria,
+        searchIntent: `LinkedIn search: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
+        status: 'pending',
+        progress: {
+          phase: 'pending',
+          profilesFound: profileUrls.length,
+          profilesFetched: 0,
+          profilesProcessed: 0,
+          candidatesCreated: 0,
+          candidatesDuplicate: 0,
+          currentBatch: 0,
+          totalBatches: Math.ceil(profileUrls.length / 5),
+          message: `Found ${profileUrls.length} profiles, starting fetch...`
+        } as any,
+        candidatesCreated: []
+      });
+      
+      // Step 3: Start async profile fetching (don't await - fire and forget)
+      orchestrateProfileFetching({
+        sourcingRunId: sourcingRun.id,
+        profileUrls
+      }).catch(error => {
+        console.error('[Sourcing API] Orchestration failed:', error);
+      });
+      
+      res.json({
+        runId: sourcingRun.id,
+        status: 'pending',
+        message: `Found ${profileUrls.length} candidates, fetching profiles...`,
+        profilesFound: profileUrls.length
+      });
+      
+    } catch (error: any) {
+      console.error('[Sourcing API] Search error:', error);
+      res.status(500).json({ error: error.message || 'Failed to initiate sourcing search' });
+    }
+  });
+  
+  // GET /api/sourcing/:runId - Check sourcing run progress
+  app.get("/api/sourcing/:runId", async (req, res) => {
+    try {
+      const runId = parseInt(req.params.runId);
+      
+      if (isNaN(runId)) {
+        return res.status(400).json({ error: 'Invalid run ID' });
+      }
+      
+      const sourcingRun = await storage.getSourcingRun(runId);
+      
+      if (!sourcingRun) {
+        return res.status(404).json({ error: 'Sourcing run not found' });
+      }
+      
+      res.json({
+        id: sourcingRun.id,
+        jobId: sourcingRun.jobId,
+        status: sourcingRun.status,
+        progress: sourcingRun.progress,
+        candidatesCreated: sourcingRun.candidatesCreated,
+        createdAt: sourcingRun.createdAt,
+        completedAt: sourcingRun.completedAt
+      });
+      
+    } catch (error: any) {
+      console.error('[Sourcing API] Status check error:', error);
+      res.status(500).json({ error: error.message || 'Failed to check sourcing run status' });
+    }
+  });
+  
+  // GET /api/sourcing/:runId/candidates - Get candidates from sourcing run
+  app.get("/api/sourcing/:runId/candidates", async (req, res) => {
+    try {
+      const runId = parseInt(req.params.runId);
+      
+      if (isNaN(runId)) {
+        return res.status(400).json({ error: 'Invalid run ID' });
+      }
+      
+      const candidates = await storage.getSourcingRunCandidates(runId);
+      
+      res.json({
+        runId,
+        candidates,
+        total: candidates.length
+      });
+      
+    } catch (error: any) {
+      console.error('[Sourcing API] Candidates fetch error:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch sourcing run candidates' });
     }
   });
 
