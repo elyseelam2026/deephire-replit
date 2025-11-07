@@ -1885,11 +1885,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Step 4: AUTO-EXECUTE SEARCH (no asking permission)
           console.log('[Reference Candidate] Auto-executing search...');
           
-          // Search database for matches using title
-          const searchQuery = finalCriteria.title || profileData.position || '';
-          const allCandidates = await storage.searchCandidates(searchQuery);
+          // Get ALL candidates and use intelligent matching
+          const allCandidates = await storage.getCandidates();
+          console.log(`[Reference Candidate] Analyzing ${allCandidates.length} total candidates for matches...`);
           
-          console.log(`[Reference Candidate] Found ${allCandidates.length} initial matches`);
+          // Use AI to score candidates against job requirements
+          const jobSkills = finalCriteria.requiredSkills || [];
+          const jobText = `${finalCriteria.title || ''} ${finalCriteria.responsibilities || ''} ${finalCriteria.qualifications || ''}`;
+          const scoredCandidates = await generateCandidateLonglist(
+            allCandidates.map(c => ({
+              id: c.id,
+              firstName: c.firstName || '',
+              lastName: c.lastName || '',
+              currentTitle: c.currentTitle || '',
+              skills: c.skills || [],
+              cvText: c.biography || c.cvText
+            })),
+            jobSkills,
+            jobText,
+            20 // Top 20 candidates
+          );
+          
+          console.log(`[Reference Candidate] Generated longlist: ${scoredCandidates.length} top matches`);
           
           // Find or create company for the job
           let jobCompanyId: number | undefined;
@@ -1946,29 +1963,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           createdJobId = job.id;
           
-          // Add top candidates to pipeline
-          const topCandidates = allCandidates.slice(0, 20);
-          if (topCandidates.length > 0) {
-            await storage.addCandidatesToJob(
-              job.id,
-              topCandidates.map((c: any) => ({
-                candidateId: c.id,
-                status: 'recommended',
-                matchScore: 80,
-                searchTier: 'internal',
-                aiSuggestion: `Matches ${companyName} hiring pattern`
-              }))
-            );
+          // Add top candidates to pipeline (use scored candidates, not all)
+          if (scoredCandidates.length > 0) {
+            const candidateIds = scoredCandidates.map(sc => sc.candidateId);
+            await storage.addCandidatesToJob(job.id, candidateIds);
+            
+            // Update match scores using direct DB update
+            const { jobCandidates } = await import('@shared/schema');
+            const { eq, and } = await import('drizzle-orm');
+            
+            for (const scored of scoredCandidates) {
+              await db.update(jobCandidates)
+                .set({ matchScore: scored.matchScore })
+                .where(
+                  and(
+                    eq(jobCandidates.jobId, job.id),
+                    eq(jobCandidates.candidateId, scored.candidateId)
+                  )
+                );
+            }
+            
+            console.log(`[Reference Candidate] Added ${scoredCandidates.length} candidates to pipeline with scores`);
           }
           
-          console.log(`[Reference Candidate] Created job #${job.id} with ${topCandidates.length} candidates`);
+          console.log(`[Reference Candidate] Created job #${job.id} with ${scoredCandidates.length} candidates`);
           
           // Step 5: SHOW RESULTS ONLY (consultant delivery, not methodology)
           const dnaInsight = companyDNA && companyDNA.confidence > 50
             ? `Learned ${companyName}'s hiring DNA from ${companyDNA.teamSize} team members. Key patterns: ${companyDNA.patterns.education?.slice(0, 2).join(', ') || 'Similar backgrounds'}.`
             : `Analyzed ${profileData.name}'s background at ${companyName}.`;
           
-          aiResponse = `✅ **Found ${topCandidates.length} candidates similar to ${profileData.name}**\n\n` +
+          aiResponse = `✅ **Found ${scoredCandidates.length} candidates similar to ${profileData.name}**\n\n` +
             `${dnaInsight}\n\n` +
             `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;

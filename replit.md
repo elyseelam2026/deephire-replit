@@ -1,91 +1,43 @@
 # DeepHire - AI-Powered Talent Acquisition Platform
 
 ## Overview
-DeepHire is an enterprise-grade B2B recruiting platform that leverages AI to revolutionize talent acquisition, initially focusing on Private Equity and expanding to other sectors. It acts as an AI-powered executive search consultant, learning hiring patterns, understanding career trajectories, and semantically matching candidates. The platform offers intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows for recruiting firms, their clients, and candidates, featuring a multi-portal architecture and comprehensive management systems.
+DeepHire is an enterprise B2B recruiting platform leveraging AI to revolutionize talent acquisition, initially targeting Private Equity. It functions as an AI-powered executive search consultant, learning hiring patterns, understanding career trajectories, and semantically matching candidates. The platform provides intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows through a multi-portal architecture and comprehensive management systems.
 
-The long-term vision involves a bottom-up intelligence system that includes:
--   **Company Intelligence**: AI extracts and categorizes data from 1000+ company websites.
--   **Organization Chart Mapping**: Gradually builds organizational charts.
--   **Pattern Learning**: Analyzes org charts to identify hiring patterns.
--   **Semantic Matching**: Matches candidates based on learned patterns and career paths.
--   **Culture Insights**: Learns company culture through interactions.
+The long-term vision includes a bottom-up intelligence system for Company Intelligence, Organization Chart Mapping, Pattern Learning, Semantic Matching, and Culture Insights.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend
--   **Framework**: React 18 with TypeScript.
--   **UI/Styling**: Radix UI, shadcn/ui, Tailwind CSS with a custom enterprise design system.
--   **State Management**: TanStack Query.
--   **Routing**: Wouter.
--   **Theme**: Dark/light mode support.
-
-### Backend
--   **Runtime**: Node.js with Express.js.
--   **Language**: TypeScript.
--   **AI Integration**: xAI's Grok model.
--   **Session Management**: Express sessions with PostgreSQL store.
-
-### Database
--   **Primary Database**: PostgreSQL with Neon serverless hosting.
--   **ORM**: Drizzle ORM.
--   **Schema**: Models for Companies, Candidates, Jobs, Job matches, Users, Data ingestion jobs, and Duplicate detection, with multi-language name support and custom fields.
--   **Company Role Architecture**: Companies can have roles like `['client', 'sourcing', 'prospecting']`.
--   **Duplicate Detection**: Prioritizes website domain matching.
--   **Custom Fields System**: Flexible architecture using `custom_field_sections`, `custom_field_definitions`, and JSONB storage.
--   **Soft Delete**: Candidates are soft-deleted using a `deleted_at` timestamp.
-
-### AI and Machine Learning - Multi-Platform Architecture
--   **Hybrid AI Strategy**: Utilizes specialized AI services for different capabilities.
--   **xAI Grok-2-1212**: Conversational intelligence, job description parsing, candidate longlist generation, AI biography generation, team discovery, and multi-turn conversational interfaces.
--   **Voyage AI**: Semantic embeddings for candidate profiles and search optimization using `voyage-2` model.
--   **PostgreSQL pgvector**: Native vector similarity search for efficient indexed lookups.
--   **Company Intelligence Engine**: Auto-categorizes companies and supports pattern learning.
--   **Embeddings Infrastructure**: API endpoints for generating and searching embeddings, with automatic refresh.
-
-### Design System
--   **Philosophy**: Enterprise-first, professional, and usable.
--   **Palette**: Deep navy primary, professional green accents.
--   **Typography**: Inter font family.
--   **Components**: Reusable components for data tables, cards, forms, navigation.
+### UI/UX Decisions
+The platform features an enterprise-first, professional, and usable design. It utilizes a deep navy primary color with professional green accents, and the Inter font family. Reusable components for data tables, cards, forms, and navigation are central to the UI.
 
 ### Technical Implementations
--   **Manus AI-Style Search Strategy Viewer**: A three-panel job detail interface showing job info, candidate pipeline (future), and an AI-generated, transparent search strategy.
--   **Conversational AI Recruiting Assistant with NAP Collection**: A Grok-powered ChatGPT-style interface for collecting Need Analysis Profile (NAP) information, generating job orders, and creating candidate pipelines. It supports JD file uploads, natural language input, and offers two-tier search pricing (internal vs. external).
--   **Hybrid LinkedIn Search**: Two-stage search for candidate finding, integrated with LinkedIn profile validation via SerpAPI.
--   **Boolean Search**: Advanced LinkedIn search for quick additions.
+The frontend is built with React 18 and TypeScript, using Radix UI, shadcn/ui, and Tailwind CSS for styling, with a custom enterprise design system. State management is handled by TanStack Query, and routing by Wouter, supporting both dark and light modes.
+
+The backend uses Node.js with Express.js and TypeScript. AI integration primarily features xAI's Grok model. Session management is handled by Express sessions with a PostgreSQL store.
+
+Key features include:
+-   **Manus AI-Style Search Strategy Viewer**: A three-panel interface displaying job info, candidate pipeline (future), and an AI-generated search strategy.
+-   **Conversational AI Recruiting Assistant**: A Grok-powered interface for collecting Need Analysis Profile (NAP) information, generating job orders, and creating candidate pipelines, supporting JD file uploads and natural language input.
+-   **Hybrid LinkedIn Search & Boolean Search**: Two-stage candidate search integrated with LinkedIn profile validation via SerpAPI for quick additions.
 -   **Enhanced Team Discovery**: Supports pagination, multi-language sites, and uses a 3-tier scraping system.
 -   **Multi-Language Name System**: Transliteration pipeline for international candidate names and email inference.
--   **Salesforce-Style Custom Fields**: Allows user-defined fields for candidate data with a REST API.
--   **Candidate Management**: Full CRUD operations, intelligent document upload with text extraction, and interaction tracking.
--   **Flexible Processing Modes**: Four modes for candidate uploads (`full`, `career_only`, `bio_only`, `data_only`) and retroactive processing.
--   **Recycling Bin Feature**: Soft delete with restore functionality.
+-   **Salesforce-Style Custom Fields**: User-defined fields for candidate data via a REST API, with a self-service UI for management.
+-   **Candidate Management**: Full CRUD operations, intelligent document upload with text extraction, interaction tracking, and flexible processing modes (`full`, `career_only`, `bio_only`, `data_only`). Includes a soft delete "Recycling Bin" feature.
 -   **Multi-Layer Office Extraction System**: A 4-layer pipeline for reliable office location extraction.
--   **AI-Powered Data Quality System** (Phase 1 & 2 Complete): Automated audit system with comprehensive UI that runs validation rules, attempts AI-powered fixes, and queues issues for manual review with real-time dashboard, SLA tracking, and human feedback collection.
--   **Company Inline Edit Mode**: CompanyDetail page includes inline edit functionality with auto-open from data quality issues (?edit=true), editable fields for industry, location, and website, PATCH /api/companies/:id endpoint, and seamless integration with data quality workflow.
--   **Comprehensive Edit Forms**: Professional 5-tab edit dialogs for Companies (Basic Info, Contact, Business Details, Financial, Notes) and Candidates (Personal Info, Professional, Education & Skills, Career Preferences, Compensation) with 30-40+ "fill in the blanks" fields organized into logical sections for complete data capture.
--   **Custom Fields Settings Management**: Self-service UI at `/recruiting/settings` → "Custom Fields" tab allowing users to define additional fields for Companies, Candidates, and Jobs. Features include section organization, 10 field types (text, number, currency, date, select, multi_select, checkbox, url, email, phone), full CRUD operations with edit dialogs, delete confirmations, and real-time TanStack Query integration. Backend supports JSONB storage via `custom_field_sections` and `custom_field_definitions` tables.
--   **Production-Grade ATS Pipeline System** (Phase 1 Complete): Comprehensive candidate pipeline management with 8-stage workflow (recommended → reviewed → shortlisted → presented → interview → offer → placed → rejected). Features include:
-  - **KanbanView**: Drag-and-drop interface using @hello-pangea/dnd with Map-based optimistic updates supporting multiple concurrent drags
-  - **PipelineControls**: Advanced filtering by search query, status (multi-select), match score (minimum threshold), and search tier with active filter badges and clear functionality
-  - **Status Management**: Backend PATCH endpoint with status_history tracking, rejected_reason, last_action_at, and ai_suggestion columns
-  - **Smart Filtering**: Null value exclusion when filters active (prevents skewing filtered counts for match scores and tiers)
-  - **View Switching**: Toggle between Kanban and List views with unified state management
-  - **Routing Fix**: All internal navigation uses relative paths compatible with nested Router base="/recruiting"
-  - **Bulk Operations**: Fixed NaN validation bug, enabling checkbox selection, Select All, status updates, note addition, and batch deletion with proper integer validation
--   **AI Company Employee Research** (Complete): Targeted sourcing system for finding employees from specific companies. Uses SerpAPI to discover LinkedIn company URLs, then Bright Data's LinkedIn scraper to extract employee profiles. Features async polling pattern with progress tracking, automatic candidate staging for review, and credit-efficient stateless design. Accessible via Admin portal "AI Research" tab.
--   **LinkedIn Reference Candidate Integration** (Phase 1 Complete): Intelligent search by example using LinkedIn profiles as reference. When users provide a LinkedIn URL in the chatbox (e.g., "Find someone like https://linkedin.com/in/username"), the system automatically:
-  - Detects LinkedIn URLs via regex pattern matching
-  - Fetches complete profile data via Bright Data API (~30-45 seconds)
-  - Analyzes profile using xAI Grok to extract search criteria (title, skills, industry, experience level)
-  - Generates strategic sourcing plan with target companies and reasoning
-  - Presents comprehensive analysis to user with extracted criteria
-  - Stores reference candidate context in searchContext for downstream job creation
-  - Executes database search upon user confirmation
-  - Creates job order with matched candidates in pipeline
-  - **Future Phases**: Company pattern learning (analyze hiring DNA), external candidate research, AI pre-screening interviews, advanced funnel reporting
+-   **AI-Powered Data Quality System**: Automated audit system with UI for validation rules, AI-powered fixes, and manual review queue with SLA tracking. Includes inline editing for company data.
+-   **Production-Grade ATS Pipeline System**: Comprehensive 8-stage candidate pipeline management with Kanban and List views, advanced filtering, and bulk operations.
+-   **AI Company Employee Research**: Targeted sourcing system using SerpAPI and Bright Data for LinkedIn employee profiles, with async polling and progress tracking.
+-   **LinkedIn Reference Candidate Integration**: Intelligent search by example using LinkedIn profiles, leveraging company pattern learning and xAI Grok for profile analysis and search criteria adjustment. This system automatically executes intelligent searches and stages top candidates into the pipeline.
+
+### System Design Choices
+The primary database is PostgreSQL with Neon serverless hosting, using Drizzle ORM. The schema includes models for Companies, Candidates, Jobs, Job matches, Users, Data ingestion jobs, and Duplicate detection, with multi-language name support and custom fields. Companies can have roles like `['client', 'sourcing', 'prospecting']`. Duplicate detection prioritizes website domain matching. Custom fields use `custom_field_sections`, `custom_field_definitions`, and JSONB storage for flexibility. Candidates are soft-deleted using a `deleted_at` timestamp.
+
+A hybrid AI strategy utilizes specialized AI services: xAI Grok for conversational intelligence, job description parsing, candidate longlist generation, AI biography generation, and team discovery; and Voyage AI for semantic embeddings and search optimization using the `voyage-2` model. PostgreSQL `pgvector` is used for native vector similarity search. The Company Intelligence Engine auto-categorizes companies and supports pattern learning. The embeddings infrastructure includes API endpoints for generation and search with automatic refresh.
+
+The AI-Powered Data Quality System employs a three-layer processing approach (detection, AI remediation, manual queue) with a dedicated dashboard, interactive drill-down dialogs, and specific validation rules (e.g., Candidate Company Links, Duplicate Companies, Required Fields). It tracks metrics like Data Quality Score and AI Success Rate, and assigns priority levels (P0, P1, P2) to issues.
 
 ## External Dependencies
 
@@ -103,83 +55,3 @@ Preferred communication style: Simple, everyday language.
 
 ### Email Services
 -   **SendGrid**: For transactional email delivery.
-
-## AI-Powered Data Quality System
-
-### Overview
-An intelligent, self-healing data quality system that continuously monitors database integrity, automatically fixes issues using AI, and escalates complex problems to human reviewers. The system learns from human decisions to improve over time.
-
-### Architecture (Phase 1 & 2 - Complete)
-
-**Three-Layer Processing:**
-1. **Detection**: Runs 6 validation rules to identify data quality issues
-2. **AI Remediation**: Attempts automatic fixes with confidence scoring (90%+ = auto-apply)
-3. **Manual Queue**: Routes unsolvable issues to human reviewers with SLA tracking
-
-**Phase 2 - User Interface (Complete):**
-- **Data Quality Dashboard** (accessible via `/admin` → "Data Quality" tab): Real-time metrics showing quality score, issue breakdown, AI performance, and audit history
-- **Interactive Drill-Down Dialogs**: Clickable metric cards open modal dialogs with detailed information
-  - **Total Issues**: View all issues with filtering by status tabs (All/Pending/Resolved/Auto-Fixed), clickable entity links to navigate to actual records
-  - **AI Auto-Fixed**: See complete AI activity logs including reasoning, confidence scores (e.g., 95%), data sources used (web research URLs, fuzzy matching), and applied changes in JSON format
-  - **Manual Queue**: Review items requiring human intervention with clickable "Review & Resolve" buttons, showing priorities (P0/P1/P2), SLA deadlines, AI suggestions, and entity navigation
-  - **AI Performance**: Track historical success rates and quality improvements across multiple audit runs
-- **Entity Navigation**: All dialogs include clickable links to navigate directly to affected entities (companies/candidates) for manual review and updates
-- **Issue Resolution Dialog**: Nested dialog for manual queue items allowing humans to approve/reject AI suggestions with resolution notes for feedback learning
-- **Reporting**: CSV download and HTML email preview for audit results
-
-### Database Schema
-- **audit_runs**: Tracks each audit execution and summary metrics
-- **audit_issues**: Individual data quality problems discovered
-- **remediation_attempts**: AI fix attempts with confidence scores and rollback capability
-- **manual_intervention_queue**: Issues requiring human review with SLA deadlines
-
-### Validation Rules
-1. **Candidate Company Links**: Ensures all candidates with company names have proper FK relationships
-2. **Career History Links**: Validates company links in career history arrays
-3. **Duplicate Companies**: Detects potential duplicate company records
-4. **Required Fields**: Checks for missing contact information
-5. **Job Candidate Integrity**: Validates referential integrity of job-candidate relationships
-6. **Company Data Quality**: Ensures companies have minimal required information
-
-### AI Remediation Capabilities
-
-**High Confidence (>90%) - Auto-Apply:**
-- Company linking via fuzzy matching
-- Missing company creation and linking
-- Data normalization
-
-**Medium Confidence (70-90%) - Apply with Flag:**
-- Email inference using company patterns
-- Company data enrichment via web research
-
-**Low Confidence (<70%) - Manual Queue:**
-- Ambiguous matches requiring human decision
-- Missing data with no findable sources
-
-### Usage
-
-**Run Manual Audit:**
-```bash
-npx tsx scripts/run-audit.ts
-```
-
-**Outputs:**
-- Console report with summary statistics
-- CSV report for detailed analysis
-- HTML email report for stakeholders
-
-### Metrics Tracked
-- **Data Quality Score**: 0-100 overall health metric
-- **AI Success Rate**: Percentage of issues auto-fixed
-- **Execution Time**: Performance monitoring
-- **SLA Compliance**: Tracks issue resolution times by priority
-
-### Priority Levels
-- **P0 (Critical)**: 4-hour SLA - Blocking issues requiring immediate attention
-- **P1 (Important)**: 24-hour SLA - Data integrity issues
-- **P2 (Enhancement)**: 7-day SLA - Optional improvements
-
-### Future Roadmap
-- Phase 3: Confidence learning system (AI improves accuracy based on historical human feedback)
-- Phase 4: Scheduled audits and automated email alerts for stakeholders
-- Phase 5: Anomaly detection and progressive enrichment
