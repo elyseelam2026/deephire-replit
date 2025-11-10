@@ -2177,7 +2177,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
             
             const created = await storage.createSearchPromise(promiseRecord);
-            console.log(`✅ Created search promise #${created.id} - will execute at ${created.deadlineAt}`);
+            console.log(`✅ Created search promise #${created.id} - executing immediately...`);
+            
+            // 🚀 EXECUTE IMMEDIATELY instead of waiting for worker
+            const { executeSearchPromise } = await import('./promise-worker');
+            executeSearchPromise(created.id).catch((error) => {
+              console.error(`❌ Failed to execute promise #${created.id}:`, error);
+            });
           } catch (error) {
             console.error('❌ Failed to create search promise:', error);
             // Don't fail the whole request if promise creation fails
