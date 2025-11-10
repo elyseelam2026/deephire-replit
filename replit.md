@@ -20,7 +20,7 @@ The backend uses Node.js with Express.js and TypeScript. AI integration primaril
 
 Key features include:
 -   **Manus AI-Style Search Strategy Viewer**: A three-panel interface displaying job info, candidate pipeline (future), and an AI-generated search strategy.
--   **Conversational AI Recruiting Assistant**: A Grok-powered interface for collecting Need Analysis Profile (NAP) information, generating job orders, and creating candidate pipelines, supporting JD file uploads and natural language input.
+-   **Conversational AI Recruiting Assistant**: A Grok-powered interface for collecting Need Analysis Profile (NAP) information using "Dance, Don't Drill" consultant-style conversation (not robotic Q&A), generating job orders, and creating candidate pipelines. Features cooperation radar detection, auto-fill from role templates, value-first mode (delivers top 3 candidates at 60% NAP), and natural consultant tone. System automatically creates default company if database is empty (prevents foreign key errors). Supports JD file uploads and natural language input with graceful error handling.
 -   **Hybrid LinkedIn Search & Boolean Search**: Two-stage candidate search integrated with LinkedIn profile validation via SerpAPI for quick additions.
 -   **Enhanced Team Discovery**: Supports pagination, multi-language sites, and uses a 3-tier scraping system.
 -   **Multi-Language Name System**: Transliteration pipeline for international candidate names and email inference.

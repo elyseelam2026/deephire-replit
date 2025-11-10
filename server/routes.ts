@@ -2254,6 +2254,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (userAgreedToSearch && updatedSearchContext.title && !conversation.jobId) {
           console.log('🎯 USER AGREED TO SEARCH - Creating job order and running search...');
           
+          try {
+          
           // Detect search tier from user's message
           const searchTier = lowerMessage.includes('external') ? 'external' : 'internal';
           const feePercentage = searchTier === 'external' ? 25 : 15;
@@ -2272,10 +2274,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           // Get or create default company (for demo)
-          let companyId = 1; // Default company ID
+          let companyId: number;
           const companies = await storage.getCompanies();
           if (companies.length > 0) {
             companyId = companies[0].id;
+            console.log(`✓ Using existing company: ${companies[0].name} (ID: ${companyId})`);
+          } else {
+            // No companies exist - create a default one
+            console.log('⚠️ No companies found - creating default company...');
+            const defaultCompany = await storage.createCompany({
+              name: 'DeepHire Demo Company',
+              industry: 'Technology',
+              companySize: '50-200',
+              companyStage: 'Series B',
+              roles: ['client']
+            });
+            companyId = defaultCompany.id;
+            console.log(`✅ Created default company: ${defaultCompany.name} (ID: ${companyId})`);
           }
 
           // Generate search strategy using AI
@@ -2474,6 +2489,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               : '');
 
           newPhase = 'job_order_created';
+          
+          } catch (jobCreationError) {
+            // If job creation fails, don't crash the chat - inform the user gracefully
+            console.error('❌ Failed to create job:', jobCreationError);
+            aiResponse = `I understand you'd like to proceed with the search for ${updatedSearchContext.title}. However, I encountered a technical issue creating the job order.\n\nPlease refresh the page and try again, or let me know if you'd like to continue our conversation to refine the requirements.`;
+            newPhase = 'clarifying'; // Go back to clarification phase
+          }
         }
       }
 
