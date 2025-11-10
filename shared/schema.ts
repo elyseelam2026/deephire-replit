@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, real, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, serial, timestamp, real, boolean, jsonb } from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -218,6 +218,7 @@ export const candidates = pgTable("candidates", {
   // Native name (in original script)
   nativeName: text("native_name"), // e.g., "李嘉冕", "김민준", "田中太郎"
   nativeNameLocale: text("native_name_locale"), // ISO locale: zh-CN, ko-KR, ja-JP, ar-SA
+  chineseName: text("chinese_name"), // Legacy column - kept for backward compatibility
   
   // Latin/Romanized name (ASCII-safe for systems)
   latinName: text("latin_name"), // e.g., "Jiamian Li", "Minjun Kim", "Taro Tanaka"
