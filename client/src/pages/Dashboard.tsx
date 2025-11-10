@@ -77,6 +77,28 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Fetch current conversation with error handling for missing conversations
+  const { data: conversation, isLoading } = useQuery<Conversation>({
+    queryKey: ['/api/conversations', conversationId],
+    queryFn: async () => {
+      if (!conversationId) return null;
+      const response = await fetch(`/api/conversations/${conversationId}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          localStorage.removeItem('currentConversationId');
+          setConversationId(null);
+          createConversationMutation.mutate();
+          return null;
+        }
+        throw new Error('Failed to fetch conversation');
+      }
+      return response.json();
+    },
+    enabled: !!conversationId,
+    staleTime: 0,
+    refetchOnMount: true,
+    retry: false,
+  });
 
   // Send message mutation
   const sendMessageMutation = useMutation({
