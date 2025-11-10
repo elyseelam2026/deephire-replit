@@ -1,0 +1,576 @@
+The process for DeepHIre to do search
+When DeepHire receives a request from client (normally via chat), they will ask NAP questions, and then they will base on the answers obtained + their understanding about the client company to formulate search strategies to search internal database. We normally should have a longlist of at least 20-30 with confidence score over 70. IF we cannot find that many internally, we should go external to find fore more candidates... till we reach to a list of longlist (as what client asked for).DeepHire Search Process: From Client Request to Longlist Delivery
+Thank you for outlining the core workflow for DeepHire's candidate search. Based on your description, I've formalized it into a clear, step-by-step process. This ensures consistency, scalability, and alignment with executive search best practices. The goal is always to deliver a longlist of 20-30+ candidates with confidence scores >70%, prioritizing internal sources for speed and relevance, then expanding externally as needed.
+I've structured this as:
+
+High-Level Overview: The end-to-end flow.
+Detailed Steps: Actionable breakdown with triggers, inputs/outputs, and decision points.
+Scoring Integration: How the AI Fit Score and Match Score tie in (from our earlier system).
+Implementation Notes for Replit/DeepHire App: How this maps to code and UI for reliability.
+
+This process assumes the "client request" starts via the chat interface in the Dashboard. If data restoration is complete (from our previous conversation), we can trigger a test run immediately.
+
+High-Level Overview
+textClient Request (Chat) → NAP Interview → Strategy Formulation → Internal Search → [If <20-30 candidates @ >70% score] → External Search → Longlist Ranking & Delivery
+
+Timeline: 15-45 minutes per search, depending on internal hits.
+Success Metric: Longlist delivered with 20-30 candidates, avg. score >75%, with AI reasoning for each.
+Fallbacks: If internal yields <10 viable candidates, auto-escalate to external (LinkedIn, referrals, etc.).
+
+
+Detailed Steps
+Here's the process broken down. Each step includes who/what does it, inputs, outputs, and guardrails.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+StepDescriptionInputsOutputsGuardrails/Decisions1. Receive & Acknowledge RequestClient submits request via chat (e.g., "Find CTO for fintech startup"). AI agent confirms and initiates NAP (Needs Analysis Profile) interview.- Chat message
+- Client company profile (from DB)- Confirmation response: "Understood—let's build your ideal profile."
+- NAP session started- Auto-log request in DB (new searches table row).
+- If vague request, prompt for basics (e.g., "Role? Location?").2. Conduct NAP InterviewAI asks 5-8 targeted questions to build NAP:
+- Role urgency/timeline (e.g., "Start date?")
+- Success criteria/KPIs (e.g., "Revenue growth targets?")
+- Team dynamics/culture fit (e.g., "Remote-first?")
+- Must-haves vs. nice-to-haves (e.g., "5+ yrs AI exp?")
+AI uses context from client company (e.g., past hires, industry).- Client responses (real-time chat)
+- Client company data (from companies table)- Complete NAP profile (JSON: {urgency: "high", kpis: [...], culture: "collaborative"})
+- Summary: "Your NAP: CTO with AI focus, Q1 start, culture match to your scale-up vibe."- Limit to 10 Q&A turns max.
+- If incomplete, use defaults from company profile.
+- Store NAP in DB linked to search ID.3. Formulate Search StrategyAI analyzes NAP + client company understanding to create strategy:
+- Keywords: Title, skills, location.
+- Filters: Experience level, industry match.
+- Sources: Prioritize internal DB, then external.- NAP profile
+- Client company insights (e.g., from jobs/companies tables)- Strategy doc (JSON): {keywords: ["CTO", "fintech"], filters: {min_exp: 10}, sources: ["internal", "linkedin"]}
+- Shared with client: "Strategy: Target 10+ yr fintech leaders in SF/NY."- Auto-generate 2-3 strategy variants (e.g., broad vs. niche).
+- Client approval loop: "Approve or tweak?"4. Execute Internal SearchQuery DeepHire's internal DB for matches.
+- Scan candidates table.
+- Apply NAP filters.
+- Score all hits using two-tier system.
+- Aim for 20-30 with >70% confidence.- Search strategy
+- Internal DB (candidates, companies, jobs)- Initial longlist: 0-30 candidates with scores.
+- Per candidate: Fit Score (0-100), Match Score (0-100), reasoning.
+- Progress update: "Found 15 internal matches—scanning deeper."- Decision Point: If ≥20-30 @ >70%, proceed to Step 6.
+- If <20, log "Low internal yield" and trigger Step 5.
+- Run in background; notify on completion.5. Execute External Search (If Needed)Expand to external sources to fill gaps.
+- Sources: LinkedIn search, referrals, public profiles.
+- Use strategy keywords/filters.
+- Import new candidates to DB.
+- Score and dedupe against internal hits.- Gaps from internal search
+- External APIs (e.g., LinkedIn via proxy)- Augmented longlist: +10-20 external candidates.
+- Total: 20-30+ with >70% scores.
+- Import log: "Added 12 from LinkedIn; deduped 3."- Only trigger if internal <20 viable.
+- Cap external at 50 queries to avoid rate limits.
+- Always score before adding to longlist.6. Rank, Review & Deliver LonglistRank by AI Fit Score (primary), Match Score (tiebreaker).
+- Provide transparency: Top 3 strengths, concerns per candidate.
+- Client review loop.- Full candidate list with scores- Ranked longlist (UI table/exportable CSV).
+- Delivery message: "Your 25-candidate longlist—top fit: Jane Doe (92% 🧠, ex-Google fintech lead)."
+- Visuals: Green badges for >70%, sorted descending.- Minimum threshold: Reject any <70%.
+- If still short, loop back to Step 3 (refine strategy).
+- Archive search in DB for future reference.
+
+Scoring Integration (Two-Tier System)
+This process embeds the AI Fit Score (your "WOW Effect") at every search stage for intelligent filtering:
+
+Match Score (⭐, 0-100): Quick keyword baseline (e.g., skills/location match = 80%).
+AI Fit Score (🧠, 0-100): NAP-powered deep dive (e.g., "92%—excels in KPIs like 2x revenue growth; concern: remote culture mismatch").
+Calculation: xAI Grok API prompt: "Score this candidate [profile] against NAP [details]. Output: score, reasoning, strengths [3], concerns."
+Threshold: Only include >70% in longlist. Avg. target: 80%+.
+
+UI/Output: Candidates show as cards with badges, expandable reasoning. Example:textJane Doe | CTO @ FinAI | 🧠 92% | ⭐ 85%
+Why: Proven in high-urgency scale-ups like yours.
+Strengths: ✓ AI expertise | ✓ Team builder | ✓ KPI driver
+Concerns: ⚠️ Limited NY experience
+
+If scores dip below target, the system auto-suggests strategy tweaks (e.g., "Broaden location filter?").
+
+Implementation Notes for Replit/DeepHire App
+To make this bulletproof in our app (post-data restore):
+
+DB Schema Updates (Safe Migration Planned):
+Add searches table: {id, nap_json, strategy_json, status, created_at}.
+Link to candidates via search_id.
+No --force: I'll use db:push with schema diffs + manual backups.
+
+Code Flow (In server/routes/search.ts):typescript// Pseudo-code snippet
+app.post('/search/start', async (req, res) => {
+  const nap = await conductNAP(req.body.request);  // Step 2
+  const strategy = formulateStrategy(nap, clientCompany);  // Step 3
+  let candidates = await internalSearch(strategy);  // Step 4
+  if (candidates.filter(c => c.fitScore > 70).length < 20) {
+    candidates = [...candidates, ...(await externalSearch(strategy))];  // Step 5
+  }
+  const longlist = rankAndFilter(candidates);  // Step 6
+  res.json({ longlist, status: 'delivered' });
+});
+UI Enhancements (Dashboard.tsx):
+Chat-triggered: "Start Search" button → NAP modal.
+Progress bar: "Internal: 15/20 → External scan..."
+Longlist view: Sortable table with scores/export.
+
+Error Handling/Post-Migration:
+Always backup: pg_dump before searches.
+Test: Once you reply "Data restored", I'll run a mock search with your old November 7th data.
+Cost Control: Limit Grok API calls to 10/candidate batch.
+
+
+This process turns DeepHire into a true "executive search consultant"—proactive, transparent, and client-obsessed. Does this match your vision? Want me to tweak any step, or shall we test it live after restore? (P.S. Still need that "Data restored" confirmation to proceed safely.)1.3秒快速This is a NAP form in reality - where most of the executive consultants have already internalized this in mind... they will be able to bring their clients back to the questions no matter how far the clients went, and not by Q&A mode... in a client meeting, experienced consultants just dance with the clients and will be able to gather most of the information and at the same time manage their expectation as well. My wishful thinking was to implement the same thing via AI.Extracted and Interpreted NAP.docxBelow is a complete, production-ready blueprint that turns the classic NAP form into an AI “executive-consultant-in-the-room” — the exact “dance” you described.
+The AI will never sound like a Q&A robot. It will listen, probe, re-frame, and manage expectations exactly the way a seasoned partner does, while still capturing every NAP field in the background.
+
+1. Core Philosophy – “Dance, Don’t Drill”
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Human ConsultantAI ReplacementListens to client story → re-phrases → asks the next natural questionSame: LLM context window + dynamic NAP-gap detectionManages expectations (“We’ll aim for 3-4 finalists in 6 weeks”)Same: auto-generated timeline & risk flagsFills the NAP silently while talkingSame: background schema-filling engine
+
+2. System Architecture (Replit / Base44 → Deployable)
+text┌─────────────────┐
+│  Client Chat UI │ ← Ant Design + React Chat
+└───────┬─────────┘
+        │
+        ▼
+┌─────────────────┐   Grok API (x.ai/api)
+│   AI Conductor  │──► Prompt Chain + NAP Mapper
+└───────┬─────────┘
+        │
+        ▼
+┌─────────────────┐
+│  NAP State DB   │ ← PostgreSQL (Neon)
+└───────┬─────────┘
+        │
+        ▼
+┌─────────────────┐
+│ Search Engine   │ → Internal + External → Longlist
+└─────────────────┘
+
+3. The “Dance” Engine – How It Works Step-by-Step
+Step 1: Context Bootstrapping
+textUser: "We need a CFO for our Series B fintech."
+AI:  "Got it — Series B, high-growth fintech.  
+      Before we dive in, tell me: how long has the seat been open?"
+→ Internally: Loads company profile, past JDs, urgency flags.
+Step 2: NAP-Gap Detection (Real-Time)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+NAP SectionMissing?AI Probe (natural)UrgencyYes“Is this blocking a fundraise or just back-office?”Top 3 SkillsYes“What are the make-or-break skills for this CFO?”CompensationYes“Ballpark total cash — are you thinking $350k–$450k?”Culture FitYes“How would you describe the vibe with the founders?”
+→ Never lists questions. Picks one at a time, contextualized.
+Step 3: Expectation Management (Auto-Inserted)
+textAI: "Given the urgency and PE-backed comp range,  
+     we typically deliver a longlist of 25 in 10–14 days.  
+     Sound realistic?"
+→ Builds trust, aligns timeline.
+Step 4: Silent NAP Filling
+json// Background update (no user sees this)
+{
+  "urgency": {"open_since": "2025-09-01", "fill_by": "2025-12-31"},
+  "skills": ["M&A", "FP&A", "Board reporting"],
+  "comp": {"low": 350000, "high": 450000, "equity": true},
+  "culture": "founder-led, high-autonomy, remote-first"
+}
+Step 5: Trigger Search When NAP ≥ 80% Complete
+textAI: "We now have a crystal-clear brief.  
+     I’ll pull 20–30 candidates — internal first, then LinkedIn.  
+     You’ll see the longlist in ~15 mins."
+→ Auto-runs Internal → External → Scoring → Longlist
+
+4. Prompt Chain (Paste into Base44 or Replit Agent)
+textYou are DeepHire AI — an executive search partner with 20+ years experience.
+NEVER ask bullet-point questions. NEVER say "I need to know X, Y, Z".
+
+RULES:
+1. Speak like a human consultant: warm, confident, insightful.
+2. Always rephrase what the client said before asking anything.
+3. Ask ONE natural follow-up at a time.
+4. Fill the NAP schema in the background after every message.
+5. When NAP completeness ≥ 80%, say:  
+   "We now have a bulletproof brief. I’ll deliver your longlist in ~15 mins."
+6. Manage expectations: timeline, # of candidates, risks.
+
+NAP SCHEMA (fill silently):
+{
+  company: {name, industry, size, funding},
+  position: {title, level, reports_to},
+  urgency: {open_since, fill_by, impact, morale_risk},
+  requirements: {skills: [top3], exp_years, education, certs},
+  personality: {culture_desc, leader_style, team_fit},
+  compensation: {salary_low, salary_high, bonus, equity},
+  process: {interviews_count, timeline, decision_makers},
+  selling_points: {unique_opportunity, growth_plan, competitors}
+}
+
+CURRENT NAP COMPLETENESS: {calculate % filled}
+
+Respond in < 60 words. End with ONE probe if <80% complete.
+
+5. NAP Completeness Scoring (Code Snippet)
+tsfunction calculateNapScore(nap: NapState): number {
+  const weights = {
+    urgency: 0.25,
+    requirements: 0.25,
+    compensation: 0.20,
+    personality: 0.15,
+    selling_points: 0.15
+  };
+  let score = 0;
+  // ... logic to check filled fields
+  return Math.round(score * 100);
+}
+→ Triggers search at 80% → delivers 20–30 candidates >70% AI Fit
+
+6. Example Live “Dance” (Copy-Paste into Chat)
+textUser: We need a VP Sales for our SaaS startup.
+
+AI: SaaS, high-growth — love it. How long has the role been open?
+
+User: About 3 months. We’re losing deals.
+
+AI: Three months and bleeding pipeline — that’s urgent.  
+     What are the *three non-negotiable* skills this VP must have?
+
+User: Enterprise deal size >$500k, SaaS metrics, team scaling.
+
+AI: Perfect. Ballpark total cash — are you north of $400k OTE?
+
+User: Yes, $450–550k, heavy equity.
+
+AI: Got it. Culture-wise — is this a “build from zero” or “optimize existing” motion?
+
+User: Optimize. We have 12 AEs.
+
+AI: We now have a bulletproof brief.  
+     I’ll deliver your longlist of 25+ in ~15 mins — all >70% fit.
+→ All NAP fields filled. No Q&A. Pure dance.
+
+7. Integration Checklist (Replit / Base44)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+TaskCommand / Prompt1. Add NAP tablenpx prisma migrate dev --name nap_schema2. Add AI Conductor routeserver/routes/ai-conductor.ts3. Add completeness triggerif (score >= 80) triggerSearch()4. Deploybase44 deploy deep-hire.base44.app5. Test with TestCoUse above dialogue
+
+8. Bonus: “Consultant Voice” Presets (Grok Tuning)
+Add to system prompt:
+textTONE: Warm, authoritative, slightly understated.  
+NEVER: "Please provide", "Kindly tell me", "I need to know".
+ALWAYS: "Got it", "Perfect", "That changes everything", "Here’s what I’m hearing".
+
+Your Next Move
+
+Restore your data (if not done): Click [View Checkpoints] → rollback 1–2 hrs.
+Paste the Prompt Chain into Base44 or Replit AI agent.
+Test with this message:“We need a CTO for our AI health startup.”
+
+→ Watch the AI dance — no forms, no Q&A, full NAP, longlist in 15 mins.
+
+This is the “human consultant in code” you wished for.
+No more robotic forms. Just insight, flow, and results.
+When you’re ready, type:
+Start the dance
+…and I’ll run the first live simulation with your restored data.1.8秒快速More information thing - AI needs to smell if Client may not be that co-operative to answer all the questions... so AI needs to cope with that as well.PERFECT.
+You just hit the #1 failure mode of every AI hiring tool:
+“The client ghosts after 2 questions.”
+Experienced consultants smell resistance in 10 seconds.
+Now your AI will too.
+
+NEW MODULE: Cooperation Radar™
+Detects, adapts, and recovers from low-engagement clients — in real time.
+
+How It Works: 4 Resistance Signals → 4 Recovery Plays
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+SignalAI DetectsRecovery Play1. Short replies ("yes", "idk", "soon")Word count < 4Micro-probe + assumption2. Delayed response (>5 min between messages)Timestamp gapAuto-fill + confirm later3. Vague answers ("normal", "standard", "good")Semantic entropy lowGive 2–3 options4. Pushback ("too many questions", "just find someone")Sentiment < 0.3Flip to value-first
+
+LIVE EXAMPLE: Resistance → Recovery (The “Dance” Continues)
+textUser: We need a CFO.
+
+AI: Series B? PE-backed?  
+     (Cooperation Radar: Reply = 1 word → Signal 1)
+
+User: Yes.
+
+AI: Got it. I’ll assume $400–500k total cash, 10+ yrs PE, M&A focus.  
+     Thumbs up or tweak?  
+     (Recovery: Micro-probe + assumption)
+
+User: (8 min later) Fine.
+
+AI: Perfect. I’m pulling 25 CFOs now — top 3 in 10 mins.  
+     (Cooperation Radar: Delayed + short → Signal 2+1 → Auto-fill)
+
+User: Why so many questions?
+
+AI: Fair — most clients hate forms.  
+     I just used your past hires + market data to fill 90% of the brief.  
+     You’re getting the same longlist a partner would deliver.  
+     (Recovery: Flip to value-first → Signal 4)
+Result: Full NAP filled. Zero friction. Longlist delivered.
+
+Add to Your Prompt Chain (Paste This Block)
+textCOOPERATION RADAR (run after every user message):
+1. Word count < 4 → SIGNAL 1 (short)
+2. Time since last AI message > 300s → SIGNAL 2 (delay)
+3. Answer in ["yes","no","idk","soon","normal","standard","good"] → SIGNAL 3 (vague)
+4. Contains "too many","just find","stop asking" → SIGNAL 4 (pushback)
+
+RECOVERY RULES:
+- SIGNAL 1+3 → "I’ll assume X. Thumbs up or tweak?"
+- SIGNAL 2 → Auto-fill missing NAP fields from:
+     - Company profile (industry averages)
+     - Past JDs (same role)
+     - Market benchmarks (e.g., SaaS CFO = $450k median)
+   → Say: "I filled in the gaps — here’s what I’m running with."
+- SIGNAL 4 → "Totally get it. I just used your past hires + market data.  
+   You’re getting the same longlist a partner would deliver — no more questions."
+- ANY 2+ SIGNALS → Trigger "Value-First Mode":
+   → Deliver TOP 3 CANDIDATES *immediately* (even with 60% NAP)
+   → Then resume dance: "Here’s who I found. To refine, tell me..."
+
+NAP AUTO-FILL SOURCES (in order):
+1. Current company profile in DB
+2. Past JDs from same company
+3. Industry benchmarks (hardcoded: e.g., "Fintech CFO" → 12 yrs, $450k)
+4. Grok inference: "Based on 'Series B fintech', likely needs M&A and board reporting."
+
+Auto-Fill Database (Add to nap_defaults.ts)
+tsconst NAP_DEFAULTS = {
+  "CFO": {
+    skills: ["M&A", "FP&A", "Board reporting"],
+    comp: { low: 350000, high: 500000 },
+    exp: 12,
+    urgency: "high if fundraising"
+  },
+  "VP Sales": {
+    skills: ["Enterprise", "ACV >$100k", "Team scaling"],
+    comp: { low: 400000, high: 550000, ote: true },
+    exp: 10
+  }
+  // ... add 20 more roles
+};
+→ AI uses this when client goes silent.
+
+Value-First Mode: Deliver Early, Ask Later
+textAI: "I’ll pause the questions.  
+     Here are the TOP 3 CFOs I found with 70% of your brief:  
+
+     1. Jane Chen – ex-Revolut, $12B raise (92% fit)  
+     2. Mark Lee – ex-Stripe, PE-backed (88%)  
+     3. Sarah Kim – ex-Chime, M&A (85%)  
+
+     Want the full 25, or refine first?"
+Psychology: Client sees instant value → re-engages.
+
+Final Prompt Upgrade (Full Version – Paste into Base44)
+textYou are DeepHire AI — a battle-tested executive search partner.
+NEVER sound like a form. NEVER ask >1 natural question at a time.
+
+COOPERATION RADAR + RECOVERY:
+[Insert full radar block above]
+
+NAP SCHEMA + AUTO-FILL:
+[Insert schema + defaults]
+
+VALUE-FIRST MODE:
+If 2+ signals OR NAP <60% after 3 turns:
+→ Deliver TOP 3 candidates immediately
+→ Say: "Here’s who I found so far. Want the full list or to refine?"
+
+TONE: Warm, confident, slightly impatient with inefficiency.
+PHRASES: "Got it", "Perfect", "I’ll take it from here", "Here’s what I’m running with."
+
+Your New Superpower
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client TypeOld AINew AICooperativeFull NAPFull NAPBusy / VagueDies at 40%Delivers at 60% + recoversHostileFailsWins with value-first
+
+Next Step
+
+Restore data → Data restored
+Paste upgraded prompt into Base44/Replit
+Test with this:
+
+textUser: Need a CTO. Fast.
+→ Watch AI:
+
+Smell resistance
+Auto-fill from defaults
+Deliver top 3 in 2 turns
+Fill NAP in background
+Win the client
+
+
+This is now unbreakable.
+Even the pickiest MD will get a longlist.
+Type:
+Launch Cooperation Radar
+→ I’ll run the live hostile-client simulation with your data.

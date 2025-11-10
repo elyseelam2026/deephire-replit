@@ -663,6 +663,120 @@ export const napConversations = pgTable("nap_conversations", {
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
 
+// NAP States - Sophisticated "Dance, Don't Drill" needs analysis tracking
+export const napStates = pgTable("nap_states", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Links to conversation (required) and optional job (created after NAP complete)
+  conversationId: integer("conversation_id").references(() => napConversations.id).notNull().unique(),
+  jobId: integer("job_id").references(() => jobs.id),
+  
+  // Eight NAP sections (stored as JSONB for flexibility)
+  company: jsonb("company").$type<{
+    name?: string;
+    industry?: string;
+    size?: string; // "10-50", "50-200", "200-1000", "1000+"
+    funding?: string; // "Bootstrapped", "Series A", "Series B", "PE-backed", etc.
+    stage?: string;
+  }>().default(sql`'{}'::jsonb`),
+  
+  position: jsonb("position").$type<{
+    title?: string;
+    level?: string; // "VP", "C-Suite", "Director", "Manager"
+    reports_to?: string;
+    team_size?: number;
+    location?: string;
+  }>().default(sql`'{}'::jsonb`),
+  
+  urgency: jsonb("urgency").$type<{
+    open_since?: string; // ISO date
+    fill_by?: string; // ISO date
+    impact?: string; // "blocking fundraise", "losing deals", "team morale", etc.
+    morale_risk?: string; // "low", "medium", "high", "critical"
+    timeline?: string; // "2 weeks", "1 month", "3 months"
+  }>().default(sql`'{}'::jsonb`),
+  
+  requirements: jsonb("requirements").$type<{
+    skills?: string[]; // Top 3 must-have skills
+    exp_years?: number;
+    education?: string;
+    certifications?: string[];
+    nice_to_have?: string[];
+  }>().default(sql`'{}'::jsonb`),
+  
+  personality: jsonb("personality").$type<{
+    culture_desc?: string; // "founder-led", "remote-first", "high-autonomy"
+    leader_style?: string; // "hands-on", "strategic", "collaborative"
+    team_fit?: string;
+    work_style?: string; // "remote", "hybrid", "office"
+  }>().default(sql`'{}'::jsonb`),
+  
+  compensation: jsonb("compensation").$type<{
+    salary_low?: number;
+    salary_high?: number;
+    bonus?: boolean;
+    equity?: boolean;
+    ote?: number; // On-target earnings for sales roles
+    other_benefits?: string;
+  }>().default(sql`'{}'::jsonb`),
+  
+  process: jsonb("process").$type<{
+    interviews_count?: number;
+    timeline?: string; // "2 weeks", "1 month"
+    decision_makers?: string[];
+    approval_process?: string;
+  }>().default(sql`'{}'::jsonb`),
+  
+  selling_points: jsonb("selling_points").$type<{
+    unique_opportunity?: string;
+    growth_plan?: string;
+    competitive_advantage?: string;
+    recent_wins?: string[];
+  }>().default(sql`'{}'::jsonb`),
+  
+  // Completeness tracking (0-100 for each section + overall)
+  completeness: jsonb("completeness").$type<{
+    overall?: number; // Weighted average
+    company?: number;
+    position?: number;
+    urgency?: number;
+    requirements?: number;
+    personality?: number;
+    compensation?: number;
+    process?: number;
+    selling_points?: number;
+  }>().default(sql`'{"overall": 0}'::jsonb`),
+  
+  // Cooperation Radar - client engagement signals
+  cooperationSignals: jsonb("cooperation_signals").$type<{
+    short_replies?: number; // Count of <4 word responses
+    delayed_responses?: number; // Count of >5min delays
+    vague_answers?: number; // Count of "yes", "idk", "normal"
+    pushback_count?: number; // Count of "too many questions"
+    total_turns?: number; // Total conversation turns
+    last_signal_at?: string; // ISO timestamp
+    resistance_level?: 'low' | 'medium' | 'high'; // Calculated level
+  }>().default(sql`'{"total_turns": 0, "resistance_level": "low"}'::jsonb`),
+  
+  // Auto-fill tracking
+  autoFilledFields: jsonb("auto_filled_fields").$type<string[]>().default(sql`'[]'::jsonb`),
+  autoFillSources: jsonb("auto_fill_sources").$type<{
+    [fieldPath: string]: 'company_profile' | 'past_jobs' | 'role_template' | 'market_benchmark' | 'ai_inference';
+  }>().default(sql`'{}'::jsonb`),
+  
+  // Value-first mode tracking
+  valueFirstModeTriggered: boolean("value_first_mode_triggered").default(false),
+  topCandidatesDeliveredAt: timestamp("top_candidates_delivered_at"),
+  
+  // Status
+  status: text("status").default("collecting").notNull(), // collecting, ready_for_search, searching, completed
+  
+  // Timestamps
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+  readyForSearchAt: timestamp("ready_for_search_at"), // When completeness hit 80%
+});
+
 // Search Promises - Track AI commitments for automated execution
 export const searchPromises = pgTable("search_promises", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -1720,3 +1834,12 @@ export const insertManualInterventionQueueSchema = createInsertSchema(manualInte
 });
 export type InsertManualInterventionQueue = z.infer<typeof insertManualInterventionQueueSchema>;
 export type ManualInterventionQueue = typeof manualInterventionQueue.$inferSelect;
+
+// NAP States schemas
+export const insertNapStateSchema = createInsertSchema(napStates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertNapState = z.infer<typeof insertNapStateSchema>;
+export type NapState = typeof napStates.$inferSelect;
