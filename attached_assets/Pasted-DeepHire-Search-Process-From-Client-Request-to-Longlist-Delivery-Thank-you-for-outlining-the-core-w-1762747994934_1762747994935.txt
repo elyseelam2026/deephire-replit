@@ -1,0 +1,165 @@
+DeepHire Search Process: From Client Request to Longlist Delivery
+Thank you for outlining the core workflow for DeepHire's candidate search. Based on your description, I've formalized it into a clear, step-by-step process. This ensures consistency, scalability, and alignment with executive search best practices. The goal is always to deliver a longlist of 20-30+ candidates with confidence scores >70%, prioritizing internal sources for speed and relevance, then expanding externally as needed.
+I've structured this as:
+
+High-Level Overview: The end-to-end flow.
+Detailed Steps: Actionable breakdown with triggers, inputs/outputs, and decision points.
+Scoring Integration: How the AI Fit Score and Match Score tie in (from our earlier system).
+Implementation Notes for Replit/DeepHire App: How this maps to code and UI for reliability.
+
+This process assumes the "client request" starts via the chat interface in the Dashboard. If data restoration is complete (from our previous conversation), we can trigger a test run immediately.
+
+High-Level Overview
+textClient Request (Chat) → NAP Interview → Strategy Formulation → Internal Search → [If <20-30 candidates @ >70% score] → External Search → Longlist Ranking & Delivery
+
+Timeline: 15-45 minutes per search, depending on internal hits.
+Success Metric: Longlist delivered with 20-30 candidates, avg. score >75%, with AI reasoning for each.
+Fallbacks: If internal yields <10 viable candidates, auto-escalate to external (LinkedIn, referrals, etc.).
+
+
+Detailed Steps
+Here's the process broken down. Each step includes who/what does it, inputs, outputs, and guardrails.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+StepDescriptionInputsOutputsGuardrails/Decisions1. Receive & Acknowledge RequestClient submits request via chat (e.g., "Find CTO for fintech startup"). AI agent confirms and initiates NAP (Needs Analysis Profile) interview.- Chat message
+- Client company profile (from DB)- Confirmation response: "Understood—let's build your ideal profile."
+- NAP session started- Auto-log request in DB (new searches table row).
+- If vague request, prompt for basics (e.g., "Role? Location?").2. Conduct NAP InterviewAI asks 5-8 targeted questions to build NAP:
+- Role urgency/timeline (e.g., "Start date?")
+- Success criteria/KPIs (e.g., "Revenue growth targets?")
+- Team dynamics/culture fit (e.g., "Remote-first?")
+- Must-haves vs. nice-to-haves (e.g., "5+ yrs AI exp?")
+AI uses context from client company (e.g., past hires, industry).- Client responses (real-time chat)
+- Client company data (from companies table)- Complete NAP profile (JSON: {urgency: "high", kpis: [...], culture: "collaborative"})
+- Summary: "Your NAP: CTO with AI focus, Q1 start, culture match to your scale-up vibe."- Limit to 10 Q&A turns max.
+- If incomplete, use defaults from company profile.
+- Store NAP in DB linked to search ID.3. Formulate Search StrategyAI analyzes NAP + client company understanding to create strategy:
+- Keywords: Title, skills, location.
+- Filters: Experience level, industry match.
+- Sources: Prioritize internal DB, then external.- NAP profile
+- Client company insights (e.g., from jobs/companies tables)- Strategy doc (JSON): {keywords: ["CTO", "fintech"], filters: {min_exp: 10}, sources: ["internal", "linkedin"]}
+- Shared with client: "Strategy: Target 10+ yr fintech leaders in SF/NY."- Auto-generate 2-3 strategy variants (e.g., broad vs. niche).
+- Client approval loop: "Approve or tweak?"4. Execute Internal SearchQuery DeepHire's internal DB for matches.
+- Scan candidates table.
+- Apply NAP filters.
+- Score all hits using two-tier system.
+- Aim for 20-30 with >70% confidence.- Search strategy
+- Internal DB (candidates, companies, jobs)- Initial longlist: 0-30 candidates with scores.
+- Per candidate: Fit Score (0-100), Match Score (0-100), reasoning.
+- Progress update: "Found 15 internal matches—scanning deeper."- Decision Point: If ≥20-30 @ >70%, proceed to Step 6.
+- If <20, log "Low internal yield" and trigger Step 5.
+- Run in background; notify on completion.5. Execute External Search (If Needed)Expand to external sources to fill gaps.
+- Sources: LinkedIn search, referrals, public profiles.
+- Use strategy keywords/filters.
+- Import new candidates to DB.
+- Score and dedupe against internal hits.- Gaps from internal search
+- External APIs (e.g., LinkedIn via proxy)- Augmented longlist: +10-20 external candidates.
+- Total: 20-30+ with >70% scores.
+- Import log: "Added 12 from LinkedIn; deduped 3."- Only trigger if internal <20 viable.
+- Cap external at 50 queries to avoid rate limits.
+- Always score before adding to longlist.6. Rank, Review & Deliver LonglistRank by AI Fit Score (primary), Match Score (tiebreaker).
+- Provide transparency: Top 3 strengths, concerns per candidate.
+- Client review loop.- Full candidate list with scores- Ranked longlist (UI table/exportable CSV).
+- Delivery message: "Your 25-candidate longlist—top fit: Jane Doe (92% 🧠, ex-Google fintech lead)."
+- Visuals: Green badges for >70%, sorted descending.- Minimum threshold: Reject any <70%.
+- If still short, loop back to Step 3 (refine strategy).
+- Archive search in DB for future reference.
+
+Scoring Integration (Two-Tier System)
+This process embeds the AI Fit Score (your "WOW Effect") at every search stage for intelligent filtering:
+
+Match Score (⭐, 0-100): Quick keyword baseline (e.g., skills/location match = 80%).
+AI Fit Score (🧠, 0-100): NAP-powered deep dive (e.g., "92%—excels in KPIs like 2x revenue growth; concern: remote culture mismatch").
+Calculation: xAI Grok API prompt: "Score this candidate [profile] against NAP [details]. Output: score, reasoning, strengths [3], concerns."
+Threshold: Only include >70% in longlist. Avg. target: 80%+.
+
+UI/Output: Candidates show as cards with badges, expandable reasoning. Example:textJane Doe | CTO @ FinAI | 🧠 92% | ⭐ 85%
+Why: Proven in high-urgency scale-ups like yours.
+Strengths: ✓ AI expertise | ✓ Team builder | ✓ KPI driver
+Concerns: ⚠️ Limited NY experience
+
+If scores dip below target, the system auto-suggests strategy tweaks (e.g., "Broaden location filter?").
+
+Implementation Notes for Replit/DeepHire App
+To make this bulletproof in our app (post-data restore):
+
+DB Schema Updates (Safe Migration Planned):
+Add searches table: {id, nap_json, strategy_json, status, created_at}.
+Link to candidates via search_id.
+No --force: I'll use db:push with schema diffs + manual backups.
+
+Code Flow (In server/routes/search.ts):typescript// Pseudo-code snippet
+app.post('/search/start', async (req, res) => {
+  const nap = await conductNAP(req.body.request);  // Step 2
+  const strategy = formulateStrategy(nap, clientCompany);  // Step 3
+  let candidates = await internalSearch(strategy);  // Step 4
+  if (candidates.filter(c => c.fitScore > 70).length < 20) {
+    candidates = [...candidates, ...(await externalSearch(strategy))];  // Step 5
+  }
+  const longlist = rankAndFilter(candidates);  // Step 6
+  res.json({ longlist, status: 'delivered' });
+});
+UI Enhancements (Dashboard.tsx):
+Chat-triggered: "Start Search" button → NAP modal.
+Progress bar: "Internal: 15/20 → External scan..."
+Longlist view: Sortable table with scores/export.
+
+Error Handling/Post-Migration:
+Always backup: pg_dump before searches.
+Test: Once you reply "Data restored", I'll run a mock search with your old November 7th data.
+Cost Control: Limit Grok API calls to 10/candidate batch.
+
+
+This process turns DeepHire into a true "executive search consultant"—proactive, transparent, and client-obsessed. Does this match your vision? Want me to tweak any step, or shall we test it live after restore? (P.S. Still need that "Data restored" confirmation to proceed safely.)
