@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Link } from "wouter";
-import { Building2, Mail, Phone, Briefcase, Star, MoreVertical, MessageSquare } from "lucide-react";
+import { Building2, Mail, Phone, Briefcase, Star, MoreVertical, MessageSquare, Brain, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,6 +21,10 @@ interface JobCandidate {
   matchScore: number | null;
   aiReasoning: any;
   searchTier: number | null;
+  fitScore: number | null;
+  fitReasoning: string | null;
+  fitStrengths: string[] | null;
+  fitConcerns: string[] | null;
   recruiterNotes: string | null;
   rejectedReason: string | null;
   lastActionAt: string | null;
@@ -289,18 +293,54 @@ export default function KanbanView({ jobId, candidates, onStatusChange }: Kanban
                               )}
 
                               <div className="flex items-center gap-2 flex-wrap">
-                                {jc.matchScore !== null && (
+                                {jc.fitScore !== null && jc.fitScore !== undefined ? (
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-xs flex items-center gap-1 bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-200"
+                                  >
+                                    <Brain className="w-3 h-3" />
+                                    AI Fit: {jc.fitScore}%
+                                  </Badge>
+                                ) : jc.matchScore !== null ? (
                                   <Badge variant="outline" className="text-xs flex items-center gap-1">
                                     <Star className="w-3 h-3" />
                                     {jc.matchScore}%
                                   </Badge>
-                                )}
+                                ) : null}
                                 {jc.searchTier !== null && (
                                   <Badge variant="outline" className="text-xs">
                                     Tier {jc.searchTier}
                                   </Badge>
                                 )}
                               </div>
+                              
+                              {jc.fitReasoning && (
+                                <div className="rounded-md bg-muted/30 p-2 space-y-1 text-xs border border-border/30">
+                                  <p className="font-medium flex items-center gap-1">
+                                    <Brain className="h-3 w-3 text-primary" />
+                                    Why this fits:
+                                  </p>
+                                  <p className="text-muted-foreground leading-relaxed line-clamp-2">
+                                    {jc.fitReasoning}
+                                  </p>
+                                  {(jc.fitStrengths && jc.fitStrengths.length > 0) || (jc.fitConcerns && jc.fitConcerns.length > 0) ? (
+                                    <div className="flex gap-2 mt-1 text-[10px]">
+                                      {jc.fitStrengths && jc.fitStrengths.length > 0 && (
+                                        <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400">
+                                          <CheckCircle2 className="h-2.5 w-2.5" />
+                                          {jc.fitStrengths.length} strengths
+                                        </span>
+                                      )}
+                                      {jc.fitConcerns && jc.fitConcerns.length > 0 && (
+                                        <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
+                                          <AlertCircle className="h-2.5 w-2.5" />
+                                          {jc.fitConcerns.length} considerations
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )}
 
                               {candidate.email && (
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground">

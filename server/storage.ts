@@ -810,6 +810,10 @@ export class DatabaseStorage implements IStorage {
     matchScore: number | null;
     aiReasoning: any;
     searchTier: number | null;
+    fitScore: number | null;
+    fitReasoning: string | null;
+    fitStrengths: string[] | null;
+    fitConcerns: string[] | null;
     recruiterNotes: string | null;
     rejectedReason: string | null;
     lastActionAt: Date | null;
@@ -826,6 +830,10 @@ export class DatabaseStorage implements IStorage {
       matchScore: jobCandidates.matchScore,
       aiReasoning: jobCandidates.aiReasoning,
       searchTier: jobCandidates.searchTier,
+      fitScore: jobCandidates.fitScore,
+      fitReasoning: jobCandidates.fitReasoning,
+      fitStrengths: jobCandidates.fitStrengths,
+      fitConcerns: jobCandidates.fitConcerns,
       recruiterNotes: jobCandidates.recruiterNotes,
       rejectedReason: jobCandidates.rejectedReason,
       lastActionAt: jobCandidates.lastActionAt,
@@ -839,7 +847,7 @@ export class DatabaseStorage implements IStorage {
     .innerJoin(candidates, eq(jobCandidates.candidateId, candidates.id))
     .leftJoin(companies, eq(candidates.currentCompanyId, companies.id))
     .where(eq(jobCandidates.jobId, jobId))
-    .orderBy(desc(jobCandidates.matchScore));
+    .orderBy(desc(jobCandidates.fitScore), desc(jobCandidates.matchScore));
 
     // Enrich with company data by matching company names if no direct FK
     const enrichedResults = await Promise.all(results.map(async (r) => {
@@ -860,6 +868,10 @@ export class DatabaseStorage implements IStorage {
         matchScore: r.matchScore,
         aiReasoning: r.aiReasoning,
         searchTier: r.searchTier,
+        fitScore: r.fitScore,
+        fitReasoning: r.fitReasoning,
+        fitStrengths: r.fitStrengths as string[] | null,
+        fitConcerns: r.fitConcerns as string[] | null,
         recruiterNotes: r.recruiterNotes,
         rejectedReason: r.rejectedReason,
         lastActionAt: r.lastActionAt,

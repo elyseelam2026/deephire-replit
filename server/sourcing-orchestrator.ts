@@ -5,9 +5,10 @@
 
 import { scrapeLinkedInProfile, type LinkedInProfileData } from './brightdata';
 import { db } from './db';
-import { sourcingRuns, candidates, jobCandidates } from '../shared/schema';
-import { eq, and } from 'drizzle-orm';
+import { sourcingRuns, candidates, jobCandidates, jobs } from '../shared/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { batchCreateCandidates } from './candidate-ingestion';
+import { scoreCandidateFit } from './ai';
 
 export interface SourcingJobConfig {
   sourcingRunId: number;
@@ -231,6 +232,13 @@ export async function orchestrateProfileFetching(
           }
           
           console.log(`✅ [Sourcing Orchestrator] Linked ${jobCandidatesLinked} candidates to job #${sourcingRun.jobId}`);
+          
+          // Trigger async fit scoring for all linked candidates (fire-and-forget)
+          if (jobCandidatesLinked > 0) {
+            scoreCandidatesForJob(sourcingRun.jobId, candidateIds).catch(err => {
+              console.error(`❌ [Fit Scoring] Background scoring failed for job #${sourcingRun.jobId}:`, err);
+            });
+          }
         } else {
           console.log(`ℹ️  [Sourcing Orchestrator] No jobId found - candidates saved without job link`);
         }
@@ -391,4 +399,110 @@ export function batchArray<T>(array: T[], batchSize: number): T[][] {
     batches.push(array.slice(i, i + batchSize));
   }
   return batches;
+}
+
+/**
+ * AI-POWERED FIT SCORING: Score all candidates for a job based on NAP context
+ * This is what creates the "WOW effect" - intelligent ranking beyond keyword matching
+ * 
+ * @param jobId Job to score candidates for
+ * @param candidateIds Array of candidate IDs to score
+ */
+async function scoreCandidatesForJob(jobId: number, candidateIds: number[]): Promise<void> {
+  try {
+    console.log(`\n🧠 [Fit Scoring] Starting AI-powered fit scoring for ${candidateIds.length} candidates on job #${jobId}...`);
+    
+    // Step 1: Load job with NAP context
+    const [job] = await db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1);
+    
+    if (!job) {
+      console.error(`❌ [Fit Scoring] Job #${jobId} not found`);
+      return;
+    }
+    
+    // Extract NAP context from job
+    const parsedData = job.parsedData as any;
+    const needAnalysis = job.needAnalysis as any;
+    
+    const napContext = {
+      title: parsedData?.title || job.title || undefined,
+      industry: parsedData?.industry || undefined,
+      location: parsedData?.location || undefined,
+      skills: parsedData?.skills || [],
+      yearsExperience: parsedData?.yearsExperience || undefined,
+      urgency: needAnalysis?.urgency || undefined,
+      successCriteria: needAnalysis?.successCriteria || undefined,
+      teamDynamics: needAnalysis?.teamDynamics || undefined,
+    };
+    
+    console.log(`   📋 NAP Context: ${napContext.title} in ${napContext.location || 'Any Location'}`);
+    console.log(`   ⏱️  Urgency: ${napContext.urgency || 'Not specified'}`);
+    
+    // Step 2: Load all candidates
+    const candidateRecords = await db
+      .select()
+      .from(candidates)
+      .where(inArray(candidates.id, candidateIds));
+    
+    console.log(`   👥 Loaded ${candidateRecords.length} candidate profiles`);
+    
+    // Step 3: Score each candidate (with rate limiting - 2 per second)
+    let scored = 0;
+    for (const candidate of candidateRecords) {
+      try {
+        console.log(`   🔍 Scoring: ${candidate.firstName} ${candidate.lastName} (${candidate.currentTitle || 'Unknown Title'})`);
+        
+        // Call AI fit scoring
+        const education = candidate.education as any;
+        const fitResult = await scoreCandidateFit(
+          {
+            name: `${candidate.firstName} ${candidate.lastName}`,
+            currentTitle: candidate.currentTitle || 'Unknown',
+            currentCompany: candidate.currentCompany || 'Unknown',
+            skills: candidate.skills || [],
+            experience: `${candidate.yearsExperience || 0} years`,
+            education: Array.isArray(education) && education.length > 0 ? education[0]?.degree : undefined,
+            location: candidate.location || undefined,
+          },
+          napContext
+        );
+        
+        // Step 4: Update job_candidates with fit score
+        await db
+          .update(jobCandidates)
+          .set({
+            fitScore: fitResult.fitScore,
+            fitReasoning: fitResult.reasoning,
+            fitStrengths: fitResult.strengths,
+            fitConcerns: fitResult.concerns,
+          })
+          .where(
+            and(
+              eq(jobCandidates.jobId, jobId),
+              eq(jobCandidates.candidateId, candidate.id)
+            )
+          );
+        
+        scored++;
+        console.log(`   ✅ Fit Score: ${fitResult.fitScore}/100 - ${fitResult.reasoning.substring(0, 80)}...`);
+        
+        // Rate limiting: 2 requests per second max
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (error) {
+        console.error(`   ❌ Failed to score candidate #${candidate.id}:`, error);
+        // Continue with other candidates
+      }
+    }
+    
+    console.log(`\n✅ [Fit Scoring] Completed: Scored ${scored}/${candidateRecords.length} candidates for job #${jobId}`);
+    
+  } catch (error) {
+    console.error(`❌ [Fit Scoring] Failed to score candidates for job #${jobId}:`, error);
+    throw error;
+  }
 }
