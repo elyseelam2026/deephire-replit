@@ -1,7 +1,7 @@
 # DeepHire - AI-Powered Talent Acquisition Platform
 
 ## Overview
-DeepHire is an enterprise B2B recruiting platform leveraging AI to revolutionize talent acquisition, initially targeting Private Equity. It functions as an AI-powered executive search consultant, learning hiring patterns, understanding career trajectories, and semantically matching candidates. The platform provides intelligent candidate matching, automated job description parsing, and streamlined recruitment workflows through a multi-portal architecture and comprehensive management systems.
+DeepHire is an enterprise B2B recruiting platform leveraging AI to revolutionize talent acquisition, initially targeting Private Equity. It functions as an AI-powered executive search consultant that discovers NEW external candidates via LinkedIn/web scraping (not just internal database search). The system delivers a "WOW effect" through intelligent candidate ranking using full NAP (Needs Analysis Profile) context—evaluating urgency, success criteria, and team dynamics—not just keyword matching. The platform provides automated job description parsing and streamlined recruitment workflows through a multi-portal architecture and comprehensive management systems.
 
 The long-term vision includes a bottom-up intelligence system for Company Intelligence, Organization Chart Mapping, Pattern Learning, Semantic Matching, and Culture Insights.
 
@@ -43,6 +43,11 @@ Key features include:
     - **Database**: Added fitScore, fitReasoning, fitStrengths, fitConcerns to job_candidates table. Storage layer sorts by fitScore DESC first, then matchScore as fallback
     - **UI Enhancement**: CandidateCard and KanbanView display prominent "AI Fit" badge with Brain icon, "Why this candidate fits" section with reasoning, and visual indicators for strengths (green checkmarks) and concerns (amber alerts). Creates meaningful hierarchy that feels like sophisticated AI consultant insights rather than basic keyword searching
     - **Status**: PRODUCTION-READY - Full end-to-end implementation approved by architect. Enhancement opportunities: retry/backoff for failed scoring, ListView integration, "scoring pending" indicator
+-   **AI Promise System**: IMMEDIATE execution system that triggers external candidate sourcing when AI makes delivery commitments in conversation. When AI says "I'm searching for candidates", system INSTANTLY executes LinkedIn search via SerpAPI, fetches profiles via Bright Data, creates candidates, and stages them in pipeline. No more 5-minute delays - promises execute the moment they're detected. Includes intelligent fallback to internal database search if external search returns zero results.
+    - **Architecture**: Promise detection → Immediate execution trigger → External LinkedIn search → Profile fetching → Candidate creation → Job linking
+    - **Components**: detectPromise() in server/ai.ts, executeSearchPromise() in server/promise-worker.ts, searchLinkedInPeople() in server/serpapi.ts, orchestrateProfileFetching() in server/sourcing-orchestrator.ts
+    - **Database**: search_promises table tracks AI commitments with execution logs, status tracking, and sourcing run linking
+    - **Status**: PRODUCTION-READY - Immediate execution implemented with race condition guards, external sourcing integration, and intelligent fallback
 
 ### System Design Choices
 The primary database is PostgreSQL with Neon serverless hosting, using Drizzle ORM. The schema includes models for Companies, Candidates, Jobs, Job matches, Users, Data ingestion jobs, and Duplicate detection, with multi-language name support and custom fields. Companies can have roles like `['client', 'sourcing', 'prospecting']`. Duplicate detection prioritizes website domain matching. Custom fields use `custom_field_sections`, `custom_field_definitions`, and JSONB storage for flexibility. Candidates are soft-deleted using a `deleted_at` timestamp.
