@@ -235,7 +235,42 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
     
     console.log(`[Promise Worker] ✅ Promise #${promiseId} completed successfully`);
     
-    // TODO: Send notification to user (Task 6)
+    // ✉️ SEND RESULTS BACK TO CONVERSATION
+    try {
+      const conversation = await storage.getConversation(promise.conversationId);
+      if (conversation && conversation.messages) {
+        const deliveryMessage = candidateIds.length > 0
+          ? `✅ **Your ${promise.searchParams.title || 'search'} longlist is ready!**\n\n` +
+            `I've found **${candidateIds.length} qualified candidates** and created Job Order #${jobId}.\n\n` +
+            `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${jobId})**\n\n` +
+            `You can now review candidates, move them through stages, and manage this search.`
+          : `I completed the search for ${promise.searchParams.title || 'your position'}, but unfortunately didn't find any candidates matching your criteria. Would you like me to adjust the search parameters?`;
+        
+        const updatedMessages = [
+          ...conversation.messages,
+          {
+            role: 'assistant' as const,
+            content: deliveryMessage,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              type: 'job_created' as const,
+              jobId: jobId!,
+              candidateIds: candidateIds
+            }
+          }
+        ];
+        
+        await storage.updateConversation(promise.conversationId, {
+          messages: updatedMessages,
+          jobId: jobId!
+        });
+        
+        console.log(`[Promise Worker] 📧 Sent results to conversation #${promise.conversationId}`);
+      }
+    } catch (notificationError) {
+      console.error(`[Promise Worker] Failed to send notification to conversation:`, notificationError);
+      // Don't fail the whole promise if notification fails
+    }
     
   } catch (error) {
     console.error(`[Promise Worker] ❌ Error executing promise #${promiseId}:`, error);

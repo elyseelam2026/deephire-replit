@@ -18,10 +18,13 @@ interface DetectedPromise {
  * Promise patterns the AI might use
  */
 const PROMISE_PATTERNS = [
-  // Explicit time-based promises
-  /(?:send|deliver|provide|find|get|show)\s+(?:you\s+)?(?:qualified\s+)?candidates?\s+(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(hour|day|week|month)s?/i,
-  /(?:have|get)\s+(?:you\s+)?candidates?\s+(?:ready|prepared|available)\s+(?:within|in|by)\s+(\d+)\s+(hour|day|week|month)s?/i,
-  /(?:send|share)\s+(?:a\s+)?(?:list|shortlist|longlist)\s+(?:of\s+candidates?\s+)?(?:within|in)\s+(\d+)\s+(hour|day|week|month)s?/i,
+  // Explicit time-based promises (including MINUTES)
+  /(?:send|deliver|provide|find|get|show)\s+(?:you\s+)?(?:qualified\s+)?candidates?\s+(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
+  /(?:have|get)\s+(?:you\s+)?(?:your\s+)?(?:candidates?|longlist|shortlist)\s+(?:ready|prepared|available)\s+(?:within|in|by)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
+  /(?:send|share)\s+(?:a\s+)?(?:list|shortlist|longlist)\s+(?:of\s+candidates?\s+)?(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
+  
+  // Specific time references (e.g., "by 16:27")
+  /(?:have|get|send|deliver)\s+(?:you\s+)?(?:your\s+)?(?:longlist|shortlist|candidates?)\s+(?:ready|available)?\s+by\s+(\d{1,2}):(\d{2})/i,
   
   // Relative time promises
   /(?:send|deliver|provide)\s+candidates?\s+(?:by\s+)?(tomorrow|tonight|today|this\s+week|next\s+week|this\s+month)/i,
@@ -44,9 +47,28 @@ export function detectPromise(aiResponse: string): DetectedPromise | null {
       // Parse the timeframe
       let timeAmount = 0;
       let timeUnit = '';
+      let specificDeadline: Date | null = null;
       
-      if (match[1] && match[2]) {
-        // Pattern with number + unit (e.g., "72 hours")
+      // Check if this is a specific time pattern (e.g., "by 16:27")
+      if (match[1] && match[2] && !isNaN(parseInt(match[1])) && !isNaN(parseInt(match[2]))) {
+        // Looks like HH:MM format
+        const hour = parseInt(match[1]);
+        const minute = parseInt(match[2]);
+        if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+          // Create deadline for today at specified time
+          specificDeadline = new Date();
+          specificDeadline.setHours(hour, minute, 0, 0);
+          
+          // If time has passed today, assume tomorrow
+          if (specificDeadline < new Date()) {
+            specificDeadline.setDate(specificDeadline.getDate() + 1);
+          }
+          
+          timeUnit = 'specific';
+          timeAmount = 0;
+        }
+      } else if (match[1] && match[2]) {
+        // Pattern with number + unit (e.g., "5 minutes")
         timeAmount = parseInt(match[1]);
         timeUnit = match[2].toLowerCase();
       } else if (match[1]) {
@@ -71,12 +93,17 @@ export function detectPromise(aiResponse: string): DetectedPromise | null {
       }
       
       // Calculate deadline
-      const deadline = calculateDeadline(timeAmount, timeUnit);
+      const deadline = specificDeadline || calculateDeadline(timeAmount, timeUnit);
       
       // Format timeframe for storage
-      const timeframeText = timeAmount && timeUnit 
-        ? `${timeAmount} ${timeUnit}${timeAmount > 1 ? 's' : ''}`
-        : match[1] || 'soon';
+      let timeframeText: string;
+      if (specificDeadline) {
+        timeframeText = `by ${specificDeadline.getHours()}:${String(specificDeadline.getMinutes()).padStart(2, '0')}`;
+      } else {
+        timeframeText = timeAmount && timeUnit 
+          ? `${timeAmount} ${timeUnit}${timeAmount > 1 ? 's' : ''}`
+          : match[1] || 'soon';
+      }
       
       return {
         promiseText: fullMatch,
@@ -117,6 +144,9 @@ function calculateDeadline(amount: number, unit: string): Date {
   const deadline = new Date(now);
   
   switch (unit.toLowerCase()) {
+    case 'minute':
+      deadline.setMinutes(deadline.getMinutes() + amount);
+      break;
     case 'hour':
       deadline.setHours(deadline.getHours() + amount);
       break;
@@ -130,8 +160,8 @@ function calculateDeadline(amount: number, unit: string): Date {
       deadline.setMonth(deadline.getMonth() + amount);
       break;
     default:
-      // Default to 72 hours if unknown
-      deadline.setHours(deadline.getHours() + 72);
+      // Default to 15 minutes if unknown
+      deadline.setMinutes(deadline.getMinutes() + 15);
   }
   
   return deadline;
@@ -160,8 +190,8 @@ export function createPromiseFromConversation(
       salary: searchContext?.salary || '',
       urgency: searchContext?.urgency || 'medium',
       searchTier: searchContext?.searchTier || 'internal',
-      minCandidates: 5 // Default expectation
-    },
+      minCandidates: 5
+    } as any,
     status: 'pending',
     candidatesFound: 0,
     candidateIds: null,
