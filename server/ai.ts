@@ -22,6 +22,108 @@ function stripMarkdownJson(text: string): string {
 }
 
 /**
+ * AI-POWERED CANDIDATE FIT SCORING
+ * Uses xAI Grok to evaluate candidate fit against NAP context (urgency, consequences, success criteria)
+ * This creates the "WOW effect" by ranking candidates by true fit, not just keyword matching
+ */
+export async function scoreCandidateFit(
+  candidate: {
+    name: string;
+    currentTitle: string;
+    currentCompany: string;
+    skills: string[];
+    experience?: string;
+    education?: string;
+    location?: string;
+  },
+  napContext: {
+    title?: string;
+    urgency?: string;
+    successCriteria?: string;
+    teamDynamics?: string;
+    skills?: string[];
+    location?: string;
+    industry?: string;
+    yearsExperience?: number;
+  }
+): Promise<{
+  fitScore: number;  // 0-100
+  reasoning: string;
+  strengths: string[];
+  concerns: string[];
+}> {
+  try {
+    const prompt = `You are an executive search consultant evaluating candidate fit for a client's urgent hiring need.
+
+**CLIENT'S NEED (NAP Context):**
+- Role: ${napContext.title || 'Not specified'}
+- Industry: ${napContext.industry || 'Not specified'}
+- Location: ${napContext.location || 'Not specified'}
+- Required Skills: ${napContext.skills?.join(', ') || 'Not specified'}
+- Years of Experience: ${napContext.yearsExperience || 'Not specified'}
+- Urgency: ${napContext.urgency || 'Not specified'}
+- Success Criteria (90 days): ${napContext.successCriteria || 'Not specified'}
+- Team Dynamics: ${napContext.teamDynamics || 'Not specified'}
+
+**CANDIDATE PROFILE:**
+- Name: ${candidate.name}
+- Current Title: ${candidate.currentTitle}
+- Current Company: ${candidate.currentCompany}
+- Skills: ${candidate.skills?.join(', ') || 'Not specified'}
+- Location: ${candidate.location || 'Not specified'}
+- Experience: ${candidate.experience || 'Not specified'}
+- Education: ${candidate.education || 'Not specified'}
+
+Evaluate this candidate's fit for the role. Consider:
+1. Does their background align with the urgency and success criteria?
+2. Do their skills and experience match the requirements?
+3. Would they succeed in the team dynamics described?
+4. Are there any red flags or concerns?
+
+Respond in JSON format:
+{
+  "fitScore": <number 0-100>,
+  "reasoning": "<1-2 sentence explanation of overall fit>",
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "concerns": ["<concern 1>", "<concern 2>"]
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an executive search consultant expert at evaluating candidate fit. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 500
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    return {
+      fitScore: Math.max(0, Math.min(100, result.fitScore || 0)),
+      reasoning: result.reasoning || "No reasoning provided",
+      strengths: Array.isArray(result.strengths) ? result.strengths : [],
+      concerns: Array.isArray(result.concerns) ? result.concerns : []
+    };
+  } catch (error) {
+    console.error("[Fit Scoring] Error:", error);
+    return {
+      fitScore: 50,  // Default to neutral score on error
+      reasoning: "Unable to evaluate fit due to technical error",
+      strengths: [],
+      concerns: ["Fit scoring unavailable"]
+    };
+  }
+}
+
+/**
  * Generate conversational AI response for recruiting assistant with NAP (Need Analysis Profile) collection
  * Uses Grok to handle natural dialogue, detect intent, and guide conversation through consultative questions
  */

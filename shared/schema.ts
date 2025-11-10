@@ -185,9 +185,15 @@ export const jobCandidates = pgTable("job_candidates", {
   statusHistory: jsonb("status_history").default(sql`'[]'::jsonb`), // Array of {status, changedAt, changedBy, note}
   
   // AI matching data
-  matchScore: integer("match_score"), // 0-100 percentage
+  matchScore: integer("match_score"), // 0-100 percentage (keyword-based matching)
   aiReasoning: jsonb("ai_reasoning"), // Detailed match reasoning from AI
   searchTier: integer("search_tier"), // Which priority tier candidate was found in (1, 2, 3)
+  
+  // AI FIT SCORING (NAP-driven intelligent ranking)
+  fitScore: integer("fit_score"), // 0-100 AI-evaluated fit against NAP context (urgency, success criteria)
+  fitReasoning: text("fit_reasoning"), // AI explanation of why this candidate fits the role
+  fitStrengths: jsonb("fit_strengths").$type<string[]>(), // Key strengths identified by AI
+  fitConcerns: jsonb("fit_concerns").$type<string[]>(), // Concerns or gaps identified by AI
   
   // Recruiter notes & rejection tracking
   recruiterNotes: text("recruiter_notes"),
