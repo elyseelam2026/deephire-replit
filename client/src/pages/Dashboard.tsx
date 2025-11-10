@@ -77,19 +77,6 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Fetch current conversation (only GET, no side effects)
-  const { data: conversation, isLoading } = useQuery<Conversation>({
-    queryKey: ['/api/conversations', conversationId],
-    queryFn: async () => {
-      if (!conversationId) return null;
-      const response = await fetch(`/api/conversations/${conversationId}`);
-      if (!response.ok) throw new Error('Failed to fetch conversation');
-      return response.json();
-    },
-    enabled: !!conversationId,
-    staleTime: 0, // Always fetch fresh data
-    refetchOnMount: true, // Refetch when component mounts
-  });
 
   // Send message mutation
   const sendMessageMutation = useMutation({
