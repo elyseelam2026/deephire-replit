@@ -2401,14 +2401,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`✅ Job order created: #${createdJobId} - ${newJob.title}`);
           
           // CRITICAL HANDOFF: If a promise was created, link it to this job and execute
-          if (promiseTriggeredSearch && detectedPromise) {
+          // BUG FIX: Check detectedPromise directly, not promiseTriggeredSearch (which is locally scoped)
+          if (detectedPromise) {
             console.log(`🔗 [Promise Handoff] Linking promise to new job #${createdJobId} and executing search...`);
             try {
-              // Find the promise we created earlier
+              // Find the most recent promise created in the current message processing
+              // (not by conversation, which could find old promises from previous messages)
               const promises = await storage.getSearchPromisesByConversation(conversation.id);
-              const latestPromise = promises.sort((a, b) => 
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              )[0];
+              const latestPromise = promises
+                .filter(p => !p.jobId || p.jobId === null) // Only promises not yet linked to a job
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
               
               if (latestPromise) {
                 // Update promise with new jobId
@@ -2420,10 +2422,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 executeSearchPromise(latestPromise.id).catch((error) => {
                   console.error(`❌ Failed to execute promise #${latestPromise.id}:`, error);
                 });
+              } else {
+                console.log(`⚠️ No unlinked promise found for conversation #${conversation.id} - promise may have been executed already`);
               }
             } catch (error) {
               console.error('❌ Failed to link promise to job:', error);
             }
+          } else {
+            console.log(`💡 No promise detected - standard job creation flow`);
           }
 
           // STEP 1: Search INTERNAL database FIRST (Grok's correct logic)
