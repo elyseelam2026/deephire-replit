@@ -2262,9 +2262,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           try {
           
-          // Detect search tier from user's message
-          const searchTier = lowerMessage.includes('external') ? 'external' : 'internal';
+          // 🚀 DEFAULT TO EXTERNAL (LinkedIn sourcing) - internal only if explicitly requested
+          const searchTier = lowerMessage.includes('internal') ? 'internal' : 'external';
           const feePercentage = searchTier === 'external' ? 25 : 15;
+          console.log(`📊 Search Tier: ${searchTier} (Fee: ${feePercentage}%)`);
+
           
           // Calculate estimated placement fee if salary is available
           let estimatedFee: number | undefined;
@@ -2339,44 +2341,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdJobId = newJob.id;
           console.log(`✅ Job order created: #${createdJobId} - ${newJob.title}`);
 
-          // Run candidate search
-          console.log('🔍 Running candidate search...');
-          const allCandidates = await storage.getCandidates();
-          const jobSkills = updatedSearchContext.skills || [];
-          const jobText = updatedSearchContext.description || updatedSearchContext.title || '';
-          
-          // Map candidates to expected format for generateCandidateLonglist
-          const candidatesForSearch = allCandidates.map(c => ({
-            id: c.id,
-            firstName: c.firstName,
-            lastName: c.lastName,
-            currentTitle: c.currentTitle || '',
-            skills: c.skills || [],
-            cvText: c.cvText || undefined
-          }));
-          
-          const searchResults = await generateCandidateLonglist(
-            candidatesForSearch,
-            jobSkills,
-            jobText,
-            20 // limit
-          );
-          
-          if (searchResults && searchResults.length > 0) {
-            matchedCandidates = searchResults.map(r => ({
-              candidateId: r.candidateId,
-              matchScore: r.matchScore,
-              reasoning: `Matched ${r.matchScore}% on skills and experience`
-            }));
-            console.log(`✅ Found ${matchedCandidates.length} matched candidates`);
-          } else {
-            console.log('⚠️ No candidates matched');
-            matchedCandidates = [];
-          }
-          
-          // 🚀 EXTERNAL SOURCING: If user requested external search, trigger LinkedIn sourcing
+          // 🚀 EXTERNAL SOURCING FIRST: Default behavior is to search LinkedIn
           let sourcingRunId: number | undefined;
           let searchRationale: string | undefined;
+          let matchedCandidates: Array<{candidateId: number; matchScore: number; reasoning?: string}> = [];
+          
           if (searchTier === 'external') {
             console.log('🌐 [External Sourcing] User requested external search - triggering LinkedIn sourcing...');
             
@@ -2446,11 +2415,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Update job search progress
           await storage.updateJob(createdJobId, {
-            searchExecutionStatus: 'completed',
+            searchExecutionStatus: searchTier === 'external' ? 'in_progress' : 'completed',
             searchProgress: {
-              candidatesSearched: allCandidates.length,
+              candidatesSearched: 0,
               matchesFound: matchedCandidates.length,
-              currentStep: 'Search completed successfully'
+              currentStep: searchTier === 'external' 
+                ? 'External LinkedIn search in progress...' 
+                : 'Search completed successfully'
             }
           });
 
