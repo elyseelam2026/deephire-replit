@@ -18,13 +18,13 @@ interface DetectedPromise {
  * Promise patterns the AI might use
  */
 const PROMISE_PATTERNS = [
-  // Explicit time-based promises (including MINUTES)
-  /(?:send|deliver|provide|find|get|show)\s+(?:you\s+)?(?:qualified\s+)?candidates?\s+(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
-  /(?:have|get)\s+(?:you\s+)?(?:your\s+)?(?:candidates?|longlist|shortlist)\s+(?:ready|prepared|available)\s+(?:within|in|by)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
-  /(?:send|share)\s+(?:a\s+)?(?:list|shortlist|longlist)\s+(?:of\s+candidates?\s+)?(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
+  // Explicit time-based promises (including MINUTES) - with optional "I'll" prefix
+  /(?:I(?:'ll| will)\s+)?(?:send|deliver|provide|find|get|show)\s+(?:you\s+)?(?:qualified\s+)?candidates?\s+(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
+  /(?:I(?:'ll| will)\s+)?(?:have|get)\s+(?:you\s+)?(?:your\s+)?(?:candidates?|longlist|shortlist)\s+(?:ready|prepared|available)\s+(?:within|in|by)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
+  /(?:I(?:'ll| will)\s+)?(?:send|share)\s+(?:a\s+)?(?:list|shortlist|longlist)\s+(?:of\s+candidates?\s+)?(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
   
-  // Specific time references (e.g., "by 16:27")
-  /(?:have|get|send|deliver)\s+(?:you\s+)?(?:your\s+)?(?:longlist|shortlist|candidates?)\s+(?:ready|available)?\s+by\s+(\d{1,2}):(\d{2})/i,
+  // Specific time references (e.g., "by 16:27") - with optional "I'll" prefix
+  /(?:I(?:'ll| will)\s+)?(?:have|get|send|deliver)\s+(?:you\s+)?(?:your\s+)?(?:longlist|shortlist|candidates?)\s+(?:ready|available)?\s+by\s+(\d{1,2}):(\d{2})/i,
   
   // Relative time promises
   /(?:send|deliver|provide)\s+candidates?\s+(?:by\s+)?(tomorrow|tonight|today|this\s+week|next\s+week|this\s+month)/i,
