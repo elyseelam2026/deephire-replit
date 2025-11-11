@@ -2164,10 +2164,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // ✨ PROMISE DETECTION: Check if AI made a delivery commitment
         const detectedPromise = detectPromise(aiResponse);
-        if (detectedPromise && !conversation.jobId) {
+        if (detectedPromise) {
           // AI made a promise to deliver candidates!
           console.log(`🎯 AI Promise detected: "${detectedPromise.promiseText}"`);
           console.log(`   Deadline: ${detectedPromise.deadlineAt.toISOString()}`);
+          console.log(`   Conversation has job: ${conversation.jobId ? 'Yes (ID: ' + conversation.jobId + ')' : 'No'}`);
           
           try {
             const promiseRecord = createPromiseFromConversation(
@@ -2175,6 +2176,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               conversationId,
               updatedSearchContext
             );
+            
+            // Link to existing job if conversation already has one
+            if (conversation.jobId) {
+              promiseRecord.jobId = conversation.jobId;
+            }
             
             const created = await storage.createSearchPromise(promiseRecord);
             console.log(`✅ Created search promise #${created.id} - executing immediately...`);
