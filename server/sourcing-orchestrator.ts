@@ -450,13 +450,47 @@ async function scoreCandidatesForJob(jobId: number, candidateIds: number[]): Pro
     
     console.log(`   👥 Loaded ${candidateRecords.length} candidate profiles`);
     
-    // Step 3: Score each candidate (with rate limiting - 2 per second)
+    // Step 3: Score each candidate using BOTH NAP rubric + Grok AI
     let scored = 0;
     for (const candidate of candidateRecords) {
       try {
         console.log(`   🔍 Scoring: ${candidate.firstName} ${candidate.lastName} (${candidate.currentTitle || 'Unknown Title'})`);
         
-        // Call AI fit scoring
+        // DUAL SCORING APPROACH:
+        // 1) NAP Rubric (fast, deterministic 0-10 score)
+        // 2) Grok AI (rich reasoning + strengths/concerns)
+        
+        // NAP Rubric Scoring (new) - SYNCHRONOUS, no await needed
+        const { calculateNAPFit } = await import('./nap-strategy');
+        const searchStrategy = job.searchStrategy as any;
+        
+        let napFitResult;
+        if (needAnalysis && searchStrategy && typeof needAnalysis === 'object') {
+          // Extract NAP strings from stored JSONB object
+          const napData = needAnalysis as { need?: string; authority?: string; pain?: string };
+          
+          napFitResult = calculateNAPFit(
+            {
+              currentTitle: candidate.currentTitle || null,
+              currentCompany: candidate.currentCompany || null,
+              yearsExperience: candidate.yearsExperience || null,
+              skills: candidate.skills || [],
+              careerHistory: candidate.careerHistory as any,
+              location: candidate.location || null,
+            },
+            {
+              need: napData.need || napContext.title || '',
+              authority: napData.authority || 'Senior leadership',
+              pain: napData.pain || napContext.urgency || 'Business critical'
+            },
+            searchStrategy
+          );
+          console.log(`      🎯 NAP Rubric: ${napFitResult.score}/10 - ${napFitResult.reasoning}`);
+        } else {
+          console.log(`      ⚠️ NAP Rubric: Skipped (no NAP data or search strategy)`);
+        }
+        
+        // Grok AI Fit Scoring (existing - provides rich reasoning)
         const education = candidate.education as any;
         const fitResult = await scoreCandidateFit(
           {
@@ -471,12 +505,15 @@ async function scoreCandidatesForJob(jobId: number, candidateIds: number[]): Pro
           napContext
         );
         
-        // Step 4: Update job_candidates with fit score
+        // Step 4: Update job_candidates with BOTH scores
+        // Use NAP rubric score if available (0-10 → 0-100), otherwise use Grok score
+        const finalFitScore = napFitResult ? napFitResult.score * 10 : fitResult.fitScore;
+        
         await db
           .update(jobCandidates)
           .set({
-            fitScore: fitResult.fitScore,
-            fitReasoning: fitResult.reasoning,
+            fitScore: finalFitScore,
+            fitReasoning: fitResult.reasoning, // Grok provides richer reasoning
             fitStrengths: fitResult.strengths,
             fitConcerns: fitResult.concerns,
           })
@@ -488,7 +525,7 @@ async function scoreCandidatesForJob(jobId: number, candidateIds: number[]): Pro
           );
         
         scored++;
-        console.log(`   ✅ Fit Score: ${fitResult.fitScore}/100 - ${fitResult.reasoning.substring(0, 80)}...`);
+        console.log(`   ✅ NAP Score: ${napFitResult?.score || 'N/A'}/10 | Grok: ${fitResult.fitScore}/100 | Final: ${finalFitScore}/100`);
         
         // Rate limiting: 2 requests per second max
         await new Promise(resolve => setTimeout(resolve, 500));

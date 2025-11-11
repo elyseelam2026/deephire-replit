@@ -183,7 +183,7 @@ export async function generateConversationalResponse(
   }
 ): Promise<{
   response: string;
-  intent: 'greeting' | 'job_inquiry' | 'clarification' | 'ready_to_search';
+  intent: 'greeting' | 'job_inquiry' | 'clarification' | 'nap_complete' | 'ready_to_search';
   extractedInfo?: {
     title?: string;
     skills?: string[];
@@ -220,16 +220,29 @@ export async function generateConversationalResponse(
     const mentionsSimilarTo = lowerMessage.includes('similar to') || lowerMessage.includes('like him') || lowerMessage.includes('like her');
     const isReferenceCandidateRequest = hasLinkedInUrl || mentionsSimilarTo;
 
-    const systemPrompt = `You are DeepHire AI — an executive search partner with 20+ years experience.
-NEVER ask bullet-point questions. NEVER say "I need to know X, Y, Z".
+    const systemPrompt = `You are DeepHire AI — a senior executive search partner.
+
+**MANDATORY NAP-FIRST APPROACH:**
+NEVER commit to searching without understanding NAP (Need, Authority, Pain).
+Quality recruiting = Pain-driven sourcing, not keyword spam.
+
+**NAP = Need + Authority + Pain:**
+- **NEED**: Core role requirements (e.g., "Financial strategy, M&A experience, board reporting")
+- **AUTHORITY**: Reporting structure (e.g., "Reports to CEO/Board")  
+- **PAIN**: Business challenge/urgency (e.g., "Stability risk post-departure, 60-day window, board pressure")
+
+**YOUR JOB:**
+1. Extract NAP from user's message (most clients give hints upfront)
+2. If NAP incomplete → ASK 1-2 targeted probes (warm, consultant tone)
+3. Once you have Need + Authority + Pain → Summarize NAP + commit to delivery
+4. NO generic searches — Every search must be pain-driven
 
 **CORE PHILOSOPHY - "DANCE, DON'T DRILL":**
 1. Speak like a human consultant: warm, confident, insightful
 2. ALWAYS rephrase what the client said before asking anything  
 3. Ask ONE natural follow-up at a time
-4. Fill the NAP schema in the background after every message
-5. When NAP completeness ≥ 80%, say: "We now have a bulletproof brief. I'll deliver your longlist in ~15 mins."
-6. Manage expectations: timeline, # of candidates, risks
+4. When you have full NAP, say: "Got it. Based on [PAIN], I'm targeting [STRATEGY]. Longlist ready in 20 mins."
+5. Manage expectations: timeline, # of candidates, quality over quantity
 
 **NAP SCHEMA (fill silently in background):**
 {
@@ -315,13 +328,25 @@ ${isReferenceCandidateRequest ? `
     const mentionsHiring = hiringKeywords.some(k => lowerMessage.includes(k));
     const hasJobContext = currentJobContext && Object.keys(currentJobContext).length > 0;
 
-    let intent: 'greeting' | 'job_inquiry' | 'clarification' | 'ready_to_search';
+    let intent: 'greeting' | 'job_inquiry' | 'clarification' | 'nap_complete' | 'ready_to_search';
     
-    // PRIORITY 1: If user wants to skip questions and we have ANY context → ready to search!
+    // NAP-GATED INTENT LOGIC
+    // Check if we have NAP (Need + Authority + Pain)
+    const hasNeed = currentJobContext?.title && (currentJobContext?.skills?.length || currentJobContext?.yearsExperience);
+    const hasAuthority = currentJobContext?.successCriteria || currentJobContext?.teamDynamics; // Authority signals
+    const hasPain = currentJobContext?.urgency || 
+                   lowerMessage.includes('urgent') ||
+                   lowerMessage.includes('challenge') ||
+                   lowerMessage.includes('risk') ||
+                   lowerMessage.includes('pain');
+    
+    const napCompleteness = (hasNeed ? 40 : 0) + (hasAuthority ? 30 : 0) + (hasPain ? 30 : 0);
+    
+    // PRIORITY 1: If user wants to skip questions and we have context → ready to search
     if (userWantsToSkipQuestions && (hasJobContext || isReferenceCandidateRequest || mentionsHiring)) {
-      intent = 'ready_to_search';
+      intent = napCompleteness >= 70 ? 'nap_complete' : 'ready_to_search'; // Force NAP first unless skipping
     }
-    // PRIORITY 2: If user provided a reference candidate → ready to search!
+    // PRIORITY 2: If user provided a reference candidate → ready to search
     else if (isReferenceCandidateRequest && (currentJobContext?.title || mentionsHiring)) {
       intent = 'ready_to_search';
     }
@@ -329,12 +354,15 @@ ${isReferenceCandidateRequest ? `
     else if (isGreeting && !mentionsHiring && !hasJobContext) {
       intent = 'greeting';
     } 
-    // PRIORITY 4: Has hiring context - check if we have minimum info
+    // PRIORITY 4: Has hiring context - check NAP completeness
     else if (mentionsHiring || hasJobContext) {
-      // Minimum info needed: Just a job title (or reference candidate)
-      // Location and skills are optional - we can search without them
-      const hasMinimumInfo = currentJobContext?.title || isReferenceCandidateRequest;
-      intent = hasMinimumInfo ? 'ready_to_search' : 'clarification';
+      if (napCompleteness >= 70) {
+        intent = 'nap_complete'; // NAP is complete, ready for strategy generation
+      } else if (currentJobContext?.title) {
+        intent = 'clarification'; // Keep probing for NAP
+      } else {
+        intent = 'job_inquiry'; // Need basic role info first
+      }
     } 
     // PRIORITY 5: Default to job inquiry
     else {

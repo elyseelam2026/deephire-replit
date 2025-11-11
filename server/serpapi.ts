@@ -10,6 +10,7 @@ export interface LinkedInSearchParams {
   keywords?: string[];      // Additional keywords (e.g., ["private equity", "buyout"])
   industry?: string;        // Industry filter
   experienceLevel?: string; // Entry, Mid-Senior, Director, Executive
+  booleanQuery?: string;    // NAP-driven Boolean query (takes precedence over individual params)
 }
 
 export interface LinkedInProfileResult {
@@ -47,23 +48,32 @@ export async function searchLinkedInPeople(
     throw new Error('SERPAPI_API_KEY not configured - cannot perform external candidate sourcing');
   }
 
-  // Build search query
-  const queryParts: string[] = [];
+  // Build search query - prioritize NAP Boolean query if provided
+  let searchQuery: string;
   
-  if (params.title) queryParts.push(params.title);
-  if (params.location) queryParts.push(params.location);
-  if (params.company) queryParts.push(params.company);
-  if (params.keywords && params.keywords.length > 0) {
-    queryParts.push(...params.keywords);
+  if (params.booleanQuery) {
+    // Use NAP-driven Boolean query directly (e.g., "(CFO OR \"Chief Financial Officer\") AND (M&A OR scaling)")
+    searchQuery = params.booleanQuery;
+    console.log(`🎯 [NAP-Driven Search] Using Boolean query: "${searchQuery}"`);
+  } else {
+    // Fallback: Build simple query from individual params
+    const queryParts: string[] = [];
+    
+    if (params.title) queryParts.push(params.title);
+    if (params.location) queryParts.push(params.location);
+    if (params.company) queryParts.push(params.company);
+    if (params.keywords && params.keywords.length > 0) {
+      queryParts.push(...params.keywords);
+    }
+    
+    searchQuery = queryParts.join(' ');
+    console.log(`🔍 [LinkedIn People Search] Simple query: "${searchQuery}"`);
   }
-  
-  const searchQuery = queryParts.join(' ');
   
   if (!searchQuery.trim()) {
-    throw new Error('Search query cannot be empty - provide at least title, location, or keywords');
+    throw new Error('Search query cannot be empty - provide booleanQuery, title, location, or keywords');
   }
 
-  console.log(`🔍 [LinkedIn People Search] Searching for: "${searchQuery}"`);
   console.log(`   Limit: ${limit} profiles`);
   
   try {

@@ -2215,6 +2215,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           newPhase = 'initial';
         } else if (grokResponse.intent === 'clarification') {
           newPhase = 'clarifying';
+        } else if (grokResponse.intent === 'nap_complete') {
+          // NAP (Need/Authority/Pain) complete - ready to generate strategy
+          newPhase = 'nap_complete';
+          console.log('✅ NAP Complete - Need/Authority/Pain collected, ready for strategy generation');
         } else if (grokResponse.intent === 'ready_to_search') {
           newPhase = 'ready_to_create_job';
         } else {
@@ -2301,21 +2305,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`✅ Created default company: ${defaultCompany.name} (ID: ${companyId})`);
           }
 
-          // Generate search strategy using AI
-          console.log('🤖 Generating search strategy...');
-          const searchStrategy = await generateSearchStrategy({
-            title: updatedSearchContext.title,
-            skills: updatedSearchContext.skills || [],
-            industry: updatedSearchContext.industry,
-            yearsExperience: updatedSearchContext.yearsExperience,
-            location: updatedSearchContext.location,
-            salary: updatedSearchContext.salary,
-            urgency: updatedSearchContext.urgency,
-            successCriteria: updatedSearchContext.successCriteria,
-            searchTier: searchTier
+          // Generate NAP-driven search strategy
+          console.log('🎯 Generating NAP-driven search strategy...');
+          const { generateSearchStrategy: napGenerateSearchStrategy } = await import('./nap-strategy');
+          
+          // Build NAP summary from search context
+          const napSummary = {
+            need: `${updatedSearchContext.title || 'Role'} with ${(updatedSearchContext.skills || []).join(', ')} - ${updatedSearchContext.yearsExperience || 5}+ years experience`,
+            authority: updatedSearchContext.successCriteria || updatedSearchContext.teamDynamics || 'Reports to senior leadership',
+            pain: updatedSearchContext.urgency || 'Business critical hiring need'
+          };
+          
+          const napSearchStrategy = napGenerateSearchStrategy(
+            napSummary,
+            {
+              title: updatedSearchContext.title,
+              location: updatedSearchContext.location,
+              industry: updatedSearchContext.industry
+            }
+          );
+          
+          console.log('✅ NAP Strategy generated:', {
+            booleanQuery: napSearchStrategy.keywords,
+            painSolvers: napSearchStrategy.prioritySignals,
+            rationale: napSearchStrategy.searchRationale.substring(0, 200) + '...'
           });
           
-          // Create job order in database with pricing and search strategy
+          // Use NAP strategy for job creation
+          const searchStrategy = {
+            keywords: napSearchStrategy.keywords,
+            filters: napSearchStrategy.filters,
+            prioritySignals: napSearchStrategy.prioritySignals,
+            napSummary: napSearchStrategy.napSummary,
+            searchRationale: napSearchStrategy.searchRationale
+          };
+          
+          // Create job order in database with NAP summary and search strategy
           const newJob = await storage.createJob({
             title: updatedSearchContext.title,
             department: updatedSearchContext.department || 'General',
@@ -2329,12 +2354,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             feePercentage: feePercentage,
             estimatedPlacementFee: estimatedFee,
             feeStatus: 'pending',
+            needAnalysis: napSummary,  // Persist NAP summary
             searchStrategy: searchStrategy,
             searchExecutionStatus: 'executing',
             searchProgress: {
               candidatesSearched: 0,
               matchesFound: 0,
-              currentStep: 'Initializing search...'
+              currentStep: 'Initializing NAP-driven search...'
             }
           });
 
