@@ -16,14 +16,15 @@ interface DetectedPromise {
 
 /**
  * Promise patterns the AI might use
+ * CRITICAL FIX: Handle abbreviations (mins, min, hr, hrs, wk, wks, mo, mos)
  */
 const PROMISE_PATTERNS = [
-  // Explicit time-based promises (including MINUTES) - with optional "I'll" prefix
-  /(?:I(?:'ll| will)\s+)?(?:send|deliver|provide|find|get|show)\s+(?:you\s+)?(?:qualified\s+)?candidates?\s+(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
-  /(?:I(?:'ll| will)\s+)?(?:have|get)\s+(?:you\s+)?(?:your\s+)?(?:candidates?|longlist|shortlist)\s+(?:ready|prepared|available)\s+(?:within|in|by)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
-  /(?:I(?:'ll| will)\s+)?(?:send|share)\s+(?:a\s+)?(?:list|shortlist|longlist)\s+(?:of\s+candidates?\s+)?(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(minute|hour|day|week|month)s?/i,
+  // Explicit time-based promises (including MINUTES and ABBREVIATIONS) - with optional "I'll" prefix
+  /(?:I(?:'ll| will)\s+)?(?:send|deliver|provide|find|get|show)\s+(?:you\s+)?(?:qualified\s+)?candidates?\s+(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(min(?:ute)?s?|hr|hrs?|hour|day|week|wk|wks|month|mo|mos)s?/i,
+  /(?:I(?:'ll| will)\s+)?(?:have|get)\s+(?:you\s+)?(?:your\s+)?(?:candidates?|longlist|shortlist)\s+(?:ready|prepared|available)\s+(?:within|in|by)\s+(?:the\s+next\s+)?(\d+)\s+(min(?:ute)?s?|hr|hrs?|hour|day|week|wk|wks|month|mo|mos)s?/i,
+  /(?:I(?:'ll| will)\s+)?(?:send|share)\s+(?:a\s+)?(?:list|shortlist|longlist)\s+(?:of\s+candidates?\s+)?(?:within|in)\s+(?:the\s+next\s+)?(\d+)\s+(min(?:ute)?s?|hr|hrs?|hour|day|week|wk|wks|month|mo|mos)s?/i,
   
-  // Specific time references (e.g., "by 16:27") - with optional "I'll" prefix
+  // Specific time references (e.g., "by 16:27", "by 13:02") - with optional "I'll" prefix
   /(?:I(?:'ll| will)\s+)?(?:have|get|send|deliver)\s+(?:you\s+)?(?:your\s+)?(?:longlist|shortlist|candidates?)\s+(?:ready|available)?\s+by\s+(\d{1,2}):(\d{2})/i,
   
   // Relative time promises
@@ -31,7 +32,7 @@ const PROMISE_PATTERNS = [
   /(?:have|get)\s+(?:you\s+)?candidates?\s+(?:by\s+)?(tomorrow|tonight|today|this\s+week|next\s+week)/i,
   
   // Start working promises (implying delivery)
-  /(?:start|begin)\s+(?:the\s+)?search\s+(?:right\s+away|immediately|now)?\s*(?:and\s+)?(?:send|deliver|provide)\s+(?:results\s+)?(?:within|in)\s+(\d+)\s+(hour|day|week)s?/i,
+  /(?:start|begin)\s+(?:the\s+)?search\s+(?:right\s+away|immediately|now)?\s*(?:and\s+)?(?:send|deliver|provide)\s+(?:results\s+)?(?:within|in)\s+(\d+)\s+(min(?:ute)?s?|hr|hrs?|hour|day|week|wk|wks)s?/i,
 ];
 
 /**
@@ -68,9 +69,22 @@ export function detectPromise(aiResponse: string): DetectedPromise | null {
           timeAmount = 0;
         }
       } else if (match[1] && match[2]) {
-        // Pattern with number + unit (e.g., "5 minutes")
+        // Pattern with number + unit (e.g., "5 minutes" or "20 mins")
         timeAmount = parseInt(match[1]);
-        timeUnit = match[2].toLowerCase();
+        const rawUnit = match[2].toLowerCase();
+        
+        // Normalize abbreviations to full units
+        if (rawUnit.startsWith('min')) {
+          timeUnit = 'minute';
+        } else if (rawUnit === 'hr' || rawUnit === 'hrs' || rawUnit === 'hour') {
+          timeUnit = 'hour';
+        } else if (rawUnit === 'wk' || rawUnit === 'wks' || rawUnit === 'week') {
+          timeUnit = 'week';
+        } else if (rawUnit === 'mo' || rawUnit === 'mos' || rawUnit === 'month') {
+          timeUnit = 'month';
+        } else {
+          timeUnit = rawUnit;
+        }
       } else if (match[1]) {
         // Pattern with relative time (e.g., "tomorrow")
         const relativeTime = match[1].toLowerCase();

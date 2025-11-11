@@ -2183,13 +2183,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             
             const created = await storage.createSearchPromise(promiseRecord);
-            console.log(`✅ Created search promise #${created.id} - executing immediately...`);
             
-            // 🚀 EXECUTE IMMEDIATELY instead of waiting for worker
-            const { executeSearchPromise } = await import('./promise-worker');
-            executeSearchPromise(created.id).catch((error) => {
-              console.error(`❌ Failed to execute promise #${created.id}:`, error);
-            });
+            // CRITICAL FIX: Only execute immediately if job already exists
+            // If no job yet, let the job creation flow below handle search execution
+            if (conversation.jobId) {
+              console.log(`✅ Promise #${created.id} linked to existing job #${conversation.jobId} - executing immediately...`);
+              const { executeSearchPromise } = await import('./promise-worker');
+              executeSearchPromise(created.id).catch((error) => {
+                console.error(`❌ Failed to execute promise #${created.id}:`, error);
+              });
+            } else {
+              console.log(`✅ Promise #${created.id} created - will execute after job creation below`);
+            }
           } catch (error) {
             console.error('❌ Failed to create search promise:', error);
             // Don't fail the whole request if promise creation fails
@@ -2259,10 +2264,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userWantsToSkipQuestionsAndSearch = skipQuestionsAndSearchPhrases.some(phrase => lowerMessage.includes(phrase));
         
         const userAgreedToSearch = hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch;
+        
+        // CRITICAL FIX: If AI made a PROMISE and NAP is ≥80% complete → immediately trigger search
+        // This fixes the bug where AI says "Longlist ready in 20 mins" but nothing happens
+        const aiMadePromise = detectedPromise !== undefined && detectedPromise !== null;
+        const napComplete = newPhase === 'nap_complete';
+        const promiseTriggeredSearch = aiMadePromise && napComplete && updatedSearchContext.title;
+        
+        if (promiseTriggeredSearch) {
+          console.log('🚀 [CRITICAL] AI made promise + NAP complete → Auto-triggering job creation + search');
+        }
 
-        // If user agreed AND we have enough context, create job + run search
-        if (userAgreedToSearch && updatedSearchContext.title && !conversation.jobId) {
-          console.log('🎯 USER AGREED TO SEARCH - Creating job order and running search...');
+        // CRITICAL FIX: Handle promise-triggered search for BOTH new and existing job scenarios
+        // The promise execution happens via executeSearchPromise() above (lines 2189-2192)
+        // But we also need to create job if it doesn't exist yet
+        
+        const shouldTriggerSearch = userAgreedToSearch || promiseTriggeredSearch;
+        const hasTitle = updatedSearchContext.title;
+        const jobExists = conversation.jobId;
+        
+        // Case 1: Need to CREATE job first (new conversation)
+        const shouldCreateNewJob = shouldTriggerSearch && hasTitle && !jobExists;
+        
+        // Case 2: Job exists, just run search (promise worker handles this via lines 2189-2192)
+        const shouldRunSearchOnExistingJob = promiseTriggeredSearch && hasTitle && jobExists;
+        
+        if (shouldRunSearchOnExistingJob) {
+          console.log(`🚀 [Promise Trigger] Job #${conversation.jobId} exists - search executing via promise worker`);
+          // Promise worker already triggered above (lines 2189-2192), no additional action needed
+        }
+        
+        if (shouldCreateNewJob) {
+          console.log('🎯 Creating job order and running search...');
           
           try {
           
@@ -2366,6 +2399,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           createdJobId = newJob.id;
           console.log(`✅ Job order created: #${createdJobId} - ${newJob.title}`);
+          
+          // CRITICAL HANDOFF: If a promise was created, link it to this job and execute
+          if (promiseTriggeredSearch && detectedPromise) {
+            console.log(`🔗 [Promise Handoff] Linking promise to new job #${createdJobId} and executing search...`);
+            try {
+              // Find the promise we created earlier
+              const promises = await storage.getSearchPromisesByConversation(conversation.id);
+              const latestPromise = promises.sort((a, b) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              )[0];
+              
+              if (latestPromise) {
+                // Update promise with new jobId
+                await storage.updateSearchPromise(latestPromise.id, { jobId: createdJobId });
+                console.log(`✅ Promise #${latestPromise.id} updated with jobId #${createdJobId}`);
+                
+                // NOW execute the promise worker
+                const { executeSearchPromise } = await import('./promise-worker');
+                executeSearchPromise(latestPromise.id).catch((error) => {
+                  console.error(`❌ Failed to execute promise #${latestPromise.id}:`, error);
+                });
+              }
+            } catch (error) {
+              console.error('❌ Failed to link promise to job:', error);
+            }
+          }
 
           // STEP 1: Search INTERNAL database FIRST (Grok's correct logic)
           console.log('🔍 Step 1: Searching internal database...');

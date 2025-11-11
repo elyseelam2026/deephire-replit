@@ -220,29 +220,35 @@ export async function generateConversationalResponse(
     const mentionsSimilarTo = lowerMessage.includes('similar to') || lowerMessage.includes('like him') || lowerMessage.includes('like her');
     const isReferenceCandidateRequest = hasLinkedInUrl || mentionsSimilarTo;
 
-    const systemPrompt = `You are DeepHire AI — a senior executive search partner.
+    const systemPrompt = `You are DeepHire AI — a senior executive search partner (think Spencer Stuart level).
 
-**MANDATORY NAP-FIRST APPROACH:**
-NEVER commit to searching without understanding NAP (Need, Authority, Pain).
+**MANDATORY NAP+ FRAMEWORK (Grok-Enhanced):**
+NEVER commit to searching without ≥80% NAP+ completeness.
 Quality recruiting = Pain-driven sourcing, not keyword spam.
 
-**NAP = Need + Authority + Pain:**
-- **NEED**: Core role requirements (e.g., "Financial strategy, M&A experience, board reporting")
-- **AUTHORITY**: Reporting structure (e.g., "Reports to CEO/Board")  
-- **PAIN**: Business challenge/urgency (e.g., "Stability risk post-departure, 60-day window, board pressure")
+**NAP+ = Need (40%) + Authority (20%) + Pain (20%) + Plus (20%):**
+- **NEED (40%)**: Core duties/competencies (e.g., "Biotech LBO modeling, healthcare due diligence, 3+ deals closed")
+- **AUTHORITY (20%)**: Reports to + team dynamics (e.g., "Reports to Yanling Cao, Partner; collaborative Healthcare team")
+- **PAIN (20%)**: Why NOW? Business driver (e.g., "Q1 pipeline backlog, team gap after promotion, urgent")
+- **PLUS (20%)**: Success metrics + definition of "high-potential" (e.g., "Fast-tracker = VP in 2 years, top schools like Wharton/Peking")
 
 **YOUR JOB:**
-1. Extract NAP from user's message (most clients give hints upfront)
-2. If NAP incomplete → ASK 1-2 targeted probes (warm, consultant tone)
-3. Once you have Need + Authority + Pain → Summarize NAP + commit to delivery
-4. NO generic searches — Every search must be pain-driven
+1. Extract NAP+ from user's message (clients often give 60-70% upfront)
+2. If <80% complete → ASK 1-2 TARGETED probes (never generic!)
+3. Once ≥80% → Summarize NAP+ + commit: "Longlist ready in 20 mins"
+4. NO generic searches — Every search must be pain-driven with Boolean precision
 
-**CORE PHILOSOPHY - "DANCE, DON'T DRILL":**
-1. Speak like a human consultant: warm, confident, insightful
-2. ALWAYS rephrase what the client said before asking anything  
-3. Ask ONE natural follow-up at a time
-4. When you have full NAP, say: "Got it. Based on [PAIN], I'm targeting [STRATEGY]. Longlist ready in 20 mins."
-5. Manage expectations: timeline, # of candidates, quality over quantity
+**CORE PHILOSOPHY - "DANCE, DON'T DRILL" (Grok Method):**
+1. Speak like a $200/hr consultant: warm, confident, insightful
+2. ALWAYS rephrase what client said BEFORE asking anything
+3. Ask ONE natural follow-up at a time (max 2 if urgent)
+4. **CRITICAL**: If client says "I don't know" or gives vague answer:
+   → STOP asking about that axis
+   → Infer from context (e.g., Boyu Capital = assume biotech focus)
+   → Mark as "low-confidence" internally
+   → NEVER ask again
+5. When ≥80% NAP+, say: "Got it. Based on [PAIN], I'm targeting [STRATEGY]. Longlist ready in 20 mins."
+6. Manage expectations: timeline (15-20 mins), ~8-12 candidates (quality over quantity)
 
 **NAP SCHEMA (fill silently in background):**
 {
@@ -294,6 +300,12 @@ PHRASES: "Got it", "Perfect", "I'll take it from here", "Here's what I'm running
 **RESPONSE LIMIT:** 
 < 60 words. End with ONE natural probe if <80% complete.
 
+**"I DON'T KNOW" HANDLING:**
+- User says "I don't know", "not sure", "unclear" → STOP probing that field
+- Infer reasonable default (e.g., Boyu = biotech, Healthcare team = medical devices)
+- Continue with other NAP+ axes
+- If multiple "I don't know" → Trigger "Value-First Mode" (see below)
+
 ${userWantsToSkipQuestions ? `
 **⚠️ USER WANTS TO SKIP QUESTIONS!**
 - Summarize what you understand
@@ -330,21 +342,35 @@ ${isReferenceCandidateRequest ? `
 
     let intent: 'greeting' | 'job_inquiry' | 'clarification' | 'nap_complete' | 'ready_to_search';
     
-    // NAP-GATED INTENT LOGIC
-    // Check if we have NAP (Need + Authority + Pain)
-    const hasNeed = currentJobContext?.title && (currentJobContext?.skills?.length || currentJobContext?.yearsExperience);
-    const hasAuthority = currentJobContext?.successCriteria || currentJobContext?.teamDynamics; // Authority signals
-    const hasPain = currentJobContext?.urgency || 
-                   lowerMessage.includes('urgent') ||
-                   lowerMessage.includes('challenge') ||
-                   lowerMessage.includes('risk') ||
-                   lowerMessage.includes('pain');
+    // NAP+ GATED INTENT LOGIC (Grok Enhanced: Need 40%, Authority 20%, Pain 20%, Plus 20%)
+    // NEED (40%): Core duties/skills + experience level
+    const hasNeedBasic = currentJobContext?.title && currentJobContext?.location; // 20%
+    const hasNeedDetailed = currentJobContext?.skills?.length || currentJobContext?.yearsExperience || currentJobContext?.industry; // +20%
+    const needScore = (hasNeedBasic ? 20 : 0) + (hasNeedDetailed ? 20 : 0);
     
-    const napCompleteness = (hasNeed ? 40 : 0) + (hasAuthority ? 30 : 0) + (hasPain ? 30 : 0);
+    // AUTHORITY (20%): Reporting line OR team dynamics
+    const hasAuthority = currentJobContext?.successCriteria || currentJobContext?.teamDynamics || 
+                        lowerMessage.includes('reports to') || lowerMessage.includes('partner') || lowerMessage.includes('team');
+    const authorityScore = hasAuthority ? 20 : 0;
+    
+    // PAIN (20%): Why NOW? Business urgency/challenge
+    const hasPain = currentJobContext?.urgency || 
+                   lowerMessage.includes('urgent') || lowerMessage.includes('asap') ||
+                   lowerMessage.includes('challenge') || lowerMessage.includes('risk') ||
+                   lowerMessage.includes('pain') || lowerMessage.includes('need');
+    const painScore = hasPain ? 20 : 0;
+    
+    // PLUS (20%): Success metrics OR "high-potential" definition OR budget/comp
+    const hasPlus = currentJobContext?.salary || 
+                   lowerMessage.includes('high potential') || lowerMessage.includes('fast track') ||
+                   lowerMessage.includes('top university') || lowerMessage.includes('graduate');
+    const plusScore = hasPlus ? 20 : 0;
+    
+    const napCompleteness = needScore + authorityScore + painScore + plusScore; // Max 100%
     
     // PRIORITY 1: If user wants to skip questions and we have context → ready to search
     if (userWantsToSkipQuestions && (hasJobContext || isReferenceCandidateRequest || mentionsHiring)) {
-      intent = napCompleteness >= 70 ? 'nap_complete' : 'ready_to_search'; // Force NAP first unless skipping
+      intent = napCompleteness >= 80 ? 'nap_complete' : 'ready_to_search'; // Enforce 80% threshold (Grok method)
     }
     // PRIORITY 2: If user provided a reference candidate → ready to search
     else if (isReferenceCandidateRequest && (currentJobContext?.title || mentionsHiring)) {
@@ -354,12 +380,12 @@ ${isReferenceCandidateRequest ? `
     else if (isGreeting && !mentionsHiring && !hasJobContext) {
       intent = 'greeting';
     } 
-    // PRIORITY 4: Has hiring context - check NAP completeness
+    // PRIORITY 4: Has hiring context - check NAP+ completeness (Grok threshold: 80%)
     else if (mentionsHiring || hasJobContext) {
-      if (napCompleteness >= 70) {
-        intent = 'nap_complete'; // NAP is complete, ready for strategy generation
+      if (napCompleteness >= 80) {
+        intent = 'nap_complete'; // NAP+ is complete (≥80%), ready for strategy generation
       } else if (currentJobContext?.title) {
-        intent = 'clarification'; // Keep probing for NAP
+        intent = 'clarification'; // Keep probing for NAP+ (smart probes only)
       } else {
         intent = 'job_inquiry'; // Need basic role info first
       }
