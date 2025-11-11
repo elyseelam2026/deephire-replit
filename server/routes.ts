@@ -2341,46 +2341,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdJobId = newJob.id;
           console.log(`✅ Job order created: #${createdJobId} - ${newJob.title}`);
 
-          // 🚀 EXTERNAL SOURCING FIRST: Default behavior is to search LinkedIn
+          // STEP 1: Search INTERNAL database FIRST (Grok's correct logic)
+          console.log('🔍 Step 1: Searching internal database...');
+          const allCandidates = await storage.getCandidates();
+          const jobSkills = updatedSearchContext.skills || [];
+          const jobText = updatedSearchContext.description || updatedSearchContext.title || '';
+          
+          const candidatesForSearch = allCandidates.map(c => ({
+            id: c.id,
+            firstName: c.firstName,
+            lastName: c.lastName,
+            currentTitle: c.currentTitle || '',
+            skills: c.skills || [],
+            cvText: c.cvText || undefined
+          }));
+          
+          const internalSearchResults = await generateCandidateLonglist(
+            candidatesForSearch,
+            jobSkills,
+            jobText,
+            30 // Look for up to 30 candidates internally
+          );
+          
+          let matchedCandidates: Array<{candidateId: number; matchScore: number; reasoning?: string}> = [];
+          if (internalSearchResults && internalSearchResults.length > 0) {
+            matchedCandidates = internalSearchResults.map(r => ({
+              candidateId: r.candidateId,
+              matchScore: r.matchScore,
+              reasoning: `Matched ${r.matchScore}% on skills and experience`
+            }));
+            console.log(`✅ Found ${matchedCandidates.length} internal candidates`);
+          } else {
+            console.log('⚠️ No internal candidates found');
+          }
+          
+          // STEP 2: Decision logic - Do we need external search?
+          const MIN_CANDIDATES_THRESHOLD = 20;
           let sourcingRunId: number | undefined;
           let searchRationale: string | undefined;
-          let matchedCandidates: Array<{candidateId: number; matchScore: number; reasoning?: string}> = [];
+          let shouldTriggerExternal = matchedCandidates.length < MIN_CANDIDATES_THRESHOLD;
           
-          if (searchTier === 'external') {
-            console.log('🌐 [External Sourcing] User requested external search - triggering LinkedIn sourcing...');
+          if (shouldTriggerExternal) {
+            const needed = MIN_CANDIDATES_THRESHOLD - matchedCandidates.length;
+            console.log(`📊 Only ${matchedCandidates.length} internal candidates - triggering LinkedIn search for ${needed}+ more...`);
             
             try {
-              // Build search criteria for LinkedIn from job context
               const linkedInSearchCriteria: any = {
                 title: updatedSearchContext.title,
                 location: updatedSearchContext.location,
                 keywords: updatedSearchContext.skills?.join(' OR ') || undefined
               };
               
-              // Generate search rationale for transparency
               const topSkills = updatedSearchContext.skills?.slice(0, 3).join(', ') || 'relevant experience';
-              searchRationale = `**Search Strategy**:\n\n` +
-                `**Title**: "${linkedInSearchCriteria.title}" - Targeting professionals with this exact role\n` +
-                `**Location**: "${linkedInSearchCriteria.location}" - Focusing on candidates in your target market\n` +
-                `**Keywords**: ${topSkills} - Matching profiles with the most critical skills from your job description\n\n` +
-                `This search is designed to find active LinkedIn professionals who match your requirements and are likely open to new opportunities.`;
+              searchRationale = `Only found **${matchedCandidates.length} internal matches** - running full LinkedIn search to find **${needed}+ additional candidates**.\n\n` +
+                `**Search Strategy**:\n` +
+                `- **Title**: "${linkedInSearchCriteria.title}"\n` +
+                `- **Location**: "${linkedInSearchCriteria.location}"\n` +
+                `- **Keywords**: ${topSkills}\n\n` +
+                `Expected delivery: **15-20 minutes**`;
               
-              console.log('[External Sourcing] Searching LinkedIn with criteria:', linkedInSearchCriteria);
-              const searchResults = await searchLinkedInPeople(linkedInSearchCriteria, 20);
+              const searchResults = await searchLinkedInPeople(linkedInSearchCriteria, needed + 10);
               
-              if (!searchResults || searchResults.profiles.length === 0) {
-                console.log('[External Sourcing] No LinkedIn profiles found');
-              } else {
+              if (searchResults && searchResults.profiles.length > 0) {
                 const profileUrls = searchResults.profiles.map(r => r.profileUrl).filter(Boolean);
                 console.log(`[External Sourcing] Found ${profileUrls.length} LinkedIn profiles`);
                 
-                // Create sourcing run with rationale
                 const sourcingRun = await storage.createSourcingRun({
                   jobId: createdJobId,
                   conversationId: conversationId,
                   searchType: 'linkedin_people_search',
                   searchQuery: linkedInSearchCriteria,
-                  searchIntent: `External search for ${updatedSearchContext.title}`,
+                  searchIntent: `Supplement ${matchedCandidates.length} internal candidates with external LinkedIn search`,
                   searchRationale: searchRationale,
                   status: 'pending',
                   progress: {
@@ -2398,30 +2429,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
                 
                 sourcingRunId = sourcingRun.id;
-                console.log(`[External Sourcing] Created sourcing run #${sourcingRunId}`);
+                console.log(`✅ Created sourcing run #${sourcingRunId}`);
                 
-                // Launch async profile fetching (fire-and-forget)
+                // Fire-and-forget async profile fetching
                 orchestrateProfileFetching({
                   sourcingRunId: sourcingRun.id,
                   profileUrls
                 }).catch(error => {
-                  console.error('[External Sourcing] Orchestration failed:', error);
+                  console.error('[External Sourcing] Failed:', error);
                 });
               }
             } catch (error) {
-              console.error('[External Sourcing] Error triggering external search:', error);
+              console.error('[External Sourcing] Error:', error);
             }
+          } else {
+            console.log(`✅ Found ${matchedCandidates.length} internal candidates - NO external search needed`);
           }
           
-          // Update job search progress
+          // Update job progress
           await storage.updateJob(createdJobId, {
-            searchExecutionStatus: searchTier === 'external' ? 'in_progress' : 'completed',
+            searchExecutionStatus: shouldTriggerExternal ? 'in_progress' : 'completed',
             searchProgress: {
-              candidatesSearched: 0,
+              candidatesSearched: allCandidates.length,
               matchesFound: matchedCandidates.length,
-              currentStep: searchTier === 'external' 
-                ? 'External LinkedIn search in progress...' 
-                : 'Search completed successfully'
+              currentStep: shouldTriggerExternal 
+                ? `Found ${matchedCandidates.length} internal - searching LinkedIn...` 
+                : `Found ${matchedCandidates.length} qualified candidates`
             }
           });
 
@@ -2446,24 +2479,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? `\n**Estimated Placement Fee**: $${estimatedFee.toLocaleString()} (${feePercentage}% of base salary)`
             : `\n**Fee Structure**: ${feePercentage}% of first-year base salary`;
           
-          // Override AI response to direct user to Jobs page  
-          const externalSourcingMessage = sourcingRunId 
-            ? `\n\n${searchRationale}\n\n🌐 **External Search Status**: Searching LinkedIn now... I'll add new candidates to the pipeline as they're discovered. Check back in a few minutes!`
-            : '';
-          
-          aiResponse = `✅ **Job Order Created!**\n\n` +
-            `I've created **Job Order #${createdJobId}** for the **${updatedSearchContext.title}** position and completed the ${searchTier} search.\n\n` +
-            `**Search Tier**: ${searchTier === 'internal' ? 'Internal Database (~15 min)' : 'Extended External Search'}` +
-            pricingInfo + `\n\n` +
-            `**Internal Database**: ${matchedCandidates.length > 0 ? `${matchedCandidates.length} matched candidates` : 'No matches found'}` +
-            externalSourcingMessage + `\n\n` +
-            `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
-            `You can now review candidates, move them through stages (Shortlist → Interview → Offer), and manage this search.` +
-            (matchedCandidates.length === 0 && !sourcingRunId
-              ? `\n\nWould you like me to run an **Extended External Search** to find candidates from LinkedIn and other sources?`
-              : matchedCandidates.length > 0 && !sourcingRunId
-              ? `\n\nNeed more candidates? I can run an Extended External Search for additional options.`
-              : '');
+          // Build AI response based on search results (Grok's logic)
+          if (matchedCandidates.length >= MIN_CANDIDATES_THRESHOLD) {
+            // Enough internal candidates - no external needed
+            aiResponse = `✅ **Great news!** We have **${matchedCandidates.length} strong internal candidates** matching your ${updatedSearchContext.title} role.\n\n` +
+              `I'll contact them now to gauge interest and availability. Expect a **shortlist of 5-8 qualified & interested candidates** within **1-2 hours**.\n\n` +
+              `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
+              `No external search needed at this stage — leveraging our proprietary talent pool.`;
+          } else {
+            // Not enough internal - external search triggered
+            const needed = MIN_CANDIDATES_THRESHOLD - matchedCandidates.length;
+            aiResponse = `We found **${matchedCandidates.length} internal matches**, but that's not enough for a robust longlist.\n\n` +
+              `${searchRationale}\n\n` +
+              `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
+              `You'll get a combined longlist (internal + new external) with **LinkedIn profiles**, current roles, and fit rationale.`;
+          }
 
           newPhase = 'job_order_created';
           
