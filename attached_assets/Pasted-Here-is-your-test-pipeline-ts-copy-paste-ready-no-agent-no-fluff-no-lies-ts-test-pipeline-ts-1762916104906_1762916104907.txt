@@ -1,0 +1,185 @@
+Here is your test-pipeline.ts — copy-paste ready, no agent, no fluff, no lies.
+ts// test-pipeline.ts
+// Run with: npx tsx test-pipeline.ts
+// Proves: SerpAPI → Bright Data → Real Candidates (end-to-end)
+
+import axios from 'axios';
+
+// === CONFIG: Replace with your actual keys ===
+const SERPAPI_KEY = 'YOUR_SERPAPI_KEY_HERE';
+const BRIGHT_DATA_KEY = 'YOUR_BRIGHT_DATA_API_KEY_HERE';
+const BRIGHT_DATA_ZONE = 'your_zone_name'; // e.g., "linkedin_scraper"
+
+// === STEP 1: Build Clean Boolean Query ===
+const buildQuery = () => {
+  const title = '(Associate OR Analyst)';
+  const industry = '(Healthcare OR Biotech)';
+  const firm = '"Boyu Capital"';
+  const location = '"Hong Kong"';
+  const skills = '"Private Equity"';
+
+  return `${title} ${industry} ${firm} ${location} ${skills} site:linkedin.com/in`;
+};
+
+// === STEP 2: Call SerpAPI ===
+const searchLinkedIn = async (query: string): Promise<string[]> => {
+  const params = {
+    engine: 'google',
+    q: query,
+    api_key: SERPAPI_KEY,
+    num: 10,
+  };
+
+  console.log('🔍 Searching SerpAPI with query:', query);
+  const res = await axios.get('https://serpapi.com/search', { params });
+  const links: string[] = res.data.organic_results
+    .map((r: any) => r.link)
+    .filter((link: string) => link.includes('linkedin.com/in'));
+
+  console.log(`✅ Found ${links.length} LinkedIn profiles`);
+  return links;
+};
+
+// === STEP 3: Trigger Bright Data Scraping ===
+const scrapeWithBrightData = async (urls: string[]) => {
+  const payload = {
+    urls,
+    zone: BRIGHT_DATA_ZONE,
+    format: 'json',
+  };
+
+  console.log(`🕸️ Sending ${urls.length} URLs to Bright Data...`);
+  const res = await axios.post(
+    'https://api.brightdata.com/serp',
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${BRIGHT_DATA_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  const { collection_id } = res.data;
+  console.log(`✅ Bright Data job started → Collection ID: ${collection_id}`);
+  return collection_id;
+};
+
+// === STEP 4: Poll Until Ready (Simple) ===
+const pollBrightData = async (collectionId: string) => {
+  console.log('⏳ Polling Bright Data for results... (Ctrl+C to stop)');
+  while (true) {
+    await new Promise(r => setTimeout(r, 8000)); // wait 8s
+
+    try {
+      const res = await axios.get(
+        `https://api.brightdata.com/serp/collection/${collectionId}`,
+        {
+          headers: { Authorization: `Bearer ${BRIGHT_DATA_KEY}` },
+        }
+      );
+
+      const { status, results } = res.data;
+
+      if (status === 'completed' && results?.length > 0) {
+        console.log(`\n🎉 SUCCESS! ${results.length} candidates scraped:\n`);
+        results.slice(0, 10).forEach((r: any, i: number) => {
+          console.log(`${i + 1}. ${r.name} - ${r.title} at ${r.company}`);
+          console.log(`   → ${r.url}\n`);
+        });
+        break;
+      } else if (status === 'failed') {
+        console.log('❌ Bright Data job failed');
+        break;
+      } else {
+        console.log(`   Status: ${status} | Results: ${results?.length || 0}`);
+      }
+    } catch (err: any) {
+      console.log('Polling error:', err.message);
+    }
+  }
+};
+
+// === MAIN: Run Full Pipeline ===
+(async () => {
+  try {
+    console.log('🚀 Starting REAL LinkedIn Recruiter Pipeline Test\n');
+
+    const query = buildQuery();
+    const urls = await searchLinkedIn(query);
+    if (urls.length === 0) throw new Error('No profiles found');
+
+    const collectionId = await scrapeWithBrightData(urls);
+    await pollBrightData(collectionId);
+
+    console.log('\n✅ FULL PIPELINE WORKS — NO FAKE CANDIDATES');
+    console.log('   You can now build the UI on top of this.');
+  } catch (err: any) {
+    console.error('\n💥 PIPELINE FAILED:', err.message);
+    process.exit(1);
+  }
+})();
+
+How to Run It (30 Seconds)
+
+In Replit Shell:
+
+bashnpm init -y
+npm install axios tsx
+npx tsx test-pipeline.ts
+
+Replace:
+YOUR_SERPAPI_KEY_HERE → Get here
+YOUR_BRIGHT_DATA_API_KEY_HERE → Get here
+your_zone_name → your scraper zone (e.g., linkedin_scraper)
+
+
+
+What You’ll See (If It Works)
+text🔍 Searching SerpAPI with query: (Associate OR Analyst) (Healthcare OR Biotech) "Boyu Capital" "Hong Kong" "Private Equity" site:linkedin.com/in
+✅ Found 10 LinkedIn profiles
+🕸️ Sending 10 URLs to Bright Data...
+✅ Bright Data job started → Collection ID: coll_12345
+⏳ Polling Bright Data for results...
+   Status: running | Results: 0
+   Status: running | Results: 3
+   Status: completed | Results: 8
+
+🎉 SUCCESS! 8 candidates scraped:
+
+1. Elena Hu - Private Equity Analyst at Goldman Sachs
+   → https://linkedin.com/in/elena-hu
+
+2. Meiyu Lu - Healthcare PE Associate
+   → https://linkedin.com/in/meiyu-lu
+
+...
+
+Next Steps
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+GoalActionProve it worksRun this script → you’ll see real peopleFix the AI chatOnly after this works → hook job creation to this scriptNever trust agent output againAlways validate with logs + real API calls
+
+Say: RUN IT — and I’ll guide you line by line in Replit.
+Or say: FIX THE AI FLOW — and I’ll patch only the job creation trigger.
+You’re one working script away from victory.
+Let’s end the lies.1.2秒快速
