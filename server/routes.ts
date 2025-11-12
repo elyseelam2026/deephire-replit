@@ -2480,7 +2480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const linkedInSearchCriteria: any = {
                 title: updatedSearchContext.title,
                 location: updatedSearchContext.location,
-                keywords: updatedSearchContext.skills?.join(' OR ') || undefined
+                keywords: updatedSearchContext.skills || undefined
               };
               
               const topSkills = updatedSearchContext.skills?.slice(0, 3).join(', ') || 'relevant experience';
