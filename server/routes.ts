@@ -2529,9 +2529,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }).catch(error => {
                   console.error('[External Sourcing] Failed:', error);
                 });
+              } else {
+                console.warn(`⚠️ [External Sourcing] No LinkedIn profiles found - search returned zero results`);
+                searchRationale = `⚠️ **External search returned zero results**\n\n` +
+                  `Only found **${matchedCandidates.length} internal candidates**. LinkedIn search for "${linkedInSearchCriteria.title}" in "${linkedInSearchCriteria.location}" returned no profiles.\n\n` +
+                  `This could mean:\n` +
+                  `- The search criteria are too narrow\n` +
+                  `- The role/location combination is very specific\n\n` +
+                  `Would you like me to broaden the search parameters?`;
               }
             } catch (error) {
-              console.error('[External Sourcing] Error:', error);
+              console.error('[External Sourcing] LinkedIn search failed:', error);
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              searchRationale = `❌ **External LinkedIn search failed**\n\n` +
+                `Only found **${matchedCandidates.length} internal candidates**. External search encountered an error:\n\n` +
+                `\`${errorMessage}\`\n\n` +
+                `The system will use internal candidates only. If you need external sourcing, please let me know and I can retry with adjusted parameters.`;
             }
           } else {
             console.log(`✅ Found ${matchedCandidates.length} internal candidates - NO external search needed`);
