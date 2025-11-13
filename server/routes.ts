@@ -2230,6 +2230,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           newPhase = 'initial';
         }
 
+        // CRITICAL: Define napComplete FIRST (before using it)
+        const napComplete = newPhase === 'nap_complete';
+
         // CRITICAL: Detect explicit user agreement to start the search
         const lowerMessage = message.toLowerCase().trim();
         const searchAgreementKeywords = [
@@ -2286,7 +2289,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // CRITICAL FIX: If AI made a PROMISE and NAP is ≥80% complete → immediately trigger search
         // This fixes the bug where AI says "Longlist ready in 20 mins" but nothing happens
         const aiMadePromise = detectedPromise !== undefined && detectedPromise !== null;
-        const napComplete = newPhase === 'nap_complete';
         const promiseTriggeredSearch = aiMadePromise && napComplete && updatedSearchContext.title;
         
         if (promiseTriggeredSearch) {
