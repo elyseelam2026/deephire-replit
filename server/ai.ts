@@ -1786,27 +1786,29 @@ export async function parseJobDescription(jdText: string): Promise<{
       messages: [
         {
           role: "system",
-          content: "You are an expert recruiter and executive search consultant. Parse job descriptions and extract structured data in JSON format. Pay special attention to reference candidate patterns like 'Find candidates similar to [Name] at [Company]'. Always respond with valid JSON."
+          content: "You are an expert recruiter and executive search consultant. Parse job descriptions and extract structured data in JSON format. Pay special attention to reference candidate patterns like 'Find candidates similar to [Name] at [Company]'. Always respond with valid JSON. CRITICAL: For any field you cannot extract, return null or empty string - NEVER use 'unknown' or 'N/A' as placeholder values."
         },
         {
           role: "user",
           content: `Parse this job description and extract the following information in JSON format:
           {
-            "title": "extracted job title",
-            "department": "department/team (Engineering, Sales, Marketing, etc.)",
-            "skills": ["skill1", "skill2", "skill3"],
-            "urgency": "low|medium|high|urgent based on language used",
-            "requirements": ["requirement1", "requirement2"],
-            "benefits": ["benefit1", "benefit2"],
-            "location": "city/country if mentioned",
-            "yearsExperience": number of years if mentioned,
-            "description": "brief 1-2 sentence job summary",
-            "responsibilities": ["responsibility1", "responsibility2"],
-            "company": "company name if mentioned",
-            "salary": "salary range if mentioned",
-            "industry": "industry (e.g., Private Equity, Technology, Finance, Retail)",
-            "companySize": "startup|mid-size|enterprise if mentioned"
+            "title": "extracted job title (or null if not found)",
+            "department": "department/team (Engineering, Sales, Marketing, etc.) or null",
+            "skills": ["skill1", "skill2", "skill3"] (empty array if none found),
+            "urgency": "low|medium|high|urgent based on language used (or null if not mentioned)",
+            "requirements": ["requirement1", "requirement2"] (empty array if none found),
+            "benefits": ["benefit1", "benefit2"] (empty array if none found),
+            "location": "city/country if mentioned (null if not found)",
+            "yearsExperience": number of years if mentioned (null if not found),
+            "description": "brief 1-2 sentence job summary (null if not enough info)",
+            "responsibilities": ["responsibility1", "responsibility2"] (empty array if none found),
+            "company": "company name if mentioned (null if not found)",
+            "salary": "salary range if mentioned (null if not found)",
+            "industry": "industry (e.g., Private Equity, Technology, Finance, Retail) - null if not found",
+            "companySize": "startup|mid-size|enterprise if mentioned (null if not found)"
           }
+          
+          IMPORTANT: If the input text is just a short answer (like a salary figure, location, or compensation) and does NOT contain a full job description, return null for fields like title, location, company, industry. Only extract what is ACTUALLY present in the text. Do NOT infer or guess - return null for missing information.
           
           SPECIAL INSTRUCTIONS FOR REFERENCE CANDIDATE PATTERNS:
           If the text mentions "similar to [Name] at [Company]" or "like [Name] at [Company]", use your knowledge to infer:
@@ -1841,7 +1843,7 @@ export async function parseJobDescription(jdText: string): Promise<{
     }
     
     return {
-      title: result.title || "Untitled Position",
+      title: result.title || undefined,
       department: result.department || "General",
       skills: Array.isArray(result.skills) ? result.skills : [],
       urgency: ["low", "medium", "high", "urgent"].includes(result.urgency) ? result.urgency : "medium",
@@ -1859,7 +1861,7 @@ export async function parseJobDescription(jdText: string): Promise<{
   } catch (error) {
     console.error("Error parsing job description:", error);
     return {
-      title: "Untitled Position",
+      title: undefined,
       department: "General", 
       skills: [],
       urgency: "medium",

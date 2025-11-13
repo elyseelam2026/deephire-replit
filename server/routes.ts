@@ -2026,19 +2026,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newSkills = parsedJD.skills || [];
         const mergedSkills = Array.from(new Set([...existingSkills, ...newSkills]));
 
+        // CRITICAL: Only update fields that have meaningful values (not undefined, null, or empty)
+        const hasValue = (val: any) => val !== undefined && val !== null && val !== '' && val !== 'unknown' && val !== 'N/A';
+
         updatedSearchContext = {
-          title: parsedJD.title || updatedSearchContext.title,
+          title: hasValue(parsedJD.title) ? parsedJD.title : updatedSearchContext.title,
           skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
-          location: parsedJD.location || updatedSearchContext.location,
-          yearsExperience: parsedJD.yearsExperience || updatedSearchContext.yearsExperience,
-          description: parsedJD.description || updatedSearchContext.description,
-          requirements: parsedJD.requirements || updatedSearchContext.requirements,
-          responsibilities: parsedJD.responsibilities || updatedSearchContext.responsibilities,
-          company: parsedJD.company || updatedSearchContext.company,
-          salary: parsedJD.salary || updatedSearchContext.salary,
-          industry: parsedJD.industry || updatedSearchContext.industry,
-          urgency: parsedJD.urgency || updatedSearchContext.urgency,
-          companySize: parsedJD.companySize || updatedSearchContext.companySize,
+          location: hasValue(parsedJD.location) ? parsedJD.location : updatedSearchContext.location,
+          yearsExperience: hasValue(parsedJD.yearsExperience) ? parsedJD.yearsExperience : updatedSearchContext.yearsExperience,
+          description: hasValue(parsedJD.description) ? parsedJD.description : updatedSearchContext.description,
+          requirements: hasValue(parsedJD.requirements) && parsedJD.requirements.length > 0 ? parsedJD.requirements : updatedSearchContext.requirements,
+          responsibilities: hasValue(parsedJD.responsibilities) && parsedJD.responsibilities.length > 0 ? parsedJD.responsibilities : updatedSearchContext.responsibilities,
+          company: hasValue(parsedJD.company) ? parsedJD.company : updatedSearchContext.company,
+          salary: hasValue(parsedJD.salary) ? parsedJD.salary : updatedSearchContext.salary,
+          industry: hasValue(parsedJD.industry) ? parsedJD.industry : updatedSearchContext.industry,
+          urgency: hasValue(parsedJD.urgency) ? parsedJD.urgency : updatedSearchContext.urgency,
+          companySize: hasValue(parsedJD.companySize) ? parsedJD.companySize : updatedSearchContext.companySize,
         };
 
         jdFileInfo = {
@@ -2108,20 +2111,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newSkills = parsedRequirements.skills || [];
         const mergedSkills = Array.from(new Set([...existingSkills, ...newSkills]));
 
+        // CRITICAL: Only update fields that have meaningful values (not undefined, null, or empty)
+        // This prevents NAP answers from overwriting previously captured job details
+        const hasValue = (val: any) => val !== undefined && val !== null && val !== '' && val !== 'unknown' && val !== 'N/A';
+
         updatedSearchContext = {
           ...updatedSearchContext,
-          title: parsedRequirements.title || updatedSearchContext.title,
+          title: hasValue(parsedRequirements.title) ? parsedRequirements.title : updatedSearchContext.title,
           skills: mergedSkills.length > 0 ? mergedSkills : existingSkills,
-          location: parsedRequirements.location || updatedSearchContext.location,
-          yearsExperience: parsedRequirements.yearsExperience || updatedSearchContext.yearsExperience,
-          description: parsedRequirements.description || updatedSearchContext.description,
-          requirements: parsedRequirements.requirements || updatedSearchContext.requirements,
-          responsibilities: parsedRequirements.responsibilities || updatedSearchContext.responsibilities,
-          company: parsedRequirements.company || updatedSearchContext.company,
-          salary: parsedRequirements.salary || updatedSearchContext.salary,
-          industry: parsedRequirements.industry || updatedSearchContext.industry,
-          urgency: parsedRequirements.urgency || updatedSearchContext.urgency,
-          companySize: parsedRequirements.companySize || updatedSearchContext.companySize,
+          location: hasValue(parsedRequirements.location) ? parsedRequirements.location : updatedSearchContext.location,
+          yearsExperience: hasValue(parsedRequirements.yearsExperience) ? parsedRequirements.yearsExperience : updatedSearchContext.yearsExperience,
+          description: hasValue(parsedRequirements.description) ? parsedRequirements.description : updatedSearchContext.description,
+          requirements: hasValue(parsedRequirements.requirements) && parsedRequirements.requirements.length > 0 ? parsedRequirements.requirements : updatedSearchContext.requirements,
+          responsibilities: hasValue(parsedRequirements.responsibilities) && parsedRequirements.responsibilities.length > 0 ? parsedRequirements.responsibilities : updatedSearchContext.responsibilities,
+          company: hasValue(parsedRequirements.company) ? parsedRequirements.company : updatedSearchContext.company,
+          salary: hasValue(parsedRequirements.salary) ? parsedRequirements.salary : updatedSearchContext.salary,
+          industry: hasValue(parsedRequirements.industry) ? parsedRequirements.industry : updatedSearchContext.industry,
+          urgency: hasValue(parsedRequirements.urgency) ? parsedRequirements.urgency : updatedSearchContext.urgency,
+          companySize: hasValue(parsedRequirements.companySize) ? parsedRequirements.companySize : updatedSearchContext.companySize,
         };
 
         // Build conversation history for Grok
@@ -2363,8 +2370,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { generateSearchStrategy: napGenerateSearchStrategy } = await import('./nap-strategy');
           
           // Build NAP summary from search context
+          console.log('📋 [DEBUG] updatedSearchContext before job creation:', {
+            title: updatedSearchContext.title,
+            skills: updatedSearchContext.skills,
+            location: updatedSearchContext.location,
+            urgency: updatedSearchContext.urgency,
+            successCriteria: updatedSearchContext.successCriteria
+          });
+          
+          // CRITICAL: Ensure we have a title - final safety fallback
+          // This should rarely trigger if NAP interview worked correctly
+          if (!updatedSearchContext.title) {
+            console.warn('⚠️ [Job Creation] No title found after NAP interview - using fallback');
+            updatedSearchContext.title = 'Position (title not specified)';
+          }
+          
           const napSummary = {
-            need: `${updatedSearchContext.title || 'Role'} with ${(updatedSearchContext.skills || []).join(', ')} - ${updatedSearchContext.yearsExperience || 5}+ years experience`,
+            need: `${updatedSearchContext.title} with ${(updatedSearchContext.skills || []).join(', ')} - ${updatedSearchContext.yearsExperience || 5}+ years experience`,
             authority: updatedSearchContext.successCriteria || updatedSearchContext.teamDynamics || 'Reports to senior leadership',
             pain: updatedSearchContext.urgency || 'Business critical hiring need'
           };
