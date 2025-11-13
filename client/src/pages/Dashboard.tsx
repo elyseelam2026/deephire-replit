@@ -170,7 +170,7 @@ export default function Dashboard() {
           title: "Redirecting...",
           description: "Taking you to the Jobs page to see your results",
         });
-        setLocation('/recruiting/jobs');
+        setLocation('/jobs');
       }, 1500);
       
       return () => clearTimeout(timer);
