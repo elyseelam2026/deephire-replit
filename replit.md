@@ -27,6 +27,9 @@ Key features include:
 -   **AI-Powered Candidate Fit Scoring**: Intelligent ranking system using xAI Grok to evaluate candidates against the full NAP context, providing transparent AI reasoning.
 -   **AI Promise System**: Immediate execution system that triggers external candidate sourcing and delivers results back to the conversation when AI makes delivery commitments.
 -   **NAP-Driven Search Strategy Engine**: Converts consultative NAP interviews into targeted Boolean LinkedIn queries, mapping business pain points to candidate experience signals, and ensuring quality with a completeness threshold before triggering external searches. It includes a pre-scraping relevance filter and dual fit scoring.
+    -   **Context-First Rationale Generation**: Search strategy explanations use actual NAP data (real years of experience, actual competitor counts, specific pain points) instead of generic placeholders.
+    -   **Oxford Comma Formatting**: Professional natural language formatting for multi-item lists (e.g., "A, B, and C").
+    -   **Case-Insensitive Generic Filtering**: Two-layer defense prevents generic urgency labels ("High/Medium/Low/Urgent") from appearing as business pain descriptions.
 
 ### System Design Choices
 The primary database is PostgreSQL (Neon serverless) with Drizzle ORM. The schema supports Companies, Candidates, Jobs, Job matches, Users, Data ingestion, and Duplicate detection, including multi-language support and custom fields via JSONB. A hybrid AI strategy uses xAI Grok for conversational intelligence, parsing, and generation, and Voyage AI for semantic embeddings and vector search via PostgreSQL `pgvector`. The AI-Powered Data Quality System uses a three-layer processing approach (detection, AI remediation, manual queue) with a dedicated dashboard.
