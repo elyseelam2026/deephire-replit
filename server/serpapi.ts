@@ -11,6 +11,8 @@ export interface LinkedInSearchParams {
   industry?: string;        // Industry filter
   experienceLevel?: string; // Entry, Mid-Senior, Director, Executive
   booleanQuery?: string;    // NAP-driven Boolean query (takes precedence over individual params)
+  prioritySignals?: string[]; // NAP priority signals for relevance filtering
+  requiredKeywords?: string[]; // Must-have keywords for quality gate
 }
 
 export interface LinkedInProfileResult {
@@ -21,6 +23,7 @@ export interface LinkedInProfileResult {
   profileUrl: string;
   snippet?: string;         // Brief description/summary
   imageUrl?: string;        // Profile picture URL
+  confidence?: number;      // Relevance confidence score (0-100) from pre-scraping filter
 }
 
 export interface LinkedInPeopleSearchResult {
@@ -48,6 +51,10 @@ export async function searchLinkedInPeople(
     throw new Error('SERPAPI_API_KEY not configured - cannot perform external candidate sourcing');
   }
 
+  // Fetch more raw results (30) to ensure we have enough AFTER relevance filtering
+  // This allows the filter to reject irrelevant profiles while still delivering 12 quality candidates
+  const rawFetchLimit = 30;
+  
   // Build search query - prioritize NAP Boolean query if provided
   let searchQuery: string;
   
@@ -74,7 +81,7 @@ export async function searchLinkedInPeople(
     throw new Error('Search query cannot be empty - provide booleanQuery, title, location, or keywords');
   }
 
-  console.log(`   Limit: ${limit} profiles`);
+  console.log(`   Raw fetch: ${rawFetchLimit} profiles (will filter to 12 high-quality)`);
   
   try {
     // Use Google search with site:linkedin.com/in filter
@@ -85,7 +92,7 @@ export async function searchLinkedInPeople(
     url.searchParams.set('api_key', apiKey);
     url.searchParams.set('engine', 'google');
     url.searchParams.set('q', linkedInQuery);
-    url.searchParams.set('num', String(Math.min(limit, 100)));
+    url.searchParams.set('num', String(Math.min(rawFetchLimit, 100)));
     
     console.log(`   🌐 Google query: "${linkedInQuery}"`);
     
@@ -143,8 +150,43 @@ export async function searchLinkedInPeople(
     
     console.log(`✅ [LinkedIn People Search] Parsed ${profiles.length} valid profiles`);
     
+    // RELEVANCE FILTER: Pre-screen before Bright Data scraping
+    let filteredProfiles = profiles;
+    const shortlistLimit = 12; // Cap at 12 high-quality candidates
+    
+    if (params.prioritySignals && params.requiredKeywords && 
+        (params.prioritySignals.length > 0 || params.requiredKeywords.length > 0)) {
+      
+      console.log(`🎯 [Relevance Filter] Applying quality gate...`);
+      console.log(`   Priority signals: ${params.prioritySignals.join(', ')}`);
+      console.log(`   Required keywords: ${params.requiredKeywords.join(', ')}`);
+      
+      const filterResults: Array<{profile: LinkedInProfileResult; result: { isRelevant: boolean; reason: string; confidence: number }}> = [];
+      
+      for (const profile of profiles) {
+        const result = isRelevantProfile(profile, params.prioritySignals, params.requiredKeywords);
+        filterResults.push({ profile, result });
+        
+        const confidenceLabel = result.isRelevant ? '✅ ACCEPT' : '❌ REJECT';
+        console.log(`   ${confidenceLabel} [${result.confidence}%]: ${profile.name ?? 'Unknown'} - ${profile.title} | ${result.reason}`);
+      }
+      
+      filteredProfiles = filterResults
+        .filter(({ result }) => result.isRelevant)
+        .map(({ profile, result }) => ({ ...profile, confidence: result.confidence }));
+      
+      console.log(`🎯 [Relevance Filter] ${filteredProfiles.length}/${profiles.length} profiles passed quality gate`);
+    }
+    
+    // Cap at shortlist limit (12 high-quality candidates)
+    const finalProfiles = filteredProfiles.slice(0, shortlistLimit);
+    
+    if (filteredProfiles.length > shortlistLimit) {
+      console.log(`📊 [Shortlist] Capped to ${shortlistLimit} top candidates (${filteredProfiles.length - shortlistLimit} excluded)`);
+    }
+    
     return {
-      profiles,
+      profiles: finalProfiles,
       totalResults: data.total_results || results.length,
       searchQuery,
       apiCallsMade: 1,
@@ -238,6 +280,101 @@ export async function searchLinkedInViaGoogle(
     console.error('[Google LinkedIn Search] Error:', error);
     throw error;
   }
+}
+
+/**
+ * RELEVANCE FILTER: Pre-screening before expensive Bright Data scraping
+ * Ensures only candidates matching NAP priority signals reach the pipeline
+ */
+
+/**
+ * Normalize search text for matching: lowercase, remove special chars, expand abbreviations
+ */
+function normalizeSearchText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[&\/\\#,+()$~%.'":*?<>{}]/g, ' ')  // Remove special chars
+    .replace(/\s+/g, ' ')                         // Collapse whitespace
+    .replace(/\b(pe)\b/gi, 'private equity')      // Expand PE → private equity
+    .replace(/\b(ib)\b/gi, 'investment banking')  // Expand IB → investment banking
+    .replace(/\b(vc)\b/gi, 'venture capital')     // Expand VC → venture capital
+    .replace(/\b(m&a|ma|m and a)\b/gi, 'mergers and acquisitions') // Expand M&A
+    .replace(/\b(lbo)\b/gi, 'leveraged buyout')   // Expand LBO
+    .replace(/\b(fp&a|fpa)\b/gi, 'financial planning and analysis') // Expand FP&A
+    .trim();
+}
+
+/**
+ * Sanitize signals: Remove useless entries, normalize, expand abbreviations
+ */
+function sanitizeSignals(signals: string[]): string[] {
+  const uselessPatterns = [
+    /^\d+\+?\s*years?/i,        // "2+ years", "5 years experience"
+    /experience$/i,              // "experience"
+    /minimum$/i,                 // "minimum"
+  ];
+  
+  return signals
+    .filter(signal => !uselessPatterns.some(pattern => pattern.test(signal)))
+    .map(signal => normalizeSearchText(signal))
+    .filter(signal => signal.length > 0);
+}
+
+/**
+ * Check if profile is relevant based on NAP priority signals + required keywords
+ * Uses OR logic (match EITHER signal OR keyword) to avoid over-filtering
+ * SerpAPI often returns minimal snippets, so strict AND logic rejects too many valid profiles
+ */
+function isRelevantProfile(
+  profile: LinkedInProfileResult, 
+  prioritySignals: string[], 
+  requiredKeywords: string[]
+): { isRelevant: boolean; reason: string; confidence: number } {
+  
+  // Build search text from all available fields
+  const urlSlug = profile.profileUrl.split('/in/')[1]?.split('/')[0] || '';
+  const searchText = normalizeSearchText(
+    `${profile.title} ${profile.snippet || ''} ${profile.company} ${urlSlug}`
+  );
+  
+  // Sanitize inputs
+  const cleanSignals = sanitizeSignals(prioritySignals);
+  const cleanKeywords = sanitizeSignals(requiredKeywords);
+  
+  // Check for matches
+  const matchedSignals = cleanSignals.filter(signal => searchText.includes(signal));
+  const matchedKeywords = cleanKeywords.filter(keyword => searchText.includes(keyword));
+  
+  // RELAXED LOGIC: Accept if matches EITHER priority signal OR required keyword
+  // This prevents over-filtering when SerpAPI returns minimal snippets
+  if (matchedSignals.length === 0 && matchedKeywords.length === 0) {
+    return {
+      isRelevant: false,
+      reason: `No matches (signals: ${cleanSignals.slice(0, 3).join(', ')}, keywords: ${cleanKeywords.slice(0, 3).join(', ')})`,
+      confidence: 0
+    };
+  }
+  
+  // Calculate confidence score based on match quality
+  let confidence = 0;
+  if (matchedSignals.length > 0 && matchedKeywords.length > 0) {
+    confidence = 100; // Both matched → highest confidence
+  } else if (matchedSignals.length > 0) {
+    confidence = 80; // Priority signal matched → high confidence
+  } else {
+    confidence = 60; // Only keyword matched → medium confidence
+  }
+  
+  const matchedItems = [
+    ...matchedSignals.map(s => `signal:"${s}"`),
+    ...matchedKeywords.map(k => `keyword:"${k}"`)
+  ];
+  
+  return {
+    isRelevant: true,
+    reason: `Matched: ${matchedItems.join(', ')}`,
+    confidence
+  };
 }
 
 // Helper functions

@@ -2497,19 +2497,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`📊 Only ${matchedCandidates.length} internal candidates - triggering LinkedIn search for ${needed}+ more...`);
             
             try {
+              // Use NAP-driven Boolean query with relevance filter
+              const roleCompetencies = napSearchStrategy.filters.industry || [];
               const linkedInSearchCriteria: any = {
-                title: updatedSearchContext.title,
+                booleanQuery: napSearchStrategy.keywords,  // NAP-generated Boolean query
                 location: updatedSearchContext.location,
-                keywords: updatedSearchContext.skills || undefined
+                prioritySignals: napSearchStrategy.prioritySignals,  // For relevance filter
+                requiredKeywords: roleCompetencies.length > 0 ? roleCompetencies : updatedSearchContext.skills  // Must-have keywords
               };
               
-              const topSkills = updatedSearchContext.skills?.slice(0, 3).join(', ') || 'relevant experience';
-              searchRationale = `Only found **${matchedCandidates.length} internal matches** - running full LinkedIn search to find **${needed}+ additional candidates**.\n\n` +
-                `**Search Strategy**:\n` +
-                `- **Title**: "${linkedInSearchCriteria.title}"\n` +
-                `- **Location**: "${linkedInSearchCriteria.location}"\n` +
-                `- **Keywords**: ${topSkills}\n\n` +
-                `Expected delivery: **15-20 minutes**`;
+              searchRationale = `Only found **${matchedCandidates.length} internal matches** - running targeted LinkedIn search to find **${needed}+ additional candidates**.\n\n` +
+                napSearchStrategy.searchRationale;
+              
+              console.log(`🎯 Using NAP-driven search with relevance filter:`, {
+                booleanQuery: linkedInSearchCriteria.booleanQuery?.substring(0, 100),
+                prioritySignals: linkedInSearchCriteria.prioritySignals,
+                requiredKeywords: linkedInSearchCriteria.requiredKeywords
+              });
               
               const searchResults = await searchLinkedInPeople(linkedInSearchCriteria, needed + 10);
               

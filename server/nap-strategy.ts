@@ -74,6 +74,32 @@ const ROLE_EXPERIENCE_MAP: Record<string, {minYears: number; industries: string[
     minYears: 7,
     industries: ["sales", "B2B", "enterprise", "SaaS"],
     competencies: ["revenue growth", "enterprise sales", "team building", "pipeline management"]
+  },
+  // Private Equity & Investment Banking Associate-level roles
+  "Associate": {
+    minYears: 2,
+    industries: ["private equity", "investment banking", "venture capital", "asset management", "corporate finance"],
+    competencies: ["financial modeling", "deal sourcing", "due diligence", "M&A", "valuation", "portfolio management", "LBO modeling", "pitch books"]
+  },
+  "Analyst": {
+    minYears: 0,
+    industries: ["investment banking", "private equity", "consulting", "venture capital", "hedge fund"],
+    competencies: ["financial analysis", "Excel modeling", "PowerPoint", "due diligence", "market research", "data analysis"]
+  },
+  "Vice President": {
+    minYears: 6,
+    industries: ["private equity", "investment banking", "venture capital", "corporate development"],
+    competencies: ["deal execution", "client management", "team leadership", "M&A", "fundraising", "portfolio management"]
+  },
+  "Principal": {
+    minYears: 8,
+    industries: ["private equity", "venture capital", "investment banking", "consulting"],
+    competencies: ["deal origination", "investment strategy", "portfolio management", "team leadership", "M&A", "fundraising"]
+  },
+  "Managing Director": {
+    minYears: 12,
+    industries: ["private equity", "investment banking", "venture capital", "asset management"],
+    competencies: ["client relationships", "deal origination", "fundraising", "M&A", "strategic leadership", "portfolio oversight"]
   }
 };
 
@@ -182,7 +208,51 @@ function getTitleVariants(title: string): string[] {
     "CFO": [`"Chief Financial Officer"`, "CFO", `"VP Finance"`, `"Finance Director"`],
     "COO": [`"Chief Operating Officer"`, "COO", `"VP Operations"`, `"Operations Director"`],
     "CTO": [`"Chief Technology Officer"`, "CTO", `"VP Engineering"`, `"Engineering Director"`],
-    "VP Sales": [`"VP Sales"`, `"Vice President Sales"`, `"Head of Sales"`, `"Sales Director"`]
+    "VP Sales": [`"VP Sales"`, `"Vice President Sales"`, `"Head of Sales"`, `"Sales Director"`],
+    // Private Equity & Investment Banking title variants
+    "Associate": [
+      `"Private Equity Associate"`, 
+      `"PE Associate"`,
+      `"Investment Banking Associate"`, 
+      `"IB Associate"`,
+      `"M&A Associate"`,
+      `"Venture Capital Associate"`,
+      `"VC Associate"`,
+      "Associate"  // Unquoted fallback
+    ],
+    "Analyst": [
+      `"Private Equity Analyst"`,
+      `"PE Analyst"`,
+      `"Investment Banking Analyst"`,
+      `"IB Analyst"`,
+      `"M&A Analyst"`,
+      `"Venture Capital Analyst"`,
+      `"VC Analyst"`,
+      `"Financial Analyst"`,
+      "Analyst"
+    ],
+    "Vice President": [
+      `"Vice President"`,
+      `"VP"`,
+      `"Private Equity VP"`,
+      `"Investment Banking VP"`,
+      `"M&A VP"`,
+      `"VC VP"`
+    ],
+    "Principal": [
+      `"Principal"`,
+      `"Private Equity Principal"`,
+      `"PE Principal"`,
+      `"Investment Principal"`,
+      `"VC Principal"`
+    ],
+    "Managing Director": [
+      `"Managing Director"`,
+      `"MD"`,
+      `"Private Equity MD"`,
+      `"Investment Banking MD"`,
+      `"M&A Managing Director"`
+    ]
   };
   
   return variants[title] || [`"${title}"`];
