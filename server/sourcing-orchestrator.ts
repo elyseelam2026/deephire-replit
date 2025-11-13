@@ -502,6 +502,216 @@ export function batchArray<T>(array: T[], batchSize: number): T[][] {
 }
 
 /**
+ * ASYNC SEARCH WORKFLOW: Complete end-to-end search orchestration
+ * Runs: Competitor mapping → Targeted queries → Profile fetching → Fit scoring → Email notification
+ * 
+ * @param config Async search configuration
+ */
+export async function executeAsyncSearch(config: {
+  jobId: number;
+  conversationId: number;
+  napSummary: { need: string; authority: string; pain: string };
+  searchStrategy: any;
+  searchContext: any;
+  companyName: string;
+  userEmail: string;
+  userName: string;
+}): Promise<void> {
+  const { jobId, conversationId, napSummary, searchStrategy, searchContext, companyName, userEmail, userName } = config;
+  
+  console.log(`\n🚀 [ASYNC SEARCH] Starting comprehensive search for job #${jobId}...`);
+  
+  try {
+    // STEP 1: Update status to "executing"
+    await db.update(jobs).set({
+      searchExecutionStatus: 'executing',
+      searchProgress: {
+        candidatesSearched: 0,
+        matchesFound: 0,
+        currentStep: 'Generating competitor mapping...',
+        startedAt: new Date().toISOString()
+      }
+    }).where(eq(jobs.id, jobId));
+    
+    // STEP 2: Generate competitor mapping
+    console.log(`\n🏢 [STEP 1/5] Competitor Mapping...`);
+    const { generateCompetitorMapping } = await import('./competitor-mapping');
+    
+    const competitorMapping = await generateCompetitorMapping({
+      title: searchContext.title || '',
+      industry: searchContext.industry || '',
+      companyName,
+      companySize: searchContext.companySize || '',
+      location: searchContext.location || ''
+    });
+    
+    const targetCompanies = competitorMapping.companies;
+    console.log(`✅ Identified ${targetCompanies.length} peer companies`);
+    
+    // STEP 3: Send "Search Started" email with transparent logic
+    console.log(`\n📧 [STEP 2/5] Sending search started email...`);
+    const { sendSearchStartedEmail } = await import('./email-notifications');
+    
+    try {
+      await sendSearchStartedEmail({
+        jobId,
+        jobTitle: searchContext.title || '',
+        companyName,
+        turnaroundHours: searchContext.urgency === 'urgent' ? 6 : 12,
+        searchLogic: {
+          targetCompanies: targetCompanies.map(c => c.name),
+          positionHolders: `${searchContext.title} professionals at peer firms`,
+          booleanQuery: searchStrategy.keywords || '',
+          reasoning: competitorMapping.reasoning || searchStrategy.searchRationale || ''
+        },
+        recipientEmail: userEmail,
+        recipientName: userName
+      });
+      console.log(`✅ Search started email sent to ${userEmail}`);
+    } catch (emailError) {
+      console.error(`❌ Failed to send search started email:`, emailError);
+      // Continue anyway - email failure shouldn't stop search
+    }
+    
+    // STEP 4: Execute targeted queries
+    console.log(`\n🔍 [STEP 3/5] Executing targeted queries...`);
+    const { executeTargetedQueries } = await import('./targeted-query-execution');
+    
+    const queryResults = await executeTargetedQueries({
+      targetCompanies: targetCompanies.map(c => c.name),
+      baseQuery: searchStrategy.keywords || searchContext.title || '',
+      location: searchContext.location,
+      maxUrlsPerQuery: 3,
+      maxTotalUrls: 30
+    });
+    
+    console.log(`✅ Found ${queryResults.totalUrls} unique LinkedIn profiles`);
+    
+    // STEP 5: Fetch profiles and create candidates
+    if (queryResults.totalUrls > 0) {
+      console.log(`\n👥 [STEP 4/5] Fetching LinkedIn profiles...`);
+      
+      // Create sourcing run
+      const sourcingRun = await db.insert(sourcingRuns).values({
+        jobId,
+        conversationId,
+        searchType: 'linkedin_competitor_search',
+        searchQuery: {
+          booleanQuery: searchStrategy.keywords,
+          targetCompanies: targetCompanies.map(c => c.name),
+          location: searchContext.location
+        } as any,
+        searchIntent: `Competitor-targeted search for ${searchContext.title}`,
+        searchRationale: competitorMapping.reasoning || '',
+        status: 'pending',
+        progress: {
+          phase: 'pending',
+          profilesFound: queryResults.totalUrls,
+          profilesFetched: 0,
+          profilesProcessed: 0,
+          candidatesCreated: 0,
+          candidatesDuplicate: 0,
+          currentBatch: 0,
+          totalBatches: Math.ceil(queryResults.totalUrls / 5),
+          message: `Found ${queryResults.totalUrls} profiles from competitor mapping`
+        } as any,
+        candidatesCreated: []
+      }).returning();
+      
+      // Orchestrate profile fetching (includes fit scoring)
+      await orchestrateProfileFetching({
+        sourcingRunId: sourcingRun[0].id,
+        profileUrls: queryResults.urls
+      });
+      
+      console.log(`✅ Profile fetching complete`);
+    }
+    
+    // STEP 6: Get final candidate count and send completion email
+    console.log(`\n✅ [STEP 5/5] Finalizing search...`);
+    
+    const jobCandidatesResult = await db
+      .select()
+      .from(jobCandidates)
+      .where(eq(jobCandidates.jobId, jobId));
+    
+    const totalCandidates = jobCandidatesResult.length;
+    
+    // Update job status to completed
+    await db.update(jobs).set({
+      searchExecutionStatus: 'completed',
+      searchProgress: {
+        candidatesSearched: queryResults.totalUrls,
+        matchesFound: totalCandidates,
+        currentStep: `Search complete - ${totalCandidates} candidates found`,
+        completedAt: new Date().toISOString()
+      }
+    }).where(eq(jobs.id, jobId));
+    
+    // Send completion email
+    const { sendSearchCompleteEmail } = await import('./email-notifications');
+    
+    // Load top candidates for email
+    const topCandidatesData = await db
+      .select({
+        candidate: candidates,
+        jobCandidate: jobCandidates
+      })
+      .from(jobCandidates)
+      .innerJoin(candidates, eq(jobCandidates.candidateId, candidates.id))
+      .where(eq(jobCandidates.jobId, jobId))
+      .orderBy(jobCandidates.fitScore)
+      .limit(5);
+    
+    const topCandidates = topCandidatesData.map((row, index) => ({
+      name: `${row.candidate.firstName} ${row.candidate.lastName}`,
+      title: row.candidate.currentTitle || 'Unknown',
+      company: row.candidate.currentCompany || 'Unknown',
+      fitScore: row.jobCandidate.fitScore || 75,
+      keyProof: (row.jobCandidate.fitReasoning || '').substring(0, 100)
+    }));
+    
+    try {
+      await sendSearchCompleteEmail({
+        jobId,
+        jobTitle: searchContext.title || '',
+        companyName,
+        candidatesFound: totalCandidates,
+        internalHits: 0, // TODO: Track internal vs external
+        externalHits: totalCandidates,
+        topCandidates,
+        sourcingMapUrl: `${process.env.DEEPHIRE_APP_URL || 'http://localhost:5000'}/recruiting/jobs/${jobId}`,
+        recipientEmail: userEmail,
+        recipientName: userName
+      });
+      console.log(`✅ Search complete email sent to ${userEmail}`);
+    } catch (emailError) {
+      console.error(`❌ Failed to send search complete email:`, emailError);
+    }
+    
+    console.log(`\n🎉 [ASYNC SEARCH] Search complete for job #${jobId}!`);
+    console.log(`   Total candidates: ${totalCandidates}`);
+    console.log(`   Status: completed`);
+    
+  } catch (error) {
+    console.error(`❌ [ASYNC SEARCH] Failed for job #${jobId}:`, error);
+    
+    // Update job status to failed
+    await db.update(jobs).set({
+      searchExecutionStatus: 'failed',
+      searchProgress: {
+        candidatesSearched: 0,
+        matchesFound: 0,
+        currentStep: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        failedAt: new Date().toISOString()
+      }
+    }).where(eq(jobs.id, jobId));
+    
+    throw error;
+  }
+}
+
+/**
  * AI-POWERED FIT SCORING: Score all candidates for a job based on NAP context
  * This is what creates the "WOW effect" - intelligent ranking beyond keyword matching
  * 

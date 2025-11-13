@@ -2415,232 +2415,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
             feeStatus: 'pending',
             needAnalysis: napSummary,  // Persist NAP summary
             searchStrategy: searchStrategy,
-            searchExecutionStatus: 'executing',
+            searchExecutionStatus: 'planning', // ASYNC: Start in planning state
             searchProgress: {
               candidatesSearched: 0,
               matchesFound: 0,
-              currentStep: 'Initializing NAP-driven search...'
+              currentStep: 'Planning comprehensive search strategy...',
+              startedAt: new Date().toISOString()
             }
           });
 
           createdJobId = newJob.id;
           console.log(`✅ Job order created: #${createdJobId} - ${newJob.title}`);
           
-          // CRITICAL HANDOFF: If a promise was created, link it to this job and execute
-          // BUG FIX: Check detectedPromise directly, not promiseTriggeredSearch (which is locally scoped)
-          if (detectedPromise) {
-            console.log(`🔗 [Promise Handoff] Linking promise to new job #${createdJobId} and executing search...`);
-            try {
-              // Find the most recent promise created in the current message processing
-              // (not by conversation, which could find old promises from previous messages)
-              const promises = await storage.getSearchPromisesByConversation(conversation.id);
-              const latestPromise = promises
-                .filter(p => !p.jobId || p.jobId === null) // Only promises not yet linked to a job
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-              
-              if (latestPromise) {
-                // Update promise with new jobId
-                await storage.updateSearchPromise(latestPromise.id, { jobId: createdJobId });
-                console.log(`✅ Promise #${latestPromise.id} updated with jobId #${createdJobId}`);
-                
-                // NOW execute the promise worker
-                const { executeSearchPromise } = await import('./promise-worker');
-                executeSearchPromise(latestPromise.id).catch((error) => {
-                  console.error(`❌ Failed to execute promise #${latestPromise.id}:`, error);
-                });
-              } else {
-                console.log(`⚠️ No unlinked promise found for conversation #${conversation.id} - promise may have been executed already`);
+          // ASYNC WORKFLOW: Trigger background search orchestrator
+          console.log(`🚀 [ASYNC] Triggering background search orchestrator for job #${createdJobId}...`);
+          const { executeAsyncSearch } = await import('./sourcing-orchestrator');
+          
+          // Fire-and-forget async search (does NOT block response)
+          // CRITICAL: No await here! Response must return immediately
+          void executeAsyncSearch({
+            jobId: createdJobId,
+            conversationId: conversationId,
+            napSummary,
+            searchStrategy,
+            searchContext: updatedSearchContext,
+            companyName: companyName || '',
+            userEmail: 'client@example.com', // TODO: Get from auth system
+            userName: 'Client'
+          }).catch((error) => {
+            console.error(`❌ [ASYNC] Search orchestrator failed for job #${createdJobId}:`, error);
+            // Update job status to failed if orchestrator crashes
+            db.update(jobs).set({
+              searchExecutionStatus: 'failed',
+              searchProgress: {
+                candidatesSearched: 0,
+                matchesFound: 0,
+                currentStep: `Search failed: ${error.message}`,
+                failedAt: new Date().toISOString()
               }
-            } catch (error) {
-              console.error('❌ Failed to link promise to job:', error);
-            }
-          } else {
-            console.log(`💡 No promise detected - standard job creation flow`);
-          }
-
-          // STEP 1: Search INTERNAL database FIRST (Grok's correct logic)
-          console.log('🔍 Step 1: Searching internal database...');
-          const allCandidates = await storage.getCandidates();
-          const jobSkills = updatedSearchContext.skills || [];
-          const jobText = updatedSearchContext.description || updatedSearchContext.title || '';
-          const jobTitle = updatedSearchContext.title || '';
-          
-          const candidatesForSearch = allCandidates.map(c => ({
-            id: c.id,
-            firstName: c.firstName,
-            lastName: c.lastName,
-            currentTitle: c.currentTitle || '',
-            skills: c.skills || [],
-            cvText: c.cvText || undefined
-          }));
-          
-          // 🎯 CRITICAL FIX: Filter by seniority BEFORE matching
-          // This prevents Associates from showing up in CFO searches
-          const { filterCandidatesBySeniority } = await import('./role-taxonomy');
-          const { accepted: seniorityFilteredCandidates, rejected: rejectedBySeniority } = filterCandidatesBySeniority(
-            candidatesForSearch,
-            jobTitle
-          );
-          
-          console.log(`🎯 Seniority Filter: ${seniorityFilteredCandidates.length} qualified, ${rejectedBySeniority.length} too junior for "${jobTitle}"`);
-          
-          const internalSearchResults = await generateCandidateLonglist(
-            seniorityFilteredCandidates, // Use ONLY seniority-filtered candidates
-            jobSkills,
-            jobText,
-            30 // Look for up to 30 candidates internally
-          );
-          
-          let matchedCandidates: Array<{candidateId: number; matchScore: number; reasoning?: string}> = [];
-          if (internalSearchResults && internalSearchResults.length > 0) {
-            matchedCandidates = internalSearchResults.map(r => ({
-              candidateId: r.candidateId,
-              matchScore: r.matchScore,
-              reasoning: `Matched ${r.matchScore}% on skills and experience`
-            }));
-            console.log(`✅ Found ${matchedCandidates.length} internal candidates`);
-          } else {
-            console.log('⚠️ No internal candidates found');
-          }
-          
-          // STEP 2: Decision logic - Do we need external search?
-          const MIN_CANDIDATES_THRESHOLD = 20;
-          let sourcingRunId: number | undefined;
-          let searchRationale: string | undefined;
-          let shouldTriggerExternal = matchedCandidates.length < MIN_CANDIDATES_THRESHOLD;
-          
-          if (shouldTriggerExternal) {
-            const needed = MIN_CANDIDATES_THRESHOLD - matchedCandidates.length;
-            console.log(`📊 Only ${matchedCandidates.length} internal candidates - triggering LinkedIn search for ${needed}+ more...`);
-            
-            try {
-              // Use NAP-driven Boolean query with relevance filter
-              const roleCompetencies = napSearchStrategy.filters.industry || [];
-              const linkedInSearchCriteria: any = {
-                booleanQuery: napSearchStrategy.keywords,  // NAP-generated Boolean query
-                location: updatedSearchContext.location,
-                prioritySignals: napSearchStrategy.prioritySignals,  // For relevance filter
-                requiredKeywords: roleCompetencies.length > 0 ? roleCompetencies : updatedSearchContext.skills  // Must-have keywords
-              };
-              
-              searchRationale = `Only found **${matchedCandidates.length} internal matches** - running targeted LinkedIn search to find **${needed}+ additional candidates**.\n\n` +
-                napSearchStrategy.searchRationale;
-              
-              console.log(`🎯 Using NAP-driven search with relevance filter:`, {
-                booleanQuery: linkedInSearchCriteria.booleanQuery?.substring(0, 100),
-                prioritySignals: linkedInSearchCriteria.prioritySignals,
-                requiredKeywords: linkedInSearchCriteria.requiredKeywords
-              });
-              
-              const searchResults = await searchLinkedInPeople(linkedInSearchCriteria, needed + 10);
-              
-              if (searchResults && searchResults.profiles.length > 0) {
-                const profileUrls = searchResults.profiles.map(r => r.profileUrl).filter(Boolean);
-                console.log(`[External Sourcing] Found ${profileUrls.length} LinkedIn profiles`);
-                
-                const sourcingRun = await storage.createSourcingRun({
-                  jobId: createdJobId,
-                  conversationId: conversationId,
-                  searchType: 'linkedin_people_search',
-                  searchQuery: linkedInSearchCriteria,
-                  searchIntent: `Supplement ${matchedCandidates.length} internal candidates with external LinkedIn search`,
-                  searchRationale: searchRationale,
-                  status: 'pending',
-                  progress: {
-                    phase: 'pending',
-                    profilesFound: profileUrls.length,
-                    profilesFetched: 0,
-                    profilesProcessed: 0,
-                    candidatesCreated: 0,
-                    candidatesDuplicate: 0,
-                    currentBatch: 0,
-                    totalBatches: Math.ceil(profileUrls.length / 5),
-                    message: `Found ${profileUrls.length} profiles, starting fetch...`
-                  } as any,
-                  candidatesCreated: []
-                });
-                
-                sourcingRunId = sourcingRun.id;
-                console.log(`✅ Created sourcing run #${sourcingRunId}`);
-                
-                // Fire-and-forget async profile fetching
-                orchestrateProfileFetching({
-                  sourcingRunId: sourcingRun.id,
-                  profileUrls
-                }).catch(error => {
-                  console.error('[External Sourcing] Failed:', error);
-                });
-              } else {
-                console.warn(`⚠️ [External Sourcing] No LinkedIn profiles found - search returned zero results`);
-                searchRationale = `⚠️ **External search returned zero results**\n\n` +
-                  `Only found **${matchedCandidates.length} internal candidates**. LinkedIn search for "${linkedInSearchCriteria.title}" in "${linkedInSearchCriteria.location}" returned no profiles.\n\n` +
-                  `This could mean:\n` +
-                  `- The search criteria are too narrow\n` +
-                  `- The role/location combination is very specific\n\n` +
-                  `Would you like me to broaden the search parameters?`;
-              }
-            } catch (error) {
-              console.error('[External Sourcing] LinkedIn search failed:', error);
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              searchRationale = `❌ **External LinkedIn search failed**\n\n` +
-                `Only found **${matchedCandidates.length} internal candidates**. External search encountered an error:\n\n` +
-                `\`${errorMessage}\`\n\n` +
-                `The system will use internal candidates only. If you need external sourcing, please let me know and I can retry with adjusted parameters.`;
-            }
-          } else {
-            console.log(`✅ Found ${matchedCandidates.length} internal candidates - NO external search needed`);
-          }
-          
-          // Update job progress
-          await storage.updateJob(createdJobId, {
-            searchExecutionStatus: shouldTriggerExternal ? 'in_progress' : 'completed',
-            searchProgress: {
-              candidatesSearched: allCandidates.length,
-              matchesFound: matchedCandidates.length,
-              currentStep: shouldTriggerExternal 
-                ? `Found ${matchedCandidates.length} internal - searching LinkedIn...` 
-                : `Found ${matchedCandidates.length} qualified candidates`
-            }
+            }).where(eq(jobs.id, createdJobId)).catch(console.error);
           });
-
-          // Create job candidates in pipeline (Salesforce-style)
-          if (matchedCandidates.length > 0) {
-            for (const match of matchedCandidates) {
-              await storage.createJobCandidate({
-                jobId: createdJobId,
-                candidateId: match.candidateId,
-                matchScore: match.matchScore,
-                status: "recommended", // Initial pipeline status
-                aiReasoning: match.reasoning ? { reasoning: match.reasoning } : null,
-                searchTier: null,
-                recruiterNotes: null
-              });
-            }
-            console.log(`✅ Added ${matchedCandidates.length} candidates to pipeline`);
-          }
-
-          // Format pricing info
-          const pricingInfo = estimatedFee 
-            ? `\n**Estimated Placement Fee**: $${estimatedFee.toLocaleString()} (${feePercentage}% of base salary)`
-            : `\n**Fee Structure**: ${feePercentage}% of first-year base salary`;
           
-          // Build AI response based on search results (Grok's logic)
-          if (matchedCandidates.length >= MIN_CANDIDATES_THRESHOLD) {
-            // Enough internal candidates - no external needed
-            aiResponse = `✅ **Great news!** We have **${matchedCandidates.length} strong internal candidates** matching your ${updatedSearchContext.title} role.\n\n` +
-              `I'll contact them now to gauge interest and availability. Expect a **shortlist of 5-8 qualified & interested candidates** within **1-2 hours**.\n\n` +
-              `🔗 **[View Candidate Pipeline →](jobs/${createdJobId})**\n\n` +
-              `No external search needed at this stage — leveraging our proprietary talent pool.`;
-          } else {
-            // Not enough internal - external search triggered
-            const needed = MIN_CANDIDATES_THRESHOLD - matchedCandidates.length;
-            aiResponse = `We found **${matchedCandidates.length} internal matches**, but that's not enough for a robust longlist.\n\n` +
-              `${searchRationale}\n\n` +
-              `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
-              `You'll get a combined longlist (internal + new external) with **LinkedIn profiles**, current roles, and fit rationale.`;
-          }
+          console.log(`✅ [ASYNC] Search orchestrator initiated (running in background)`);
 
-          newPhase = 'job_order_created';
+          // ASYNC UX: Return professional status message (NO immediate candidates)
+          const turnaroundHours = updatedSearchContext.urgency === 'urgent' ? 6 : 12;
+          
+          aiResponse = `🔍 **Search In Progress**\n\n` +
+            `DeepHire is conducting a comprehensive dual-database search for your **${updatedSearchContext.title}** mandate.\n\n` +
+            `**⏱ Turnaround:** ${turnaroundHours} hours\n` +
+            `**📧 Delivery:** Full sourcing map via email when complete\n\n` +
+            `**Search Strategy (Transparent Logic):**\n` +
+            `${napSearchStrategy.searchRationale}\n\n` +
+            `**Methodology:**\n` +
+            `✓ Internal talent bank (priority search)\n` +
+            `✓ External sources (LinkedIn, professional networks)\n` +
+            `✓ AI-powered fit scoring against full NAP context\n` +
+            `✓ Seniority filtering to ensure qualified candidates only\n\n` +
+            `🔗 **[Track Search Progress →](/recruiting/jobs/${createdJobId})**\n\n` +
+            `_We do not return immediate or low-quality results. Quality takes time._\n\n` +
+            `You will receive a full sourcing map via email when the search is complete with 7-12 highly relevant candidates.`;
+
+          newPhase = 'search_initiated';
           
           } catch (jobCreationError) {
             // If job creation fails, don't crash the chat - inform the user gracefully
