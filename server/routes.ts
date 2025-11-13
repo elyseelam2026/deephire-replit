@@ -2457,6 +2457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const allCandidates = await storage.getCandidates();
           const jobSkills = updatedSearchContext.skills || [];
           const jobText = updatedSearchContext.description || updatedSearchContext.title || '';
+          const jobTitle = updatedSearchContext.title || '';
           
           const candidatesForSearch = allCandidates.map(c => ({
             id: c.id,
@@ -2467,8 +2468,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             cvText: c.cvText || undefined
           }));
           
-          const internalSearchResults = await generateCandidateLonglist(
+          // 🎯 CRITICAL FIX: Filter by seniority BEFORE matching
+          // This prevents Associates from showing up in CFO searches
+          const { filterCandidatesBySeniority } = await import('./role-taxonomy');
+          const { accepted: seniorityFilteredCandidates, rejected: rejectedBySeniority } = filterCandidatesBySeniority(
             candidatesForSearch,
+            jobTitle
+          );
+          
+          console.log(`🎯 Seniority Filter: ${seniorityFilteredCandidates.length} qualified, ${rejectedBySeniority.length} too junior for "${jobTitle}"`);
+          
+          const internalSearchResults = await generateCandidateLonglist(
+            seniorityFilteredCandidates, // Use ONLY seniority-filtered candidates
             jobSkills,
             jobText,
             30 // Look for up to 30 candidates internally

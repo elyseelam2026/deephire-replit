@@ -187,7 +187,7 @@ function extractPainKeywords(pain: string): string[] {
   }
   
   // Deduplicate
-  return [...new Set(keywords)];
+  return Array.from(new Set(keywords));
 }
 
 /**
