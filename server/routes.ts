@@ -2240,7 +2240,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Strong explicit keywords that override phase checking
         const strongAgreementPhrases = [
           'start internal search', 'start external search', 'yes, start internal', 
-          'yes, start external', 'start the search', 'begin search'
+          'yes, start external', 'start the search', 'begin search', 'go ahead',
+          'please go ahead', 'please start'
         ];
         
         // NEW: Detect "skip questions and start search" signals
@@ -2263,7 +2264,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           && (conversation.phase === 'ready_to_create_job' || newPhase === 'ready_to_create_job');
         const userWantsToSkipQuestionsAndSearch = skipQuestionsAndSearchPhrases.some(phrase => lowerMessage.includes(phrase));
         
-        const userAgreedToSearch = hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch;
+        // CRITICAL FIX: If NAP is complete, automatically trigger search (no need to wait for explicit "yes")
+        const napIsComplete = napComplete && updatedSearchContext.title;
+        
+        if (napIsComplete) {
+          console.log('🚀 [AUTO-TRIGGER] NAP complete + has title → Automatically triggering job creation');
+        }
+        
+        const userAgreedToSearch = hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch || napIsComplete;
+        
+        console.log(`📊 Search Trigger Check:`, {
+          hasStrongAgreement,
+          hasWeakAgreement,
+          userWantsToSkipQuestionsAndSearch,
+          napIsComplete,
+          userAgreedToSearch,
+          hasTitle: !!updatedSearchContext.title,
+          jobExists: !!conversation.jobId
+        });
         
         // CRITICAL FIX: If AI made a PROMISE and NAP is ≥80% complete → immediately trigger search
         // This fixes the bug where AI says "Longlist ready in 20 mins" but nothing happens
