@@ -2,7 +2,11 @@
  * NAP-DRIVEN SEARCH STRATEGY ENGINE
  * Converts Need/Authority/Pain into targeted LinkedIn search queries and fit scoring rubric
  * Based on exec search best practices: Pain-driven sourcing beats keyword matching
+ * 
+ * NEW: Integrates Grok-style competitor mapping for targeted searches
  */
+
+import { buildTargetedSearchStrategy, type CompetitorFirm } from './competitor-mapping';
 
 export interface NAP {
   need: string;       // Core role requirements (e.g., "Financial strategy & reporting")
@@ -11,7 +15,7 @@ export interface NAP {
 }
 
 export interface SearchStrategy {
-  keywords: string;               // Boolean LinkedIn query
+  keywords: string;               // Boolean LinkedIn query (generic fallback)
   filters: {
     experience: string;           // e.g., "10+ years"
     industry: string[];           // e.g., ["fintech", "tech"]
@@ -23,6 +27,11 @@ export interface SearchStrategy {
   prioritySignals: string[];      // Must-have indicators
   napSummary: string;             // Human-readable NAP interpretation
   searchRationale: string;        // WHY this strategy was chosen
+  
+  // NEW: Competitor mapping for targeted searches
+  competitorMap?: CompetitorFirm[];     // 15-20 peer firms
+  targetedQueries?: string[];           // One query per competitor (e.g., "Hillhouse" "CFO" 2025)
+  useCompetitorMapping?: boolean;       // If true, use targetedQueries instead of keywords
 }
 
 /**
@@ -105,19 +114,98 @@ const ROLE_EXPERIENCE_MAP: Record<string, {minYears: number; industries: string[
 
 /**
  * Generate pain-driven search strategy from NAP
+ * NEW: Supports async competitor mapping for targeted searches
  */
-export function generateSearchStrategy(
+export async function generateSearchStrategy(
   nap: NAP, 
-  baseContext: {title: string; location?: string; industry?: string}
-): SearchStrategy {
+  baseContext: {
+    title: string; 
+    location?: string; 
+    industry?: string;
+    companyName?: string;      // NEW: For competitor mapping
+    companySize?: string;      // NEW: For competitor mapping (e.g., "$60B AUM", "500 employees")
+  }
+): Promise<SearchStrategy> {
   const {need, authority, pain} = nap;
-  const {title, location, industry} = baseContext;
+  const {title, location, industry, companyName, companySize} = baseContext;
   
-  // STEP 1: Extract pain keywords for Boolean query
+  // STEP 0: Check if we should use competitor mapping (NEW!)
+  // Use competitor mapping when:
+  // 1. Company name is provided
+  // 2. Industry is known (required for peer firm identification)
+  // 3. Role is executive-level (CFO, VP, Director, etc.)
+  let competitorStrategy: {
+    competitorMap: CompetitorFirm[];
+    targetedQueries: string[];
+  } | null = null;
+  
+  // Helper: Check if title is executive-level (case-insensitive, handles variants)
+  const isExecutiveTitle = (title: string): boolean => {
+    const titleLower = title.toLowerCase().trim();
+    
+    // C-Suite titles
+    if (titleLower.includes('cfo') || titleLower.includes('chief financial')) return true;
+    if (titleLower.includes('coo') || titleLower.includes('chief operating')) return true;
+    if (titleLower.includes('cto') || titleLower.includes('chief technology')) return true;
+    if (titleLower.includes('cmo') || titleLower.includes('chief marketing')) return true;
+    if (titleLower.includes('cpo') || titleLower.includes('chief product')) return true;
+    if (titleLower.includes('chief')) return true; // Any "Chief" title
+    
+    // VP and above
+    if (titleLower.includes('vp') || titleLower.includes('vice president')) return true;
+    if (titleLower.includes('svp') || titleLower.includes('senior vice president')) return true;
+    if (titleLower.includes('evp') || titleLower.includes('executive vice president')) return true;
+    
+    // Director and above
+    if (titleLower.includes('director')) return true;
+    
+    // PE/VC/IB specific titles
+    if (titleLower.includes('principal')) return true;
+    if (titleLower.includes('managing director') || titleLower.includes('md')) return true;
+    if (titleLower.includes('partner')) return true;
+    
+    // Head of roles (typically VP-level)
+    if (titleLower.includes('head of')) return true;
+    
+    return false;
+  };
+  
+  const shouldUseCompetitorMapping = Boolean(
+    companyName && 
+    industry && 
+    isExecutiveTitle(title)
+  );
+  
+  if (shouldUseCompetitorMapping) {
+    try {
+      console.log(`\n🎯 [Competitor Mapping] Enabled for "${title}" at "${companyName}"`);
+      const targetedStrategy = await buildTargetedSearchStrategy(
+        {
+          name: companyName!,
+          industry: industry!,
+          size: companySize,
+          region: location,
+        },
+        title
+      );
+      
+      competitorStrategy = {
+        competitorMap: targetedStrategy.competitorMap,
+        targetedQueries: targetedStrategy.searchQueries
+      };
+      
+      console.log(`✅ [Competitor Mapping] Generated ${competitorStrategy.competitorMap.length} peer firms`);
+    } catch (error) {
+      console.error('⚠️ [Competitor Mapping] Failed, falling back to Boolean search:', error);
+      competitorStrategy = null;
+    }
+  }
+  
+  // STEP 1: Extract pain keywords for Boolean query (FALLBACK)
   const painKeywords = extractPainKeywords(pain);
   const roleConfig = ROLE_EXPERIENCE_MAP[title] || {minYears: 5, industries: [], competencies: []};
   
-  // STEP 2: Build Boolean LinkedIn query
+  // STEP 2: Build Boolean LinkedIn query (FALLBACK when competitor mapping not available)
   // Example: "(CFO OR \"Chief Financial Officer\") AND (M&A OR scaling) AND (fintech OR tech) AND \"United States\""
   const titleVariants = getTitleVariants(title);
   const needKeywords = extractNeedKeywords(need, roleConfig.competencies);
@@ -154,13 +242,26 @@ export function generateSearchStrategy(
   // STEP 6: Human-readable summary
   const napSummary = `**Need**: ${need}\n**Authority**: ${authority}\n**Pain**: ${pain}`;
   
-  const searchRationale = `**Why this search strategy:**\n\n` +
-    `1. **Pain-Driven**: Targeting candidates who've solved "${pain}" challenges (keywords: ${painKeywords.slice(0,3).join(", ")})\n` +
-    `2. **Need Match**: Focusing on ${title}s with ${needKeywords.slice(0,2).join(" + ")} experience\n` +
-    `3. **Authority Fit**: ${authority}-level professionals (${filters.seniorityLevel?.join(", ")})\n` +
-    `4. **Industry**: ${filters.industry.join(", ")} backgrounds most relevant to your context\n` +
-    `5. **Quality Bar**: ${roleConfig.minYears}+ years experience minimum\n\n` +
-    `This targeted approach delivers 8-12 high-fit candidates vs. 20-30 generic profiles.`;
+  // Build search rationale - different messaging for competitor mapping vs. Boolean
+  let searchRationale: string;
+  
+  if (competitorStrategy) {
+    searchRationale = `**Why this search strategy (Competitor Mapping):**\n\n` +
+      `1. **Targeted Firm Search**: Searching ${competitorStrategy.competitorMap.length} peer firms of ${companyName} instead of random LinkedIn search\n` +
+      `2. **Proven Talent Pools**: Targeting ${title}s at similar companies (${competitorStrategy.competitorMap.slice(0, 3).map(c => c.name).join(", ")}...)\n` +
+      `3. **Pain-Driven**: Prioritizing candidates who've solved "${pain}" challenges\n` +
+      `4. **Authority Fit**: ${authority}-level professionals (${filters.seniorityLevel?.join(", ")})\n` +
+      `5. **Quality Bar**: ${roleConfig.minYears}+ years experience minimum\n\n` +
+      `This Grok-style approach delivers 7-12 highly relevant matches vs. 20-30 generic profiles.`;
+  } else {
+    searchRationale = `**Why this search strategy (Boolean Search):**\n\n` +
+      `1. **Pain-Driven**: Targeting candidates who've solved "${pain}" challenges (keywords: ${painKeywords.slice(0,3).join(", ")})\n` +
+      `2. **Need Match**: Focusing on ${title}s with ${needKeywords.slice(0,2).join(" + ")} experience\n` +
+      `3. **Authority Fit**: ${authority}-level professionals (${filters.seniorityLevel?.join(", ")})\n` +
+      `4. **Industry**: ${filters.industry.join(", ")} backgrounds most relevant to your context\n` +
+      `5. **Quality Bar**: ${roleConfig.minYears}+ years experience minimum\n\n` +
+      `This targeted approach delivers 8-12 high-fit candidates vs. 20-30 generic profiles.`;
+  }
   
   return {
     keywords: booleanQuery,
@@ -168,7 +269,12 @@ export function generateSearchStrategy(
     exclusions,
     prioritySignals,
     napSummary,
-    searchRationale
+    searchRationale,
+    
+    // NEW: Competitor mapping fields
+    competitorMap: competitorStrategy?.competitorMap,
+    targetedQueries: competitorStrategy?.targetedQueries,
+    useCompetitorMapping: Boolean(competitorStrategy)
   };
 }
 

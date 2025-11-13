@@ -2369,12 +2369,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             pain: updatedSearchContext.urgency || 'Business critical hiring need'
           };
           
-          const napSearchStrategy = napGenerateSearchStrategy(
+          // Extract company name and size from context if available
+          const companyName = updatedSearchContext.companyName || updatedSearchContext.company || companies[0]?.name;
+          const companySize = updatedSearchContext.companySize;
+          
+          const napSearchStrategy = await napGenerateSearchStrategy(
             napSummary,
             {
               title: updatedSearchContext.title,
               location: updatedSearchContext.location,
-              industry: updatedSearchContext.industry
+              industry: updatedSearchContext.industry,
+              companyName: companyName,
+              companySize: companySize
             }
           );
           
