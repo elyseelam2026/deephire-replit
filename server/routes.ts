@@ -1998,7 +1998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           aiResponse = `✅ **Found ${scoredCandidates.length} candidates similar to ${profileData.name}**\n\n` +
             `${dnaInsight}\n\n` +
-            `🔗 **View Pipeline** → [Job #${job.id}](/recruiting/jobs/${job.id})\n\n` +
+            `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;
           
           newPhase = 'completed';
@@ -2608,7 +2608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Enough internal candidates - no external needed
             aiResponse = `✅ **Great news!** We have **${matchedCandidates.length} strong internal candidates** matching your ${updatedSearchContext.title} role.\n\n` +
               `I'll contact them now to gauge interest and availability. Expect a **shortlist of 5-8 qualified & interested candidates** within **1-2 hours**.\n\n` +
-              `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${createdJobId})**\n\n` +
+              `🔗 **[View Candidate Pipeline →](jobs/${createdJobId})**\n\n` +
               `No external search needed at this stage — leveraging our proprietary talent pool.`;
           } else {
             // Not enough internal - external search triggered

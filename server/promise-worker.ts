@@ -242,7 +242,7 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         const deliveryMessage = candidateIds.length > 0
           ? `✅ **Your ${promise.searchParams.title || 'search'} longlist is ready!**\n\n` +
             `I've found **${candidateIds.length} qualified candidates** and created Job Order #${jobId}.\n\n` +
-            `🔗 **[View Candidate Pipeline →](/recruiting/jobs/${jobId})**\n\n` +
+            `🔗 **[View Candidate Pipeline →](jobs/${jobId})**\n\n` +
             `You can now review candidates, move them through stages, and manage this search.`
           : `I completed the search for ${promise.searchParams.title || 'your position'}, but unfortunately didn't find any candidates matching your criteria. Would you like me to adjust the search parameters?`;
         
