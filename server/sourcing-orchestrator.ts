@@ -535,9 +535,9 @@ export async function executeAsyncSearch(config: {
     
     // STEP 2: Generate competitor mapping
     console.log(`\n🏢 [STEP 1/5] Competitor Mapping...`);
-    const { generateCompetitorMapping } = await import('./competitor-mapping');
+    const { generateCompetitorMap } = await import('./competitor-mapping');
     
-    const competitorMapping = await generateCompetitorMapping({
+    const competitorMapping = await generateCompetitorMap({
       title: searchContext.title || '',
       industry: searchContext.industry || '',
       companyName,

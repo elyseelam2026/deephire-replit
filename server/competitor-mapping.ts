@@ -89,7 +89,7 @@ For "Revolut, FinTech, $2B valuation, London":
 Now generate the competitor map for: ${context.name} (${context.industry})`;
 
   const completion = await openai.chat.completions.create({
-    model: "grok-beta",
+    model: "grok-2-1212",
     messages: [
       { role: "system", content: "You are an expert executive recruiter. Always respond with valid JSON only, no other text." },
       { role: "user", content: prompt }

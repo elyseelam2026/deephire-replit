@@ -14,7 +14,7 @@ import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
 import { detectPromise, createPromiseFromConversation } from "./promise-detection";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
