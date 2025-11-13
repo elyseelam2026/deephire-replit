@@ -2385,25 +2385,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
             updatedSearchContext.title = 'Position (title not specified)';
           }
           
-          const napSummary = {
-            need: `${updatedSearchContext.title} with ${(updatedSearchContext.skills || []).join(', ')} - ${updatedSearchContext.yearsExperience || 5}+ years experience`,
-            authority: updatedSearchContext.successCriteria || updatedSearchContext.teamDynamics || 'Reports to senior leadership',
-            pain: updatedSearchContext.urgency || 'Business critical hiring need'
-          };
-          
           // Extract company name and size from context if available
           const companyName = updatedSearchContext.companyName || updatedSearchContext.company || companies[0]?.name;
           const companySize = updatedSearchContext.companySize;
           
+          // Build enriched SearchContext with NAP-derived fields
+          // Map responsibilities/description to painPoints if needed (common extraction pattern)
+          // Guard against empty strings and format naturally with Oxford comma
+          const joinResponsibilities = (arr: string[]) => {
+            if (arr.length === 0) return null;
+            if (arr.length === 1) return arr[0];
+            if (arr.length === 2) return arr.join(' and ');
+            return arr.slice(0, -1).join(', ') + ', and ' + arr[arr.length - 1];
+          };
+          
+          const derivedPainPoints = updatedSearchContext.painPoints || 
+            (updatedSearchContext.responsibilities && updatedSearchContext.responsibilities.length > 0 
+              ? joinResponsibilities(updatedSearchContext.responsibilities)
+              : (updatedSearchContext.description && updatedSearchContext.description.trim().length > 0
+                  ? updatedSearchContext.description
+                  : null));
+          
+          // Build NAP summary - prioritize detailed context over generic labels
+          // CRITICAL: Never use generic urgency labels (high/medium/low/urgent) as pain description
+          const isGenericUrgency = (val: string | undefined) => {
+            if (!val) return true;
+            const normalized = val.trim().toLowerCase();
+            return normalized === 'high' || normalized === 'medium' || normalized === 'low' || normalized === 'urgent';
+          };
+          
+          const napSummary = {
+            need: `${updatedSearchContext.title} with ${(updatedSearchContext.skills || []).join(', ')} - ${updatedSearchContext.yearsExperience || 5}+ years experience`,
+            authority: updatedSearchContext.successCriteria || updatedSearchContext.teamDynamics || 'Reports to senior leadership',
+            pain: derivedPainPoints || (!isGenericUrgency(updatedSearchContext.urgency) ? updatedSearchContext.urgency : 'Business critical hiring need')
+          };
+          
+          const enrichedSearchContext = {
+            // Base fields
+            title: updatedSearchContext.title,
+            location: updatedSearchContext.location,
+            industry: updatedSearchContext.industry,
+            companyName: companyName,
+            companySize: companySize,
+            
+            // NAP-derived enriched fields (from interview)
+            yearsExperience: updatedSearchContext.yearsExperience,
+            painPoints: derivedPainPoints,
+            urgency: updatedSearchContext.urgency,
+            successCriteria: updatedSearchContext.successCriteria,
+            mustHaveSignals: updatedSearchContext.mustHaveSignals,
+            decisionMakerProfile: updatedSearchContext.decisionMakerProfile
+          };
+          
           const napSearchStrategy = await napGenerateSearchStrategy(
             napSummary,
-            {
-              title: updatedSearchContext.title,
-              location: updatedSearchContext.location,
-              industry: updatedSearchContext.industry,
-              companyName: companyName,
-              companySize: companySize
-            }
+            enrichedSearchContext
           );
           
           console.log('✅ NAP Strategy generated:', {

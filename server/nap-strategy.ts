@@ -14,6 +14,29 @@ export interface NAP {
   pain: string;       // Business challenge/urgency (e.g., "Stability risk post-M&A")
 }
 
+/**
+ * Unified search context with both base fields and enriched NAP-derived data
+ * Consolidates all context needed for dynamic search strategy generation
+ */
+export interface SearchContext {
+  // Base fields (required)
+  title: string;
+  
+  // Optional base fields
+  location?: string;
+  industry?: string;
+  companyName?: string;
+  companySize?: string;
+  
+  // NAP-derived enriched fields (optional)
+  yearsExperience?: number;        // Actual years from NAP interview
+  painPoints?: string;             // Detailed pain points from NAP
+  urgency?: string;                // Business urgency from NAP
+  successCriteria?: string;        // Success metrics from NAP
+  mustHaveSignals?: string[];      // Must-have experience signals
+  decisionMakerProfile?: string;   // Decision maker/authority profile
+}
+
 export interface SearchStrategy {
   keywords: string;               // Boolean LinkedIn query (generic fallback)
   filters: {
@@ -115,19 +138,27 @@ const ROLE_EXPERIENCE_MAP: Record<string, {minYears: number; industries: string[
 /**
  * Generate pain-driven search strategy from NAP
  * NEW: Supports async competitor mapping for targeted searches
+ * UPDATED: Uses unified SearchContext with NAP-derived enriched fields
  */
 export async function generateSearchStrategy(
   nap: NAP, 
-  baseContext: {
-    title: string; 
-    location?: string; 
-    industry?: string;
-    companyName?: string;      // NEW: For competitor mapping
-    companySize?: string;      // NEW: For competitor mapping (e.g., "$60B AUM", "500 employees")
-  }
+  searchContext: SearchContext
 ): Promise<SearchStrategy> {
   const {need, authority, pain} = nap;
-  const {title, location, industry, companyName, companySize} = baseContext;
+  const {
+    title, 
+    location, 
+    industry, 
+    companyName, 
+    companySize,
+    // NAP-derived enriched fields
+    yearsExperience,
+    painPoints,
+    urgency,
+    successCriteria,
+    mustHaveSignals,
+    decisionMakerProfile
+  } = searchContext;
   
   // STEP 0: Check if we should use competitor mapping (NEW!)
   // Use competitor mapping when:
@@ -243,23 +274,78 @@ export async function generateSearchStrategy(
   const napSummary = `**Need**: ${need}\n**Authority**: ${authority}\n**Pain**: ${pain}`;
   
   // Build search rationale - different messaging for competitor mapping vs. Boolean
+  // CRITICAL: Use context-first values with structured fallbacks to ensure accuracy
+  
+  // Normalize years to number (handle "12+" string formats)
+  // OMIT years entirely if not provided (don't fall back to roleConfig defaults)
+  const normalizedYears = typeof yearsExperience === 'number' 
+    ? yearsExperience 
+    : yearsExperience && typeof yearsExperience === 'string'
+      ? parseInt(String(yearsExperience).replace(/\D/g, ''), 10) || null
+      : null;
+  
+  // Fix fallback chain: painPoints → pain (detailed NAP) → descriptive urgency
+  // Guard against empty strings and generic urgency labels (case-insensitive)
+  const hasDescriptivePain = painPoints && painPoints.trim().length > 0;
+  const hasDescriptiveUrgency = urgency && urgency.trim().length > 0 && (() => {
+    const normalized = urgency.trim().toLowerCase();
+    return normalized !== 'high' && normalized !== 'medium' && normalized !== 'low' && normalized !== 'urgent';
+  })();
+  const actualPain = hasDescriptivePain ? painPoints : pain || (hasDescriptiveUrgency ? urgency : null);
+  const actualSuccessCriteria = successCriteria || decisionMakerProfile || authority;
+  
   let searchRationale: string;
   
-  if (competitorStrategy) {
+  if (competitorStrategy && competitorStrategy.competitorMap.length > 0) {
+    const firmCount = competitorStrategy.competitorMap.length;
+    const topFirms = competitorStrategy.competitorMap.slice(0, 3).map(c => c.name).join(", ");
+    
+    // Build rationale points, conditionally including quality bar
+    let points = [
+      `1. **Targeted Firm Search**: Searching ${firmCount} peer firms of ${companyName} instead of random LinkedIn search`,
+      `2. **Proven Talent Pools**: Targeting ${title}s at similar companies (${topFirms}...)`,
+    ];
+    if (actualPain) {
+      points.push(`3. **Pain-Driven**: Prioritizing candidates who've solved "${actualPain}" challenges`);
+    }
+    points.push(`4. **Authority Fit**: ${actualSuccessCriteria}-level professionals${filters.seniorityLevel ? ` (${filters.seniorityLevel.join(", ")})` : ''}`);
+    if (normalizedYears) {
+      points.push(`5. **Quality Bar**: ${normalizedYears}+ years experience minimum`);
+    }
+    
     searchRationale = `**Why this search strategy (Competitor Mapping):**\n\n` +
-      `1. **Targeted Firm Search**: Searching ${competitorStrategy.competitorMap.length} peer firms of ${companyName} instead of random LinkedIn search\n` +
-      `2. **Proven Talent Pools**: Targeting ${title}s at similar companies (${competitorStrategy.competitorMap.slice(0, 3).map(c => c.name).join(", ")}...)\n` +
-      `3. **Pain-Driven**: Prioritizing candidates who've solved "${pain}" challenges\n` +
-      `4. **Authority Fit**: ${authority}-level professionals (${filters.seniorityLevel?.join(", ")})\n` +
-      `5. **Quality Bar**: ${roleConfig.minYears}+ years experience minimum\n\n` +
+      points.join('\n') + '\n\n' +
       `This Grok-style approach delivers 7-12 highly relevant matches vs. 20-30 generic profiles.`;
+  } else if (competitorStrategy && competitorStrategy.competitorMap.length === 0) {
+    // Guard against empty competitor map
+    let points = [];
+    if (actualPain) {
+      points.push(`1. **Pain-Driven**: Targeting candidates who've solved "${actualPain}" challenges${painKeywords.length > 0 ? ` (keywords: ${painKeywords.slice(0,3).join(", ")})` : ''}`);
+    }
+    points.push(`2. **Need Match**: Focusing on ${title}s with ${needKeywords.slice(0,2).join(" + ")} experience`);
+    points.push(`3. **Authority Fit**: ${actualSuccessCriteria}-level professionals${filters.seniorityLevel ? ` (${filters.seniorityLevel.join(", ")})` : ''}`);
+    points.push(`4. **Industry**: ${filters.industry.join(", ")} backgrounds most relevant to your context`);
+    if (normalizedYears) {
+      points.push(`5. **Quality Bar**: ${normalizedYears}+ years experience minimum`);
+    }
+    
+    searchRationale = `**Why this search strategy (Boolean Search fallback):**\n\n` +
+      points.join('\n') + '\n\n' +
+      `Note: Competitor mapping unavailable, using Boolean search instead.`;
   } else {
+    let points = [];
+    if (actualPain) {
+      points.push(`1. **Pain-Driven**: Targeting candidates who've solved "${actualPain}" challenges${painKeywords.length > 0 ? ` (keywords: ${painKeywords.slice(0,3).join(", ")})` : ''}`);
+    }
+    points.push(`2. **Need Match**: Focusing on ${title}s with ${needKeywords.slice(0,2).join(" + ")} experience`);
+    points.push(`3. **Authority Fit**: ${actualSuccessCriteria}-level professionals${filters.seniorityLevel ? ` (${filters.seniorityLevel.join(", ")})` : ''}`);
+    points.push(`4. **Industry**: ${filters.industry.join(", ")} backgrounds most relevant to your context`);
+    if (normalizedYears) {
+      points.push(`5. **Quality Bar**: ${normalizedYears}+ years experience minimum`);
+    }
+    
     searchRationale = `**Why this search strategy (Boolean Search):**\n\n` +
-      `1. **Pain-Driven**: Targeting candidates who've solved "${pain}" challenges (keywords: ${painKeywords.slice(0,3).join(", ")})\n` +
-      `2. **Need Match**: Focusing on ${title}s with ${needKeywords.slice(0,2).join(" + ")} experience\n` +
-      `3. **Authority Fit**: ${authority}-level professionals (${filters.seniorityLevel?.join(", ")})\n` +
-      `4. **Industry**: ${filters.industry.join(", ")} backgrounds most relevant to your context\n` +
-      `5. **Quality Bar**: ${roleConfig.minYears}+ years experience minimum\n\n` +
+      points.join('\n') + '\n\n' +
       `This targeted approach delivers 8-12 high-fit candidates vs. 20-30 generic profiles.`;
   }
   
