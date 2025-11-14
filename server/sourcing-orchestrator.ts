@@ -537,15 +537,14 @@ export async function executeAsyncSearch(config: {
     console.log(`\n🏢 [STEP 1/5] Competitor Mapping...`);
     const { generateCompetitorMap } = await import('./competitor-mapping');
     
-    const competitorMapping = await generateCompetitorMap({
-      title: searchContext.title || '',
+    const targetCompanies = await generateCompetitorMap({
+      name: companyName,
       industry: searchContext.industry || '',
-      companyName,
-      companySize: searchContext.companySize || '',
-      location: searchContext.location || ''
+      size: searchContext.companySize,
+      region: searchContext.location,
+      stage: searchContext.stage
     });
     
-    const targetCompanies = competitorMapping.companies;
     console.log(`✅ Identified ${targetCompanies.length} peer companies`);
     
     // STEP 3: Send "Search Started" email with transparent logic
@@ -562,7 +561,7 @@ export async function executeAsyncSearch(config: {
           targetCompanies: targetCompanies.map(c => c.name),
           positionHolders: `${searchContext.title} professionals at peer firms`,
           booleanQuery: searchStrategy.keywords || '',
-          reasoning: competitorMapping.reasoning || searchStrategy.searchRationale || ''
+          reasoning: searchStrategy.searchRationale || ''
         },
         recipientEmail: userEmail,
         recipientName: userName
@@ -576,19 +575,23 @@ export async function executeAsyncSearch(config: {
     // STEP 4: Execute targeted queries
     console.log(`\n🔍 [STEP 3/5] Executing targeted queries...`);
     const { executeTargetedQueries } = await import('./targeted-query-execution');
+    const { generateTargetedSearchQueries } = await import('./competitor-mapping');
     
-    const queryResults = await executeTargetedQueries({
-      targetCompanies: targetCompanies.map(c => c.name),
-      baseQuery: searchStrategy.keywords || searchContext.title || '',
-      location: searchContext.location,
+    // Generate targeted queries: one per competitor firm
+    const targetedQueries = generateTargetedSearchQueries(
+      targetCompanies,
+      searchContext.title || ''
+    );
+    
+    const queryResults = await executeTargetedQueries(targetedQueries, {
       maxUrlsPerQuery: 3,
       maxTotalUrls: 30
     });
     
-    console.log(`✅ Found ${queryResults.totalUrls} unique LinkedIn profiles`);
+    console.log(`✅ Found ${queryResults.urls.length} unique LinkedIn profiles`);
     
     // STEP 5: Fetch profiles and create candidates
-    if (queryResults.totalUrls > 0) {
+    if (queryResults.urls.length > 0) {
       console.log(`\n👥 [STEP 4/5] Fetching LinkedIn profiles...`);
       
       // Create sourcing run
@@ -602,18 +605,18 @@ export async function executeAsyncSearch(config: {
           location: searchContext.location
         } as any,
         searchIntent: `Competitor-targeted search for ${searchContext.title}`,
-        searchRationale: competitorMapping.reasoning || '',
+        searchRationale: searchStrategy.searchRationale || '',
         status: 'pending',
         progress: {
           phase: 'pending',
-          profilesFound: queryResults.totalUrls,
+          profilesFound: queryResults.urls.length,
           profilesFetched: 0,
           profilesProcessed: 0,
           candidatesCreated: 0,
           candidatesDuplicate: 0,
           currentBatch: 0,
-          totalBatches: Math.ceil(queryResults.totalUrls / 5),
-          message: `Found ${queryResults.totalUrls} profiles from competitor mapping`
+          totalBatches: Math.ceil(queryResults.urls.length / 5),
+          message: `Found ${queryResults.urls.length} profiles from competitor mapping`
         } as any,
         candidatesCreated: []
       }).returning();
@@ -641,7 +644,7 @@ export async function executeAsyncSearch(config: {
     await db.update(jobs).set({
       searchExecutionStatus: 'completed',
       searchProgress: {
-        candidatesSearched: queryResults.totalUrls,
+        candidatesSearched: queryResults.urls.length,
         matchesFound: totalCandidates,
         currentStep: `Search complete - ${totalCandidates} candidates found`,
         completedAt: new Date().toISOString()
