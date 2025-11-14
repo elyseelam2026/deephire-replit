@@ -288,6 +288,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upgrade job turnaround (standard → express)
+  app.patch("/api/jobs/:id/turnaround", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const { turnaroundLevel } = req.body;
+
+      // Validate turnaround level
+      if (!turnaroundLevel || !['standard', 'express'].includes(turnaroundLevel)) {
+        return res.status(400).json({ error: "Invalid turnaround level. Must be 'standard' or 'express'" });
+      }
+
+      // Fetch current job
+      const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Get turnaround details for the new level
+      const newTurnaround = getTurnaroundByLevel(turnaroundLevel as 'standard' | 'express');
+      
+      // Recalculate estimated fee using base fee × new multiplier
+      const newEstimatedFee = job.basePlacementFee
+        ? Math.round(job.basePlacementFee * newTurnaround.feeMultiplier)
+        : job.estimatedPlacementFee; // Fallback if basePlacementFee missing
+
+      // Update job with new turnaround settings
+      const [updatedJob] = await db
+        .update(jobs)
+        .set({
+          turnaroundLevel: newTurnaround.level,
+          turnaroundHours: newTurnaround.hours,
+          turnaroundFeeMultiplier: newTurnaround.feeMultiplier,
+          estimatedPlacementFee: newEstimatedFee,
+          updatedAt: new Date()
+        })
+        .where(eq(jobs.id, jobId))
+        .returning();
+
+      console.log(`✅ Job #${jobId} turnaround updated: ${job.turnaroundLevel} → ${turnaroundLevel} (${newTurnaround.hours}h, ${newTurnaround.feeMultiplier}x fee)`);
+
+      res.json(updatedJob);
+    } catch (error) {
+      console.error("Error updating job turnaround:", error);
+      res.status(500).json({ error: "Failed to update turnaround" });
+    }
+  });
+
   // Get job candidates pipeline (Salesforce-style)
   app.get("/api/jobs/:id/candidates", async (req, res) => {
     try {
