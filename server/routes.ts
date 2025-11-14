@@ -294,6 +294,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jobId = parseInt(req.params.id);
       const { turnaroundLevel } = req.body;
 
+      // Validate jobId
+      if (!Number.isFinite(jobId)) {
+        return res.status(400).json({ error: "Invalid job ID" });
+      }
+
       // Validate turnaround level
       if (!turnaroundLevel || !['standard', 'express'].includes(turnaroundLevel)) {
         return res.status(400).json({ error: "Invalid turnaround level. Must be 'standard' or 'express'" });
@@ -306,13 +311,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
 
+      // Only allow upgrades to express (prevent downgrades)
+      if (turnaroundLevel === 'standard' && job.turnaroundLevel === 'express') {
+        return res.status(400).json({ error: "Cannot downgrade from express to standard turnaround" });
+      }
+
+      // Prevent no-op updates
+      if (job.turnaroundLevel === turnaroundLevel) {
+        return res.status(400).json({ error: `Job is already at ${turnaroundLevel} turnaround` });
+      }
+
       // Get turnaround details for the new level
       const newTurnaround = getTurnaroundByLevel(turnaroundLevel as 'standard' | 'express');
       
       // Recalculate estimated fee using base fee × new multiplier
-      const newEstimatedFee = job.basePlacementFee
-        ? Math.round(job.basePlacementFee * newTurnaround.feeMultiplier)
-        : job.estimatedPlacementFee; // Fallback if basePlacementFee missing
+      // Require basePlacementFee for accurate pricing
+      if (!job.basePlacementFee) {
+        return res.status(400).json({ error: "Cannot upgrade turnaround: job missing base placement fee. Contact support." });
+      }
+      
+      const newEstimatedFee = Math.round(job.basePlacementFee * newTurnaround.feeMultiplier);
 
       // Update job with new turnaround settings
       const [updatedJob] = await db
