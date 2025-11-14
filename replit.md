@@ -23,7 +23,7 @@ Key features include:
 -   **AI-Powered Data Quality System**: Automated audit system with UI for validation rules, AI-powered fixes, and a manual review queue.
 -   **Production-Grade ATS Pipeline System**: 8-stage candidate pipeline management with Kanban/List views, filtering, and bulk operations.
 -   **AI Company Employee Research & LinkedIn Reference Candidate Integration**: Targeted sourcing and intelligent search by example using LinkedIn profiles.
--   **External Candidate Sourcing Engine**: Production-grade system for discovering new candidates from LinkedIn, featuring async batch orchestration, duplicate detection, and provenance tracking.
+-   **External Candidate Sourcing Engine**: Production-grade system for discovering new candidates from LinkedIn, featuring async batch orchestration, duplicate detection, and provenance tracking. Uses a **two-phase resilience architecture**: links all candidates immediately (ensuring visibility), then attempts AI fit scoring as a separate phase (graceful degradation if AI fails).
 -   **AI-Powered Candidate Fit Scoring**: Intelligent ranking system using xAI Grok to evaluate candidates against the full NAP context, providing transparent AI reasoning.
 -   **AI Promise System**: Immediate execution system that triggers external candidate sourcing and delivers results back to the conversation when AI makes delivery commitments.
 -   **NAP-Driven Search Strategy Engine**: Converts consultative NAP interviews into targeted Boolean LinkedIn queries, mapping business pain points to candidate experience signals, and ensuring quality with a completeness threshold before triggering external searches. It includes a pre-scraping relevance filter and dual fit scoring.
