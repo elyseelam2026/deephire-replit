@@ -16,6 +16,7 @@ import { detectPromise, createPromiseFromConversation } from "./promise-detectio
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
+import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel } from "@shared/pricing";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
@@ -2457,6 +2458,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             searchRationale: napSearchStrategy.searchRationale
           };
           
+          // 🚀 TURNAROUND PRICING: Get options based on urgency
+          const turnaroundOptions = getTurnaroundOptions(updatedSearchContext.urgency);
+          
+          // Default to standard turnaround (even for urgent jobs - let client upgrade if needed)
+          const defaultTurnaround = turnaroundOptions.standard;
+          
+          // Recalculate estimated fee with turnaround multiplier if we have a salary estimate
+          if (estimatedFee && updatedSearchContext.salary) {
+            // Extract salary for fee calculation with turnaround
+            const salaryMatch = updatedSearchContext.salary.match(/(\d+(?:,\d{3})*(?:\.\d+)?)\s*[kK]?/);
+            if (salaryMatch) {
+              const salaryValue = parseFloat(salaryMatch[1].replace(/,/g, ''));
+              const multiplier = updatedSearchContext.salary.toLowerCase().includes('k') ? 1000 : 1;
+              const annualSalary = salaryValue * multiplier;
+              
+              // Recalculate with turnaround multiplier
+              estimatedFee = calculateEstimatedFee(
+                annualSalary,
+                feePercentage,
+                defaultTurnaround.feeMultiplier
+              );
+            }
+          }
+          
+          console.log(`⏱️ Turnaround: ${defaultTurnaround.displayName} (${defaultTurnaround.hours}h)` + 
+            (turnaroundOptions.recommendedLevel === 'express' ? ' - Express recommended for urgent job' : ''));
+          
           // Create job order in database with NAP summary and search strategy
           const newJob = await storage.createJob({
             title: updatedSearchContext.title,
@@ -2471,6 +2499,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             feePercentage: feePercentage,
             estimatedPlacementFee: estimatedFee,
             feeStatus: 'pending',
+            // Turnaround pricing
+            turnaroundLevel: defaultTurnaround.level,
+            turnaroundHours: defaultTurnaround.hours,
+            turnaroundFeeMultiplier: defaultTurnaround.feeMultiplier,
             needAnalysis: napSummary,  // Persist NAP summary
             searchStrategy: searchStrategy,
             searchExecutionStatus: 'planning', // ASYNC: Start in planning state
