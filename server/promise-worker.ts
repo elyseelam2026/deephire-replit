@@ -12,6 +12,7 @@ import { sql } from "drizzle-orm";
 import type { SearchPromise } from "@shared/schema";
 import { searchLinkedInPeople } from "./serpapi";
 import { orchestrateProfileFetching } from "./sourcing-orchestrator";
+import { computeJobPricing } from "@shared/pricing";
 
 /**
  * Execute a single search promise
@@ -181,7 +182,23 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         console.log(`📝 Created generic placeholder company #${companyId} for promise`);
       }
       
-      // Create job order
+      // Calculate job pricing
+      const searchTier = sourcingRunId ? 'external' : 'internal';
+      const urgency = promise.searchParams.urgency || 'medium';
+      const salary = promise.searchParams.salary || promise.searchParams.salaryRangeMax || promise.searchParams.salaryRangeMin;
+      
+      const pricing = computeJobPricing({
+        salary,
+        searchTier,
+        urgency
+      });
+      
+      // Log if salary is missing
+      if (!salary) {
+        console.warn(`⚠️  Job pricing: Missing salary data for promise #${promiseId}. Fees set to null.`);
+      }
+      
+      // Create job order with pricing
       const job = await storage.createJob({
         title: promise.searchParams.title || 'Search Result',
         department: 'General',
@@ -189,16 +206,22 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         jdText: `Automated search from conversation promise: ${promise.promiseText}`,
         parsedData: promise.searchParams,
         skills: promise.searchParams.skills || [],
-        urgency: promise.searchParams.urgency || 'medium',
+        urgency,
         status: 'active',
-        searchTier: sourcingRunId ? 'external' : 'internal',
+        searchTier,
         searchExecutionStatus: 'completed',
         searchProgress: {
           candidatesSearched: sourcingRunId ? searchResults?.profiles?.length || 0 : 0,
           matchesFound: candidateIds.length,
           currentStep: 'Completed',
           sourcingRunId: sourcingRunId || undefined
-        }
+        },
+        // Pricing fields
+        basePlacementFee: pricing.basePlacementFee,
+        estimatedPlacementFee: pricing.estimatedPlacementFee,
+        turnaroundLevel: pricing.turnaroundLevel,
+        turnaroundHours: pricing.turnaroundHours,
+        turnaroundFeeMultiplier: pricing.turnaroundFeeMultiplier
       });
       
       jobId = job.id;

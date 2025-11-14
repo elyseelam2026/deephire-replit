@@ -16,7 +16,7 @@ import { detectPromise, createPromiseFromConversation } from "./promise-detectio
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
-import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel } from "@shared/pricing";
+import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel, computeJobPricing } from "@shared/pricing";
 import { duplicateDetectionService } from "./duplicate-detection";
 import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, getJobControls } from "./background-jobs";
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
@@ -213,8 +213,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companyId = company.id;
       }
 
+      // Calculate pricing if not explicitly provided
+      let pricingFields = {};
+      if (!jobData.basePlacementFee || !jobData.estimatedPlacementFee) {
+        // Extract salary from parsedData or direct field
+        const salary = jobData.parsedData?.salary || 
+                      jobData.parsedData?.salaryRangeMax || 
+                      jobData.parsedData?.salaryRangeMin;
+        
+        const pricing = computeJobPricing({
+          salary,
+          searchTier: jobData.searchTier,
+          urgency: jobData.urgency,
+          overrideTurnaroundLevel: jobData.turnaroundLevel
+        });
+        
+        pricingFields = {
+          basePlacementFee: pricing.basePlacementFee,
+          estimatedPlacementFee: pricing.estimatedPlacementFee,
+          turnaroundLevel: pricing.turnaroundLevel,
+          turnaroundHours: pricing.turnaroundHours,
+          turnaroundFeeMultiplier: pricing.turnaroundFeeMultiplier
+        };
+        
+        // Log if salary is missing
+        if (!salary) {
+          console.warn(`⚠️  Job pricing: Missing salary data for job creation. Fees set to null.`);
+        }
+      }
+
       const job = await storage.createJob({
         ...jobData,
+        ...pricingFields,
         companyId: companyId!
       });
 

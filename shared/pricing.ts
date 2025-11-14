@@ -133,3 +133,76 @@ export function formatTurnaroundPricing(
   const additionalFee = finalFee - baseFee;
   return `${option.displayName}: ${option.hours} hours (+$${additionalFee.toLocaleString()} / +50%)`;
 }
+
+/**
+ * Job pricing calculation result
+ */
+export interface JobPricingResult {
+  basePlacementFee: number | null;
+  estimatedPlacementFee: number | null;
+  turnaroundLevel: TurnaroundLevel;
+  turnaroundHours: number;
+  turnaroundFeeMultiplier: number;
+}
+
+/**
+ * Compute complete job pricing including placement fees and turnaround settings
+ * 
+ * @param params - Pricing parameters
+ * @param params.salary - Annual salary for the role
+ * @param params.searchTier - 'internal' or 'external' (affects fee percentage)
+ * @param params.urgency - Job urgency level ('low', 'medium', 'high', 'urgent')
+ * @param params.overrideTurnaroundLevel - Optional explicit turnaround level override
+ * @returns Complete pricing result with fees and turnaround settings
+ */
+export function computeJobPricing(params: {
+  salary?: number | null;
+  searchTier?: 'internal' | 'external' | null;
+  urgency?: string | null;
+  overrideTurnaroundLevel?: TurnaroundLevel | null;
+}): JobPricingResult {
+  // Determine turnaround level
+  let turnaroundLevel: TurnaroundLevel;
+  if (params.overrideTurnaroundLevel) {
+    // Use explicit override if provided
+    turnaroundLevel = params.overrideTurnaroundLevel;
+  } else {
+    // Infer from urgency
+    const options = getTurnaroundOptions(params.urgency);
+    turnaroundLevel = options.recommendedLevel;
+  }
+  
+  // Get turnaround details
+  const turnaroundOption = getTurnaroundByLevel(turnaroundLevel);
+  
+  // Calculate fees if salary is available
+  let basePlacementFee: number | null = null;
+  let estimatedPlacementFee: number | null = null;
+  
+  if (params.salary && params.salary > 0) {
+    // Determine fee percentage based on search tier
+    // Internal: 15%, External: 25%, Default: 20%
+    let feePercentage: number;
+    if (params.searchTier === 'internal') {
+      feePercentage = 15;
+    } else if (params.searchTier === 'external') {
+      feePercentage = 25;
+    } else {
+      feePercentage = 20; // Default for unspecified tier
+    }
+    
+    // Calculate base fee (before turnaround multiplier)
+    basePlacementFee = Math.round((params.salary * feePercentage) / 100);
+    
+    // Calculate estimated fee with turnaround multiplier
+    estimatedPlacementFee = Math.round(basePlacementFee * turnaroundOption.feeMultiplier);
+  }
+  
+  return {
+    basePlacementFee,
+    estimatedPlacementFee,
+    turnaroundLevel: turnaroundOption.level,
+    turnaroundHours: turnaroundOption.hours,
+    turnaroundFeeMultiplier: turnaroundOption.feeMultiplier
+  };
+}
