@@ -554,12 +554,19 @@ export async function executeAsyncSearch(config: {
     console.log(`\n📧 [STEP 2/5] Sending search started email...`);
     const { sendSearchStartedEmail } = await import('./email-notifications');
     
+    // Fetch job to get turnaround data and fees
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+    
     try {
       await sendSearchStartedEmail({
         jobId,
         jobTitle: searchContext.title || '',
         companyName,
-        turnaroundHours: searchContext.urgency === 'urgent' ? 6 : 12,
+        turnaroundHours: job?.turnaroundHours ?? 12,
+        turnaroundLevel: (job?.turnaroundLevel as 'standard' | 'express') ?? 'standard',
+        urgency: searchContext.urgency,
+        baseFee: job?.basePlacementFee ?? undefined, // Use persisted base fee
+        estimatedFee: job?.estimatedPlacementFee ?? undefined,
         searchLogic: {
           targetCompanies: targetCompanies.map(c => c.name),
           positionHolders: `${searchContext.title} professionals at peer firms`,

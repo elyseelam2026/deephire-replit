@@ -27,6 +27,10 @@ export interface SearchStartedEmailData {
   jobTitle: string;
   companyName: string;
   turnaroundHours: number;
+  turnaroundLevel: 'standard' | 'express';
+  urgency?: string;
+  baseFee?: number; // Base fee without turnaround multiplier
+  estimatedFee?: number; // Final fee with turnaround multiplier applied
   searchLogic: {
     targetCompanies: string[];
     positionHolders: string;
@@ -65,12 +69,27 @@ export async function sendSearchStartedEmail(data: SearchStartedEmailData): Prom
     jobTitle,
     companyName,
     turnaroundHours,
+    turnaroundLevel,
+    urgency,
+    baseFee,
+    estimatedFee,
     searchLogic,
     recipientEmail,
     recipientName = 'Client'
   } = data;
 
   const subject = `DeepHire Search In Progress – ${jobTitle}`;
+  
+  // Determine if express upgrade should be offered
+  const normalizedUrgency = urgency?.toLowerCase().trim();
+  const isHighPriority = normalizedUrgency === 'urgent' || normalizedUrgency === 'high';
+  const showExpressUpgrade = turnaroundLevel === 'standard' && isHighPriority;
+  
+  // Calculate express pricing using base fee
+  const expressFee = baseFee ? Math.round(baseFee * 1.5) : null;
+  // Upcharge is the difference between express fee and base fee (NOT estimatedFee)
+  // This shows the true +50% delta regardless of current turnaround level
+  const expressUpcharge = baseFee && expressFee ? expressFee - baseFee : null;
   
   const htmlContent = `
 <!DOCTYPE html>
@@ -82,8 +101,10 @@ export async function sendSearchStartedEmail(data: SearchStartedEmailData): Prom
     .header { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
     .content { background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px; }
     .logic-box { background: #f1f5f9; border-left: 4px solid #1e3a8a; padding: 15px; margin: 20px 0; border-radius: 4px; }
+    .pricing-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }
     .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
-    .button { display: inline-block; background: #1e3a8a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+    .button { display: inline-block; background: #1e3a8a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
+    .button-express { background: #f59e0b; }
     ul { padding-left: 20px; }
     li { margin: 8px 0; }
   </style>
@@ -100,8 +121,16 @@ export async function sendSearchStartedEmail(data: SearchStartedEmailData): Prom
       
       <p>DeepHire has received your ${jobTitle} mandate for <strong>${companyName}</strong> and is now conducting a comprehensive, dual-database search.</p>
       
-      <p><strong>⏱ Turnaround:</strong> ${turnaroundHours} hours<br>
-      <strong>📧 Delivery:</strong> Full Sourcing Map via email when complete</p>
+      <p><strong>⏱ Turnaround:</strong> ${turnaroundLevel === 'express' ? '⚡ Express - ' : ''}${turnaroundHours} hours<br>
+      <strong>📧 Delivery:</strong> Full Sourcing Map via email when complete</p>${showExpressUpgrade ? `
+      
+      <div class="pricing-box">
+        <h3 style="margin-top: 0; color: #d97706;">⚡ Express Turnaround Available</h3>
+        <p>Your search is flagged as <strong>${urgency}</strong> priority. Need results faster?</p>
+        <p><strong>Express Option:</strong> 6-hour turnaround (+50% fee)${expressUpcharge ? `<br><strong>Additional Cost:</strong> $${expressUpcharge.toLocaleString()}` : ''}</p>
+        <p style="margin-bottom: 15px;">Upgrade now to accelerate your search and receive results in 6 hours instead of 12.</p>
+        <a href="${DEEPHIRE_APP_URL}/jobs/${jobId}/upgrade" class="button button-express">⚡ Upgrade to Express</a>
+      </div>` : ''}
       
       <div class="logic-box">
         <h3 style="margin-top: 0; color: #1e3a8a;">🎯 Search Logic (Transparency)</h3>
@@ -147,9 +176,17 @@ Dear ${recipientName},
 
 DeepHire has received your ${jobTitle} mandate for ${companyName} and is now conducting a comprehensive, dual-database search.
 
-⏱ Turnaround: ${turnaroundHours} hours
+⏱ Turnaround: ${turnaroundLevel === 'express' ? '⚡ Express - ' : ''}${turnaroundHours} hours
 📧 Delivery: Full Sourcing Map via email when complete
+${showExpressUpgrade ? `
+⚡ EXPRESS TURNAROUND AVAILABLE
+Your search is flagged as ${urgency} priority. Need results faster?
 
+Express Option: 6-hour turnaround (+50% fee)${expressUpcharge ? `
+Additional Cost: $${expressUpcharge.toLocaleString()}` : ''}
+
+Upgrade to Express: ${DEEPHIRE_APP_URL}/jobs/${jobId}/upgrade
+` : ''}
 🎯 Search Logic (Transparency):
 ${searchLogic.reasoning}
 

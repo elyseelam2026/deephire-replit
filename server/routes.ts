@@ -2333,16 +2333,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`📊 Search Tier: ${searchTier} (Fee: ${feePercentage}%)`);
 
           
-          // Calculate estimated placement fee if salary is available
-          let estimatedFee: number | undefined;
+          // Calculate BASE estimated placement fee (without turnaround multiplier)
+          let baseFee: number | undefined;
+          let annualSalary: number | undefined;
           if (updatedSearchContext.salary) {
             // Extract salary number (e.g., "400000" from "$400K" or "USD400K")
             const salaryMatch = updatedSearchContext.salary.match(/(\d+(?:,\d{3})*(?:\.\d+)?)\s*[kK]?/);
             if (salaryMatch) {
               const salaryValue = parseFloat(salaryMatch[1].replace(/,/g, ''));
               const multiplier = updatedSearchContext.salary.toLowerCase().includes('k') ? 1000 : 1;
-              const annualSalary = salaryValue * multiplier;
-              estimatedFee = Math.round(annualSalary * (feePercentage / 100));
+              annualSalary = salaryValue * multiplier;
+              baseFee = Math.round(annualSalary * (feePercentage / 100));
             }
           }
           
@@ -2464,26 +2465,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Default to standard turnaround (even for urgent jobs - let client upgrade if needed)
           const defaultTurnaround = turnaroundOptions.standard;
           
-          // Recalculate estimated fee with turnaround multiplier if we have a salary estimate
-          if (estimatedFee && updatedSearchContext.salary) {
-            // Extract salary for fee calculation with turnaround
-            const salaryMatch = updatedSearchContext.salary.match(/(\d+(?:,\d{3})*(?:\.\d+)?)\s*[kK]?/);
-            if (salaryMatch) {
-              const salaryValue = parseFloat(salaryMatch[1].replace(/,/g, ''));
-              const multiplier = updatedSearchContext.salary.toLowerCase().includes('k') ? 1000 : 1;
-              const annualSalary = salaryValue * multiplier;
-              
-              // Recalculate with turnaround multiplier
-              estimatedFee = calculateEstimatedFee(
-                annualSalary,
-                feePercentage,
-                defaultTurnaround.feeMultiplier
-              );
-            }
-          }
+          // Calculate final fee with turnaround multiplier
+          const estimatedFee = baseFee 
+            ? Math.round(baseFee * defaultTurnaround.feeMultiplier)
+            : undefined;
           
           console.log(`⏱️ Turnaround: ${defaultTurnaround.displayName} (${defaultTurnaround.hours}h)` + 
             (turnaroundOptions.recommendedLevel === 'express' ? ' - Express recommended for urgent job' : ''));
+          if (baseFee && estimatedFee) {
+            console.log(`💰 Base Fee: $${baseFee.toLocaleString()} → Final Fee (with turnaround): $${estimatedFee.toLocaleString()}`);
+          }
           
           // Create job order in database with NAP summary and search strategy
           const newJob = await storage.createJob({
@@ -2497,7 +2488,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: 'active',
             searchTier: searchTier,
             feePercentage: feePercentage,
-            estimatedPlacementFee: estimatedFee,
+            basePlacementFee: baseFee, // Store base fee for accurate pricing calculations
+            estimatedPlacementFee: estimatedFee, // Final fee with turnaround multiplier
             feeStatus: 'pending',
             // Turnaround pricing
             turnaroundLevel: defaultTurnaround.level,

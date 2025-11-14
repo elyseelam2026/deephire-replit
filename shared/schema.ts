@@ -166,14 +166,15 @@ export const jobs = pgTable("jobs", {
   // Pricing & Fees
   searchTier: text("search_tier"), // 'internal' or 'external'
   feePercentage: real("fee_percentage"), // 15 for internal, 25 for external
-  estimatedPlacementFee: real("estimated_placement_fee"), // calculated from salary range
+  basePlacementFee: real("base_placement_fee"), // base fee without turnaround multiplier
+  estimatedPlacementFee: real("estimated_placement_fee"), // final fee with turnaround multiplier applied
   actualPlacementFee: real("actual_placement_fee"), // actual fee when candidate placed
   feeStatus: text("fee_status").default("pending"), // pending, invoiced, paid
   
   // Turnaround Time Pricing
-  turnaroundLevel: text("turnaround_level").default("standard"), // 'standard' | 'express'
-  turnaroundHours: integer("turnaround_hours").default(12), // 12 for standard, 6 for express
-  turnaroundFeeMultiplier: real("turnaround_fee_multiplier").default(1.0), // 1.0 for standard, 1.5 for express
+  turnaroundLevel: text("turnaround_level").notNull().default("standard"), // 'standard' | 'express'
+  turnaroundHours: integer("turnaround_hours").notNull().default(12), // 12 for standard, 6 for express
+  turnaroundFeeMultiplier: real("turnaround_fee_multiplier").notNull().default(1.0), // 1.0 for standard, 1.5 for express
   
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
