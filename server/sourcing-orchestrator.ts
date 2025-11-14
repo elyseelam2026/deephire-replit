@@ -199,11 +199,14 @@ export async function orchestrateProfileFetching(
         if (sourcingRun?.jobId) {
           console.log(`\n🎯 [Quality Gate] Scoring ${candidateIds.length} candidates before staging...`);
           
+          // Store jobId for use in nested functions (TypeScript needs this)
+          const jobId = sourcingRun.jobId;
+          
           // Load job with NAP context
           const [job] = await db
             .select()
             .from(jobs)
-            .where(eq(jobs.id, sourcingRun.jobId))
+            .where(eq(jobs.id, jobId))
             .limit(1);
           
           if (!job) {
@@ -246,7 +249,7 @@ export async function orchestrateProfileFetching(
                   .from(jobCandidates)
                   .where(
                     and(
-                      eq(jobCandidates.jobId, sourcingRun.jobId),
+                      eq(jobCandidates.jobId, jobId),
                       eq(jobCandidates.candidateId, candidate.id)
                     )
                   )
@@ -301,7 +304,7 @@ export async function orchestrateProfileFetching(
                 // QUALITY GATE: Only link if fitScore ≥ 70
                 if (finalFitScore >= FIT_SCORE_THRESHOLD) {
                   await db.insert(jobCandidates).values({
-                    jobId: sourcingRun.jobId,
+                    jobId: jobId,
                     candidateId: candidate.id,
                     status: 'recommended',
                     matchScore: 80,

@@ -170,8 +170,26 @@ export const jobs = pgTable("jobs", {
   actualPlacementFee: real("actual_placement_fee"), // actual fee when candidate placed
   feeStatus: text("fee_status").default("pending"), // pending, invoiced, paid
   
+  // Turnaround Time Pricing
+  turnaroundLevel: text("turnaround_level").default("standard"), // 'standard' | 'express'
+  turnaroundHours: integer("turnaround_hours").default(12), // 12 for standard, 6 for express
+  turnaroundFeeMultiplier: real("turnaround_fee_multiplier").default(1.0), // 1.0 for standard, 1.5 for express
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
+// Job Turnaround History - Audit trail for turnaround upgrades/downgrades
+export const jobTurnaroundHistory = pgTable("job_turnaround_history", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  previousLevel: text("previous_level"), // 'standard' | 'express' | null (for first entry)
+  newLevel: text("new_level").notNull(), // 'standard' | 'express'
+  previousMultiplier: real("previous_multiplier"),
+  newMultiplier: real("new_multiplier").notNull(),
+  changedBy: text("changed_by"), // user email or 'system'
+  reason: text("reason"), // 'upgrade_request' | 'client_request' | 'auto_default'
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 });
 
 // Job Candidates - Pipeline tracking for candidates matched to jobs
