@@ -236,30 +236,62 @@ export async function orchestrateProfileFetching(
             .from(candidates)
             .where(inArray(candidates.id, candidateIds));
           
-          // Score candidates in batches (3-5 concurrent) with throttling
+          // STEP 3A: Link ALL candidates immediately (ensures visibility even if AI fails)
+          console.log(`\n📎 [Linking] Linking ${candidateRecords.length} candidates to job #${jobId}...`);
+          
+          for (const candidate of candidateRecords) {
+            try {
+              // Check if already linked
+              const [existing] = await db
+                .select()
+                .from(jobCandidates)
+                .where(
+                  and(
+                    eq(jobCandidates.jobId, jobId),
+                    eq(jobCandidates.candidateId, candidate.id)
+                  )
+                )
+                .limit(1);
+              
+              if (!existing) {
+                // Link candidate with "sourced" status (pending AI scoring)
+                await db.insert(jobCandidates).values({
+                  jobId: jobId,
+                  candidateId: candidate.id,
+                  status: 'sourced',
+                  matchScore: null,
+                  fitScore: null,
+                  fitReasoning: 'Pending AI fit scoring',
+                  aiReasoning: {
+                    reasoning: `Externally sourced via LinkedIn (Run #${sourcingRunId}) | Awaiting fit analysis`,
+                    source: 'external_linkedin_search',
+                    sourcingRunId
+                  },
+                  searchTier: 2,
+                  recruiterNotes: null,
+                  lastActionAt: new Date()
+                });
+                jobCandidatesLinked++;
+              }
+            } catch (error) {
+              console.error(`   ⚠️ Error linking candidate #${candidate.id}:`, error);
+            }
+          }
+          
+          console.log(`✅ Linked ${jobCandidatesLinked} candidates to job #${jobId}`);
+          
+          // STEP 3B: Score candidates in batches and update fit scores
+          console.log(`\n🎯 [Quality Gate] Scoring ${candidateRecords.length} candidates for fit assessment...`);
+          
+          let scoredCount = 0;
+          let scoringFailures = 0;
+          
           const batchSize = 4;
           for (let i = 0; i < candidateRecords.length; i += batchSize) {
             const batch = candidateRecords.slice(i, i + batchSize);
             
             await Promise.all(batch.map(async (candidate) => {
               try {
-                // Check if already linked
-                const [existing] = await db
-                  .select()
-                  .from(jobCandidates)
-                  .where(
-                    and(
-                      eq(jobCandidates.jobId, jobId),
-                      eq(jobCandidates.candidateId, candidate.id)
-                    )
-                  )
-                  .limit(1);
-                
-                if (existing) {
-                  console.log(`   [SKIP] ${candidate.firstName} ${candidate.lastName} - Already linked`);
-                  return;
-                }
-                
                 // Score using NAP rubric + Grok AI
                 const { calculateNAPFit } = await import('./nap-strategy');
                 let napFitResult;
@@ -301,36 +333,37 @@ export async function orchestrateProfileFetching(
                 
                 const finalFitScore = napFitResult ? napFitResult.score * 10 : fitResult.fitScore;
                 
-                // QUALITY GATE: Only link if fitScore ≥ 70
-                if (finalFitScore >= FIT_SCORE_THRESHOLD) {
-                  await db.insert(jobCandidates).values({
-                    jobId: jobId,
-                    candidateId: candidate.id,
-                    status: 'recommended',
-                    matchScore: 80,
+                // Update job_candidates with fit score
+                await db
+                  .update(jobCandidates)
+                  .set({
                     fitScore: finalFitScore,
                     fitReasoning: fitResult.reasoning,
                     fitStrengths: fitResult.strengths,
                     fitConcerns: fitResult.concerns,
-                    aiReasoning: {
-                      reasoning: `Externally sourced via LinkedIn (Run #${sourcingRunId}) | Fit: ${finalFitScore}/100`,
-                      source: 'external_linkedin_search',
-                      sourcingRunId
-                    },
-                    searchTier: 2,
-                    recruiterNotes: null,
-                    lastActionAt: new Date()
-                  });
-                  jobCandidatesLinked++;
-                  console.log(`   ✅ ACCEPT: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100`);
+                    status: finalFitScore >= FIT_SCORE_THRESHOLD ? 'recommended' : 'sourced',
+                    matchScore: finalFitScore >= FIT_SCORE_THRESHOLD ? 80 : null,
+                  })
+                  .where(
+                    and(
+                      eq(jobCandidates.jobId, jobId),
+                      eq(jobCandidates.candidateId, candidate.id)
+                    )
+                  );
+                
+                scoredCount++;
+                
+                if (finalFitScore >= FIT_SCORE_THRESHOLD) {
+                  console.log(`   ✅ RECOMMENDED: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100`);
                 } else {
+                  console.log(`   ⚠️  LOW FIT: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100`);
                   jobCandidatesRejected++;
-                  console.log(`   ❌ REJECT: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100 < ${FIT_SCORE_THRESHOLD}`);
                 }
                 
               } catch (error) {
-                console.error(`   ⚠️ Error scoring candidate #${candidate.id}:`, error);
-                // Continue with other candidates
+                scoringFailures++;
+                console.error(`   ❌ Scoring failed for ${candidate.firstName} ${candidate.lastName}:`, error instanceof Error ? error.message : 'Unknown error');
+                // Candidate remains linked with "sourced" status even if scoring fails
               }
             }));
             
@@ -340,7 +373,12 @@ export async function orchestrateProfileFetching(
             }
           }
           
-          console.log(`\n✅ [Quality Gate] Results: ${jobCandidatesLinked} accepted, ${jobCandidatesRejected} rejected (threshold: ${FIT_SCORE_THRESHOLD}/100)`);
+          console.log(`\n✅ [Scoring Summary]:`);
+          console.log(`   📎 Total linked: ${jobCandidatesLinked} candidates`);
+          console.log(`   ✅ Successfully scored: ${scoredCount}/${candidateRecords.length}`);
+          console.log(`   ⚠️  Recommended (fit ≥ ${FIT_SCORE_THRESHOLD}): ${scoredCount - jobCandidatesRejected}`);
+          console.log(`   📊 Low fit (< ${FIT_SCORE_THRESHOLD}): ${jobCandidatesRejected}`);
+          console.log(`   ❌ Scoring failures: ${scoringFailures}`);
           
         } else {
           console.log(`ℹ️  [Sourcing Orchestrator] No jobId found - candidates saved without job link`);
