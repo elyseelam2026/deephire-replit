@@ -30,9 +30,12 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/recruiting" nest component={RecruitingApp} />
-      <Route path="/client" nest component={ClientApp} />
-      <Route path="/admin" nest component={AdminApp} />
+      <Route path="/recruiting/:rest*" component={RecruitingApp} />
+      <Route path="/recruiting" component={RecruitingApp} />
+      <Route path="/client/:rest*" component={ClientApp} />
+      <Route path="/client" component={ClientApp} />
+      <Route path="/admin/:rest*" component={AdminApp} />
+      <Route path="/admin" component={AdminApp} />
       <Route path="/client-portal" component={ClientPortal} />
       <Route path="/candidate-portal" component={CandidatePortal} />
       <Route path="/candidates" component={CandidatesOnly} />
@@ -143,37 +146,19 @@ function ClientApp({ children }: { children?: React.ReactNode }) {
   );
 }
 
-function AdminApp({ children }: { children?: React.ReactNode }) {
-  const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
-
+function AdminApp() {
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-col flex-1">
-          <header className="flex items-center justify-between p-2 border-b">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <ThemeToggle />
-          </header>
-          <main className="flex-1 overflow-y-auto">
-            {children || (
-              <Router base="/admin">
-                <Switch>
-                  <Route path="/" component={Admin} />
-                  <Route path="/data-quality" component={DataQualityDashboard} />
-                  <Route path="/users" component={Settings} />
-                  <Route path="/system" component={Settings} />
-                  <Route component={Admin} />
-                </Switch>
-              </Router>
-            )}
-          </main>
+    <div className="min-h-screen bg-background">
+      <header className="flex items-center justify-between p-4 border-b">
+        <div>
+          <h1 className="text-2xl font-bold">Admin Portal</h1>
         </div>
-      </div>
-    </SidebarProvider>
+        <ThemeToggle />
+      </header>
+      <main>
+        <Admin />
+      </main>
+    </div>
   );
 }
 
