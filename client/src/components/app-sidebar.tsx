@@ -1,4 +1,4 @@
-import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2 } from "lucide-react";
+import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -12,7 +12,9 @@ import {
 } from "@/components/ui/sidebar";
 
 // Navigation items for different user roles
-const adminItems = [
+
+// Agency Portal - For recruiting team (internal users)
+const agencyItems = [
   { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
   { title: "Companies", url: "/recruiting/companies", icon: Building2 },
   { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
@@ -24,14 +26,17 @@ const adminItems = [
   { title: "Settings", url: "/recruiting/settings", icon: Settings },
 ];
 
+// Client Portal - For PE firms hiring through agency
 const clientItems = [
   { title: "Dashboard", url: "/client", icon: BarChart3 },
   { title: "Post Job", url: "/client/post-job", icon: Briefcase },
   { title: "My Jobs", url: "/client/jobs", icon: Briefcase },
   { title: "Candidates", url: "/client/candidates", icon: Users },
+  { title: "Recycling Bin", url: "/client/recycling-bin", icon: Trash2 },
   { title: "Messages", url: "/client/messages", icon: MessageSquare },
 ];
 
+// Candidate Portal - For job seekers
 const candidateItems = [
   { title: "Dashboard", url: "/candidate", icon: BarChart3 },
   { title: "Profile", url: "/candidate/profile", icon: Users },
@@ -39,15 +44,29 @@ const candidateItems = [
   { title: "Messages", url: "/candidate/messages", icon: MessageSquare },
 ];
 
+// Admin Portal - For system administrators
+const adminItems = [
+  { title: "Dashboard", url: "/admin", icon: BarChart3 },
+  { title: "Bulk Upload", url: "/admin/bulk-upload", icon: Upload },
+  { title: "Data Quality", url: "/admin/data-quality", icon: Database },
+  { title: "User Management", url: "/admin/users", icon: Users },
+  { title: "System Settings", url: "/admin/system", icon: Shield },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
   
-  // todo: remove mock functionality - determine user role from auth context
-  const userRole = "admin"; // mock role for prototype
+  // TODO: Determine user role from auth context
+  // For now, detect from current URL
+  const userRole = location.startsWith('/admin') ? 'admin' :
+                   location.startsWith('/client') ? 'client' :
+                   location.startsWith('/candidate') ? 'candidate' :
+                   'agency'; // default to agency for /recruiting routes
   
-  const items = userRole === "admin" ? adminItems : 
-                userRole === "client" ? clientItems : 
-                candidateItems;
+  const items = userRole === 'admin' ? adminItems : 
+                userRole === 'client' ? clientItems : 
+                userRole === 'candidate' ? candidateItems :
+                agencyItems;
 
   return (
     <Sidebar data-testid="sidebar-main">

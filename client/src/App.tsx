@@ -23,6 +23,7 @@ import Staging from "@/pages/Staging";
 import Conversations from "@/pages/Conversations";
 import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
+import DataQualityDashboard from "@/pages/DataQualityDashboard";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -34,6 +35,8 @@ function AppRouter() {
       <Route path="/recruiting/companies/:id" component={() => <RecruitingApp><CompanyDetail /></RecruitingApp>} />
       <Route path="/recruiting/:rest*" component={RecruitingApp} />
       <Route path="/recruiting" component={RecruitingApp} />
+      <Route path="/client/:rest*" component={ClientApp} />
+      <Route path="/client" component={ClientApp} />
       <Route path="/admin/:rest*" component={AdminApp} />
       <Route path="/admin" component={AdminApp} />
       <Route path="/client-portal" component={ClientPortal} />
@@ -104,23 +107,74 @@ function CandidatesOnly() {
   );
 }
 
-function AdminApp({ children }: { children?: React.ReactNode }) {
-  const [, setLocation] = useLocation();
+function ClientApp({ children }: { children?: React.ReactNode }) {
+  const style = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setLocation('/')}>
-            ← Back to Portal Selection
-          </Button>
+    <SidebarProvider style={style as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-col flex-1">
+          <header className="flex items-center justify-between p-2 border-b">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <ThemeToggle />
+          </header>
+          <main className="flex-1 overflow-y-auto">
+            {children || (
+              <Router base="/client">
+                <Switch>
+                  <Route path="/" component={Dashboard} />
+                  <Route path="/post-job" component={Conversations} />
+                  <Route path="/jobs" component={Jobs} />
+                  <Route path="/candidates" component={Candidates} />
+                  <Route path="/recycling-bin" component={RecyclingBin} />
+                  <Route path="/messages" component={Conversations} />
+                  <Route component={Dashboard} />
+                </Switch>
+              </Router>
+            )}
+          </main>
         </div>
-        <ThemeToggle />
-      </header>
-      <main>
-        {children || <Admin />}
-      </main>
-    </div>
+      </div>
+    </SidebarProvider>
+  );
+}
+
+function AdminApp({ children }: { children?: React.ReactNode }) {
+  const style = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
+
+  return (
+    <SidebarProvider style={style as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-col flex-1">
+          <header className="flex items-center justify-between p-2 border-b">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <ThemeToggle />
+          </header>
+          <main className="flex-1 overflow-y-auto">
+            {children || (
+              <Router base="/admin">
+                <Switch>
+                  <Route path="/" component={Dashboard} />
+                  <Route path="/bulk-upload" component={Admin} />
+                  <Route path="/data-quality" component={DataQualityDashboard} />
+                  <Route path="/users" component={Settings} />
+                  <Route path="/system" component={Settings} />
+                  <Route component={Dashboard} />
+                </Switch>
+              </Router>
+            )}
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }
 
