@@ -14,7 +14,7 @@ export default function Landing() {
       icon: Building2,
       features: ["Post job openings", "Review candidate matches", "Track hiring pipeline", "Manage interviews"],
       buttonText: "Access Corporate Portal",
-      route: "/recruiting",
+      route: "/client",
       color: "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800",
       iconColor: "text-blue-600 dark:text-blue-400"
     },
