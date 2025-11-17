@@ -30,15 +30,9 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/recruiting/jobs/:id" component={() => <RecruitingApp><JobDetail /></RecruitingApp>} />
-      <Route path="/recruiting/candidates/:id" component={() => <RecruitingApp><CandidateDetail /></RecruitingApp>} />
-      <Route path="/recruiting/companies/:id" component={() => <RecruitingApp><CompanyDetail /></RecruitingApp>} />
-      <Route path="/recruiting/:rest*" component={RecruitingApp} />
-      <Route path="/recruiting" component={RecruitingApp} />
-      <Route path="/client/:rest*" component={ClientApp} />
-      <Route path="/client" component={ClientApp} />
-      <Route path="/admin/:rest*" component={AdminApp} />
-      <Route path="/admin" component={AdminApp} />
+      <Route path="/recruiting" nest component={RecruitingApp} />
+      <Route path="/client" nest component={ClientApp} />
+      <Route path="/admin" nest component={AdminApp} />
       <Route path="/client-portal" component={ClientPortal} />
       <Route path="/candidate-portal" component={CandidatePortal} />
       <Route path="/candidates" component={CandidatesOnly} />
@@ -68,8 +62,11 @@ function RecruitingApp({ children }: { children?: React.ReactNode }) {
               <Router base="/recruiting">
                 <Switch>
                   <Route path="/" component={Dashboard} />
+                  <Route path="/companies/:id" component={CompanyDetail} />
                   <Route path="/companies" component={Companies} />
+                  <Route path="/jobs/:id" component={JobDetail} />
                   <Route path="/jobs" component={Jobs} />
+                  <Route path="/candidates/:id" component={CandidateDetail} />
                   <Route path="/candidates" component={Candidates} />
                   <Route path="/recycling-bin" component={RecyclingBin} />
                   <Route path="/staging" component={Staging} />
@@ -128,8 +125,11 @@ function ClientApp({ children }: { children?: React.ReactNode }) {
                 <Switch>
                   <Route path="/" component={Dashboard} />
                   <Route path="/post-job" component={Conversations} />
+                  <Route path="/jobs/:id" component={JobDetail} />
                   <Route path="/jobs" component={Jobs} />
+                  <Route path="/candidates/:id" component={CandidateDetail} />
                   <Route path="/candidates" component={Candidates} />
+                  <Route path="/companies/:id" component={CompanyDetail} />
                   <Route path="/recycling-bin" component={RecyclingBin} />
                   <Route path="/messages" component={Conversations} />
                   <Route component={Dashboard} />
