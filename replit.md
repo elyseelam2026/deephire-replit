@@ -9,19 +9,20 @@ DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolut
 **Goal**: Separate Agency, Client, Admin, and Candidate portals with proper navigation and interconnections.
 
 **Changes Implemented**:
-- **Agency Portal** (`/recruiting/*`): Full recruiting features for internal team - Companies, Jobs, Candidates, Recycling Bin, Staging, Conversations, Outreach
-- **Client Portal** (`/client/*`): PE firms view - Dashboard, Post Job, My Jobs, Candidates, Recycling Bin, Messages
-- **Admin Portal** (`/admin/*`): System administration - Dashboard, Bulk Upload, Data Quality, User Management, System Settings
-- **Candidate Portal** (`/candidate/*`): Job seeker view - Profile, Job Matches, Messages (minimal for now)
+- **Agency Portal** (`/recruiting/*`): Full recruiting features with sidebar navigation - Companies, Jobs, Candidates, Recycling Bin, Staging, Conversations, Outreach
+- **Client Portal** (`/client/*`): PE firms view with sidebar navigation - integrates ClientPortal.tsx features (Quick Upload, Create Job, My Jobs list) plus Candidates, Recycling Bin, Messages, detail views for jobs/candidates/companies
+- **Admin Portal** (`/admin`): Single-page tabbed interface (as originally built) - Quick Add, Bulk Upload (candidates/companies), AI Research, Duplicates Review, Upload History, Data Quality, Custom Fields
+- **Candidate Portal** (`/candidate-portal`): Standalone page - Profile, Job Matches, Messages (minimal for now)
 
 **Interconnections**:
-- Jobs page → Company links (click company to view detail)
+- Jobs page → Company links (click company to view detail) - works across all portals with relative paths
 - Company detail → Jobs and Candidates tabs (clickable lists)
 - Candidates → Company links (from career history)
+- All portals have matching detail routes (/jobs/:id, /candidates/:id, /companies/:id)
 
 **Navigation**:
-- Sidebar-based navigation for all portals
-- Role-based menu items (auto-detect from URL for prototype)
+- Agency and Client portals use sidebar-based navigation (AppSidebar auto-detects role from URL)
+- Admin portal uses original tabbed interface (not sidebar-based)
 - Recycling Bin added to Client Portal per user feedback
 
 ### NAP v2: Enhanced Needs Assessment Profile (In Progress)
