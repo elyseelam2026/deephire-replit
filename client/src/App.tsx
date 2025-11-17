@@ -126,8 +126,8 @@ function ClientApp({ children }: { children?: React.ReactNode }) {
             {children || (
               <Router base="/client">
                 <Switch>
-                  <Route path="/" component={Dashboard} />
-                  <Route path="/post-job" component={Conversations} />
+                  <Route path="/" component={ClientPortal} />
+                  <Route path="/post-job" component={ClientPortal} />
                   <Route path="/jobs/:id" component={JobDetail} />
                   <Route path="/jobs" component={Jobs} />
                   <Route path="/candidates/:id" component={CandidateDetail} />
@@ -135,7 +135,7 @@ function ClientApp({ children }: { children?: React.ReactNode }) {
                   <Route path="/companies/:id" component={CompanyDetail} />
                   <Route path="/recycling-bin" component={RecyclingBin} />
                   <Route path="/messages" component={Conversations} />
-                  <Route component={Dashboard} />
+                  <Route component={ClientPortal} />
                 </Switch>
               </Router>
             )}
