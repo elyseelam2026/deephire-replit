@@ -728,14 +728,43 @@ export const napStates = pgTable("nap_states", {
     certifications?: string[];
     nice_to_have?: string[]; // DEPRECATED: Use weighted_criteria instead
     
-    // Phase 1: Weighted Binary Scoring (70% hard skills, 30% soft skills)
+    // NAP v2: Enhanced Weighted Criteria (Based on 30-year headhunter feedback)
+    // BACKWARD COMPATIBLE: All new fields are optional, legacy data supported
     weighted_criteria?: Array<{
       requirement: string; // e.g., "M&A execution experience"
-      priority: 'must-have' | 'nice-to-have'; // must-have = part of 70%, nice-to-have = bonus
-      weight: number; // Points allocated (must-haves should sum to 70)
-      matchType: 'binary'; // Phase 1: binary only (yes/no), Phase 2 will add 'partial'
-      evidenceGuidance?: string; // Optional: what constitutes a match
+      
+      // Enhancement #1: Client-friendly priority language
+      // Supports both legacy ('must-have'/'nice-to-have') and new values
+      priority: 'non-negotiable' | 'high-priority' | 'bonus' | 'must-have' | 'nice-to-have';
+      
+      weight?: number; // Points allocated (non-negotiables should sum to 70) - optional for legacy data
+      
+      // Enhancement #5: Min/Target split sliders (optional for backward compat)
+      minFulfillment?: number; // 0-100: Minimum to consider (e.g., 60%) - defaults to 80 if missing
+      targetFulfillment?: number; // 0-100: Dream hire threshold (e.g., 90%) - defaults to 100 if missing
+      
+      evidenceGuidance?: string; // What does X% mean? e.g., "Led 1+ or supported 3+ deals >$500M"
+      
+      // Enhancement #2: Willing to Train toggle (optional)
+      willingToTrain?: boolean; // Client will train if candidate meets baseline
+      trainableMinFulfillment?: number; // Lower bar if trainable (e.g., 60% vs 80%)
+      
+      category?: 'experience' | 'skill' | 'credential' | 'language' | 'location' | 'cultural';
+      matchType?: 'binary'; // Phase 1: binary only (yes/no) - optional for legacy data
     }>;
+    
+    // Enhancement #3: Dealbreaker Red Flags
+    red_flags?: Array<{
+      flag: string; // e.g., "Job-hopping (<2 yrs x3)"
+      enabled: boolean; // Auto-reject if true
+      reason?: string; // Optional explanation
+    }>;
+    
+    // Enhancement #4: Success Benchmark
+    success_benchmark?: string; // e.g., "CFO of PAG, ex-KKR, 5+ PE exits, Mandarin native"
+    
+    // Enhancement #6: Time Sensitivity
+    time_sensitivity?: 'exploratory' | 'standard' | 'urgent' | 'critical'; // Affects threshold adjustments
   }>().default(sql`'{}'::jsonb`),
   
   personality: jsonb("personality").$type<{
@@ -743,6 +772,9 @@ export const napStates = pgTable("nap_states", {
     leader_style?: string; // "hands-on", "strategic", "collaborative"
     team_fit?: string;
     work_style?: string; // "remote", "hybrid", "office"
+    
+    // Enhancement #7: Cultural Fit DNA (3-word summary)
+    cultural_fit_dna?: string; // e.g., "Pragmatic, Discreet, Collaborative"
   }>().default(sql`'{}'::jsonb`),
   
   compensation: jsonb("compensation").$type<{

@@ -5,18 +5,52 @@ DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolut
 
 ## Recent Changes (January 2025)
 
-### Phase 1: Weighted Binary Scoring System (In Progress)
+### NAP v2: Enhanced Needs Assessment Profile (In Progress)
+**Goal**: Transform NAP from flat checklist to client-calibrated, AI-executable contract based on 30-year headhunter feedback.
+
+**7 Core Enhancements (All Implemented in Schema)**:
+1. **Client-Friendly Language**: "Non-Negotiable / High Priority / Bonus" (not recruiter jargon)
+2. **Willing to Train Toggle**: 40% of "must-haves" aren't dealbreakers if candidate is coachable
+3. **Dealbreaker Red Flags**: Auto-reject criteria (job-hopping, location, background requirements)
+4. **Success Benchmark Field**: Client names 1-2 perfect-fit examples for AI pattern matching
+5. **Min/Target Split Sliders**: "60% to consider, 90% is dream hire" - flexible ranking within band
+6. **Time Sensitivity**: Exploratory/Standard/Urgent/Critical affects threshold adjustments
+7. **Cultural Fit DNA**: 3-word summary for soft skills alignment
+
+**Schema Structure (shared/schema.ts)**:
+```typescript
+weighted_criteria: Array<{
+  requirement: string;
+  priority: 'non-negotiable' | 'high-priority' | 'bonus';
+  minFulfillment: number;      // Min to consider (e.g., 60%)
+  targetFulfillment: number;   // Dream hire (e.g., 90%)
+  evidenceGuidance: string;    // "What does 80% mean?"
+  willingToTrain: boolean;     // Lower bar if trainable
+  weight: number;              // Auto-sum to 70
+}>;
+red_flags: Array<{ flag, enabled, reason }>;
+success_benchmark: string;
+time_sensitivity: 'exploratory' | 'standard' | 'urgent' | 'critical';
+cultural_fit_dna: string;  // 3-word summary
+```
+
+**Next Steps**:
+- Build NAP Interview UI with sliders, toggles, real-time weight calculation
+- Update AI scoring to use Min/Target bands, red flags, success benchmarks
+- Wire to sourcing pipeline
+
+### Phase 1: Weighted Binary Scoring System (Foundation Complete)
 **Goal**: Client-controlled quality thresholds with transparent hard skills (70%) vs soft skills (30%) scoring.
 
 **Schema Changes**:
 - Added quality settings to `jobs` table: `qualityMode`, `minHardSkillScore`, `requireAllMustHaves`, `maxCandidates`
-- Extended NAP `requirements` section with `weighted_criteria` array supporting must-have/nice-to-have with weights
+- Weight normalization ensures must-haves sum to exactly 70 points
 - Default threshold: 50% of hard skills (35/70 points)
 
 **AI Scoring Enhancement**:
 - Created `scoreCandidateWeightedFit()` function in `server/ai.ts`
-- Binary yes/no matching for each must-have requirement
-- Hard skills (0-70 points): AI evaluates against JD must-haves
+- Binary yes/no matching for each requirement
+- Hard skills (0-70 points): AI evaluates against JD requirements
 - Soft skills (0-30 points): AI estimates, client validates in-person
 - Returns detailed breakdown with evidence per requirement
 
@@ -24,11 +58,6 @@ DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolut
 - Standard: 50% hard skills (35/70) = ~3 of 6 requirements
 - Premium: 60% hard skills (42/70) = ~4 of 6 requirements
 - Elite: 70% hard skills (49/70) = ~5 of 6 requirements (near-perfect)
-
-**Next Steps**:
-- Update pipeline filtering to respect quality thresholds
-- Add UI controls for quality settings (job creation/edit)
-- Test weighted scoring with real candidate data
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
