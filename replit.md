@@ -5,6 +5,25 @@ DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolut
 
 ## Recent Changes (January 2025)
 
+### Portal Architecture Reorganization (November 2025)
+**Goal**: Separate Agency, Client, Admin, and Candidate portals with proper navigation and interconnections.
+
+**Changes Implemented**:
+- **Agency Portal** (`/recruiting/*`): Full recruiting features for internal team - Companies, Jobs, Candidates, Recycling Bin, Staging, Conversations, Outreach
+- **Client Portal** (`/client/*`): PE firms view - Dashboard, Post Job, My Jobs, Candidates, Recycling Bin, Messages
+- **Admin Portal** (`/admin/*`): System administration - Dashboard, Bulk Upload, Data Quality, User Management, System Settings
+- **Candidate Portal** (`/candidate/*`): Job seeker view - Profile, Job Matches, Messages (minimal for now)
+
+**Interconnections**:
+- Jobs page → Company links (click company to view detail)
+- Company detail → Jobs and Candidates tabs (clickable lists)
+- Candidates → Company links (from career history)
+
+**Navigation**:
+- Sidebar-based navigation for all portals
+- Role-based menu items (auto-detect from URL for prototype)
+- Recycling Bin added to Client Portal per user feedback
+
 ### NAP v2: Enhanced Needs Assessment Profile (In Progress)
 **Goal**: Transform NAP from flat checklist to client-calibrated, AI-executable contract based on 30-year headhunter feedback.
 
