@@ -162,6 +162,15 @@ export async function scoreCandidateWeightedFit(
     // Separate must-haves from nice-to-haves
     const mustHaves = weightedCriteria.filter(c => c.priority === 'must-have');
     const niceToHaves = weightedCriteria.filter(c => c.priority === 'nice-to-have');
+    
+    // CRITICAL: Normalize must-have weights to sum to 70
+    const totalMustHaveWeight = mustHaves.reduce((sum, c) => sum + c.weight, 0);
+    const normalizedMustHaves = totalMustHaveWeight > 0 
+      ? mustHaves.map(c => ({
+          ...c,
+          weight: (c.weight / totalMustHaveWeight) * 70
+        }))
+      : mustHaves;
 
     const prompt = `You are an executive search consultant using weighted binary scoring to evaluate candidate fit.
 
@@ -170,7 +179,7 @@ export async function scoreCandidateWeightedFit(
 - Soft Skills (30% max): Leadership, communication, cultural fit (AI estimates, client validates in-person)
 
 **MUST-HAVE REQUIREMENTS (Hard Skills - 70 points total):**
-${mustHaves.map((c, i) => `${i + 1}. ${c.requirement} (${c.weight} points)${c.evidenceGuidance ? `\n   Evidence: ${c.evidenceGuidance}` : ''}`).join('\n')}
+${normalizedMustHaves.map((c, i) => `${i + 1}. ${c.requirement} (${c.weight.toFixed(1)} points)${c.evidenceGuidance ? `\n   Evidence: ${c.evidenceGuidance}` : ''}`).join('\n')}
 
 **NICE-TO-HAVE (Bonus points):**
 ${niceToHaves.length > 0 ? niceToHaves.map((c, i) => `${i + 1}. ${c.requirement} (${c.weight} points)`).join('\n') : 'None specified'}

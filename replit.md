@@ -3,6 +3,33 @@
 ## Overview
 DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolutionize talent acquisition, initially focusing on Private Equity. It acts as an AI executive search consultant, discovering new external candidates via web scraping and providing intelligent candidate ranking based on a comprehensive Needs Analysis Profile (NAP) context, going beyond simple keyword matching. The platform automates job description parsing and streamlines recruitment workflows through a multi-portal architecture and integrated management systems. The long-term vision includes developing a bottom-up intelligence system for Company Intelligence, Organization Chart Mapping, Pattern Learning, Semantic Matching, and Culture Insights.
 
+## Recent Changes (January 2025)
+
+### Phase 1: Weighted Binary Scoring System (In Progress)
+**Goal**: Client-controlled quality thresholds with transparent hard skills (70%) vs soft skills (30%) scoring.
+
+**Schema Changes**:
+- Added quality settings to `jobs` table: `qualityMode`, `minHardSkillScore`, `requireAllMustHaves`, `maxCandidates`
+- Extended NAP `requirements` section with `weighted_criteria` array supporting must-have/nice-to-have with weights
+- Default threshold: 50% of hard skills (35/70 points)
+
+**AI Scoring Enhancement**:
+- Created `scoreCandidateWeightedFit()` function in `server/ai.ts`
+- Binary yes/no matching for each must-have requirement
+- Hard skills (0-70 points): AI evaluates against JD must-haves
+- Soft skills (0-30 points): AI estimates, client validates in-person
+- Returns detailed breakdown with evidence per requirement
+
+**Quality Mode Presets**:
+- Standard: 50% hard skills (35/70) = ~3 of 6 requirements
+- Premium: 60% hard skills (42/70) = ~4 of 6 requirements
+- Elite: 70% hard skills (49/70) = ~5 of 6 requirements (near-perfect)
+
+**Next Steps**:
+- Update pipeline filtering to respect quality thresholds
+- Add UI controls for quality settings (job creation/edit)
+- Test weighted scoring with real candidate data
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
