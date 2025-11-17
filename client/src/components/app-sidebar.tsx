@@ -53,15 +53,22 @@ const adminItems = [
   { title: "System Settings", url: "/admin/system", icon: Shield },
 ];
 
-export function AppSidebar() {
+type PortalType = 'agency' | 'client' | 'candidate' | 'admin';
+
+interface AppSidebarProps {
+  portal?: PortalType;
+}
+
+export function AppSidebar({ portal }: AppSidebarProps) {
   const [location] = useLocation();
   
-  // TODO: Determine user role from auth context
-  // For now, detect from current URL
-  const userRole = location.startsWith('/admin') ? 'admin' :
-                   location.startsWith('/client') ? 'client' :
-                   location.startsWith('/candidate') ? 'candidate' :
-                   'agency'; // default to agency for /recruiting routes
+  // Use explicit portal prop, or fall back to URL detection
+  const userRole = portal || (
+    location.startsWith('/admin') ? 'admin' :
+    location.startsWith('/client') ? 'client' :
+    location.startsWith('/candidate') ? 'candidate' :
+    'agency'
+  );
   
   const items = userRole === 'admin' ? adminItems : 
                 userRole === 'client' ? clientItems : 
