@@ -162,12 +162,11 @@ function AdminApp({ children }: { children?: React.ReactNode }) {
             {children || (
               <Router base="/admin">
                 <Switch>
-                  <Route path="/" component={Dashboard} />
-                  <Route path="/bulk-upload" component={Admin} />
+                  <Route path="/" component={Admin} />
                   <Route path="/data-quality" component={DataQualityDashboard} />
                   <Route path="/users" component={Settings} />
                   <Route path="/system" component={Settings} />
-                  <Route component={Dashboard} />
+                  <Route component={Admin} />
                 </Switch>
               </Router>
             )}
