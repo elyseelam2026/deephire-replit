@@ -176,6 +176,12 @@ export const jobs = pgTable("jobs", {
   turnaroundHours: integer("turnaround_hours").notNull().default(12), // 12 for standard, 6 for express
   turnaroundFeeMultiplier: real("turnaround_fee_multiplier").notNull().default(1.0), // 1.0 for standard, 1.5 for express
   
+  // Quality Control Settings (Phase 1: Weighted Binary Scoring)
+  qualityMode: text("quality_mode").default("standard"), // 'standard' | 'premium' | 'elite' | 'custom'
+  minHardSkillScore: integer("min_hard_skill_score").default(35), // Default 50% of 70 points = 35
+  requireAllMustHaves: boolean("require_all_must_haves").default(false), // Elite mode requires 100% must-haves
+  maxCandidates: integer("max_candidates"), // Optional limit, null = unlimited
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
@@ -716,11 +722,20 @@ export const napStates = pgTable("nap_states", {
   }>().default(sql`'{}'::jsonb`),
   
   requirements: jsonb("requirements").$type<{
-    skills?: string[]; // Top 3 must-have skills
+    skills?: string[]; // DEPRECATED: Use weighted_criteria instead
     exp_years?: number;
     education?: string;
     certifications?: string[];
-    nice_to_have?: string[];
+    nice_to_have?: string[]; // DEPRECATED: Use weighted_criteria instead
+    
+    // Phase 1: Weighted Binary Scoring (70% hard skills, 30% soft skills)
+    weighted_criteria?: Array<{
+      requirement: string; // e.g., "M&A execution experience"
+      priority: 'must-have' | 'nice-to-have'; // must-have = part of 70%, nice-to-have = bonus
+      weight: number; // Points allocated (must-haves should sum to 70)
+      matchType: 'binary'; // Phase 1: binary only (yes/no), Phase 2 will add 'partial'
+      evidenceGuidance?: string; // Optional: what constitutes a match
+    }>;
   }>().default(sql`'{}'::jsonb`),
   
   personality: jsonb("personality").$type<{

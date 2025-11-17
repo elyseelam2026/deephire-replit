@@ -124,6 +124,138 @@ Respond in JSON format:
 }
 
 /**
+ * AI-POWERED WEIGHTED FIT SCORING (Phase 1: Binary Matching)
+ * Evaluates candidates using weighted criteria from NAP
+ * - Hard Skills (70%): AI evaluates must-haves with binary yes/no matching
+ * - Soft Skills (30%): AI estimates, client validates in-person
+ */
+export async function scoreCandidateWeightedFit(
+  candidate: {
+    name: string;
+    currentTitle: string;
+    currentCompany: string;
+    skills: string[];
+    experience?: string;
+    education?: string;
+    location?: string;
+    biography?: string;
+  },
+  weightedCriteria: Array<{
+    requirement: string;
+    priority: 'must-have' | 'nice-to-have';
+    weight: number;
+    evidenceGuidance?: string;
+  }>
+): Promise<{
+  hardSkillsScore: number;  // 0-70 points
+  softSkillsScore: number;  // 0-30 points (AI estimate only)
+  totalScore: number;       // 0-100
+  reasoning: string;
+  breakdown: Array<{
+    requirement: string;
+    matched: boolean;
+    evidence: string;
+    points: number;
+  }>;
+}> {
+  try {
+    // Separate must-haves from nice-to-haves
+    const mustHaves = weightedCriteria.filter(c => c.priority === 'must-have');
+    const niceToHaves = weightedCriteria.filter(c => c.priority === 'nice-to-have');
+
+    const prompt = `You are an executive search consultant using weighted binary scoring to evaluate candidate fit.
+
+**SCORING SYSTEM:**
+- Hard Skills (70% max): Must-have requirements with YES/NO matching
+- Soft Skills (30% max): Leadership, communication, cultural fit (AI estimates, client validates in-person)
+
+**MUST-HAVE REQUIREMENTS (Hard Skills - 70 points total):**
+${mustHaves.map((c, i) => `${i + 1}. ${c.requirement} (${c.weight} points)${c.evidenceGuidance ? `\n   Evidence: ${c.evidenceGuidance}` : ''}`).join('\n')}
+
+**NICE-TO-HAVE (Bonus points):**
+${niceToHaves.length > 0 ? niceToHaves.map((c, i) => `${i + 1}. ${c.requirement} (${c.weight} points)`).join('\n') : 'None specified'}
+
+**CANDIDATE PROFILE:**
+- Name: ${candidate.name}
+- Current Title: ${candidate.currentTitle}
+- Current Company: ${candidate.currentCompany}
+- Skills: ${candidate.skills?.join(', ') || 'Not specified'}
+- Location: ${candidate.location || 'Not specified'}
+- Experience: ${candidate.experience || 'Not specified'}
+- Education: ${candidate.education || 'Not specified'}
+${candidate.biography ? `- Biography: ${candidate.biography.slice(0, 500)}` : ''}
+
+**INSTRUCTIONS:**
+1. For each must-have: Determine if candidate has this (YES/NO)
+2. If YES, award full points. If NO, award 0 points.
+3. Extract specific evidence from their profile for each YES
+4. Estimate soft skills (leadership, stakeholder mgmt, innovation) 0-30 points
+5. Calculate total: hard skills + soft skills
+
+Respond in JSON format:
+{
+  "mustHaveBreakdown": [
+    {
+      "requirement": "<requirement text>",
+      "matched": true/false,
+      "evidence": "<specific quote or proof from profile>",
+      "points": <weight if matched, 0 if not>
+    }
+  ],
+  "hardSkillsScore": <sum of must-have points, max 70>,
+  "softSkillsScore": <0-30, AI estimate based on leadership/communication evidence>,
+  "softSkillsEvidence": "<brief explanation for soft skills score>",
+  "reasoning": "<1-2 sentence overall assessment>"
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an executive search consultant expert at binary matching and weighted scoring. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 1500
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    const hardSkillsScore = Math.max(0, Math.min(70, result.hardSkillsScore || 0));
+    const softSkillsScore = Math.max(0, Math.min(30, result.softSkillsScore || 0));
+    const totalScore = hardSkillsScore + softSkillsScore;
+
+    return {
+      hardSkillsScore,
+      softSkillsScore,
+      totalScore,
+      reasoning: result.reasoning || "No reasoning provided",
+      breakdown: Array.isArray(result.mustHaveBreakdown) ? result.mustHaveBreakdown : []
+    };
+  } catch (error) {
+    console.error("[Weighted Fit Scoring] Error:", error);
+    // Return graceful degradation
+    return {
+      hardSkillsScore: 0,
+      softSkillsScore: 0,
+      totalScore: 0,
+      reasoning: "Unable to evaluate fit due to technical error",
+      breakdown: weightedCriteria.filter(c => c.priority === 'must-have').map(c => ({
+        requirement: c.requirement,
+        matched: false,
+        evidence: "Scoring unavailable",
+        points: 0
+      }))
+    };
+  }
+}
+
+/**
  * Approximate NAP completeness calculation (used in prompt)
  * Quick estimate without accessing database - for real-time prompt generation
  */
