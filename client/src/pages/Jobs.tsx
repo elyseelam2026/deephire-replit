@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Briefcase, MapPin, Clock, Users, TrendingUp } from "lucide-react";
+import { Briefcase, MapPin, Clock, Users, TrendingUp, Building2 } from "lucide-react";
 import { Job } from "@shared/schema";
 import { Link } from "wouter";
 
@@ -154,6 +154,14 @@ export default function Jobs() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {job.companyId && (
+                <Link href={`/recruiting/companies/${job.companyId}`}>
+                  <div className="flex items-center gap-2 text-sm hover-elevate rounded-md p-2 -mx-2">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Company #{job.companyId}</span>
+                  </div>
+                </Link>
+              )}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
                 <span data-testid={`job-date-${job.id}`}>
