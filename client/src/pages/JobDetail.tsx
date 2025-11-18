@@ -1,4 +1,4 @@
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +13,15 @@ import { Link } from "wouter";
 import CandidatePipeline from "@/components/CandidatePipeline";
 
 export default function JobDetail() {
-  const [, params] = useRoute("/recruiting/jobs/:id");
+  const [location] = useLocation();
+  
+  // Support both /recruiting/jobs/:id and /client/jobs/:id
+  const [, recruitingParams] = useRoute("/recruiting/jobs/:id");
+  const [, clientParams] = useRoute("/client/jobs/:id");
+  const params = recruitingParams || clientParams;
+  
   const jobId = params?.id ? parseInt(params.id) : null;
+  const isClientPortal = location.startsWith('/client');
 
   const { data: job, isLoading } = useQuery<Job>({
     queryKey: ['/api/jobs', jobId],
@@ -45,7 +52,7 @@ export default function JobDetail() {
       {/* Header */}
       <div className="border-b bg-background p-4">
         <div className="flex items-center justify-between mb-2">
-          <Link href="/jobs">
+          <Link href={isClientPortal ? "/client/jobs" : "/recruiting/jobs"}>
             <Button variant="ghost" size="sm" data-testid="button-back-to-jobs">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Jobs
