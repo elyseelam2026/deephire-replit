@@ -151,73 +151,120 @@ function transliterateJapanese(name: string): { latinName: string; confidence: n
 }
 
 /**
+ * Extract nickname from name patterns like "Yidong (Jason) XU" or "李明 (Mike) 王"
+ * Returns: { fullName, preferredName, hasNickname }
+ */
+function extractNickname(name: string): {
+  fullName: string;
+  preferredName: string | null;
+  hasNickname: boolean;
+} {
+  // Match patterns like "(Jason)", "(Mike Li)", etc.
+  const nicknamePattern = /\(([^)]+)\)/;
+  const match = name.match(nicknamePattern);
+  
+  if (match) {
+    const nickname = match[1].trim();
+    const fullNameWithoutNickname = name.replace(nicknamePattern, '').replace(/\s+/g, ' ').trim();
+    
+    console.log(`[Nickname Detection] Found nickname "${nickname}" in "${name}"`);
+    return {
+      fullName: fullNameWithoutNickname,
+      preferredName: nickname,
+      hasNickname: true
+    };
+  }
+  
+  return {
+    fullName: name,
+    preferredName: null,
+    hasNickname: false
+  };
+}
+
+/**
  * Main transliteration pipeline: ASCII check → Transliterate → Initials fallback
  * This is the enterprise-grade 3-step approach recommended by architect
  */
 export function transliterateName(fullName: string): TransliterationResult {
   const trimmedName = fullName.trim();
   
+  // STEP 0: Extract nickname if present (e.g., "Yidong (Jason) XU" → prefer "Jason" for email)
+  const { fullName: cleanedName, preferredName, hasNickname } = extractNickname(trimmedName);
+  
   // STEP 1: Check if already ASCII-safe (no transliteration needed)
-  if (isAscii(trimmedName)) {
-    const parts = trimmedName.split(/\s+/);
+  if (isAscii(cleanedName)) {
+    const parts = cleanedName.split(/\s+/);
     const firstName = parts[0] || 'Unknown';
     const lastName = parts.slice(1).join(' ') || firstName;
     
+    // Use nickname for email if available (e.g., "jason" instead of "yidong")
+    const emailFirstName = hasNickname && preferredName 
+      ? preferredName.split(/\s+/)[0].toLowerCase()  // Use first word of nickname
+      : firstName.toLowerCase();
+    
     return {
-      latinName: trimmedName,
-      emailFirstName: firstName.toLowerCase(),
+      latinName: cleanedName,
+      emailFirstName,
       emailLastName: lastName.toLowerCase(),
-      method: 'ascii',
+      method: hasNickname ? 'nickname_preferred' : 'ascii',
       confidence: 1.0,
       locale: null,
       needsReview: false
     };
   }
   
-  // STEP 2: Detect locale and attempt transliteration
-  const locale = detectLocale(trimmedName);
+  // STEP 2: Detect locale and attempt transliteration (use cleaned name without nickname)
+  const locale = detectLocale(cleanedName);
   let latinName = '';
   let confidence = 0;
   let method = 'unknown';
   
   if (locale === 'zh-CN') {
-    const result = transliterateChinese(trimmedName);
+    const result = transliterateChinese(cleanedName);
     latinName = result.latinName;
     confidence = result.confidence;
-    method = 'pinyin';
+    method = hasNickname ? 'pinyin_nickname_preferred' : 'pinyin';
   } else if (locale === 'ko-KR') {
-    const result = transliterateKorean(trimmedName);
+    const result = transliterateKorean(cleanedName);
     latinName = result.latinName;
     confidence = result.confidence;
-    method = 'rr_romanization';
+    method = hasNickname ? 'rr_nickname_preferred' : 'rr_romanization';
   } else if (locale === 'ja-JP') {
-    const result = transliterateJapanese(trimmedName);
+    const result = transliterateJapanese(cleanedName);
     latinName = result.latinName;
     confidence = result.confidence;
-    method = 'romaji';
+    method = hasNickname ? 'romaji_nickname_preferred' : 'romaji';
   }
   
   // STEP 3: Fallback to initials if transliteration failed or low confidence
   if (!latinName || confidence < 0.5) {
-    const initials = extractInitials(trimmedName);
+    const initials = extractInitials(cleanedName);
     const fallbackName = `${initials.firstName} ${initials.lastName}`;
     
-    console.warn(`[Transliteration] Low confidence (${confidence}) for "${trimmedName}", using initials: ${fallbackName}`);
+    console.warn(`[Transliteration] Low confidence (${confidence}) for "${cleanedName}", using initials: ${fallbackName}`);
+    
+    // Use nickname for email if available, even with fallback
+    const emailFirstName = hasNickname && preferredName
+      ? preferredName.split(/\s+/)[0].toLowerCase()
+      : initials.firstName.toLowerCase();
     
     return {
       latinName: fallbackName,
-      emailFirstName: initials.firstName.toLowerCase(),
+      emailFirstName,
       emailLastName: initials.lastName.toLowerCase(),
-      method: 'initials_fallback',
+      method: hasNickname ? 'initials_nickname_preferred' : 'initials_fallback',
       confidence: 0.3,
       locale,
       needsReview: true // Flag for manual review
     };
   }
   
-  // Success! Extract email components from transliterated name
+  // Success! Extract email components - prefer nickname over transliterated name
   const parts = latinName.split(/\s+/);
-  const emailFirstName = parts[0]?.toLowerCase() || 'unknown';
+  const emailFirstName = hasNickname && preferredName
+    ? preferredName.split(/\s+/)[0].toLowerCase()  // Use nickname (e.g., "mike" for "李明 (Mike) 王")
+    : parts[0]?.toLowerCase() || 'unknown';
   const emailLastName = parts.slice(1).join('').toLowerCase() || emailFirstName;
   
   return {

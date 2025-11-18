@@ -401,8 +401,21 @@ export const candidates = pgTable("candidates", {
   verificationStatus: text("verification_status").default("unverified"), // verified, unverified, needs_review
   confidenceScore: real("confidence_score"), // 0-1 score from verification
   verificationDate: timestamp("verification_date"),
-  dataQualityScore: real("data_quality_score"), // Overall data completeness/quality (0-1)
+  dataQualityScore: real("data_quality_score"), // Overall data completeness/quality (0-100)
   stagingCandidateId: integer("staging_candidate_id"), // Track origin from staging (no FK to avoid circular ref)
+  
+  // AI Hallucination Prevention - Three-Layer Data Quality Assurance
+  rawLinkedinPayload: jsonb("raw_linkedin_payload"), // Original Bright Data response for validation
+  fieldConfidenceScores: jsonb("field_confidence_scores").$type<{
+    email?: number;              // Confidence in inferred email (0-100)
+    careerHistory?: number;      // Confidence in career extraction completeness (0-100)
+    biography?: number;          // Confidence in biography accuracy (0-100)
+    education?: number;          // Confidence in education extraction (0-100)
+    skills?: number;             // Confidence in skills extraction (0-100)
+  }>(),
+  humanReviewRequired: boolean("human_review_required").default(false), // Flag for low-confidence extractions
+  dataQualityNotes: text("data_quality_notes").array(), // Specific issues: ["Missing Deutsche Bank position", "Nickname in email"]
+  dataQualityCheckedAt: timestamp("data_quality_checked_at"), // When quality validation last ran
   
   // Processing Mode (controls what APIs are called during upload)
   processingMode: text("processing_mode").default("full"), // full, career_only, bio_only, data_only
