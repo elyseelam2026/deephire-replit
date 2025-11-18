@@ -4650,6 +4650,7 @@ CRITICAL RULES - You MUST follow these strictly:
       res.json({
         jobId,
         isProcessing,
+        status: jobDetails?.status || 'unknown',
         controls: controls || { paused: false, stopped: false },
         jobDetails,
         progressPercentage: jobDetails && jobDetails.totalRecords > 0 
