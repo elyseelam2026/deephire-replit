@@ -57,6 +57,7 @@ interface KanbanViewProps {
 }
 
 const statusCategories = [
+  { key: "sourced", label: "Sourced", color: "bg-slate-500" },
   { key: "recommended", label: "Recommended", color: "bg-blue-500" },
   { key: "reviewed", label: "Reviewed", color: "bg-purple-500" },
   { key: "shortlisted", label: "Shortlisted", color: "bg-yellow-500" },
