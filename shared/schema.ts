@@ -182,6 +182,15 @@ export const jobs = pgTable("jobs", {
   requireAllMustHaves: boolean("require_all_must_haves").default(false), // Elite mode requires 100% must-haves
   maxCandidates: integer("max_candidates"), // Optional limit, null = unlimited
   
+  // Search Depth Control (War Room Feature)
+  searchDepthConfig: jsonb("search_depth_config").$type<{
+    target: '8_elite' | '20_standard' | '50_at_60' | '100_plus'; // Search depth preset
+    isRunning: boolean; // Whether autonomous search is active
+    marketCoverage: number; // Percentage of market mapped (0-100)
+    estimatedMarketSize: number; // Total addressable candidates in market
+    lastCheckedAt?: string; // ISO timestamp of last autonomous check
+  }>(),
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
@@ -219,6 +228,11 @@ export const jobCandidates = pgTable("job_candidates", {
   fitReasoning: text("fit_reasoning"), // AI explanation of why this candidate fits the role
   fitStrengths: jsonb("fit_strengths").$type<string[]>(), // Key strengths identified by AI
   fitConcerns: jsonb("fit_concerns").$type<string[]>(), // Concerns or gaps identified by AI
+  
+  // WEIGHTED SCORING (War Room Pyramid)
+  hardSkillScore: integer("hard_skill_score"), // 0-70 points - Hard skills evaluation
+  softSkillScore: integer("soft_skill_score"), // 0-30 points - Soft skills evaluation
+  // Note: fitScore = hardSkillScore + softSkillScore (0-100 total)
   
   // Recruiter notes & rejection tracking
   recruiterNotes: text("recruiter_notes"),
