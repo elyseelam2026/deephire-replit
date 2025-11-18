@@ -868,19 +868,7 @@ export default function Admin() {
     formData.append('processingMode', candidateProcessingMode);
 
     setCandidateStatus('uploading');
-    setCandidateProgress(25);
-    
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setCandidateProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(progressInterval);
-          setCandidateStatus('processing');
-          return 90;
-        }
-        return prev + 10;
-      });
-    }, 500);
+    setCandidateProgress(0);
 
     candidateUploadMutation.mutate(formData);
   };
@@ -1542,8 +1530,24 @@ export default function Admin() {
                         {candidateStatus}
                       </Badge>
                     </div>
+                    {candidateJobId && (candidateStatus === 'processing' || candidateStatus === 'uploading') && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => stopJob(candidateJobId, 'candidate')}
+                        data-testid="button-cancel-upload"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    )}
                   </div>
-                  <Progress value={candidateProgress} className="w-full" />
+                  <div className="flex items-center gap-2">
+                    <Progress value={candidateProgress} className="flex-1" />
+                    <span className="text-xs text-muted-foreground min-w-[3rem] text-right">
+                      {candidateProgress}%
+                    </span>
+                  </div>
                 </div>
               )}
 
