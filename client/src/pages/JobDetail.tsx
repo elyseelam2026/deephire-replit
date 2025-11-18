@@ -1,19 +1,21 @@
 import { useRoute, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Briefcase, MapPin, Clock, DollarSign, Users, Target, 
-  Zap, Building, CheckCircle2, Loader2, ArrowLeft 
-} from "lucide-react";
+import { Loader2, ArrowLeft, TrendingUp } from "lucide-react";
 import { Job } from "@shared/schema";
 import { Link } from "wouter";
 import CandidatePipeline from "@/components/CandidatePipeline";
+import { SearchPyramid } from "@/components/SearchPyramid";
+import { DepthControl } from "@/components/DepthControl";
+import { CollapsibleJobInfo } from "@/components/CollapsibleJobInfo";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function JobDetail() {
   const [location] = useLocation();
+  const { toast } = useToast();
   
   // Support both /recruiting/jobs/:id and /client/jobs/:id
   const [, recruitingParams] = useRoute("/recruiting/jobs/:id");
@@ -23,6 +25,7 @@ export default function JobDetail() {
   const jobId = params?.id ? parseInt(params.id) : null;
   const isClientPortal = location.startsWith('/client');
 
+  // Fetch job data
   const { data: job, isLoading } = useQuery<Job>({
     queryKey: ['/api/jobs', jobId],
     queryFn: async () => {
@@ -34,15 +37,84 @@ export default function JobDetail() {
     },
     enabled: !!jobId,
     refetchInterval: (query) => {
-      // Poll every 3 seconds while search is active (to show live progress)
+      // Poll every 30 seconds if autonomous search is running
       const job = query?.state?.data as Job | undefined;
-      if (job?.searchExecutionStatus === 'planning' || job?.searchExecutionStatus === 'searching') {
-        return 3000;
+      const searchConfig = job?.searchDepthConfig as any;
+      if (searchConfig?.isRunning) {
+        return 30000; // 30 seconds
       }
-      // Stop polling once search completes
       return false;
     }
   });
+
+  // Fetch job candidates for pyramid
+  const { data: jobCandidates = [] } = useQuery<any[]>({
+    queryKey: ['/api/job-candidates', jobId],
+    enabled: !!jobId,
+    refetchInterval: job?.searchDepthConfig?.isRunning ? 30000 : false
+  });
+
+  // Mutation to update search depth
+  const updateSearchDepthMutation = useMutation({
+    mutationFn: async (newTarget: '8_elite' | '20_standard' | '50_at_60' | '100_plus') => {
+      const response = await fetch(`/api/jobs/${jobId}/search-depth`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: newTarget })
+      });
+      if (!response.ok) throw new Error('Failed to update search depth');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId] });
+      toast({
+        title: "Search depth updated",
+        description: "AI will continue searching until target is reached"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to update search depth",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Check if search target is met and auto-stop
+  useEffect(() => {
+    if (!job || !jobCandidates || !job.searchDepthConfig) return;
+    
+    const config = job.searchDepthConfig as any;
+    if (!config.isRunning) return;
+
+    const target = config.target;
+    let targetMet = false;
+    
+    if (target === '8_elite') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 85).length >= 8;
+    } else if (target === '20_standard') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 75).length >= 20;
+    } else if (target === '50_at_60') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 60).length >= 50;
+    } else if (target === '100_plus') {
+      targetMet = jobCandidates.length >= 100;
+    }
+
+    if (targetMet) {
+      // Auto-stop search
+      fetch(`/api/jobs/${jobId}/search-depth`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, isRunning: false })
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId] });
+        toast({
+          title: "Search complete! 🎯",
+          description: `Found ${jobCandidates.length} candidates. Market coverage: ${config.marketCoverage || 0}%`
+        });
+      });
+    }
+  }, [job, jobCandidates, jobId, toast]);
 
   if (isLoading || !job) {
     return (
@@ -52,248 +124,89 @@ export default function JobDetail() {
     );
   }
 
-  const parsedData = job.parsedData as any;
-  const searchStrategy = job.searchStrategy as any;
-  const searchProgress = job.searchProgress as any;
+  const searchConfig = (job.searchDepthConfig || {
+    target: '50_at_60',
+    isRunning: false,
+    marketCoverage: 0,
+    estimatedMarketSize: 200
+  }) as any;
 
   return (
     <div className="h-full flex flex-col" data-testid="job-detail-page">
-      {/* Header */}
-      <div className="border-b bg-background p-4">
-        <div className="flex items-center justify-between mb-2">
-          <Link href={isClientPortal ? "/client/jobs" : "/recruiting/jobs"}>
-            <Button variant="ghost" size="sm" data-testid="button-back-to-jobs">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Jobs
-            </Button>
-          </Link>
-          <div className="flex gap-2">
-            <Badge variant="secondary">
-              {job.searchTier === 'internal' ? 'Internal Search' : 'External Search'}
-            </Badge>
-            <Badge variant="secondary">
-              {job.feePercentage}% placement fee
+      {/* Header - War Room Status Bar */}
+      <div className="border-b bg-card p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Link href={isClientPortal ? "/client/jobs" : "/recruiting/jobs"}>
+                <Button variant="ghost" size="sm" data-testid="button-back-to-jobs">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+              </Link>
+            </div>
+            <h1 className="text-3xl font-bold mb-1" data-testid="job-title">{job.title}</h1>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>Client: {job.companyId ? `Company #${job.companyId}` : 'Undisclosed'}</span>
+              <span>•</span>
+              <span>Fee: ${(job.estimatedPlacementFee || 0).toLocaleString()}</span>
+              <span>•</span>
+              <span>Target: {job.turnaroundLevel === 'express' ? '6 hours' : '12 hours'}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {/* Market Coverage */}
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground mb-1">Market Coverage</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-primary">{searchConfig.marketCoverage || 0}</span>
+                <span className="text-xl text-muted-foreground">%</span>
+              </div>
+            </div>
+
+            {/* Status Badge */}
+            <Badge 
+              variant={searchConfig.isRunning ? "default" : "secondary"}
+              className={`px-4 py-2 text-sm font-medium ${searchConfig.isRunning ? 'bg-green-600' : 'bg-gray-600'}`}
+              data-testid="badge-search-status"
+            >
+              {searchConfig.isRunning ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Executing
+                </span>
+              ) : (
+                'Complete'
+              )}
             </Badge>
           </div>
         </div>
-        <h1 className="text-2xl font-bold" data-testid="job-title">{job.title}</h1>
-        <p className="text-muted-foreground">{job.department || 'General'}</p>
       </div>
 
-      {/* Three-Panel Layout */}
-      <div className="flex-1 overflow-hidden">
-        <div className="grid grid-cols-12 gap-4 h-full p-4">
-          {/* LEFT PANEL - Job Info & NAP */}
-          <div className="col-span-3 overflow-y-auto space-y-4" data-testid="panel-job-info">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Job Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {job.urgency && (
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Urgency</div>
-                      <div className="font-medium capitalize">{job.urgency}</div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <div className="text-xs text-muted-foreground">Created</div>
-                    <div className="font-medium">
-                      {new Date(job.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-
-                {parsedData?.salary && (
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Salary Range</div>
-                      <div className="font-medium">{parsedData.salary}</div>
-                    </div>
-                  </div>
-                )}
-
-                {job.estimatedPlacementFee && (
-                  <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Est. Placement Fee</div>
-                      <div className="font-medium">
-                        ${job.estimatedPlacementFee.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {parsedData?.companySize && (
-                  <div className="flex items-center gap-2">
-                    <Building className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Company Size</div>
-                      <div className="font-medium capitalize">{parsedData.companySize}</div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Required Skills */}
-            {job.skills && job.skills.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Required Skills</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {job.skills.map((skill, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* NAP Data */}
-            {parsedData && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Need Analysis Profile</CardTitle>
-                  <CardDescription className="text-xs">
-                    Collected during AI conversation
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  {parsedData.successCriteria && (
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Success Criteria</div>
-                      <div>{parsedData.successCriteria}</div>
-                    </div>
-                  )}
-                  {parsedData.teamDynamics && (
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Team Dynamics</div>
-                      <div>{parsedData.teamDynamics}</div>
-                    </div>
-                  )}
-                  {parsedData.location && (
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Location</div>
-                      <div>{parsedData.location}</div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+      {/* Main Content - Pyramid + Pipeline */}
+      <div className="flex-1 overflow-hidden p-6">
+        <div className="grid grid-cols-12 gap-6 h-full">
+          {/* Left: Search Pyramid (4 cols) + Depth Control */}
+          <div className="col-span-4 space-y-4 overflow-y-auto">
+            <SearchPyramid candidates={jobCandidates} />
+            <DepthControl 
+              current={searchConfig.target} 
+              isRunning={searchConfig.isRunning}
+              onChange={(newTarget) => updateSearchDepthMutation.mutate(newTarget)}
+            />
           </div>
 
-          {/* CENTER PANEL - Candidate Pipeline */}
-          <div className="col-span-6 overflow-y-auto p-2" data-testid="panel-pipeline">
+          {/* Right: Pipeline Kanban (8 cols) */}
+          <div className="col-span-8 overflow-y-auto" data-testid="panel-pipeline">
             <CandidatePipeline jobId={jobId!} />
           </div>
-
-          {/* RIGHT PANEL - Search Strategy & Progress */}
-          <div className="col-span-3 overflow-y-auto space-y-4" data-testid="panel-search-strategy">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  Search Strategy
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  AI-generated search plan
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {searchStrategy ? (
-                  <div className="space-y-3">
-                    <div className="text-sm">
-                      {searchStrategy.summary || 'AI analyzing requirements...'}
-                    </div>
-                    {searchStrategy.steps && (
-                      <div className="space-y-2">
-                        {searchStrategy.steps.map((step: string, index: number) => (
-                          <div key={index} className="flex items-start gap-2 text-xs">
-                            <CheckCircle2 className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
-                            <span>{step}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                      <span>Analyzing job requirements</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse delay-75" />
-                      <span>Identifying key skills</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse delay-150" />
-                      <span>Building search criteria</span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
-                  Search Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Status</span>
-                    <Badge variant="secondary">
-                      {job.searchExecutionStatus || 'pending'}
-                    </Badge>
-                  </div>
-                  
-                  {searchProgress && (
-                    <>
-                      <Separator />
-                      <div className="space-y-2 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Candidates Searched</span>
-                          <span className="font-medium">
-                            {searchProgress.candidatesSearched || 0}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Matches Found</span>
-                          <span className="font-medium">
-                            {searchProgress.matchesFound || 0}
-                          </span>
-                        </div>
-                        {searchProgress.currentStep && (
-                          <div className="mt-3 pt-3 border-t">
-                            <div className="text-muted-foreground mb-1">Current Step</div>
-                            <div className="font-medium">{searchProgress.currentStep}</div>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
+      </div>
+
+      {/* Bottom: Collapsible Job Info */}
+      <div className="border-t p-6">
+        <CollapsibleJobInfo job={job} />
       </div>
     </div>
   );
