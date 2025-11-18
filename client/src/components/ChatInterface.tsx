@@ -44,7 +44,7 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,6 +109,10 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
     // Safety check for undefined/null content
     if (!content) return '';
     
+    // Detect current portal from URL (location is from component-level hook)
+    const isClientPortal = location.startsWith('/client');
+    const portalPrefix = isClientPortal ? '/client' : '/recruiting';
+    
     // Split content by markdown links [text](url)
     const parts = [];
     let lastIndex = 0;
@@ -123,7 +127,7 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
       
       // Add the link
       const linkText = match[1];
-      const linkUrl = match[2];
+      let linkUrl = match[2];
       
       // Use anchor with click handler for internal links, <a> for external
       if (linkUrl.startsWith('http') || linkUrl.startsWith('mailto:')) {
@@ -139,13 +143,25 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
           </a>
         );
       } else {
+        // DYNAMIC LINK RESOLUTION:
+        // 1. If link is relative (jobs/69), prepend current portal prefix
+        // 2. If link is absolute with wrong portal, replace portal prefix
+        // 3. Otherwise use as-is
+        
+        if (linkUrl.startsWith('jobs/') || linkUrl.startsWith('candidates/') || linkUrl.startsWith('companies/')) {
+          // Relative link - prepend current portal
+          linkUrl = `${portalPrefix}/${linkUrl}`;
+        } else if (linkUrl.includes('/jobs/') || linkUrl.includes('/candidates/') || linkUrl.includes('/companies/')) {
+          // Absolute link - ensure correct portal prefix
+          linkUrl = linkUrl.replace(/^\/(client|recruiting)\//, `${portalPrefix}/`);
+        }
+        
         parts.push(
           <a
             key={match.index}
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              // Use the URL as-is (no prefix stripping needed with flat routes)
               setLocation(linkUrl);
             }}
             className="text-primary underline hover:text-primary/80 font-medium cursor-pointer"

@@ -2094,11 +2094,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? `Learned ${companyName}'s hiring DNA from ${companyDNA.teamSize} team members. Key patterns: ${companyDNA.patterns.education?.slice(0, 2).join(', ') || 'Similar backgrounds'}.`
             : `Analyzed ${profileData.name}'s background at ${companyName}.`;
           
-          const portalPrefix = conversation.portal === 'agency' || conversation.portal === 'recruiting' ? '/recruiting' : '/client';
-          
           aiResponse = `✅ **Found ${scoredCandidates.length} candidates similar to ${profileData.name}**\n\n` +
             `${dnaInsight}\n\n` +
-            `🔗 **View Pipeline** → [Job #${job.id}](${portalPrefix}/jobs/${job.id})\n\n` +
+            `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;
           
           newPhase = 'completed';
@@ -2641,7 +2639,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // ASYNC UX: Return professional status message (NO immediate candidates)
           const turnaroundHours = updatedSearchContext.urgency === 'urgent' ? 6 : 12;
-          const portalPrefix = conversation.portal === 'agency' || conversation.portal === 'recruiting' ? '/recruiting' : '/client';
           
           aiResponse = `🔍 **Search In Progress**\n\n` +
             `DeepHire is conducting a comprehensive dual-database search for your **${updatedSearchContext.title}** mandate.\n\n` +
@@ -2654,7 +2651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `✓ External sources (LinkedIn, professional networks)\n` +
             `✓ AI-powered fit scoring against full NAP context\n` +
             `✓ Seniority filtering to ensure qualified candidates only\n\n` +
-            `🔗 **[Track Search Progress →](${portalPrefix}/jobs/${createdJobId})**\n\n` +
+            `🔗 **[Track Search Progress →](jobs/${createdJobId})**\n\n` +
             `_We do not return immediate or low-quality results. Quality takes time._\n\n` +
             `You will receive a full sourcing map via email when the search is complete with 7-12 highly relevant candidates.`;
 
