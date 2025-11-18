@@ -429,9 +429,15 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
                       </span>
                     </div>
                   </div>
+                  <Button variant="outline" size="sm" asChild data-testid="button-view-full-profile">
+                    <Link href={`/recruiting/candidates/${selectedCandidate.id}`}>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View Full Profile
+                    </Link>
+                  </Button>
                 </DialogTitle>
                 <DialogDescription>
-                  Candidate profile and details
+                  Quick preview - View full profile for detailed candidate information
                 </DialogDescription>
               </DialogHeader>
               
