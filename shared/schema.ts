@@ -657,6 +657,105 @@ export const jobMatches = pgTable("job_matches", {
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 });
 
+// Candidate Activities - tracking all interactions and notes
+export const candidateActivities = pgTable("candidate_activities", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  jobId: integer("job_id").references(() => jobs.id), // Optional: activity related to specific job
+  
+  // Activity details
+  activityType: text("activity_type").notNull(), // call, email, meeting, note, status_change, linkedin_message, interview
+  subject: text("subject"), // Subject line or title
+  body: text("body"), // Activity notes or content
+  
+  // Metadata
+  occurredAt: timestamp("occurred_at").default(sql`now()`).notNull(), // When the activity happened
+  duration: integer("duration"), // Duration in minutes (for calls/meetings)
+  outcome: text("outcome"), // positive, neutral, negative, no_response
+  
+  // Tracking
+  createdBy: text("created_by"), // User who created this activity
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  
+  // Optional: for system-generated activities
+  isSystemGenerated: boolean("is_system_generated").default(false),
+  externalId: text("external_id"), // ID from external system (email, calendar, etc.)
+  metadata: jsonb("metadata"), // Additional context {emailThreadId, calendarEventId, etc.}
+});
+
+// Candidate Files - document management
+export const candidateFiles = pgTable("candidate_files", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  jobId: integer("job_id").references(() => jobs.id), // Optional: file related to specific job
+  
+  // File metadata
+  filename: text("filename").notNull(),
+  originalFilename: text("original_filename").notNull(), // Original upload name
+  storageKey: text("storage_key"), // Key/path in storage system
+  mimeType: text("mime_type"),
+  fileSize: integer("file_size"), // Size in bytes
+  
+  // Categorization
+  category: text("category").notNull(), // resume, cover_letter, references, transcript, portfolio, other
+  tags: text("tags").array(), // Additional tags for filtering
+  description: text("description"),
+  
+  // Versioning
+  version: integer("version").default(1),
+  replacesFileId: integer("replaces_file_id"), // For tracking file versions (FK to candidate_files.id)
+  
+  // Tracking
+  uploadedBy: text("uploaded_by"),
+  uploadedAt: timestamp("uploaded_at").default(sql`now()`).notNull(),
+});
+
+// Candidate Interviews - interview scheduling and tracking
+export const candidateInterviews = pgTable("candidate_interviews", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  
+  // Interview details
+  interviewType: text("interview_type").notNull(), // phone_screen, technical, behavioral, panel, final, culture_fit
+  interviewRound: integer("interview_round").default(1), // 1st round, 2nd round, etc.
+  
+  // Scheduling
+  scheduledAt: timestamp("scheduled_at"),
+  duration: integer("duration"), // Duration in minutes
+  location: text("location"), // Physical location or video call link
+  
+  // Participants
+  interviewer: text("interviewer"), // Primary interviewer name
+  interviewers: text("interviewers").array(), // All interviewer names
+  interviewPanel: jsonb("interview_panel"), // Detailed panel info {name, title, role}
+  
+  // Status & outcome
+  status: text("status").default("scheduled"), // scheduled, completed, cancelled, rescheduled, no_show
+  outcome: text("outcome"), // strong_yes, yes, maybe, no, strong_no
+  
+  // Feedback
+  notes: text("notes"), // Interview notes
+  feedback: text("feedback"), // Structured feedback
+  strengths: text("strengths").array(),
+  concerns: text("concerns").array(),
+  rating: integer("rating"), // 1-5 or 1-10 rating
+  recommendation: text("recommendation"), // hire, maybe, no_hire
+  
+  // Follow-up
+  nextSteps: text("next_steps"),
+  followUpBy: timestamp("follow_up_by"),
+  
+  // Tracking
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+  
+  // External calendar integration
+  calendarEventId: text("calendar_event_id"),
+  videoMeetingUrl: text("video_meeting_url"),
+});
+
 // NAP (Name-a-Person) conversations - AI chat sessions (ChatGPT-style recruiting assistant)
 export const napConversations = pgTable("nap_conversations", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -1939,3 +2038,28 @@ export const insertNapStateSchema = createInsertSchema(napStates).omit({
 });
 export type InsertNapState = z.infer<typeof insertNapStateSchema>;
 export type NapState = typeof napStates.$inferSelect;
+
+// Candidate Activities schemas
+export const insertCandidateActivitySchema = createInsertSchema(candidateActivities).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCandidateActivity = z.infer<typeof insertCandidateActivitySchema>;
+export type CandidateActivity = typeof candidateActivities.$inferSelect;
+
+// Candidate Files schemas
+export const insertCandidateFileSchema = createInsertSchema(candidateFiles).omit({
+  id: true,
+  uploadedAt: true,
+});
+export type InsertCandidateFile = z.infer<typeof insertCandidateFileSchema>;
+export type CandidateFile = typeof candidateFiles.$inferSelect;
+
+// Candidate Interviews schemas
+export const insertCandidateInterviewSchema = createInsertSchema(candidateInterviews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCandidateInterview = z.infer<typeof insertCandidateInterviewSchema>;
+export type CandidateInterview = typeof candidateInterviews.$inferSelect;
