@@ -384,6 +384,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update job search depth config (War Room feature)
+  app.patch("/api/jobs/:id/search-depth", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const { target, isRunning } = req.body;
+
+      if (!Number.isFinite(jobId)) {
+        return res.status(400).json({ error: "Invalid job ID" });
+      }
+
+      // Validate target if provided
+      const validTargets = ['8_elite', '20_standard', '50_at_60', '100_plus'];
+      if (target && !validTargets.includes(target)) {
+        return res.status(400).json({ error: "Invalid target. Must be one of: 8_elite, 20_standard, 50_at_60, 100_plus" });
+      }
+
+      // Fetch current job
+      const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Get current config or set defaults
+      const currentConfig = job.searchDepthConfig as any || {
+        target: '50_at_60',
+        isRunning: false,
+        marketCoverage: 0,
+        estimatedMarketSize: 200
+      };
+
+      // Update config
+      const updatedConfig = {
+        ...currentConfig,
+        ...(target !== undefined && { target }),
+        ...(isRunning !== undefined && { isRunning }),
+        lastCheckedAt: new Date().toISOString()
+      };
+
+      // Calculate market coverage if candidates exist
+      const candidatesForJob = await db.select().from(jobCandidates).where(eq(jobCandidates.jobId, jobId));
+      const coverage = Math.min(99, Math.round((candidatesForJob.length / (updatedConfig.estimatedMarketSize || 200)) * 100));
+      updatedConfig.marketCoverage = coverage;
+
+      // Update job with new search depth config
+      const [updatedJob] = await db
+        .update(jobs)
+        .set({
+          searchDepthConfig: updatedConfig,
+          updatedAt: new Date()
+        })
+        .where(eq(jobs.id, jobId))
+        .returning();
+
+      console.log(`✅ Job #${jobId} search depth updated: ${updatedConfig.target}, running: ${updatedConfig.isRunning}, coverage: ${coverage}%`);
+
+      res.json(updatedJob);
+    } catch (error) {
+      console.error("Error updating job search depth:", error);
+      res.status(500).json({ error: "Failed to update search depth" });
+    }
+  });
+
   // Get job candidates pipeline (Salesforce-style)
   app.get("/api/jobs/:id/candidates", async (req, res) => {
     try {

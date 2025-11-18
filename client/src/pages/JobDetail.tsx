@@ -49,7 +49,14 @@ export default function JobDetail() {
 
   // Fetch job candidates for pyramid
   const { data: jobCandidates = [] } = useQuery<any[]>({
-    queryKey: ['/api/job-candidates', jobId],
+    queryKey: ['/api/jobs', jobId, 'candidates'],
+    queryFn: async () => {
+      const response = await fetch(`/api/jobs/${jobId}/candidates`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch candidates');
+      }
+      return response.json();
+    },
     enabled: !!jobId,
     refetchInterval: job?.searchDepthConfig?.isRunning ? 30000 : false
   });
