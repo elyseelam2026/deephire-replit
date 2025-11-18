@@ -106,6 +106,9 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
 
   // Helper to render markdown links in message content
   const renderMessageContent = (content: string) => {
+    // Safety check for undefined/null content
+    if (!content) return '';
+    
     // Split content by markdown links [text](url)
     const parts = [];
     let lastIndex = 0;
