@@ -1,9 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageSquare, Clock, User, Briefcase, Building2 } from "lucide-react";
+import { MessageSquare, Clock, User, Briefcase, Building2, Plus } from "lucide-react";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 type Message = {
   role: string;
@@ -39,8 +41,45 @@ type Conversation = {
 };
 
 export default function Conversations() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: conversations, isLoading, error } = useQuery<Conversation[]>({
     queryKey: ['/api/conversations'],
+  });
+
+  const createConversationMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) throw new Error('Failed to create conversation');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      toast({
+        title: "Success",
+        description: "New conversation started",
+      });
+      // Navigate to the new conversation
+      const currentPath = window.location.pathname;
+      if (currentPath.startsWith('/client')) {
+        setLocation(`/client/conversations/${data.id}`);
+      } else {
+        setLocation(`/recruiting/conversations/${data.id}`);
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -127,17 +166,34 @@ export default function Conversations() {
             AI-powered candidate conversations ({conversations?.length || 0} active)
           </p>
         </div>
-        <Button data-testid="button-new-conversation">
-          <MessageSquare className="h-4 w-4 mr-2" />
-          Start Conversation
+        <Button
+          data-testid="button-new-conversation"
+          onClick={() => createConversationMutation.mutate()}
+          disabled={createConversationMutation.isPending}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          {createConversationMutation.isPending ? 'Creating...' : 'Start New Conversation'}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {conversations?.map((conversation) => {
           const lastMessage = getLastMessage(conversation.messages);
+          const handleCardClick = () => {
+            const currentPath = window.location.pathname;
+            if (currentPath.startsWith('/client')) {
+              setLocation(`/client/conversations/${conversation.id}`);
+            } else {
+              setLocation(`/recruiting/conversations/${conversation.id}`);
+            }
+          };
           return (
-            <Card key={conversation.id} className="hover-elevate" data-testid={`conversation-card-${conversation.id}`}>
+            <Card
+              key={conversation.id}
+              className="hover-elevate cursor-pointer"
+              onClick={handleCardClick}
+              data-testid={`conversation-card-${conversation.id}`}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">

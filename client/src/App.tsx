@@ -21,6 +21,7 @@ import CompanyDetail from "@/pages/CompanyDetail";
 import RecyclingBin from "@/pages/RecyclingBin";
 import Staging from "@/pages/Staging";
 import Conversations from "@/pages/Conversations";
+import ConversationDetail from "@/pages/ConversationDetail";
 import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
 import DataQualityDashboard from "@/pages/DataQualityDashboard";
@@ -72,6 +73,7 @@ function RecruitingApp() {
                 <Route path="/candidates" component={Candidates} />
                 <Route path="/recycling-bin" component={RecyclingBin} />
                 <Route path="/staging" component={Staging} />
+                <Route path="/conversations/:id" component={ConversationDetail} />
                 <Route path="/conversations" component={Conversations} />
                 <Route path="/outreach" component={Outreach} />
                 <Route path="/settings" component={Settings} />
@@ -131,6 +133,7 @@ function ClientApp() {
                 <Route path="/candidates" component={Candidates} />
                 <Route path="/companies/:id" component={CompanyDetail} />
                 <Route path="/recycling-bin" component={RecyclingBin} />
+                <Route path="/conversations/:id" component={ConversationDetail} />
                 <Route path="/messages" component={Conversations} />
                 <Route component={ClientPortal} />
               </Switch>
