@@ -59,10 +59,26 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       return;
     }
     
+    // Fetch job's search strategy for rich Boolean query
+    let searchStrategy: any = null;
+    if (promise.jobId) {
+      const job = await storage.getJob(promise.jobId);
+      if (job && job.searchStrategy) {
+        searchStrategy = job.searchStrategy as any;
+        console.log(`[Promise Worker] Using job's search strategy with Boolean query`);
+      }
+    }
+    
     console.log(`[Promise Worker] Running EXTERNAL search for: ${promise.searchParams.title || 'position'}`);
     
-    // 🌐 EXTERNAL SEARCH: Use SerpAPI to find NEW candidates from LinkedIn
-    const searchCriteria = {
+    // 🌐 EXTERNAL SEARCH: Use SerpAPI with NAP-driven search strategy
+    const searchCriteria = searchStrategy ? {
+      title: searchStrategy.filters?.experience || promise.searchParams.title || '',
+      location: searchStrategy.filters?.location || promise.searchParams.location || '',
+      keywords: searchStrategy.keywords || promise.searchParams.skills || [],
+      booleanQuery: searchStrategy.keywords || '', // LinkedIn Boolean search string
+      industries: searchStrategy.filters?.industry || [],
+    } : {
       title: promise.searchParams.title || '',
       location: promise.searchParams.location || '',
       keywords: promise.searchParams.skills || [],
