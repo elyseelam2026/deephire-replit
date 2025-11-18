@@ -49,8 +49,20 @@ async function processBatch(
             processingMode: 'data_only',
             candidateStatus: 'new'
           };
+        } else if (url.includes('linkedin.com/in/')) {
+          // Direct LinkedIn profile URL - create minimal candidate, let scraper enrich
+          console.log(`🔗 Direct LinkedIn URL detected: ${url}`);
+          candidateData = {
+            firstName: 'LinkedIn',
+            lastName: 'Profile',
+            linkedinUrl: url,
+            processingMode: processingMode,
+            candidateStatus: 'new',
+            skills: [],
+            isAvailable: true
+          };
         } else {
-          // Modes 1-3: Parse candidate data from URL (uses SerpAPI for LinkedIn discovery)
+          // Biographical URL (company page, personal website) - parse with AI
           candidateData = await parseEnhancedCandidateFromUrl(url);
           
           if (!candidateData) {
