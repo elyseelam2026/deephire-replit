@@ -262,6 +262,7 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
     try {
       const conversation = await storage.getConversation(promise.conversationId);
       if (conversation && conversation.messages) {
+        // Default to /client if portal is not set (for old conversations)
         const portalPrefix = conversation.portal === 'agency' || conversation.portal === 'recruiting' ? '/recruiting' : '/client';
         
         const deliveryMessage = candidateIds.length > 0
