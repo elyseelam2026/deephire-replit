@@ -2094,9 +2094,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? `Learned ${companyName}'s hiring DNA from ${companyDNA.teamSize} team members. Key patterns: ${companyDNA.patterns.education?.slice(0, 2).join(', ') || 'Similar backgrounds'}.`
             : `Analyzed ${profileData.name}'s background at ${companyName}.`;
           
+          const portalPrefix = conversation.portal === 'agency' || conversation.portal === 'recruiting' ? '/recruiting' : '/client';
+          
           aiResponse = `✅ **Found ${scoredCandidates.length} candidates similar to ${profileData.name}**\n\n` +
             `${dnaInsight}\n\n` +
-            `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
+            `🔗 **View Pipeline** → [Job #${job.id}](${portalPrefix}/jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;
           
           newPhase = 'completed';

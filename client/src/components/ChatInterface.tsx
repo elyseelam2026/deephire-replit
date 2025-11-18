@@ -142,11 +142,8 @@ export function ChatInterface({ messages, matchedCandidates, onSendMessage, isLo
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              // Strip /recruiting prefix if present since wouter base="/recruiting" will add it
-              const cleanUrl = linkUrl.startsWith('/recruiting/') 
-                ? linkUrl.substring('/recruiting'.length)
-                : linkUrl;
-              setLocation(cleanUrl);
+              // Use the URL as-is (no prefix stripping needed with flat routes)
+              setLocation(linkUrl);
             }}
             className="text-primary underline hover:text-primary/80 font-medium cursor-pointer"
           >
