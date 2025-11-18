@@ -42,7 +42,7 @@ export default function Dashboard() {
   // Create conversation on mount (once)
   const createConversationMutation = useMutation({
     mutationFn: async () => {
-      const body: any = {};
+      const body: any = { portal: 'client' };
       if (companyId) {
         body.companyId = parseInt(companyId);
       }

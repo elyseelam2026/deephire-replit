@@ -51,10 +51,13 @@ export default function Conversations() {
 
   const createConversationMutation = useMutation({
     mutationFn: async () => {
+      const currentPath = window.location.pathname;
+      const portal = currentPath.startsWith('/client') ? 'client' : 'recruiting';
+      
       const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ portal }),
       });
       if (!response.ok) throw new Error('Failed to create conversation');
       return response.json();

@@ -683,6 +683,9 @@ export const napConversations = pgTable("nap_conversations", {
   status: text("status").default("active").notNull(), // active, completed, archived
   phase: text("phase").default("initial").notNull(), // initial, clarifying, searching, results, completed
   
+  // Portal context - which portal created this conversation
+  portal: text("portal").default("client").notNull(), // client, agency, recruiting
+  
   // Timestamps
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),

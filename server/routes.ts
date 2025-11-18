@@ -1811,7 +1811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new conversation
   app.post("/api/conversations", async (req, res) => {
     try {
-      const { userId, companyId } = req.body;
+      const { userId, companyId, portal } = req.body;
       // TODO: Get userId from req.user when authentication is implemented
       
       let initialSearchContext: any = {};
@@ -1860,6 +1860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'active',
         phase: 'initial',
         searchContext: Object.keys(initialSearchContext).length > 0 ? initialSearchContext : undefined,
+        portal: portal || 'client', // Store which portal created this conversation
       });
       res.json(conversation);
     } catch (error) {
@@ -2638,6 +2639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // ASYNC UX: Return professional status message (NO immediate candidates)
           const turnaroundHours = updatedSearchContext.urgency === 'urgent' ? 6 : 12;
+          const portalPrefix = conversation.portal === 'agency' || conversation.portal === 'recruiting' ? '/recruiting' : '/client';
           
           aiResponse = `🔍 **Search In Progress**\n\n` +
             `DeepHire is conducting a comprehensive dual-database search for your **${updatedSearchContext.title}** mandate.\n\n` +
@@ -2650,7 +2652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `✓ External sources (LinkedIn, professional networks)\n` +
             `✓ AI-powered fit scoring against full NAP context\n` +
             `✓ Seniority filtering to ensure qualified candidates only\n\n` +
-            `🔗 **[Track Search Progress →](/recruiting/jobs/${createdJobId})**\n\n` +
+            `🔗 **[Track Search Progress →](${portalPrefix}/jobs/${createdJobId})**\n\n` +
             `_We do not return immediate or low-quality results. Quality takes time._\n\n` +
             `You will receive a full sourcing map via email when the search is complete with 7-12 highly relevant candidates.`;
 
