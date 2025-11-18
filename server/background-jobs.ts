@@ -37,6 +37,7 @@ async function processBatch(
     urls.map(async (url) => {
       try {
         let candidateData: any;
+        let linkedinData: any = null; // Hoist for reuse in validation (prevents redundant API calls)
         
         // Mode 4: Data Only - Just store URL, no API calls
         if (processingMode === 'data_only') {
@@ -50,17 +51,71 @@ async function processBatch(
             candidateStatus: 'new'
           };
         } else if (url.includes('linkedin.com/in/')) {
-          // Direct LinkedIn profile URL - create minimal candidate, let scraper enrich
+          // Direct LinkedIn profile URL - scrape immediately to enable quality validation
           console.log(`🔗 Direct LinkedIn URL detected: ${url}`);
-          candidateData = {
-            firstName: 'LinkedIn',
-            lastName: 'Profile',
-            linkedinUrl: url,
-            processingMode: processingMode,
-            candidateStatus: 'new',
-            skills: [],
-            isAvailable: true
-          };
+          
+          try {
+            // Scrape LinkedIn profile with Bright Data
+            linkedinData = await scrapeLinkedInProfile(url);
+            console.log(`✓ LinkedIn profile scraped successfully`);
+            
+            // Extract basic candidate info from scraped data
+            candidateData = {
+              firstName: linkedinData.first_name || 'LinkedIn',
+              lastName: linkedinData.last_name || 'Profile',
+              linkedinUrl: url,
+              currentCompany: linkedinData.current_company,
+              currentTitle: linkedinData.position,
+              location: linkedinData.location,
+              processingMode: processingMode,
+              candidateStatus: 'new',
+              skills: [],
+              isAvailable: true
+            };
+            
+            // Run full biography/career pipeline based on mode
+            if (processingMode === 'full' || processingMode === 'bio_only') {
+              const bioResult = await generateBiographyAndCareerHistory(
+                candidateData.firstName,
+                candidateData.lastName,
+                linkedinData
+              );
+              if (bioResult) {
+                candidateData.biography = bioResult.biography;
+                if (processingMode === 'full') {
+                  (candidateData as any).careerHistory = bioResult.careerHistory;
+                }
+              }
+            } else if (processingMode === 'career_only') {
+              // Extract career history directly from scraped data
+              if (linkedinData.experience) {
+                const careerHistory: any[] = [];
+                for (const exp of linkedinData.experience) {
+                  careerHistory.push({
+                    title: exp.title || '',
+                    company: exp.company || '',
+                    startDate: exp.start_date || '',
+                    endDate: exp.end_date || '',
+                    description: exp.description,
+                    location: exp.location
+                  });
+                }
+                (candidateData as any).careerHistory = careerHistory;
+              }
+            }
+          } catch (scrapeError) {
+            console.error(`Failed to scrape direct LinkedIn URL ${url}:`, scrapeError);
+            // Create fallback candidate for manual review
+            candidateData = {
+              firstName: 'LinkedIn',
+              lastName: 'Profile',
+              linkedinUrl: url,
+              processingMode: processingMode,
+              candidateStatus: 'new',
+              skills: [],
+              isAvailable: true
+            };
+          }
         } else {
           // Biographical URL (company page, personal website) - parse with AI
           candidateData = await parseEnhancedCandidateFromUrl(url);
@@ -71,14 +126,14 @@ async function processBatch(
           
           candidateData.processingMode = processingMode;
           
-          // If we found a VERIFIED LinkedIn URL, scrape it (for full, career_only, bio_only modes)
-          if (candidateData.linkedinUrl && processingMode !== 'data_only') {
+          // If we found a VERIFIED LinkedIn URL, scrape it (we're already in non-data_only flow)
+          if (candidateData.linkedinUrl) {
             try {
               console.log(`✓ Found LinkedIn URL for ${candidateData.firstName} ${candidateData.lastName}: ${candidateData.linkedinUrl}`);
               
               // All non-data_only modes scrape LinkedIn with Bright Data
               console.log(`🔄 Scraping LinkedIn profile with Bright Data...`);
-              const linkedinData = await scrapeLinkedInProfile(candidateData.linkedinUrl);
+              linkedinData = await scrapeLinkedInProfile(candidateData.linkedinUrl);
               console.log(`✓ LinkedIn profile scraped successfully`);
               
               // Mode 1: Full - Generate biography AND career history
@@ -155,6 +210,58 @@ async function processBatch(
           }
         }
 
+        // DATA QUALITY VALIDATION - Prevent AI Hallucination
+        // Reuse linkedinData from earlier scrape (no redundant API calls)
+        if (linkedinData && (candidateData as any).careerHistory) {
+          const qualityResult = (await import('./ai')).calculateDataQualityScore(
+            linkedinData,
+            {
+              firstName: candidateData.firstName,
+              lastName: candidateData.lastName,
+              email: candidateData.email || '',
+              emailSource: (candidateData as any).emailSource || 'unknown',
+              careerHistory: (candidateData as any).careerHistory || [],
+              biography: candidateData.biography
+            }
+          );
+          
+          // Store quality assessment in candidate data
+          (candidateData as any).rawLinkedinPayload = linkedinData;
+          (candidateData as any).dataQualityScore = qualityResult.overallScore;
+          (candidateData as any).fieldConfidenceScores = qualityResult.fieldScores;
+          (candidateData as any).humanReviewRequired = qualityResult.humanReviewRequired;
+          (candidateData as any).dataQualityNotes = qualityResult.qualityNotes;
+          (candidateData as any).dataQualityCheckedAt = new Date();
+          
+          console.log(`📊 Data Quality: ${qualityResult.overallScore}/100 | Review Required: ${qualityResult.humanReviewRequired}`);
+          if (qualityResult.qualityNotes.length > 0) {
+            console.log(`⚠️ Quality Issues:`, qualityResult.qualityNotes);
+          }
+        } else {
+          // CRITICAL: If LinkedIn scraping failed or data is incomplete, flag for human review
+          // This prevents hallucinated/partial data from being auto-accepted
+          const qualityNotes: string[] = [];
+          
+          if (!linkedinData) {
+            qualityNotes.push('CRITICAL: LinkedIn scraping failed - unable to validate data quality');
+          }
+          if (!(candidateData as any).careerHistory) {
+            qualityNotes.push('CRITICAL: No career history data - unable to validate completeness');
+          }
+          
+          (candidateData as any).dataQualityScore = 0;
+          (candidateData as any).humanReviewRequired = true;
+          (candidateData as any).dataQualityNotes = qualityNotes;
+          (candidateData as any).dataQualityCheckedAt = new Date();
+          (candidateData as any).fieldConfidenceScores = {
+            email: 0,
+            careerHistory: 0,
+            biography: 0
+          };
+          
+          console.log(`⚠️ Data Quality: 0/100 | FLAGGED FOR HUMAN REVIEW - ${qualityNotes.join(', ')}`);
+        }
+        
         // Check for duplicates
         const duplicates = await duplicateDetectionService.findCandidateDuplicates(candidateData);
         
@@ -172,10 +279,16 @@ async function processBatch(
               currentCompany: candidateData.currentCompany,
               currentTitle: candidateData.currentTitle,
               location: candidateData.location,
-              skills: candidateData.skills
+              skills: candidateData.skills,
+              rawLinkedinPayload: (candidateData as any).rawLinkedinPayload,
+              dataQualityScore: (candidateData as any).dataQualityScore,
+              fieldConfidenceScores: (candidateData as any).fieldConfidenceScores,
+              humanReviewRequired: (candidateData as any).humanReviewRequired,
+              dataQualityNotes: (candidateData as any).dataQualityNotes,
+              dataQualityCheckedAt: (candidateData as any).dataQualityCheckedAt
             });
             
-            console.log(`✅ Updated candidate ${candidateId} with new data`);
+            console.log(`✅ Updated candidate ${candidateId} with new data and quality scores`);
             return { type: 'success', candidateData };
           } else {
             // Normal mode: record as duplicate
