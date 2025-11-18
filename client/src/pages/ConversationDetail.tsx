@@ -107,12 +107,12 @@ export default function ConversationDetail() {
         title: "Success",
         description: "Conversation deleted successfully",
       });
-      // Check if we're in the client portal or recruiting portal
+      // Use relative path for nested router
       const currentPath = window.location.pathname;
       if (currentPath.startsWith('/client')) {
-        setLocation('/client/messages');
+        setLocation('/messages');
       } else {
-        setLocation('/recruiting/conversations');
+        setLocation('/conversations');
       }
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
     },
@@ -130,11 +130,12 @@ export default function ConversationDetail() {
   };
 
   const handleBack = () => {
+    // Use relative path for nested router
     const currentPath = window.location.pathname;
     if (currentPath.startsWith('/client')) {
-      setLocation('/client/messages');
+      setLocation('/messages');
     } else {
-      setLocation('/recruiting/conversations');
+      setLocation('/conversations');
     }
   };
 

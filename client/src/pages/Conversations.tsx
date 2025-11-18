@@ -65,13 +65,8 @@ export default function Conversations() {
         title: "Success",
         description: "New conversation started",
       });
-      // Navigate to the new conversation
-      const currentPath = window.location.pathname;
-      if (currentPath.startsWith('/client')) {
-        setLocation(`/client/conversations/${data.id}`);
-      } else {
-        setLocation(`/recruiting/conversations/${data.id}`);
-      }
+      // Navigate to the new conversation (use relative path in nested router)
+      setLocation(`/conversations/${data.id}`);
     },
     onError: (error: Error) => {
       toast({
@@ -180,12 +175,8 @@ export default function Conversations() {
         {conversations?.map((conversation) => {
           const lastMessage = getLastMessage(conversation.messages);
           const handleCardClick = () => {
-            const currentPath = window.location.pathname;
-            if (currentPath.startsWith('/client')) {
-              setLocation(`/client/conversations/${conversation.id}`);
-            } else {
-              setLocation(`/recruiting/conversations/${conversation.id}`);
-            }
+            // Use relative path in nested router
+            setLocation(`/conversations/${conversation.id}`);
           };
           return (
             <Card

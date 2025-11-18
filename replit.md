@@ -3,27 +3,40 @@
 ## Overview
 DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolutionize talent acquisition, initially focusing on Private Equity. It acts as an AI executive search consultant, discovering new external candidates via web scraping and providing intelligent candidate ranking based on a comprehensive Needs Analysis Profile (NAP) context, going beyond simple keyword matching. The platform automates job description parsing and streamlines recruitment workflows through a multi-portal architecture and integrated management systems. The long-term vision includes developing a bottom-up intelligence system for Company Intelligence, Organization Chart Mapping, Pattern Learning, Semantic Matching, and Culture Insights.
 
-## Recent Changes (January 2025)
+## Recent Changes (November 2025)
 
-### Portal Architecture Reorganization (November 2025)
-**Goal**: Separate Agency, Client, Admin, and Candidate portals with proper navigation and interconnections.
+### Portal Architecture Reorganization + AI Chatbox Integration (November 2025)
+**Goal**: Separate Agency, Client, Admin, and Candidate portals with proper navigation and interconnections. Add conversational AI interface to Client Portal.
 
 **Changes Implemented**:
 - **Agency Portal** (`/recruiting/*`): Full recruiting features with sidebar navigation - Companies, Jobs, Candidates, Recycling Bin, Staging, Conversations, Outreach
-- **Client Portal** (`/client/*`): PE firms view with sidebar navigation - integrates ClientPortal.tsx features (Quick Upload, Create Job, My Jobs list) plus Candidates, Recycling Bin, Messages, detail views for jobs/candidates/companies
+- **Client Portal** (`/client/*`): PE firms view with sidebar navigation and **AI Assistant chatbox**
+  - **Dashboard**: 4 tabs - AI Assistant (chatbox), Quick Upload, Create Job, My Jobs
+  - **Sidebar**: Dashboard, Post Job, My Jobs, Candidates, Recycling Bin, Messages
+  - **Messages** (`/client/messages`): View all AI conversations, start new conversations
+  - **Conversation Detail** (`/client/conversations/:id`): Full chat interface with AI, delete conversation
+  - Detail views for jobs/candidates/companies with cross-portal navigation
 - **Admin Portal** (`/admin`): Single-page tabbed interface (as originally built) - Quick Add, Bulk Upload (candidates/companies), AI Research, Duplicates Review, Upload History, Data Quality, Custom Fields
 - **Candidate Portal** (`/candidate-portal`): Standalone page - Profile, Job Matches, Messages (minimal for now)
+
+**Conversation Features** (New):
+- **AI Chatbox**: Available in Client Portal dashboard (default tab) for conversational recruiting
+- **Start New Conversation**: Create new AI recruiting conversations from Messages page
+- **View Conversations**: Click on conversation cards to view/interact with full chat history
+- **Delete Conversations**: Delete button with confirmation dialog in conversation detail page
+- **Persistent Sessions**: Conversations saved to database, resume across sessions
 
 **Interconnections**:
 - Jobs page → Company links (click company to view detail) - works across all portals with relative paths
 - Company detail → Jobs and Candidates tabs (clickable lists)
 - Candidates → Company links (from career history)
-- All portals have matching detail routes (/jobs/:id, /candidates/:id, /companies/:id)
+- All portals have matching detail routes (/jobs/:id, /candidates/:id, /companies/:id, /conversations/:id)
 
 **Navigation**:
-- Agency and Client portals use sidebar-based navigation (AppSidebar auto-detects role from URL)
+- Agency and Client portals use sidebar-based navigation (AppSidebar explicitly receives portal type prop)
 - Admin portal uses original tabbed interface (not sidebar-based)
 - Recycling Bin added to Client Portal per user feedback
+- Messages page accessible from both Agency and Client portals with context-aware routing
 
 ### NAP v2: Enhanced Needs Assessment Profile (In Progress)
 **Goal**: Transform NAP from flat checklist to client-calibrated, AI-executable contract based on 30-year headhunter feedback.
