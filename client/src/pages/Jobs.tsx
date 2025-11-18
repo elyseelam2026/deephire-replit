@@ -155,7 +155,7 @@ export default function Jobs() {
             </CardHeader>
             <CardContent className="space-y-4">
               {job.companyId && (
-                <Link href={`/companies/${job.companyId}`}>
+                <Link href={`../companies/${job.companyId}`}>
                   <div className="flex items-center gap-2 text-sm hover-elevate rounded-md p-2 -mx-2">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Company #{job.companyId}</span>
@@ -188,7 +188,7 @@ export default function Jobs() {
               )}
 
               <div className="pt-2 space-y-2">
-                <Link href={`/jobs/${job.id}`}>
+                <Link href={`${job.id}`}>
                   <Button 
                     variant="outline" 
                     size="sm" 
