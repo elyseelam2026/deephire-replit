@@ -38,6 +38,30 @@ DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolut
 - Recycling Bin added to Client Portal per user feedback
 - Messages page accessible from both Agency and Client portals with context-aware routing
 
+### Job Detail UX Enhancements (November 2025)
+**Goal**: Fix user-reported issues with static/confusing Job Detail page - make search progress live, show rejected counts, ensure comprehensive skill extraction.
+
+**Changes Implemented**:
+1. **Live Search Progress** - JobDetail.tsx now polls every 3 seconds while searchExecutionStatus is 'planning' or 'searching', automatically stops when complete. Search Strategy and Search Progress cards update in real-time.
+
+2. **Pipeline Statistics Card** - Added metrics card in CandidatePipeline.tsx showing:
+   - Total Candidates
+   - Active (new/screening/interview/offer)
+   - Rejected (rejected status)
+   - Placed (hired/placed status)
+   - Resolves user confusion about "found 20 but only see 7" scenarios
+
+3. **Comprehensive Required Skills** - Job creation now merges NAP requirements into skills array:
+   - Extracts base skills from updatedSearchContext.skills
+   - Extracts requirement strings from updatedSearchContext.requirements
+   - Filters reasonable lengths (1-100 chars)
+   - Deduplicates to create comprehensive allSkills array
+   - Example: "PE" + "Finance" + NAP requirements → comprehensive skill list
+
+4. **Data Consistency Verified** - List and Kanban views use identical filteredCandidates array, Timeline reads real statusHistory data (no code issues found)
+
+**Files Modified**: client/src/pages/JobDetail.tsx, client/src/components/CandidatePipeline.tsx, server/routes.ts
+
 ### NAP → Search Strategy Pipeline Fix (November 2025)
 **Problem**: NAP data was collected but never used in external searches. Promise-worker passed empty searchParams to SerpAPI, resulting in random candidates instead of targeted results.
 
