@@ -6184,3 +6184,229 @@ Return ONLY valid JSON in this exact format:
     throw error;
   }
 }
+/**
+ * LAYER 1: Career History Completeness Validator
+ * Compares AI-extracted career history against raw LinkedIn experience array
+ * Returns confidence score and list of missing positions to prevent hallucination
+ */
+export function validateCareerHistoryCompleteness(
+  rawLinkedinData: any,
+  extractedCareerHistory: Array<{
+    company: string;
+    title: string;
+    startDate: string;
+    endDate?: string | null;
+  }>
+): {
+  score: number;  // 0-100
+  issues: string[];
+  missingPositions: Array<{ company: string; title: string }>;
+  isComplete: boolean;
+} {
+  const issues: string[] = [];
+  const missingPositions: Array<{ company: string; title: string }> = [];
+  
+  // Extract raw experience array from LinkedIn data
+  const rawExperience = rawLinkedinData?.experience || [];
+  
+  if (!Array.isArray(rawExperience) || rawExperience.length === 0) {
+    // No raw data to validate against - assume complete
+    return {
+      score: 100,
+      issues: [],
+      missingPositions: [],
+      isComplete: true
+    };
+  }
+  
+  console.log(`[Career Validator] Raw LinkedIn has ${rawExperience.length} positions, extracted has ${extractedCareerHistory.length}`);
+  
+  // Check if each raw position exists in extracted history
+  for (const rawPos of rawExperience) {
+    const rawCompany = (rawPos.company || rawPos.company_name || '').trim().toLowerCase();
+    const rawTitle = (rawPos.title || rawPos.position || '').trim().toLowerCase();
+    
+    if (!rawCompany || !rawTitle) {
+      continue; // Skip invalid entries
+    }
+    
+    // Check if this position exists in extracted history (fuzzy match on company name)
+    const found = extractedCareerHistory.some(extracted => {
+      const extractedCompany = extracted.company.trim().toLowerCase();
+      const extractedTitle = extracted.title.trim().toLowerCase();
+      
+      // Company match (exact or contains)
+      const companyMatch = extractedCompany === rawCompany || 
+                          extractedCompany.includes(rawCompany) ||
+                          rawCompany.includes(extractedCompany);
+      
+      // Title match (exact or contains)
+      const titleMatch = extractedTitle === rawTitle ||
+                        extractedTitle.includes(rawTitle) ||
+                        rawTitle.includes(extractedTitle);
+      
+      return companyMatch && titleMatch;
+    });
+    
+    if (!found) {
+      missingPositions.push({
+        company: rawPos.company || rawPos.company_name || 'Unknown',
+        title: rawPos.title || rawPos.position || 'Unknown'
+      });
+      issues.push(`Missing position: ${rawPos.title} at ${rawPos.company}`);
+    }
+  }
+  
+  // Calculate completeness score
+  const totalPositions = rawExperience.length;
+  const extractedPositions = extractedCareerHistory.length;
+  const missingCount = missingPositions.length;
+  
+  // Penalize both missing positions AND hallucinated positions
+  const completenessRatio = Math.max(0, (totalPositions - missingCount) / totalPositions);
+  const hallucinationPenalty = Math.max(0, extractedPositions - totalPositions) * 10; // -10 points per hallucinated position
+  
+  const score = Math.max(0, Math.min(100, completenessRatio * 100 - hallucinationPenalty));
+  
+  console.log(`[Career Validator] Score: ${score}/100, Missing: ${missingCount}, Extra: ${Math.max(0, extractedPositions - totalPositions)}`);
+  
+  return {
+    score,
+    issues,
+    missingPositions,
+    isComplete: missingCount === 0 && extractedPositions === totalPositions
+  };
+}
+
+/**
+ * LAYER 2: Email Confidence Scorer
+ * Evaluates confidence in inferred email based on nickname detection and transliteration
+ */
+export function scoreEmailConfidence(
+  fullName: string,
+  inferredEmail: string,
+  emailSource: string
+): {
+  score: number;  // 0-100
+  issues: string[];
+} {
+  const issues: string[] = [];
+  let score = 100;
+  
+  // Check if nickname was used (highest confidence)
+  if (emailSource.includes('nickname')) {
+    return { score: 95, issues: [] };
+  }
+  
+  // Check for ASCII names (high confidence)
+  if (emailSource === 'ascii') {
+    return { score: 90, issues: [] };
+  }
+  
+  // Check for transliteration methods
+  if (emailSource === 'pinyin' || emailSource === 'romaji' || emailSource === 'rr_romanization') {
+    score = 70;
+    issues.push('Email inferred from transliteration - verify accuracy');
+  }
+  
+  // Check for initials fallback (low confidence)
+  if (emailSource.includes('initials')) {
+    score = 40;
+    issues.push('Email uses initials fallback - needs verification');
+  }
+  
+  // Check for suspicious patterns
+  if (inferredEmail.includes('(') || inferredEmail.includes(')')) {
+    score -= 30;
+    issues.push('Email contains parentheses - nickname not properly extracted');
+  }
+  
+  if (inferredEmail.includes('unknown')) {
+    score = 0;
+    issues.push('Email contains "unknown" - extraction failed');
+  }
+  
+  return { score: Math.max(0, score), issues };
+}
+
+/**
+ * LAYER 3: Overall Data Quality Scorer
+ * Combines email confidence, career completeness, and biography quality
+ * Returns overall quality score and determines if human review is required
+ */
+export function calculateDataQualityScore(
+  rawLinkedinData: any,
+  candidate: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    emailSource: string;
+    careerHistory: any[];
+    biography?: string | null;
+  }
+): {
+  overallScore: number;  // 0-100
+  fieldScores: {
+    email: number;
+    careerHistory: number;
+    biography: number;
+  };
+  humanReviewRequired: boolean;
+  qualityNotes: string[];
+} {
+  const qualityNotes: string[] = [];
+  
+  // 1. Email Confidence (25% weight)
+  const fullName = `${candidate.firstName} ${candidate.lastName}`;
+  const emailValidation = scoreEmailConfidence(fullName, candidate.email, candidate.emailSource);
+  const emailScore = emailValidation.score;
+  qualityNotes.push(...emailValidation.issues);
+  
+  // 2. Career History Completeness (50% weight - most critical)
+  const careerValidation = validateCareerHistoryCompleteness(rawLinkedinData, candidate.careerHistory);
+  const careerScore = careerValidation.score;
+  qualityNotes.push(...careerValidation.issues);
+  
+  // Add specific missing position notes
+  if (careerValidation.missingPositions.length > 0) {
+    for (const missing of careerValidation.missingPositions) {
+      qualityNotes.push(`CRITICAL: Missing career entry - ${missing.title} at ${missing.company}`);
+    }
+  }
+  
+  // 3. Biography Quality (25% weight)
+  let bioScore = 100;
+  if (!candidate.biography || candidate.biography.trim().length < 100) {
+    bioScore = 30;
+    qualityNotes.push('Biography is too short or missing');
+  } else if (candidate.biography.trim().length < 300) {
+    bioScore = 60;
+    qualityNotes.push('Biography is incomplete');
+  }
+  
+  // Calculate weighted overall score
+  const overallScore = Math.round(
+    emailScore * 0.25 +
+    careerScore * 0.50 +
+    bioScore * 0.25
+  );
+  
+  // Flag for human review if overall score < 70 or critical issues exist
+  const humanReviewRequired = 
+    overallScore < 70 ||
+    careerValidation.missingPositions.length > 0 ||
+    emailValidation.score < 50;
+  
+  console.log(`[Data Quality] Overall: ${overallScore}/100 | Email: ${emailScore} | Career: ${careerScore} | Bio: ${bioScore} | Review Required: ${humanReviewRequired}`);
+  
+  return {
+    overallScore,
+    fieldScores: {
+      email: emailScore,
+      careerHistory: careerScore,
+      biography: bioScore
+    },
+    humanReviewRequired,
+    qualityNotes
+  };
+}
