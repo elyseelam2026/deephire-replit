@@ -71,21 +71,86 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
     
     console.log(`[Promise Worker] Running EXTERNAL search for: ${promise.searchParams.title || 'position'}`);
     
-    // 🌐 EXTERNAL SEARCH: Use SerpAPI with NAP-driven search strategy
-    const searchCriteria = searchStrategy ? {
-      title: searchStrategy.filters?.experience || promise.searchParams.title || '',
-      location: searchStrategy.filters?.location || promise.searchParams.location || '',
-      keywords: searchStrategy.keywords || promise.searchParams.skills || [],
-      booleanQuery: searchStrategy.keywords || '', // LinkedIn Boolean search string
-      industries: searchStrategy.filters?.industry || [],
-    } : {
-      title: promise.searchParams.title || '',
-      location: promise.searchParams.location || '',
-      keywords: promise.searchParams.skills || [],
-    };
+    // 🌐 EXTERNAL SEARCH: Build search criteria with NAP-driven Boolean query
+    // Priority: searchStrategy.keywords (Boolean query) > promise.searchParams (fallback)
+    let searchCriteria: any;
+    let usingNAPStrategy = false;
+    
+    if (searchStrategy?.keywords && typeof searchStrategy.keywords === 'string' && searchStrategy.keywords.trim()) {
+      // Use NAP-driven search strategy with Boolean query
+      // Normalize industries to ensure it's always a string array (never null/undefined)
+      const industries = searchStrategy.filters?.industry;
+      const normalizedIndustries = Array.isArray(industries) 
+        ? industries.filter((i: any) => typeof i === 'string' && i.trim()) 
+        : [];
+      
+      searchCriteria = {
+        title: promise.searchParams.title || '',
+        location: searchStrategy.filters?.location || promise.searchParams.location || '',
+        booleanQuery: searchStrategy.keywords, // LinkedIn Boolean search string (STRING, not array)
+        industries: normalizedIndustries,
+        // Include priority signals if available
+        prioritySignals: searchStrategy.prioritySignals || [],
+      };
+      usingNAPStrategy = true;
+      console.log(`✅ Using NAP Boolean query: "${searchStrategy.keywords}"`);
+    } else {
+      // Fallback to basic search params when no Boolean query available
+      searchCriteria = {
+        title: promise.searchParams.title || '',
+        location: promise.searchParams.location || '',
+        keywords: promise.searchParams.skills || [],
+      };
+      console.log(`⚠️  No Boolean query found, using fallback params`);
+    }
     
     console.log(`[Promise Worker] Searching LinkedIn with:`, searchCriteria);
-    const searchResults = await searchLinkedInPeople(searchCriteria, 20);
+    
+    let searchResults;
+    try {
+      searchResults = await searchLinkedInPeople(searchCriteria, 20);
+      
+      // Log if Boolean query returned zero results (helps debug underperforming queries)
+      if (usingNAPStrategy && searchResults.profiles.length === 0) {
+        console.warn(`⚠️  NAP Boolean query returned zero results - may need refinement`);
+        await storage.updateSearchPromise(promiseId, {
+          executionLog: [
+            ...(updatedPromise.executionLog || []),
+            {
+              timestamp: new Date().toISOString(),
+              event: 'zero_external_results',
+              details: { 
+                booleanQuery: searchStrategy.keywords,
+                message: 'Boolean query returned no results - falling back to internal search'
+              }
+            }
+          ]
+        });
+      }
+    } catch (error) {
+      console.error(`[Promise Worker] SerpAPI search failed:`, error);
+      
+      // Mark promise as failed with error details
+      const failedPromise = await storage.updateSearchPromise(promiseId, {
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : 'External search failed',
+        completedAt: new Date(),
+        retryCount: (updatedPromise.retryCount || 0) + 1, // Increment from latest state
+        executionLog: [
+          ...(updatedPromise.executionLog || []),
+          {
+            timestamp: new Date().toISOString(),
+            event: 'search_failed',
+            details: { 
+              error: error instanceof Error ? error.message : String(error),
+              retryCount: (updatedPromise.retryCount || 0) + 1
+            }
+          }
+        ]
+      });
+      
+      throw error; // Re-throw to skip candidate creation
+    }
     
     console.log(`[Promise Worker] Found ${searchResults.profiles.length} LinkedIn profiles`);
     
@@ -250,7 +315,14 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       console.log(`[Promise Worker] Added ${candidateIds.length} candidates to job #${jobId}`);
     }
     
-    // Update promise as completed (using latest executionLog)
+    // Re-fetch promise to get LATEST executionLog (includes zero-results event if logged)
+    const latestPromise = await storage.getSearchPromise(promiseId);
+    if (!latestPromise) {
+      console.error(`[Promise Worker] Promise #${promiseId} disappeared before completion`);
+      return;
+    }
+    
+    // Update promise as completed (using latest executionLog to preserve all events)
     await storage.updateSearchPromise(promiseId, {
       status: 'completed',
       completedAt: new Date(),
@@ -258,7 +330,7 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       candidatesFound: candidateIds.length,
       candidateIds,
       executionLog: [
-        ...(updatedPromise.executionLog || []),
+        ...(latestPromise.executionLog || []),
         {
           timestamp: new Date().toISOString(),
           event: 'search_completed',
