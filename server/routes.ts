@@ -2573,6 +2573,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`💰 Base Fee: $${baseFee.toLocaleString()} → Final Fee (with turnaround): $${estimatedFee.toLocaleString()}`);
           }
           
+          // Extract all skills from NAP conversation (including requirements array)
+          const baseSkills = updatedSearchContext.skills || [];
+          const requirementSkills = (updatedSearchContext.requirements || [])
+            .map((r: any) => typeof r === 'string' ? r : r.requirement || '')
+            .filter((s: string) => s.length > 0 && s.length < 100); // Reasonable skill length
+          const allSkills = Array.from(new Set([...baseSkills, ...requirementSkills]));
+          
+          console.log(`📋 Skills extracted: ${baseSkills.length} base + ${requirementSkills.length} from requirements = ${allSkills.length} total`);
+          
           // Create job order in database with NAP summary and search strategy
           const newJob = await storage.createJob({
             title: updatedSearchContext.title,
@@ -2580,7 +2589,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             companyId: companyId,
             jdText: updatedSearchContext.description || `Job: ${updatedSearchContext.title}`,
             parsedData: updatedSearchContext,
-            skills: updatedSearchContext.skills || [],
+            skills: allSkills,
             urgency: updatedSearchContext.urgency || 'medium',
             status: 'active',
             searchTier: searchTier,
