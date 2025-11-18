@@ -54,6 +54,7 @@ interface KanbanViewProps {
   jobId: number;
   candidates: JobCandidate[];
   onStatusChange?: (candidateId: number, newStatus: string) => void;
+  onCandidateClick?: (candidateId: number) => void;
 }
 
 const statusCategories = [
@@ -68,7 +69,7 @@ const statusCategories = [
   { key: "rejected", label: "Rejected", color: "bg-red-500" }
 ];
 
-export default function KanbanView({ jobId, candidates, onStatusChange }: KanbanViewProps) {
+export default function KanbanView({ jobId, candidates, onStatusChange, onCandidateClick }: KanbanViewProps) {
   const { toast } = useToast();
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [optimisticUpdates, setOptimisticUpdates] = useState<Map<number, string>>(new Map());
@@ -241,13 +242,13 @@ export default function KanbanView({ jobId, candidates, onStatusChange }: Kanban
                             <CardHeader className="p-3 pb-2">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <Link
-                                    href={`/recruiting/candidates/${candidate.id}`}
-                                    className="font-medium text-sm hover:underline block truncate"
+                                  <button
+                                    onClick={() => onCandidateClick?.(candidate.id)}
+                                    className="font-medium text-sm hover:underline block truncate text-left text-primary"
                                     data-testid={`kanban-link-candidate-${candidate.id}`}
                                   >
                                     {displayName}
-                                  </Link>
+                                  </button>
                                   {candidate.currentTitle && (
                                     <p className="text-xs text-muted-foreground truncate mt-1">
                                       {candidate.currentTitle}

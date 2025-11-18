@@ -47,6 +47,7 @@ interface ListViewProps {
   selectedIds?: Set<number>;
   onToggleSelect?: (id: number) => void;
   onToggleSelectAll?: () => void;
+  onCandidateClick?: (candidateId: number) => void;
 }
 
 type SortField = 'name' | 'company' | 'matchScore' | 'status' | 'addedDate';
@@ -63,7 +64,7 @@ const statusCategories = [
   { key: "rejected", label: "Rejected", color: "bg-red-500" }
 ];
 
-export default function ListView({ jobId, candidates, onStatusChange, selectedIds = new Set(), onToggleSelect, onToggleSelectAll }: ListViewProps) {
+export default function ListView({ jobId, candidates, onStatusChange, selectedIds = new Set(), onToggleSelect, onToggleSelectAll, onCandidateClick }: ListViewProps) {
   const { toast } = useToast();
   const [sortField, setSortField] = useState<SortField>('addedDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -228,13 +229,13 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
                 )}
                 {/* Candidate Info */}
                 <div className={`flex flex-col ${onToggleSelect ? "col-span-3" : "col-span-4"}`}>
-                  <Link 
-                    href={`/recruiting/candidates/${candidate.id}`}
-                    className="font-medium text-sm hover:underline text-primary"
+                  <button
+                    onClick={() => onCandidateClick?.(candidate.id)}
+                    className="font-medium text-sm hover:underline text-primary text-left"
                     data-testid={`link-candidate-${candidate.id}`}
                   >
                     {fullName}
-                  </Link>
+                  </button>
                   {candidate.currentTitle && (
                     <span className="text-xs text-muted-foreground mt-1 truncate">
                       {candidate.currentTitle}
@@ -320,16 +321,15 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
 
                 {/* Actions */}
                 <div className="col-span-1 flex items-center justify-end">
-                  <Link href={`/recruiting/candidates/${candidate.id}`}>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7"
-                      data-testid={`button-view-${candidate.id}`}
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </Link>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-7 w-7"
+                    onClick={() => onCandidateClick?.(candidate.id)}
+                    data-testid={`button-view-${candidate.id}`}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
             );

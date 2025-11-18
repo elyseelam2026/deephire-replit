@@ -4,7 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Building2, Mail, Phone, Briefcase, Star, Columns3, List, GanttChart, BarChart3 } from "lucide-react";
+import { Building2, Mail, Phone, Briefcase, Star, Columns3, List, GanttChart, BarChart3, MapPin, Calendar, FileText, Users, ExternalLink, Edit } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import KanbanView from "./pipeline/KanbanView";
 import ListView from "./pipeline/ListView";
@@ -14,7 +17,8 @@ import PipelineControls, { PipelineFilters } from "./pipeline/PipelineControls";
 import { AddCandidatesModal } from "./pipeline/AddCandidatesModal";
 import { BulkActionsToolbar } from "./pipeline/BulkActionsToolbar";
 import { exportPipelineToCSV } from "@/lib/exportPipeline";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Candidate, CareerHistoryEntry } from "@shared/schema";
 
 interface JobCandidate {
   id: number;
@@ -76,6 +80,7 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   const [filters, setFilters] = useState<PipelineFilters>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<number>>(new Set());
+  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
   const { toast} = useToast();
   
   const { data: job } = useQuery<{ title: string }>({
@@ -86,6 +91,17 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   const { data: candidates = [], isLoading } = useQuery<JobCandidate[]>({
     queryKey: ['/api/jobs', jobId, 'candidates'],
     enabled: !!jobId
+  });
+
+  // Fetch full candidate details when modal is opened
+  const { data: selectedCandidate, isLoading: isCandidateLoading } = useQuery<Candidate>({
+    queryKey: ['/api/candidates', selectedCandidateId],
+    queryFn: async () => {
+      const response = await fetch(`/api/candidates/${selectedCandidateId}`);
+      if (!response.ok) throw new Error('Failed to fetch candidate');
+      return response.json();
+    },
+    enabled: !!selectedCandidateId
   });
 
   // Filter candidates based on search and filters
@@ -328,7 +344,13 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
           </CardContent>
         </Card>
       ) : viewMode === 'kanban' ? (
-        <KanbanView jobId={jobId} candidates={filteredCandidates} />
+        <KanbanView 
+          jobId={jobId} 
+          candidates={filteredCandidates}
+          onCandidateClick={(candidateId: number) => {
+            setSelectedCandidateId(candidateId);
+          }}
+        />
       ) : viewMode === 'timeline' ? (
         <TimelineView 
           jobId={jobId} 
@@ -375,8 +397,191 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
               setSelectedCandidateIds(new Set(filteredCandidates.map(jc => jc.id)));
             }
           }}
+          onCandidateClick={(candidateId: number) => {
+            setSelectedCandidateId(candidateId);
+          }}
         />
       )}
+
+      {/* Candidate Detail Modal */}
+      <Dialog open={!!selectedCandidateId} onOpenChange={(open) => !open && setSelectedCandidateId(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col" data-testid={`candidate-profile-${selectedCandidate?.id}`}>
+          {isCandidateLoading ? (
+            <div className="flex items-center justify-center p-12">
+              <div className="flex flex-col items-center gap-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="text-sm text-muted-foreground">Loading candidate details...</p>
+              </div>
+            </div>
+          ) : selectedCandidate ? (
+            <>
+              <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
+                <DialogTitle className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        {selectedCandidate?.firstName?.[0]}{selectedCandidate?.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span>
+                        {`${selectedCandidate?.firstName} ${selectedCandidate?.lastName}`}
+                      </span>
+                    </div>
+                  </div>
+                </DialogTitle>
+                <DialogDescription>
+                  Candidate profile and details
+                </DialogDescription>
+              </DialogHeader>
+              
+              {selectedCandidate && (
+            <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
+              <TabsList className="mx-6 mt-2">
+                <TabsTrigger value="overview" data-testid={`tab-overview-${selectedCandidate.id}`}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="career" data-testid={`tab-career-${selectedCandidate.id}`}>
+                  <Briefcase className="h-4 w-4 mr-2" />
+                  Career History
+                </TabsTrigger>
+                <TabsTrigger value="biography" data-testid={`tab-biography-${selectedCandidate.id}`}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Executive Biography
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="flex-1 overflow-y-auto px-6 py-4 space-y-6 m-0">
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedCandidate.email && (
+                    <div>
+                      <h4 className="font-medium text-sm">Email</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.email}</p>
+                    </div>
+                  )}
+                  {selectedCandidate.phoneNumber && (
+                    <div>
+                      <h4 className="font-medium text-sm">Phone</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.phoneNumber}</p>
+                    </div>
+                  )}
+                  {selectedCandidate.location && (
+                    <div>
+                      <h4 className="font-medium text-sm">Location</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.location}</p>
+                    </div>
+                  )}
+                  {selectedCandidate.currentTitle && (
+                    <div>
+                      <h4 className="font-medium text-sm">Current Role</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.currentTitle}</p>
+                    </div>
+                  )}
+                  {selectedCandidate.currentCompany && (
+                    <div>
+                      <h4 className="font-medium text-sm">Current Company</h4>
+                      <p className="text-muted-foreground">{selectedCandidate.currentCompany}</p>
+                    </div>
+                  )}
+                </div>
+
+                {selectedCandidate.skills && selectedCandidate.skills.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Skills</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCandidate.skills.map((skill, index) => (
+                        <Badge key={index} variant="outline">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedCandidate.linkedinUrl && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">LinkedIn Profile</h4>
+                    <a 
+                      href={selectedCandidate.linkedinUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                      data-testid={`link-linkedin-${selectedCandidate.id}`}
+                    >
+                      View LinkedIn Profile
+                    </a>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="career" className="flex-1 overflow-y-auto px-6 py-4 space-y-6 m-0">
+                {selectedCandidate.careerHistory && (selectedCandidate.careerHistory as CareerHistoryEntry[]).length > 0 ? (
+                  <div className="space-y-4">
+                    {(selectedCandidate.careerHistory as CareerHistoryEntry[]).map((entry, index) => (
+                      <div 
+                        key={index} 
+                        className="border-l-2 border-primary/20 pl-4 pb-4"
+                        data-testid={`career-entry-${index}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-base">{entry.title}</h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Building2 className="h-3 w-3 text-muted-foreground" />
+                              <p className="text-muted-foreground">{entry.company}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>
+                              {entry.startDate} - {entry.endDate || 'Present'}
+                            </span>
+                          </div>
+                        </div>
+                        {entry.location && (
+                          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            <span>{entry.location}</span>
+                          </div>
+                        )}
+                        {entry.description && (
+                          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                            {entry.description}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                    <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground text-sm">No career history available yet.</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="biography" className="flex-1 overflow-y-auto px-6 py-4 space-y-6 m-0">
+                <div>
+                  <h4 className="font-medium text-sm mb-4">Professional Biography</h4>
+                  {selectedCandidate.biography ? (
+                    <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line p-4 bg-muted/50 rounded-lg" data-testid={`text-biography-${selectedCandidate.id}`}>
+                      {selectedCandidate.biography}
+                    </div>
+                  ) : (
+                    <div className="p-8 bg-muted/50 rounded-lg border-2 border-dashed text-center">
+                      <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground text-sm">No biography available.</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
