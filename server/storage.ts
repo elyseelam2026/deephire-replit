@@ -3,7 +3,7 @@ import {
   dataIngestionJobs, duplicateDetections, dataReviewQueue, stagingCandidates, verificationResults,
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
   companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions, searchPromises,
-  sourcingRuns,
+  sourcingRuns, candidateActivities, candidateFiles, candidateInterviews,
   type Company, type Job, type Candidate, type JobMatch, type JobCandidate, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertJobCandidate, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
@@ -14,7 +14,9 @@ import {
   type CompanyStaging, type InsertCompanyStaging, type CandidateCompany, type InsertCandidateCompany,
   type CustomFieldSection, type InsertCustomFieldSection, type CustomFieldDefinition, type InsertCustomFieldDefinition,
   type SearchPromise, type InsertSearchPromise,
-  type SourcingRun, type InsertSourcingRun
+  type SourcingRun, type InsertSourcingRun,
+  type CandidateActivity, type InsertCandidateActivity, type CandidateFile, type InsertCandidateFile,
+  type CandidateInterview, type InsertCandidateInterview
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -71,6 +73,28 @@ export interface IStorage {
   restoreCandidate(id: number): Promise<Candidate | undefined>; // Restore from recycling bin
   permanentlyDeleteCandidate(id: number): Promise<void>; // Hard delete
   semanticSearchCandidates(queryEmbedding: number[], limit?: number): Promise<Array<Candidate & { similarity: number }>>; // Vector similarity search
+  
+  // Candidate Activities
+  createCandidateActivity(activity: InsertCandidateActivity): Promise<CandidateActivity>;
+  getCandidateActivities(candidateId: number): Promise<CandidateActivity[]>;
+  getCandidateActivity(id: number): Promise<CandidateActivity | undefined>;
+  updateCandidateActivity(id: number, updates: Partial<InsertCandidateActivity>): Promise<CandidateActivity | undefined>;
+  deleteCandidateActivity(id: number): Promise<void>;
+  
+  // Candidate Files
+  createCandidateFile(file: InsertCandidateFile): Promise<CandidateFile>;
+  getCandidateFiles(candidateId: number): Promise<CandidateFile[]>;
+  getCandidateFile(id: number): Promise<CandidateFile | undefined>;
+  updateCandidateFile(id: number, updates: Partial<InsertCandidateFile>): Promise<CandidateFile | undefined>;
+  deleteCandidateFile(id: number): Promise<void>;
+  
+  // Candidate Interviews
+  createCandidateInterview(interview: InsertCandidateInterview): Promise<CandidateInterview>;
+  getCandidateInterviews(candidateId: number): Promise<CandidateInterview[]>;
+  getJobInterviews(jobId: number): Promise<CandidateInterview[]>;
+  getCandidateInterview(id: number): Promise<CandidateInterview | undefined>;
+  updateCandidateInterview(id: number, updates: Partial<InsertCandidateInterview>): Promise<CandidateInterview | undefined>;
+  deleteCandidateInterview(id: number): Promise<void>;
   
   // Job matching
   createJobMatch(match: InsertJobMatch): Promise<JobMatch>;
@@ -701,6 +725,99 @@ export class DatabaseStorage implements IStorage {
         `
       ))
       .orderBy(desc(candidates.createdAt));
+  }
+
+  // Candidate Activities
+  async createCandidateActivity(activity: InsertCandidateActivity): Promise<CandidateActivity> {
+    const [newActivity] = await db.insert(candidateActivities).values(activity).returning();
+    return newActivity;
+  }
+
+  async getCandidateActivities(candidateId: number): Promise<CandidateActivity[]> {
+    return await db.select().from(candidateActivities)
+      .where(eq(candidateActivities.candidateId, candidateId))
+      .orderBy(desc(candidateActivities.occurredAt));
+  }
+
+  async getCandidateActivity(id: number): Promise<CandidateActivity | undefined> {
+    const [activity] = await db.select().from(candidateActivities).where(eq(candidateActivities.id, id));
+    return activity || undefined;
+  }
+
+  async updateCandidateActivity(id: number, updates: Partial<InsertCandidateActivity>): Promise<CandidateActivity | undefined> {
+    const [activity] = await db.update(candidateActivities)
+      .set(updates)
+      .where(eq(candidateActivities.id, id))
+      .returning();
+    return activity || undefined;
+  }
+
+  async deleteCandidateActivity(id: number): Promise<void> {
+    await db.delete(candidateActivities).where(eq(candidateActivities.id, id));
+  }
+
+  // Candidate Files
+  async createCandidateFile(file: InsertCandidateFile): Promise<CandidateFile> {
+    const [newFile] = await db.insert(candidateFiles).values(file).returning();
+    return newFile;
+  }
+
+  async getCandidateFiles(candidateId: number): Promise<CandidateFile[]> {
+    return await db.select().from(candidateFiles)
+      .where(eq(candidateFiles.candidateId, candidateId))
+      .orderBy(desc(candidateFiles.uploadedAt));
+  }
+
+  async getCandidateFile(id: number): Promise<CandidateFile | undefined> {
+    const [file] = await db.select().from(candidateFiles).where(eq(candidateFiles.id, id));
+    return file || undefined;
+  }
+
+  async updateCandidateFile(id: number, updates: Partial<InsertCandidateFile>): Promise<CandidateFile | undefined> {
+    const [file] = await db.update(candidateFiles)
+      .set(updates)
+      .where(eq(candidateFiles.id, id))
+      .returning();
+    return file || undefined;
+  }
+
+  async deleteCandidateFile(id: number): Promise<void> {
+    await db.delete(candidateFiles).where(eq(candidateFiles.id, id));
+  }
+
+  // Candidate Interviews
+  async createCandidateInterview(interview: InsertCandidateInterview): Promise<CandidateInterview> {
+    const [newInterview] = await db.insert(candidateInterviews).values(interview).returning();
+    return newInterview;
+  }
+
+  async getCandidateInterviews(candidateId: number): Promise<CandidateInterview[]> {
+    return await db.select().from(candidateInterviews)
+      .where(eq(candidateInterviews.candidateId, candidateId))
+      .orderBy(desc(candidateInterviews.scheduledAt));
+  }
+
+  async getJobInterviews(jobId: number): Promise<CandidateInterview[]> {
+    return await db.select().from(candidateInterviews)
+      .where(eq(candidateInterviews.jobId, jobId))
+      .orderBy(desc(candidateInterviews.scheduledAt));
+  }
+
+  async getCandidateInterview(id: number): Promise<CandidateInterview | undefined> {
+    const [interview] = await db.select().from(candidateInterviews).where(eq(candidateInterviews.id, id));
+    return interview || undefined;
+  }
+
+  async updateCandidateInterview(id: number, updates: Partial<InsertCandidateInterview>): Promise<CandidateInterview | undefined> {
+    const [interview] = await db.update(candidateInterviews)
+      .set(updates)
+      .where(eq(candidateInterviews.id, id))
+      .returning();
+    return interview || undefined;
+  }
+
+  async deleteCandidateInterview(id: number): Promise<void> {
+    await db.delete(candidateInterviews).where(eq(candidateInterviews.id, id));
   }
 
   // Job matching

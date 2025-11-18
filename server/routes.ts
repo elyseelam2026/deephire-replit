@@ -808,6 +808,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Candidate Activities endpoints
+  app.get("/api/candidates/:id/activities", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const activities = await storage.getCandidateActivities(candidateId);
+      res.json(activities);
+    } catch (error) {
+      console.error("Error fetching candidate activities:", error);
+      res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  app.post("/api/candidates/:id/activities", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const activityData = {
+        ...req.body,
+        candidateId,
+        createdBy: req.user?.username || 'system'
+      };
+      const activity = await storage.createCandidateActivity(activityData);
+      res.json(activity);
+    } catch (error) {
+      console.error("Error creating candidate activity:", error);
+      res.status(400).json({ error: "Failed to create activity" });
+    }
+  });
+
+  // Candidate Files endpoints
+  app.get("/api/candidates/:id/files", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const files = await storage.getCandidateFiles(candidateId);
+      res.json(files);
+    } catch (error) {
+      console.error("Error fetching candidate files:", error);
+      res.status(500).json({ error: "Failed to fetch files" });
+    }
+  });
+
+  app.post("/api/candidates/:id/files", upload.single('file'), async (req: MulterRequest, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const fileData = {
+        candidateId,
+        filename: `${Date.now()}_${req.file.originalname}`,
+        originalFilename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+        category: req.body.category || 'other',
+        description: req.body.description,
+        uploadedBy: req.user?.username || 'system'
+      };
+      
+      const file = await storage.createCandidateFile(fileData);
+      res.json(file);
+    } catch (error) {
+      console.error("Error uploading candidate file:", error);
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
+  // Candidate Interviews endpoints
+  app.get("/api/candidates/:id/interviews", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const interviews = await storage.getCandidateInterviews(candidateId);
+      res.json(interviews);
+    } catch (error) {
+      console.error("Error fetching candidate interviews:", error);
+      res.status(500).json({ error: "Failed to fetch interviews" });
+    }
+  });
+
+  app.post("/api/candidates/:id/interviews", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const interviewData = {
+        ...req.body,
+        candidateId,
+        createdBy: req.user?.username || 'system'
+      };
+      const interview = await storage.createCandidateInterview(interviewData);
+      res.json(interview);
+    } catch (error) {
+      console.error("Error creating candidate interview:", error);
+      res.status(400).json({ error: "Failed to create interview" });
+    }
+  });
+
   // Helper function to extract text from CV files
   async function extractCvText(file: Express.Multer.File): Promise<string> {
     const fileName = file.originalname.toLowerCase();
