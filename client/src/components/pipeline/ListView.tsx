@@ -175,7 +175,7 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
     <div className="space-y-4" data-testid="list-view">
       {/* Table Header */}
       <Card>
-        <div className="grid grid-cols-13 gap-4 p-4 border-b bg-muted/30">
+        <div className="grid grid-cols-9 gap-3 p-4 border-b bg-muted/30">
           {onToggleSelectAll && (
             <div className="col-span-1 flex items-center justify-center">
               <Checkbox
@@ -188,19 +188,16 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
           <div className={onToggleSelectAll ? "col-span-3" : "col-span-4"}>
             <SortButton field="name">Candidate</SortButton>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <SortButton field="company">Company</SortButton>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <SortButton field="status">Status</SortButton>
           </div>
           <div className="col-span-1 text-center">
             <SortButton field="matchScore">Match</SortButton>
           </div>
-          <div className="col-span-1 text-center">
-            <span className="text-xs font-medium text-muted-foreground">Tier</span>
-          </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <SortButton field="addedDate">Added</SortButton>
           </div>
           <div className="col-span-1 text-right">
@@ -217,7 +214,7 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
             return (
               <div 
                 key={jobCandidate.id} 
-                className="grid grid-cols-13 gap-4 p-4 hover-elevate transition-colors"
+                className="grid grid-cols-9 gap-3 p-4 hover-elevate transition-colors"
                 data-testid={`list-row-${jobCandidate.id}`}
               >
                 {onToggleSelect && (
@@ -239,49 +236,49 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
                     {fullName}
                   </Link>
                   {candidate.currentTitle && (
-                    <span className="text-xs text-muted-foreground mt-1">
+                    <span className="text-xs text-muted-foreground mt-1 truncate">
                       {candidate.currentTitle}
                     </span>
                   )}
                   {candidate.yearsExperience && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                       <Award className="h-3 w-3" />
-                      {candidate.yearsExperience} years exp.
+                      {candidate.yearsExperience}y
                     </span>
                   )}
                 </div>
 
                 {/* Company */}
-                <div className="col-span-2 flex flex-col justify-center">
+                <div className="col-span-1 flex flex-col justify-center">
                   {candidate.currentCompany && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <Building2 className="h-3 w-3 text-muted-foreground" />
-                      <span>{candidate.currentCompany}</span>
+                    <div className="flex items-center gap-1 text-sm truncate">
+                      <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{candidate.currentCompany}</span>
                     </div>
                   )}
                   {candidate.location && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                      <MapPin className="h-3 w-3" />
-                      <span>{candidate.location}</span>
+                      <MapPin className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{candidate.location}</span>
                     </div>
                   )}
                 </div>
 
                 {/* Status Dropdown */}
-                <div className="col-span-2 flex items-center">
+                <div className="col-span-1 flex items-center">
                   <Select
                     value={jobCandidate.status}
                     onValueChange={(value) => handleStatusChange(jobCandidate.id, value)}
                     disabled={updatingStatus === jobCandidate.id}
                   >
                     <SelectTrigger 
-                      className="h-8"
+                      className="h-8 w-full"
                       data-testid={`select-status-${jobCandidate.id}`}
                     >
                       <SelectValue>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <div className={`w-2 h-2 rounded-full ${getStatusBadgeColor(jobCandidate.status)}`} />
-                          <span className="text-xs">
+                          <span className="text-xs truncate">
                             {statusCategories.find(s => s.key === jobCandidate.status)?.label}
                           </span>
                         </div>
@@ -308,7 +305,6 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
                       className="text-xs"
                       data-testid={`badge-score-${jobCandidate.id}`}
                     >
-                      <TrendingUp className="h-3 w-3 mr-1" />
                       {jobCandidate.matchScore}%
                     </Badge>
                   ) : (
@@ -316,21 +312,10 @@ export default function ListView({ jobId, candidates, onStatusChange, selectedId
                   )}
                 </div>
 
-                {/* Search Tier */}
-                <div className="col-span-1 flex items-center justify-center">
-                  {jobCandidate.searchTier ? (
-                    <Badge variant="outline" className="text-xs" data-testid={`badge-tier-${jobCandidate.id}`}>
-                      T{jobCandidate.searchTier}
-                    </Badge>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">-</span>
-                  )}
-                </div>
-
                 {/* Added Date */}
-                <div className="col-span-2 flex items-center gap-1 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  <span>{formatDate(jobCandidate.createdAt)}</span>
+                <div className="col-span-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{formatDate(jobCandidate.createdAt)}</span>
                 </div>
 
                 {/* Actions */}
