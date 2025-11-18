@@ -23,6 +23,10 @@ interface JobCandidate {
   matchScore: number | null;
   aiReasoning: any;
   searchTier: number | null;
+  fitScore: number | null;
+  fitReasoning: string | null;
+  fitStrengths: string[] | null;
+  fitConcerns: string[] | null;
   recruiterNotes: string | null;
   rejectedReason: string | null;
   lastActionAt: string | null;
@@ -217,9 +221,38 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   }));
 
   const totalCandidates = candidates.length;
+  const rejectedCount = candidates.filter(c => c.status === 'rejected').length;
+  const activeCount = candidates.filter(c => c.status !== 'rejected').length;
+  const placedCount = candidates.filter(c => c.status === 'placed').length;
 
   return (
     <div className="space-y-4" data-testid="candidate-pipeline">
+      {/* Pipeline Statistics */}
+      {totalCandidates > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <div className="text-xs text-muted-foreground">Total Candidates</div>
+                <div className="text-2xl font-bold">{totalCandidates}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Active</div>
+                <div className="text-2xl font-bold text-blue-600">{activeCount}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Rejected</div>
+                <div className="text-2xl font-bold text-red-600">{rejectedCount}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Placed</div>
+                <div className="text-2xl font-bold text-green-600">{placedCount}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Candidate Pipeline</h3>
         <div className="flex items-center gap-2">

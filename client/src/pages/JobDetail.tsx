@@ -33,6 +33,15 @@ export default function JobDetail() {
       return response.json();
     },
     enabled: !!jobId,
+    refetchInterval: (query) => {
+      // Poll every 3 seconds while search is active (to show live progress)
+      const job = query?.state?.data as Job | undefined;
+      if (job?.searchExecutionStatus === 'planning' || job?.searchExecutionStatus === 'searching') {
+        return 3000;
+      }
+      // Stop polling once search completes
+      return false;
+    }
   });
 
   if (isLoading || !job) {
