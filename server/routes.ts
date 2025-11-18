@@ -826,6 +826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activityData = {
         ...req.body,
         candidateId,
+        occurredAt: req.body.occurredAt ? new Date(req.body.occurredAt) : new Date(),
         createdBy: req.user?.username || 'system'
       };
       const activity = await storage.createCandidateActivity(activityData);

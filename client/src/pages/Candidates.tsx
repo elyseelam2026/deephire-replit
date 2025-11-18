@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Candidate, CareerHistoryEntry } from "@shared/schema";
 import { useState, useEffect, useRef } from "react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -574,12 +575,19 @@ export default function Candidates() {
                   )}
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  if (selectedCandidate) {
-                    setEditFormData({
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" asChild data-testid="button-view-full-profile">
+                  <Link href={`/recruiting/candidates/${selectedCandidate?.id}`}>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View Full Profile
+                  </Link>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedCandidate) {
+                      setEditFormData({
                       firstName: selectedCandidate.firstName,
                       lastName: selectedCandidate.lastName,
                       middleName: selectedCandidate.middleName,
@@ -631,6 +639,7 @@ export default function Candidates() {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
+              </div>
             </DialogTitle>
             <DialogDescription>
               Candidate profile and details
