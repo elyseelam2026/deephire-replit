@@ -1,16 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChatInterface } from "@/components/ChatInterface";
 import { JobPostForm } from "@/components/JobPostForm";
 import { FileUpload } from "@/components/FileUpload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Users, Briefcase, CheckCircle, Clock } from "lucide-react";
+import { Upload, Users, Briefcase, CheckCircle, Clock, MessageSquare, Sparkles } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
+
+type Message = {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  metadata?: {
+    type?: 'jd_upload' | 'candidate_results' | 'clarification' | 'text' | 'job_created';
+    fileName?: string;
+    candidateIds?: number[];
+    jobId?: number;
+  };
+};
+
+type Conversation = {
+  id: number;
+  messages: Message[];
+  status: string;
+  phase: string;
+  searchContext?: any;
+  matchedCandidates?: any[];
+};
 
 export default function ClientPortal() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [longlist, setLonglist] = useState<any[]>([]);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [, setLocationRoute] = useLocation();
 
   // todo: remove mock functionality - replace with real API calls
   const [currentJobs] = useState([
@@ -29,6 +58,96 @@ export default function ClientPortal() {
       posted: "1 hour ago",
     },
   ]);
+
+  // Create conversation on mount
+  const createConversationMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) throw new Error('Failed to create conversation');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setConversationId(data.id);
+      localStorage.setItem('clientConversationId', data.id.toString());
+    },
+  });
+
+  // Load existing conversation or create new one
+  useEffect(() => {
+    const savedConversationId = localStorage.getItem('clientConversationId');
+    
+    if (savedConversationId) {
+      setConversationId(parseInt(savedConversationId));
+    } else if (!conversationId && !createConversationMutation.isPending) {
+      createConversationMutation.mutate();
+    }
+  }, []);
+
+  // Fetch current conversation
+  const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
+    queryKey: ['/api/conversations', conversationId],
+    queryFn: async () => {
+      if (!conversationId) return null;
+      const response = await fetch(`/api/conversations/${conversationId}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          localStorage.removeItem('clientConversationId');
+          setConversationId(null);
+          createConversationMutation.mutate();
+          return null;
+        }
+        throw new Error('Failed to fetch conversation');
+      }
+      return response.json();
+    },
+    enabled: !!conversationId,
+    staleTime: 0,
+    refetchOnMount: true,
+    retry: false,
+  });
+
+  // Send message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ message, file }: { message: string; file?: File }) => {
+      if (!conversationId) throw new Error('No active conversation');
+
+      const formData = new FormData();
+      formData.append('content', message);
+      if (file) {
+        formData.append('file', file);
+      }
+
+      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send message');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendMessage = async (content: string, file?: File) => {
+    await sendMessageMutation.mutateAsync({ message: content, file });
+  };
 
   const handleFileSelect = async (file: File) => {
     setUploadedFile(file);
@@ -94,8 +213,12 @@ export default function ClientPortal() {
         </p>
       </div>
 
-      <Tabs defaultValue="upload" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="chat" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="chat" data-testid="tab-chat">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            AI Assistant
+          </TabsTrigger>
           <TabsTrigger value="upload" data-testid="tab-upload">
             <Upload className="h-4 w-4 mr-2" />
             Quick Upload
@@ -109,6 +232,43 @@ export default function ClientPortal() {
             My Jobs
           </TabsTrigger>
         </TabsList>
+
+        {/* AI Chat Tab */}
+        <TabsContent value="chat" className="space-y-6">
+          <Card className="border-primary/20">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>AI Recruiting Assistant</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Tell me who you're looking for, or upload a job description to get started.
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {conversationId && conversation ? (
+                <ChatInterface
+                  conversationId={conversationId}
+                  messages={conversation.messages || []}
+                  matchedCandidates={conversation.matchedCandidates}
+                  onSendMessage={handleSendMessage}
+                  isLoading={sendMessageMutation.isPending || isLoadingConversation}
+                />
+              ) : (
+                <div className="flex items-center justify-center p-12">
+                  <div className="text-center space-y-2">
+                    <Sparkles className="h-12 w-12 text-muted-foreground mx-auto" />
+                    <p className="text-muted-foreground">Loading AI Assistant...</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Quick Upload Tab */}
         <TabsContent value="upload" className="space-y-6">
