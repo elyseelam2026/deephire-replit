@@ -1872,7 +1872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/conversations/:id/messages", upload.single('file'), async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const message = req.body.message;
+      const message = req.body.content || req.body.message; // Support both field names
       const file = req.file;
 
       const conversation = await storage.getConversation(conversationId);

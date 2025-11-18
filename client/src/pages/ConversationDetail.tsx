@@ -107,12 +107,11 @@ export default function ConversationDetail() {
         title: "Success",
         description: "Conversation deleted successfully",
       });
-      // Use relative path for nested router
       const currentPath = window.location.pathname;
       if (currentPath.startsWith('/client')) {
-        setLocation('/messages');
+        setLocation('/client/messages');
       } else {
-        setLocation('/conversations');
+        setLocation('/recruiting/conversations');
       }
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
     },
@@ -130,12 +129,11 @@ export default function ConversationDetail() {
   };
 
   const handleBack = () => {
-    // Use relative path for nested router
     const currentPath = window.location.pathname;
     if (currentPath.startsWith('/client')) {
-      setLocation('/messages');
+      setLocation('/client/messages');
     } else {
-      setLocation('/conversations');
+      setLocation('/recruiting/conversations');
     }
   };
 

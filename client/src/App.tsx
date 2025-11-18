@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation, Router } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -30,26 +30,54 @@ import NotFound from "@/pages/not-found";
 function AppRouter() {
   return (
     <Switch>
+      {/* Landing Page */}
       <Route path="/" component={Landing} />
-      <Route path="/recruiting/:rest*" component={RecruitingApp} />
-      <Route path="/recruiting" component={RecruitingApp} />
-      <Route path="/client/:rest*" component={ClientApp} />
-      <Route path="/client" component={ClientApp} />
-      <Route path="/admin/:rest*" component={AdminApp} />
+      
+      {/* Client Portal Routes */}
+      <Route path="/client" component={() => <ClientApp><ClientPortal /></ClientApp>} />
+      <Route path="/client/post-job" component={() => <ClientApp><ClientPortal /></ClientApp>} />
+      <Route path="/client/jobs/:id" component={() => <ClientApp><JobDetail /></ClientApp>} />
+      <Route path="/client/jobs" component={() => <ClientApp><Jobs /></ClientApp>} />
+      <Route path="/client/candidates/:id" component={() => <ClientApp><CandidateDetail /></ClientApp>} />
+      <Route path="/client/candidates" component={() => <ClientApp><Candidates /></ClientApp>} />
+      <Route path="/client/companies/:id" component={() => <ClientApp><CompanyDetail /></ClientApp>} />
+      <Route path="/client/recycling-bin" component={() => <ClientApp><RecyclingBin /></ClientApp>} />
+      <Route path="/client/conversations/:id" component={() => <ClientApp><ConversationDetail /></ClientApp>} />
+      <Route path="/client/messages" component={() => <ClientApp><Conversations /></ClientApp>} />
+      
+      {/* Recruiting Portal Routes */}
+      <Route path="/recruiting" component={() => <RecruitingApp><Dashboard /></RecruitingApp>} />
+      <Route path="/recruiting/companies/:id" component={() => <RecruitingApp><CompanyDetail /></RecruitingApp>} />
+      <Route path="/recruiting/companies" component={() => <RecruitingApp><Companies /></RecruitingApp>} />
+      <Route path="/recruiting/jobs/:id" component={() => <RecruitingApp><JobDetail /></RecruitingApp>} />
+      <Route path="/recruiting/jobs" component={() => <RecruitingApp><Jobs /></RecruitingApp>} />
+      <Route path="/recruiting/candidates/:id" component={() => <RecruitingApp><CandidateDetail /></RecruitingApp>} />
+      <Route path="/recruiting/candidates" component={() => <RecruitingApp><Candidates /></RecruitingApp>} />
+      <Route path="/recruiting/recycling-bin" component={() => <RecruitingApp><RecyclingBin /></RecruitingApp>} />
+      <Route path="/recruiting/staging" component={() => <RecruitingApp><Staging /></RecruitingApp>} />
+      <Route path="/recruiting/conversations/:id" component={() => <RecruitingApp><ConversationDetail /></RecruitingApp>} />
+      <Route path="/recruiting/conversations" component={() => <RecruitingApp><Conversations /></RecruitingApp>} />
+      <Route path="/recruiting/outreach" component={() => <RecruitingApp><Outreach /></RecruitingApp>} />
+      <Route path="/recruiting/settings" component={() => <RecruitingApp><Settings /></RecruitingApp>} />
+      
+      {/* Admin Portal Routes */}
       <Route path="/admin" component={AdminApp} />
+      
+      {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
       <Route path="/candidate-portal" component={CandidatePortal} />
       <Route path="/candidates" component={CandidatesOnly} />
+      
+      {/* 404 */}
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function RecruitingApp() {
-  // Custom sidebar width for the recruiting application
+function RecruitingApp({ children }: { children: React.ReactNode }) {
   const style = {
-    "--sidebar-width": "16rem",       // 256px for recruiting interface
-    "--sidebar-width-icon": "3rem",   // default icon width
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
   };
 
   return (
@@ -62,24 +90,7 @@ function RecruitingApp() {
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-y-auto">
-            <Router base="/recruiting">
-              <Switch>
-                <Route path="/" component={Dashboard} />
-                <Route path="/companies/:id" component={CompanyDetail} />
-                <Route path="/companies" component={Companies} />
-                <Route path="/jobs/:id" component={JobDetail} />
-                <Route path="/jobs" component={Jobs} />
-                <Route path="/candidates/:id" component={CandidateDetail} />
-                <Route path="/candidates" component={Candidates} />
-                <Route path="/recycling-bin" component={RecyclingBin} />
-                <Route path="/staging" component={Staging} />
-                <Route path="/conversations/:id" component={ConversationDetail} />
-                <Route path="/conversations" component={Conversations} />
-                <Route path="/outreach" component={Outreach} />
-                <Route path="/settings" component={Settings} />
-                <Route component={Dashboard} />
-              </Switch>
-            </Router>
+            {children}
           </main>
         </div>
       </div>
@@ -107,7 +118,7 @@ function CandidatesOnly() {
   );
 }
 
-function ClientApp() {
+function ClientApp({ children }: { children: React.ReactNode }) {
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -123,21 +134,7 @@ function ClientApp() {
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-y-auto">
-            <Router base="/client">
-              <Switch>
-                <Route path="/" component={ClientPortal} />
-                <Route path="/post-job" component={ClientPortal} />
-                <Route path="/jobs/:id" component={JobDetail} />
-                <Route path="/jobs" component={Jobs} />
-                <Route path="/candidates/:id" component={CandidateDetail} />
-                <Route path="/candidates" component={Candidates} />
-                <Route path="/companies/:id" component={CompanyDetail} />
-                <Route path="/recycling-bin" component={RecyclingBin} />
-                <Route path="/conversations/:id" component={ConversationDetail} />
-                <Route path="/messages" component={Conversations} />
-                <Route component={ClientPortal} />
-              </Switch>
-            </Router>
+            {children}
           </main>
         </div>
       </div>
