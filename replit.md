@@ -38,6 +38,21 @@ DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolut
 - Recycling Bin added to Client Portal per user feedback
 - Messages page accessible from both Agency and Client portals with context-aware routing
 
+### NAP → Search Strategy Pipeline Fix (November 2025)
+**Problem**: NAP data was collected but never used in external searches. Promise-worker passed empty searchParams to SerpAPI, resulting in random candidates instead of targeted results.
+
+**Solution**: Modified `server/promise-worker.ts` to fetch job's searchStrategy and use Boolean query when calling SerpAPI.
+
+**Key Changes**:
+1. **Fetch searchStrategy**: Promise-worker now retrieves job's searchStrategy containing Boolean query, industry filters, location
+2. **Type-safe parameters**: Boolean query (STRING) passed to `booleanQuery` field, not keywords array
+3. **Smart fallback**: Falls back to promise.searchParams when searchStrategy missing
+4. **Error handling**: Try-catch around SerpAPI calls with proper status updates and retry increment
+5. **Zero-results logging**: Logs when Boolean query returns no profiles for debugging
+6. **Log persistence**: Re-fetches promise before completion to preserve all executionLog events
+
+**Test Results**: Job 69 (Associate at Boyu Capital) now searches with: `"(PE Associate OR IB Associate OR M&A Associate...) AND Hong Kong"` and successfully returns targeted PE/IB Associates instead of random candidates.
+
 ### NAP v2: Enhanced Needs Assessment Profile (In Progress)
 **Goal**: Transform NAP from flat checklist to client-calibrated, AI-executable contract based on 30-year headhunter feedback.
 
