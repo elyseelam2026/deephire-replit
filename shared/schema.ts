@@ -461,6 +461,11 @@ export const candidates = pgTable("candidates", {
   embeddingGeneratedAt: timestamp("embedding_generated_at"), // when embedding was last generated
   embeddingModel: text("embedding_model").default("grok-embedding"), // model used for embedding
   
+  // Hot/Warm Vault Tier System (Phase 1: Detective Clue Layer Architecture)
+  tier: text("tier"), // 'elite' | 'warm' | 'acceptable' - determines refresh cycle and storage priority
+  lastRefreshedAt: timestamp("last_refreshed_at"), // When candidate data was last refreshed from LinkedIn
+  nextRefreshDue: timestamp("next_refresh_due"), // When next refresh should occur (monthly for elite, 6-month for warm)
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
@@ -540,6 +545,46 @@ export const sourcingRuns = pgTable("sourcing_runs", {
   priority: text("priority").default("normal"), // low, normal, high, urgent
   
   // System fields
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
+// Candidate Clues - Lightweight fingerprints for 60-67% scored candidates (Detective Clue Layer)
+// These are candidates that passed Phase 3 scoring (60-67% predicted quality) but weren't scraped
+// in Phase 4. We preserve them as "clues" for market mapping, pattern detection, and future re-scoring
+// without polluting the hot candidate database or incurring scraping costs.
+export const candidateClues = pgTable("candidate_clues", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  
+  // Core identity (from Phase 2 fingerprinting)
+  linkedinUrl: varchar("linkedin_url", { length: 500 }).notNull().unique(),
+  
+  // Snippet data (from Phase 3 scoring)
+  snippetText: text("snippet_text"), // Raw snippet from SerpAPI (contains title, company, location, brief description)
+  predictedScore: integer("predicted_score"), // AI-predicted quality score (60-67% range)
+  
+  // Extracted metadata (parsed from snippet for quick filtering)
+  jobTitle: varchar("job_title", { length: 200 }),
+  companyName: varchar("company_name", { length: 200 }),
+  location: varchar("location", { length: 200 }),
+  
+  // Sourcing context
+  sourcingRunId: integer("sourcing_run_id").references(() => sourcingRuns.id),
+  jobId: integer("job_id").references(() => jobs.id), // Which job search produced this clue
+  
+  // Lifecycle management (time-limited storage)
+  discoveredAt: timestamp("discovered_at").defaultNow().notNull(),
+  archivedAt: timestamp("archived_at"), // Auto-set after 36 months (moved to cold storage)
+  
+  // Detective use cases tracking (optional analytics)
+  timesReferencedInMaps: integer("times_referenced_in_maps").default(0), // How many market maps included this clue
+  lastReferencedAt: timestamp("last_referenced_at"), // Last time used in market mapping or pattern detection
+  
+  // Re-scoring capability (future Phase 2)
+  rescoredAt: timestamp("rescored_at"), // If we re-evaluate this clue against new criteria
+  rescoredValue: integer("rescored_value"), // Updated score if re-evaluated
+  promotedToCandidateId: integer("promoted_to_candidate_id"), // If clue later became a full candidate
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
@@ -1431,6 +1476,12 @@ export const insertSourcingRunSchema = createInsertSchema(sourcingRuns).omit({
   completedAt: true,
 });
 
+export const insertCandidateClueSchema = createInsertSchema(candidateClues).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertJobMatchSchema = createInsertSchema(jobMatches).omit({
   id: true,
   createdAt: true,
@@ -1914,6 +1965,9 @@ export type Candidate = typeof candidates.$inferSelect;
 
 export type InsertSourcingRun = z.infer<typeof insertSourcingRunSchema>;
 export type SourcingRun = typeof sourcingRuns.$inferSelect;
+
+export type InsertCandidateClue = z.infer<typeof insertCandidateClueSchema>;
+export type CandidateClue = typeof candidateClues.$inferSelect;
 
 export type InsertJobMatch = z.infer<typeof insertJobMatchSchema>;
 export type JobMatch = typeof jobMatches.$inferSelect;
