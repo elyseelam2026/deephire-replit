@@ -5,7 +5,7 @@
 
 import { scrapeLinkedInProfile, type LinkedInProfileData } from './brightdata';
 import { db } from './db';
-import { sourcingRuns, candidates, jobCandidates, jobs } from '../shared/schema';
+import { sourcingRuns, candidates, jobCandidates, jobs, candidateClues } from '../shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { batchCreateCandidates } from './candidate-ingestion';
 import { scoreCandidateFit } from './ai';
@@ -1099,6 +1099,8 @@ export async function orchestrateEliteSourcing(
       totalPoints: 70
     };
     
+    // Phase 3: Score ALL candidates - function now returns full array
+    // The minQualityPercentage is used only for stats/logging
     const scoringResult = await batchScoreSnippets(
       fingerprintResult.fingerprints,
       hardSkillReqs,
@@ -1109,8 +1111,8 @@ export async function orchestrateEliteSourcing(
     result.totalCostUsd += scoringResult.estimatedCost;
     
     console.log(`   ✅ Scored ${scoringResult.totalEvaluated} candidates`);
-    console.log(`   ✅ ${scoringResult.passed} passed quality threshold (≥${config.minQualityPercentage}%)`);
-    console.log(`   ❌ ${scoringResult.filtered} rejected (<${config.minQualityPercentage}%)`);
+    console.log(`   ✅ ${scoringResult.passed} passed quality threshold (≥60%)`);
+    console.log(`   ❌ ${scoringResult.filtered} rejected (<60%)`);
     console.log(`   💰 Phase 3 Cost: $${scoringResult.estimatedCost.toFixed(3)}`);
     
     // Update cost tracking mid-loop
@@ -1129,34 +1131,83 @@ export async function orchestrateEliteSourcing(
       break;
     }
     
-    // Check if we have any quality candidates to scrape
+    // Check if we have any candidates at all
     if (scoringResult.passed === 0) {
-      console.log(`\n⚠️  No quality candidates found in this iteration.`);
+      console.log(`\n⚠️  No candidates found in this iteration.`);
       continue; // Try next iteration with different queries
     }
     
     // ───────────────────────────────────────────────────────────────────────
-    // PHASE 4: Selective Deep Scraping (ONLY Quality Candidates)
+    // PHASE 4: Three-Tier Storage (Elite/Warm/Clue Architecture)
     // ───────────────────────────────────────────────────────────────────────
     
-    console.log(`\n💎 [PHASE 4: Selective Deep Scraping]`);
-    console.log(`   Scraping ONLY ${scoringResult.passed} predicted quality candidates`);
-    console.log(`   (Avoided wasting $${((scoringResult.filtered * 0.50).toFixed(2))} on rubbish candidates)`);
+    console.log(`\n💎 [PHASE 4: Three-Tier Candidate Storage]`);
     
-    const qualityUrls = scoringResult.scoredFingerprints.map(fp => fp.url);
+    // Separate candidates by tier BEFORE scraping
+    const clueTier = scoringResult.scoredFingerprints.filter(fp => fp.predictedPercentage >= 60 && fp.predictedPercentage < 68);
+    const warmTier = scoringResult.scoredFingerprints.filter(fp => fp.predictedPercentage >= 68 && fp.predictedPercentage < 85);
+    const eliteTier = scoringResult.scoredFingerprints.filter(fp => fp.predictedPercentage >= 85);
     
-    // SCRAPE PROFILES (without auto-inserting to DB)
+    console.log(`\n   Tier Distribution:`);
+    console.log(`      🌟 Elite (≥85%): ${eliteTier.length} → Full scrape + hot vault`);
+    console.log(`      🔥 Warm (68-84%): ${warmTier.length} → Full scrape + warm vault`);
+    console.log(`      🔍 Clues (60-67%): ${clueTier.length} → Fingerprint only (NO scraping)`);
+    console.log(`      💰 Cost savings from NOT scraping clues: $${(clueTier.length * 0.50).toFixed(2)}`);
+    
+    // ─────────────────────────────────────────────────────────────────
+    // INSERT CLUE-TIER CANDIDATES (No scraping required!)
+    // ─────────────────────────────────────────────────────────────────
+    
+    console.log(`\n🔍 [Clue Layer: Inserting ${clueTier.length} lightweight fingerprints]`);
+    
+    for (const clue of clueTier) {
+      try {
+        await db.insert(candidateClues).values({
+          linkedinUrl: clue.url,
+          snippetText: clue.snippet,
+          predictedScore: clue.predictedPercentage,
+          jobTitle: clue.title || null,
+          companyName: clue.company || null,
+          location: clue.location || null,
+          sourcingRunId: config.sourcingRunId,
+          jobId: config.jobId,
+        });
+        result.qualityDistribution.acceptable++; // Count as "acceptable" tier
+        console.log(`   ✅ CLUE: ${clue.title || 'Unknown'} at ${clue.company || 'Unknown'} (${clue.predictedPercentage}%)`);
+      } catch (error) {
+        console.log(`   ⚠️  Failed to insert clue: ${clue.url}`);
+      }
+    }
+    
+    // ─────────────────────────────────────────────────────────────────
+    // SCRAPE WARM + ELITE TIER CANDIDATES ONLY
+    // ─────────────────────────────────────────────────────────────────
+    
+    const toScrape = [...eliteTier, ...warmTier];
+    console.log(`\n💎 [Selective Deep Scraping: ${toScrape.length} candidates]`);
+    console.log(`   (Avoided wasting $${(clueTier.length * 0.50).toFixed(2)} on scraping clue-tier)`);
+    
     const scrapedProfiles: LinkedInProfileData[] = [];
+    const scrapedWithTier: Array<{ profile: LinkedInProfileData; predictedTier: 'elite' | 'warm'; predictedScore: number }> = [];
     let scrapedSuccessfully = 0;
     
-    for (const url of qualityUrls) {
+    for (const fingerprint of toScrape) {
       try {
-        const profileData = await scrapeLinkedInProfile(url);
+        const profileData = await scrapeLinkedInProfile(fingerprint.url);
         scrapedProfiles.push(profileData);
+        
+        // Track predicted tier for later insertion
+        const predictedTier = fingerprint.predictedPercentage >= 85 ? 'elite' : 'warm';
+        scrapedWithTier.push({
+          profile: profileData,
+          predictedTier,
+          predictedScore: fingerprint.predictedPercentage
+        });
+        
         scrapedSuccessfully++;
-        console.log(`   ✅ Scraped: ${profileData.name}`);
+        console.log(`   ✅ Scraped (${predictedTier.toUpperCase()}): ${profileData.name}`);
       } catch (error) {
-        console.log(`   ❌ Failed to scrape: ${url}`);
+        console.log(`   ❌ Failed to scrape: ${fingerprint.url}`);
       }
     }
     
@@ -1177,67 +1228,85 @@ export async function orchestrateEliteSourcing(
       .where(eq(sourcingRuns.id, config.sourcingRunId));
     
     // ───────────────────────────────────────────────────────────────────────
-    // FORENSIC SCORING: Score BEFORE database insertion (HARD RULE ENFORCEMENT)
+    // FORENSIC SCORING: Validate scraped candidates and assign final tiers
     // ───────────────────────────────────────────────────────────────────────
     
-    console.log(`\n🔬 [Forensic Scoring: Quality Gate Before DB Insert]`);
+    console.log(`\n🔬 [Forensic Scoring: Validating ${scrapedWithTier.length} scraped candidates]`);
     
-    for (const profileData of scrapedProfiles) {
+    for (const { profile: profileData, predictedTier, predictedScore } of scrapedWithTier) {
       // Convert LinkedIn data to candidate format for scoring
       const tempCandidate = {
-        currentTitle: profileData.currentTitle,
-        currentCompany: profileData.currentCompany,
-        biography: profileData.bio,
+        currentTitle: profileData.position,
+        currentCompany: profileData.current_company_name || profileData.current_company,
+        biography: profileData.about,
         careerSummary: profileData.experience?.map(e => `${e.title} at ${e.company}`).join('; '),
         skills: profileData.skills || [],
         careerHistory: profileData.experience,
         education: profileData.education,
       } as any;
       
-      // Calculate weighted score BEFORE inserting
+      // Calculate weighted score AFTER scraping (final validation)
       const weightedResult = calculateWeightedScore(
         tempCandidate,
         hardSkillReqs.skills
       );
       
-      // HARD RULE: Reject candidates below quality threshold BEFORE database insertion
-      // Use dynamic minQualityPercentage from config (default: 68%, but user can override)
+      // HARD RULE: Reject if actual score falls below minimum threshold
+      // This catches cases where LinkedIn data quality was poor
       if (weightedResult.finalPercentage < config.minQualityPercentage) {
         result.qualityDistribution.rejected++;
         console.log(`   ❌ REJECTED (never entered DB): ${profileData.name} (${weightedResult.finalPercentage}% < ${config.minQualityPercentage}%)`);
         continue; // Skip database insertion entirely
       }
       
-      // Determine tier
-      let tier: 'elite' | 'standard' | 'acceptable';
+      // Determine final tier based on actual weighted score
+      let finalTier: 'elite' | 'warm' | 'acceptable';
       if (weightedResult.finalPercentage >= 85) {
-        tier = 'elite';
+        finalTier = 'elite';
         result.qualityDistribution.elite++;
-      } else if (weightedResult.finalPercentage >= 70) {
-        tier = 'standard';
+      } else if (weightedResult.finalPercentage >= 68) {
+        finalTier = 'warm';
         result.qualityDistribution.standard++;
       } else {
-        tier = 'acceptable';
+        finalTier = 'acceptable';
         result.qualityDistribution.acceptable++;
       }
       
-      console.log(`   ✅ ${tier.toUpperCase()} (${weightedResult.finalPercentage}%): ${profileData.name} → Inserting to DB...`);
+      console.log(`   ✅ ${finalTier.toUpperCase()} (predicted: ${predictedScore}% → actual: ${weightedResult.finalPercentage}%): ${profileData.name}`);
       
-      // NOW insert to database (only quality candidates)
+      // NOW insert to database with tier information
       try {
         const ingestionResult = await batchCreateCandidates(
           [profileData],
           config.sourcingRunId,
-          [profileData.linkedinUrl || '']
+          [profileData.url || '']
         );
         
-        if (ingestionResult[0]?.success) {
+        if (ingestionResult[0]?.success && ingestionResult[0].candidateId) {
           qualityCandidatesFound++;
           result.candidatesCreated++;
           
-          // TODO: Update candidate with tier and scores in database
-          // const candidateId = ingestionResult[0].candidateId;
-          // await db.update(candidates).set({ tier, weightedScore: weightedResult.finalPercentage })
+          // Update candidate with tier and refresh schedule
+          const candidateId = ingestionResult[0].candidateId;
+          const now = new Date();
+          const nextRefresh = new Date(now);
+          
+          // Elite: refresh monthly, Warm: refresh every 6 months
+          if (finalTier === 'elite') {
+            nextRefresh.setMonth(nextRefresh.getMonth() + 1);
+          } else if (finalTier === 'warm') {
+            nextRefresh.setMonth(nextRefresh.getMonth() + 6);
+          }
+          
+          await db.update(candidates)
+            .set({
+              tier: finalTier,
+              lastRefreshedAt: now,
+              nextRefreshDue: finalTier === 'acceptable' ? null : nextRefresh,
+            })
+            .where(eq(candidates.id, candidateId));
+          
+          console.log(`   → Stored in ${finalTier} vault (next refresh: ${finalTier === 'acceptable' ? 'never' : nextRefresh.toLocaleDateString()})`);
         }
       } catch (error) {
         console.log(`   ⚠️  Failed to insert ${profileData.name} to DB:`, error);

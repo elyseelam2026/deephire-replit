@@ -208,7 +208,7 @@ REMEMBER: Only score based on what you SEE in the snippet. Be conservative. Retu
       });
     }
 
-    // Filter to keep only ≥ minimum percentage
+    // Filter to keep only ≥ minimum percentage (for stats, but we return ALL)
     const minPoints = Math.round(minPercentage * 0.7); // Convert % to points
     const passedCandidates = scoredFingerprints.filter(
       fp => fp.predictedHardSkillScore >= minPoints
@@ -224,8 +224,10 @@ REMEMBER: Only score based on what you SEE in the snippet. Be conservative. Retu
     console.log(`      Good (68-74%): ${qualityDistribution.good_68_74}`);
     console.log(`      Poor (<68%): ${qualityDistribution.poor_below_68} ❌ REJECTED`);
     
+    // CHANGED: Return ALL scored fingerprints (including below threshold)
+    // Phase 4 will separate them by tier (Elite/Warm/Clue/Rejected)
     return {
-      scoredFingerprints: passedCandidates, // ONLY return quality candidates
+      scoredFingerprints: scoredFingerprints, // Return ALL scored candidates
       totalEvaluated: scoredFingerprints.length,
       passed: passedCandidates.length,
       filtered: scoredFingerprints.length - passedCandidates.length,
