@@ -98,18 +98,27 @@ export function calculateWeightedScore(
   // ───────────────────────────────────────────────────────────────────────────
   
   const totalScore = totalHardSkillScore + totalSoftSkillScore;
-  const finalPercentage = Math.round((totalScore / 100) * 100);
   
-  // Determine tier
+  // When soft skills are not yet evaluated (0), normalize hard skills to 100 scale
+  // so that quality tiers work correctly during sourcing
+  // Formula: (hardSkillScore / 70) * 100 = final percentage
+  // Example: 60/70 hard skills = 85.7% final (elite tier)
+  //          52/70 hard skills = 74.3% final (standard tier)
+  //          42/70 hard skills = 60.0% final (acceptable tier)
+  const finalPercentage = totalSoftSkillScore === 0
+    ? Math.round((totalHardSkillScore / 70) * 100)
+    : Math.round(totalScore); // Once soft skills added, use additive model
+  
+  // Determine tier based on final percentage
   let tier: 'elite' | 'standard' | 'acceptable' | 'rubbish';
   if (finalPercentage >= 85) {
-    tier = 'elite';
+    tier = 'elite';       // ≥60/70 hard skills (when soft skills = 0)
   } else if (finalPercentage >= 70) {
-    tier = 'standard';
+    tier = 'standard';    // ≥49/70 hard skills (when soft skills = 0)
   } else if (finalPercentage >= 60) {
-    tier = 'acceptable';
+    tier = 'acceptable';  // ≥42/70 hard skills (when soft skills = 0)
   } else {
-    tier = 'rubbish';
+    tier = 'rubbish';     // <42/70 hard skills (when soft skills = 0)
   }
   
   return {
