@@ -41,6 +41,7 @@ function AppRouter() {
       <Route path="/client/candidates/:id" component={() => <ClientApp><CandidateDetail /></ClientApp>} />
       <Route path="/client/candidates" component={() => <ClientApp><Candidates /></ClientApp>} />
       <Route path="/client/companies/:id" component={() => <ClientApp><CompanyDetail /></ClientApp>} />
+      <Route path="/client/companies" component={() => <ClientApp><Companies /></ClientApp>} />
       <Route path="/client/recycling-bin" component={() => <ClientApp><RecyclingBin /></ClientApp>} />
       <Route path="/client/conversations/:id" component={() => <ClientApp><ConversationDetail /></ClientApp>} />
       <Route path="/client/messages" component={() => <ClientApp><Conversations /></ClientApp>} />
