@@ -504,6 +504,31 @@ export const sourcingRuns = pgTable("sourcing_runs", {
   brightDataCalls: integer("bright_data_calls").default(0), // Number of Bright Data calls
   estimatedCost: real("estimated_cost"), // Estimated cost in USD
   
+  // Quality-Driven Search Controls (NEW - Task 1)
+  depthTarget: text("depth_target"), // '8_elite' | '20_standard' | '50_at_60' | '100_plus' - from DepthControl
+  minHardSkillScore: integer("min_hard_skill_score"), // Minimum hard skill % required (85 for elite, 75 for standard, 60 for deep dive)
+  targetQualityCount: integer("target_quality_count"), // How many candidates needed at quality threshold (8, 20, 50, 100)
+  qualityQuotaMet: boolean("quality_quota_met").default(false), // true if we found enough quality candidates
+  
+  // Cost Guards (prevent runaway API spending)
+  maxSearchIterations: integer("max_search_iterations").default(5), // Max search rounds before stopping
+  currentIteration: integer("current_iteration").default(1), // Current search iteration
+  maxBudgetUsd: real("max_budget_usd"), // Maximum USD spend allowed
+  actualCostUsd: real("actual_cost_usd").default(0), // Actual cost incurred
+  
+  // Quality Distribution Tracking (Search Pyramid bands)
+  qualityDistribution: jsonb("quality_distribution").$type<{
+    elite_92_100?: number;      // 92-100% hard skills
+    excellent_85_91?: number;   // 85-91% hard skills
+    good_70_84?: number;        // 70-84% hard skills
+    acceptable_60_69?: number;  // 60-69% hard skills
+    poor_below_60?: number;     // <60% hard skills
+  }>(),
+  
+  // Stopping Criteria Tracking
+  stoppingReason: text("stopping_reason"), // 'quota_met' | 'budget_exceeded' | 'max_iterations' | 'no_more_candidates' | 'manual_stop'
+  stoppingDetails: text("stopping_details"), // Human-readable explanation of why search stopped
+  
   // Timing
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
