@@ -904,3 +904,412 @@ async function scoreCandidatesForJob(jobId: number, candidateIds: number[]): Pro
     throw error;
   }
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 4-PHASE ELITE SOURCING ORCHESTRATOR (Grok's Cost-Aware Architecture)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * GOLDEN RULE: Never spend more than $0.65 to discover someone is rubbish
+ * 
+ * Phase 1: Universal NAP → Multi-Query Generator (8-15 Boolean strings + competitors)
+ * Phase 2: Cheap Fingerprinting via SerpAPI (300-800 URLs + snippets, $0.045)
+ * Phase 3: Lightning NAP Scoring with Grok (predict quality from snippets, $0.08)
+ * Phase 4: Selective Deep Scraping (ONLY predicted ≥68% candidates, ~$75)
+ * 
+ * COST COMPARISON:
+ * - Old way: Scrape all 800 → $400 for mostly rubbish
+ * - New way: Phases 1-4 → $77 for 150 quality candidates
+ * 
+ * HARD RULE: ZERO candidates <60% ever enter the database
+ */
+
+import { generateMultiQueryStrategy, extractHardSkillsFromNAP, type UniversalNAP } from './nap-query-generator';
+import { batchFingerprintSearch, type BatchFingerprintResult } from './serpapi';
+import { batchScoreSnippets, type BatchScoringResult, type HardSkillRequirements } from './grok-snippet-scorer';
+import { calculateWeightedScore } from './weighted-scoring';
+
+export interface EliteSourcingConfig {
+  sourcingRunId: number;
+  jobId: number;
+  nap: UniversalNAP;
+  
+  // Quality targets
+  targetQualityCount: number;      // How many quality candidates needed (e.g., 50)
+  minQualityPercentage: number;    // Minimum quality threshold (default: 68%)
+  
+  // Cost controls
+  maxBudgetUsd: number;            // Maximum budget (e.g., $200)
+  maxSearchIterations: number;     // Max search loops (default: 3)
+  
+  // Optional overrides
+  batchSize?: number;              // Bright Data batch size (default: 5)
+}
+
+export interface EliteSourcingResult {
+  candidatesCreated: number;
+  qualityDistribution: {
+    elite: number;        // ≥85%
+    standard: number;     // 70-84%
+    acceptable: number;   // 60-69%
+    rejected: number;     // <60% (never entered DB)
+  };
+  totalCostUsd: number;
+  phaseCosts: {
+    phase1_queries: number;
+    phase2_fingerprinting: number;
+    phase3_scoring: number;
+    phase4_scraping: number;
+  };
+  stoppingReason: 'quota_met' | 'budget_exceeded' | 'max_iterations' | 'market_exhausted';
+  iterations: number;
+}
+
+/**
+ * MAIN 4-PHASE ELITE SOURCING ORCHESTRATOR
+ * 
+ * Runs intelligent search loops until quality quota is met or budget is exhausted
+ */
+export async function orchestrateEliteSourcing(
+  config: EliteSourcingConfig
+): Promise<EliteSourcingResult> {
+  console.log(`\n╔════════════════════════════════════════════════════════════════╗`);
+  console.log(`║  4-PHASE ELITE SOURCING - Grok's Cost-Aware Architecture      ║`);
+  console.log(`╚════════════════════════════════════════════════════════════════╝`);
+  console.log(`\n📊 Configuration:`);
+  console.log(`   Job ID: ${config.jobId}`);
+  console.log(`   Sourcing Run ID: ${config.sourcingRunId}`);
+  console.log(`   Target Quality Count: ${config.targetQualityCount} candidates`);
+  console.log(`   Min Quality Threshold: ${config.minQualityPercentage}%`);
+  console.log(`   Max Budget: $${config.maxBudgetUsd}`);
+  console.log(`   Max Iterations: ${config.maxSearchIterations}`);
+  
+  // Initialize result tracking
+  const result: EliteSourcingResult = {
+    candidatesCreated: 0,
+    qualityDistribution: {
+      elite: 0,
+      standard: 0,
+      acceptable: 0,
+      rejected: 0
+    },
+    totalCostUsd: 0,
+    phaseCosts: {
+      phase1_queries: 0,
+      phase2_fingerprinting: 0,
+      phase3_scoring: 0,
+      phase4_scraping: 0
+    },
+    stoppingReason: 'market_exhausted',
+    iterations: 0
+  };
+
+  let iteration = 0;
+  let qualityCandidatesFound = 0;
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SEARCH LOOP: Continue until quota met or budget exhausted
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  while (iteration < config.maxSearchIterations) {
+    iteration++;
+    result.iterations = iteration;
+    
+    console.log(`\n\n┌────────────────────────────────────────────────────────────────┐`);
+    console.log(`│  ITERATION ${iteration}/${config.maxSearchIterations}                                                  │`);
+    console.log(`└────────────────────────────────────────────────────────────────┘`);
+    
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 1: NAP → Multi-Query Generation
+    // ───────────────────────────────────────────────────────────────────────
+    
+    console.log(`\n🎯 [PHASE 1: Query Generation]`);
+    
+    // Extract hard skills if not provided
+    if (!config.nap.hardSkillWeights) {
+      config.nap.hardSkillWeights = await extractHardSkillsFromNAP({
+        need: config.nap.need,
+        title: config.nap.title,
+        industry: config.nap.industry
+      });
+    }
+    
+    const queryStrategy = await generateMultiQueryStrategy(config.nap);
+    const phase1Cost = 0.02; // Grok query generation cost
+    result.phaseCosts.phase1_queries += phase1Cost;
+    result.totalCostUsd += phase1Cost;
+    
+    console.log(`   ✅ Generated ${queryStrategy.totalQueries} queries`);
+    console.log(`   💰 Phase 1 Cost: $${phase1Cost.toFixed(3)}`);
+    
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 2: Batch Fingerprinting (Cheap Discovery)
+    // ───────────────────────────────────────────────────────────────────────
+    
+    console.log(`\n🔍 [PHASE 2: Batch Fingerprinting]`);
+    
+    const allQueries = [
+      ...queryStrategy.booleanQueries,
+      ...queryStrategy.competitorQueries,
+      ...queryStrategy.xStrategies
+    ];
+    
+    const fingerprintResult = await batchFingerprintSearch(
+      allQueries,
+      config.nap.location
+    );
+    
+    result.phaseCosts.phase2_fingerprinting += fingerprintResult.estimatedCost;
+    result.totalCostUsd += fingerprintResult.estimatedCost;
+    
+    console.log(`   ✅ Found ${fingerprintResult.totalUnique} unique profiles`);
+    console.log(`   💰 Phase 2 Cost: $${fingerprintResult.estimatedCost.toFixed(3)}`);
+    
+    // Update cost tracking mid-loop
+    await db
+      .update(sourcingRuns)
+      .set({
+        actualCostUsd: result.totalCostUsd,
+        updatedAt: new Date()
+      })
+      .where(eq(sourcingRuns.id, config.sourcingRunId));
+    
+    // SHORT-CIRCUIT: Check budget mid-loop
+    if (result.totalCostUsd >= config.maxBudgetUsd) {
+      console.log(`\n⚠️  BUDGET EXCEEDED (mid-loop): $${result.totalCostUsd.toFixed(2)} >= $${config.maxBudgetUsd}`);
+      result.stoppingReason = 'budget_exceeded';
+      break;
+    }
+    
+    // Check if we found enough candidates
+    if (fingerprintResult.totalUnique === 0) {
+      console.log(`\n⚠️  No new candidates found. Market may be exhausted.`);
+      result.stoppingReason = 'market_exhausted';
+      break;
+    }
+    
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 3: Lightning NAP Scoring (Grok Snippet Evaluation)
+    // ───────────────────────────────────────────────────────────────────────
+    
+    console.log(`\n⚡ [PHASE 3: Lightning Scoring]`);
+    
+    const hardSkillReqs: HardSkillRequirements = {
+      skills: config.nap.hardSkillWeights || {},
+      totalPoints: 70
+    };
+    
+    const scoringResult = await batchScoreSnippets(
+      fingerprintResult.fingerprints,
+      hardSkillReqs,
+      config.minQualityPercentage
+    );
+    
+    result.phaseCosts.phase3_scoring += scoringResult.estimatedCost;
+    result.totalCostUsd += scoringResult.estimatedCost;
+    
+    console.log(`   ✅ Scored ${scoringResult.totalEvaluated} candidates`);
+    console.log(`   ✅ ${scoringResult.passed} passed quality threshold (≥${config.minQualityPercentage}%)`);
+    console.log(`   ❌ ${scoringResult.filtered} rejected (<${config.minQualityPercentage}%)`);
+    console.log(`   💰 Phase 3 Cost: $${scoringResult.estimatedCost.toFixed(3)}`);
+    
+    // Update cost tracking mid-loop
+    await db
+      .update(sourcingRuns)
+      .set({
+        actualCostUsd: result.totalCostUsd,
+        updatedAt: new Date()
+      })
+      .where(eq(sourcingRuns.id, config.sourcingRunId));
+    
+    // SHORT-CIRCUIT: Check budget mid-loop
+    if (result.totalCostUsd >= config.maxBudgetUsd) {
+      console.log(`\n⚠️  BUDGET EXCEEDED (mid-loop): $${result.totalCostUsd.toFixed(2)} >= $${config.maxBudgetUsd}`);
+      result.stoppingReason = 'budget_exceeded';
+      break;
+    }
+    
+    // Check if we have any quality candidates to scrape
+    if (scoringResult.passed === 0) {
+      console.log(`\n⚠️  No quality candidates found in this iteration.`);
+      continue; // Try next iteration with different queries
+    }
+    
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 4: Selective Deep Scraping (ONLY Quality Candidates)
+    // ───────────────────────────────────────────────────────────────────────
+    
+    console.log(`\n💎 [PHASE 4: Selective Deep Scraping]`);
+    console.log(`   Scraping ONLY ${scoringResult.passed} predicted quality candidates`);
+    console.log(`   (Avoided wasting $${((scoringResult.filtered * 0.50).toFixed(2))} on rubbish candidates)`);
+    
+    const qualityUrls = scoringResult.scoredFingerprints.map(fp => fp.url);
+    
+    // SCRAPE PROFILES (without auto-inserting to DB)
+    const scrapedProfiles: LinkedInProfileData[] = [];
+    let scrapedSuccessfully = 0;
+    
+    for (const url of qualityUrls) {
+      try {
+        const profileData = await scrapeLinkedInProfile(url);
+        scrapedProfiles.push(profileData);
+        scrapedSuccessfully++;
+        console.log(`   ✅ Scraped: ${profileData.name}`);
+      } catch (error) {
+        console.log(`   ❌ Failed to scrape: ${url}`);
+      }
+    }
+    
+    const phase4Cost = scrapedSuccessfully * 0.50; // $0.50 per Bright Data scrape
+    result.phaseCosts.phase4_scraping += phase4Cost;
+    result.totalCostUsd += phase4Cost;
+    
+    console.log(`   ✅ Successfully scraped ${scrapedSuccessfully} profiles`);
+    console.log(`   💰 Phase 4 Cost: $${phase4Cost.toFixed(2)}`);
+    
+    // Update sourcing run cost tracking
+    await db
+      .update(sourcingRuns)
+      .set({
+        actualCostUsd: result.totalCostUsd,
+        updatedAt: new Date()
+      })
+      .where(eq(sourcingRuns.id, config.sourcingRunId));
+    
+    // ───────────────────────────────────────────────────────────────────────
+    // FORENSIC SCORING: Score BEFORE database insertion (HARD RULE ENFORCEMENT)
+    // ───────────────────────────────────────────────────────────────────────
+    
+    console.log(`\n🔬 [Forensic Scoring: Quality Gate Before DB Insert]`);
+    
+    for (const profileData of scrapedProfiles) {
+      // Convert LinkedIn data to candidate format for scoring
+      const tempCandidate = {
+        currentTitle: profileData.currentTitle,
+        currentCompany: profileData.currentCompany,
+        biography: profileData.bio,
+        careerSummary: profileData.experience?.map(e => `${e.title} at ${e.company}`).join('; '),
+        skills: profileData.skills || [],
+        careerHistory: profileData.experience,
+        education: profileData.education,
+      } as any;
+      
+      // Calculate weighted score BEFORE inserting
+      const weightedResult = calculateWeightedScore(
+        tempCandidate,
+        hardSkillReqs.skills
+      );
+      
+      // HARD RULE: Reject <60% BEFORE database insertion
+      if (weightedResult.finalPercentage < 60) {
+        result.qualityDistribution.rejected++;
+        console.log(`   ❌ REJECTED (never entered DB): ${profileData.name} (${weightedResult.finalPercentage}%)`);
+        continue; // Skip database insertion entirely
+      }
+      
+      // Determine tier
+      let tier: 'elite' | 'standard' | 'acceptable';
+      if (weightedResult.finalPercentage >= 85) {
+        tier = 'elite';
+        result.qualityDistribution.elite++;
+      } else if (weightedResult.finalPercentage >= 70) {
+        tier = 'standard';
+        result.qualityDistribution.standard++;
+      } else {
+        tier = 'acceptable';
+        result.qualityDistribution.acceptable++;
+      }
+      
+      console.log(`   ✅ ${tier.toUpperCase()} (${weightedResult.finalPercentage}%): ${profileData.name} → Inserting to DB...`);
+      
+      // NOW insert to database (only quality candidates)
+      try {
+        const ingestionResult = await batchCreateCandidates(
+          [profileData],
+          config.sourcingRunId,
+          [profileData.linkedinUrl || '']
+        );
+        
+        if (ingestionResult[0]?.success) {
+          qualityCandidatesFound++;
+          result.candidatesCreated++;
+          
+          // TODO: Update candidate with tier and scores in database
+          // const candidateId = ingestionResult[0].candidateId;
+          // await db.update(candidates).set({ tier, weightedScore: weightedResult.finalPercentage })
+        }
+      } catch (error) {
+        console.log(`   ⚠️  Failed to insert ${profileData.name} to DB:`, error);
+      }
+    }
+    
+    // ───────────────────────────────────────────────────────────────────────
+    // CHECK STOPPING CONDITIONS
+    // ───────────────────────────────────────────────────────────────────────
+    
+    console.log(`\n📊 [Progress Check]`);
+    console.log(`   Quality candidates found: ${qualityCandidatesFound}/${config.targetQualityCount}`);
+    console.log(`   Total cost so far: $${result.totalCostUsd.toFixed(2)}/$${config.maxBudgetUsd}`);
+    console.log(`   Iterations: ${iteration}/${config.maxSearchIterations}`);
+    
+    // Check quota met
+    if (qualityCandidatesFound >= config.targetQualityCount) {
+      console.log(`\n✅ QUOTA MET: Found ${qualityCandidatesFound} quality candidates!`);
+      result.stoppingReason = 'quota_met';
+      break;
+    }
+    
+    // Check budget exceeded
+    if (result.totalCostUsd >= config.maxBudgetUsd) {
+      console.log(`\n⚠️  BUDGET EXCEEDED: $${result.totalCostUsd.toFixed(2)} >= $${config.maxBudgetUsd}`);
+      result.stoppingReason = 'budget_exceeded';
+      break;
+    }
+    
+    // Check max iterations
+    if (iteration >= config.maxSearchIterations) {
+      console.log(`\n⚠️  MAX ITERATIONS REACHED: ${iteration}/${config.maxSearchIterations}`);
+      result.stoppingReason = 'max_iterations';
+      break;
+    }
+    
+    // Continue with next iteration (generate 5 more alternative queries)
+    console.log(`\n🔄 Continuing to next iteration with alternative queries...`);
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FINAL SUMMARY
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  console.log(`\n╔════════════════════════════════════════════════════════════════╗`);
+  console.log(`║  ELITE SOURCING COMPLETE                                       ║`);
+  console.log(`╚════════════════════════════════════════════════════════════════╝`);
+  console.log(`\n📊 Final Results:`);
+  console.log(`   Stopping Reason: ${result.stoppingReason}`);
+  console.log(`   Total Iterations: ${result.iterations}`);
+  console.log(`   Candidates Created: ${result.candidatesCreated}`);
+  console.log(`\n   Quality Distribution:`);
+  console.log(`      Elite (≥85%): ${result.qualityDistribution.elite}`);
+  console.log(`      Standard (70-84%): ${result.qualityDistribution.standard}`);
+  console.log(`      Acceptable (60-69%): ${result.qualityDistribution.acceptable}`);
+  console.log(`      Rejected (<60%): ${result.qualityDistribution.rejected} ❌ NEVER ENTERED DB`);
+  console.log(`\n💰 Cost Breakdown:`);
+  console.log(`      Phase 1 (Query Gen): $${result.phaseCosts.phase1_queries.toFixed(3)}`);
+  console.log(`      Phase 2 (Fingerprinting): $${result.phaseCosts.phase2_fingerprinting.toFixed(3)}`);
+  console.log(`      Phase 3 (Scoring): $${result.phaseCosts.phase3_scoring.toFixed(3)}`);
+  console.log(`      Phase 4 (Scraping): $${result.phaseCosts.phase4_scraping.toFixed(2)}`);
+  console.log(`      ─────────────────────────────────`);
+  console.log(`      TOTAL: $${result.totalCostUsd.toFixed(2)}`);
+  
+  // Update sourcing run with final status
+  await db
+    .update(sourcingRuns)
+    .set({
+      status: 'completed',
+      actualCostUsd: result.totalCostUsd,
+      updatedAt: new Date()
+    })
+    .where(eq(sourcingRuns.id, config.sourcingRunId));
+  
+  return result;
+}
