@@ -22,7 +22,7 @@ import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, 
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
 import { transliterateName, inferEmail } from "./transliteration";
 import { searchLinkedInPeople } from "./serpapi";
-import { orchestrateProfileFetching } from "./sourcing-orchestrator";
+import { orchestrateProfileFetching, orchestrateEliteSourcing } from "./sourcing-orchestrator";
 import { sourcingRuns } from "@shared/schema";
 import { z } from "zod";
 import mammoth from "mammoth";
@@ -5580,6 +5580,111 @@ CRITICAL RULES - You MUST follow these strictly:
   // External Candidate Sourcing Routes
   
   // POST /api/sourcing/search - Trigger external candidate search
+  // POST /api/jobs/:jobId/sourcing/elite - Trigger 4-Phase Elite Sourcing
+  app.post("/api/jobs/:jobId/sourcing/elite", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      
+      if (isNaN(jobId)) {
+        return res.status(400).json({ error: 'Invalid job ID' });
+      }
+      
+      // Get job details
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+      
+      // Parse depth control parameters from request
+      const {
+        depthTarget = '20_standard',
+        maxBudgetUsd = 100,
+        maxIterations = 5
+      } = req.body;
+      
+      // Map depth targets to quality requirements
+      const depthConfig: Record<string, { minQualityPercentage: number; targetQualityCount: number }> = {
+        '8_elite': { minQualityPercentage: 85, targetQualityCount: 8 },
+        '20_standard': { minQualityPercentage: 70, targetQualityCount: 20 },
+        '50_at_60': { minQualityPercentage: 60, targetQualityCount: 50 },
+        '100_plus': { minQualityPercentage: 60, targetQualityCount: 100 }
+      };
+      
+      const config = depthConfig[depthTarget] || depthConfig['20_standard'];
+      
+      // Create sourcing run with quality threshold persisted
+      const sourcingRun = await storage.createSourcingRun({
+        jobId,
+        searchType: 'elite_4phase',
+        searchIntent: `4-Phase Elite Sourcing: ${depthTarget}`,
+        searchRationale: `Intelligent cost-aware sourcing targeting ${config.targetQualityCount} candidates at ≥${config.minQualityPercentage}% quality`,
+        status: 'queued',
+        depthTarget,
+        minQualityPercentage: config.minQualityPercentage, // Phase 3 filtering threshold
+        targetQualityCount: config.targetQualityCount,
+        maxBudgetUsd,
+        maxSearchIterations: maxIterations,
+        actualCostUsd: 0
+      });
+      
+      // Build NAP from job description and parsedData
+      const parsedData = job.parsedData as any || {};
+      const needAnalysis = job.needAnalysis as any || {};
+      
+      // Extract hard skill weights from skills array (equal weighting)
+      const skills = job.skills || [];
+      const hardSkillWeights: Record<string, number> = {};
+      const pointsPerSkill = skills.length > 0 ? Math.floor(70 / skills.length) : 0;
+      skills.forEach(skill => {
+        hardSkillWeights[skill] = pointsPerSkill;
+      });
+      
+      const nap = {
+        need: needAnalysis.need || `Seeking ${job.title} for critical role`,
+        authority: needAnalysis.authority || 'Reports to executive leadership',
+        pain: needAnalysis.pain || parsedData.urgency || 'Strategic hiring need',
+        title: job.title,
+        industry: parsedData.industry || needAnalysis.industry,
+        location: parsedData.location || needAnalysis.location,
+        companyName: undefined, // Will be fetched from companyId if needed
+        hardSkillWeights
+      };
+      
+      // Start elite sourcing (fire and forget)
+      orchestrateEliteSourcing({
+        nap,
+        sourcingRunId: sourcingRun.id,
+        jobId,
+        minQualityPercentage: config.minQualityPercentage,
+        targetQualityCount: config.targetQualityCount,
+        maxBudgetUsd,
+        maxSearchIterations: maxIterations
+      }).catch(error => {
+        console.error('[Elite Sourcing API] Orchestration failed:', error);
+        storage.updateSourcingRun(sourcingRun.id, {
+          status: 'failed',
+          errorLog: { error: error.message }
+        });
+      });
+      
+      res.json({
+        runId: sourcingRun.id,
+        status: 'running',
+        message: `4-Phase Elite Sourcing started for ${job.title}`,
+        config: {
+          depthTarget,
+          minQualityPercentage: config.minQualityPercentage,
+          targetQualityCount: config.targetQualityCount,
+          maxBudgetUsd
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('[Elite Sourcing API] Error:', error);
+      res.status(500).json({ error: error.message || 'Failed to start elite sourcing' });
+    }
+  });
+  
   app.post("/api/sourcing/search", async (req, res) => {
     try {
       const { jobId, searchCriteria } = req.body;

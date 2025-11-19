@@ -507,6 +507,7 @@ export const sourcingRuns = pgTable("sourcing_runs", {
   // Quality-Driven Search Controls (NEW - Task 1)
   depthTarget: text("depth_target"), // '8_elite' | '20_standard' | '50_at_60' | '100_plus' - from DepthControl
   minHardSkillScore: integer("min_hard_skill_score"), // Minimum hard skill % required (85 for elite, 75 for standard, 60 for deep dive)
+  minQualityPercentage: integer("min_quality_percentage"), // Minimum quality % for Phase 3 filtering (default: 68%)
   targetQualityCount: integer("target_quality_count"), // How many candidates needed at quality threshold (8, 20, 50, 100)
   qualityQuotaMet: boolean("quality_quota_met").default(false), // true if we found enough quality candidates
   
