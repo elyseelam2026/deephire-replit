@@ -1200,10 +1200,11 @@ export async function orchestrateEliteSourcing(
         hardSkillReqs.skills
       );
       
-      // HARD RULE: Reject <60% BEFORE database insertion
-      if (weightedResult.finalPercentage < 60) {
+      // HARD RULE: Reject candidates below quality threshold BEFORE database insertion
+      // Use dynamic minQualityPercentage from config (default: 68%, but user can override)
+      if (weightedResult.finalPercentage < config.minQualityPercentage) {
         result.qualityDistribution.rejected++;
-        console.log(`   ❌ REJECTED (never entered DB): ${profileData.name} (${weightedResult.finalPercentage}%)`);
+        console.log(`   ❌ REJECTED (never entered DB): ${profileData.name} (${weightedResult.finalPercentage}% < ${config.minQualityPercentage}%)`);
         continue; // Skip database insertion entirely
       }
       
