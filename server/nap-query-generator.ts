@@ -1,0 +1,276 @@
+/**
+ * UNIVERSAL NAP → MULTI-QUERY GENERATOR (Phase 1 of 4-Phase Elite Sourcing)
+ * 
+ * Converts ANY NAP (CFO, CTO, VP Sales, Associate, etc.) into 8-15 targeted Boolean queries
+ * + competitor mapping queries + X/Twitter strategies
+ * 
+ * UNIVERSAL: Works for ANY position, ANY industry, ANY client
+ * Focuses on HARD SKILLS only (70% weight) - soft skills evaluated by humans later
+ */
+
+import OpenAI from "openai";
+
+if (!process.env.XAI_API_KEY) {
+  throw new Error("XAI_API_KEY must be set for query generation");
+}
+
+const openai = new OpenAI({ 
+  baseURL: "https://api.x.ai/v1", 
+  apiKey: process.env.XAI_API_KEY 
+});
+
+/**
+ * NAP Input - Universal structure for any role
+ */
+export interface UniversalNAP {
+  need: string;              // Core role requirements (e.g., "CFO with M&A execution")
+  authority: string;         // Reporting structure (e.g., "CEO/Board")
+  pain: string;              // Business challenge/urgency
+  
+  // Job context
+  title: string;             // Job title (e.g., "CFO", "VP Engineering")
+  industry?: string;         // Industry context
+  location?: string;         // Geography
+  companyName?: string;      // Client company name (for competitor mapping)
+  
+  // Hard skill requirements (extracted from NAP - 70% weight)
+  hardSkillWeights?: Record<string, number>; // e.g., {"M&A execution": 25, "Mandarin": 15}
+}
+
+/**
+ * Generated Query Output - Ready for Phase 2 (Fingerprinting)
+ */
+export interface MultiQueryStrategy {
+  // Primary Boolean queries (8-15 variations)
+  booleanQueries: string[];
+  
+  // Competitor mapping queries (3-5 if applicable)
+  competitorQueries: string[];
+  
+  // X/Twitter social signal strategies (2-3)
+  xStrategies: string[];
+  
+  // Query metadata
+  totalQueries: number;
+  queryRationale: string;     // WHY these queries were chosen
+  estimatedCoverage: string;  // Expected market coverage
+}
+
+/**
+ * UNIVERSAL NAP → QUERY GENERATOR
+ * 
+ * Uses Grok AI to analyze NAP and generate targeted queries automatically
+ * Works for ANY role, ANY industry, ANY geography
+ */
+export async function generateMultiQueryStrategy(
+  nap: UniversalNAP
+): Promise<MultiQueryStrategy> {
+  console.log(`\n🎯 [Query Generator] Generating multi-query strategy for: ${nap.title}`);
+  
+  const prompt = `You are an expert executive search consultant creating LinkedIn search queries.
+
+**JOB CONTEXT:**
+- Role: ${nap.title}
+- Industry: ${nap.industry || 'Not specified'}
+- Location: ${nap.location || 'Global'}
+- Company: ${nap.companyName || 'Confidential'}
+
+**NAP ANALYSIS:**
+- NEED: ${nap.need}
+- AUTHORITY: ${nap.authority}
+- PAIN: ${nap.pain}
+
+**HARD SKILL REQUIREMENTS (70% weight - what can be found on LinkedIn):**
+${nap.hardSkillWeights 
+  ? Object.entries(nap.hardSkillWeights)
+      .sort((a, b) => b[1] - a[1])
+      .map(([skill, weight]) => `- ${skill}: ${weight} points (out of 70 total)`)
+      .join('\n')
+  : '- Extract from NEED above'
+}
+
+**YOUR TASK:**
+Generate a comprehensive multi-query search strategy with 3 components:
+
+1. **PRIMARY BOOLEAN QUERIES (8-15 variations)**
+   - Create diverse LinkedIn Boolean search strings
+   - Include role title variations (e.g., "CFO" OR "Chief Financial Officer" OR "VP Finance")
+   - Combine must-have hard skills from NAP
+   - Add industry/pain-driven keywords
+   - Use geographic targeting if specified
+   - Create both broad and narrow variations
+   
+   Examples:
+   - ("CFO" OR "Chief Financial Officer") ("M&A" OR "mergers") "Mandarin"
+   - ("VP Finance" OR "Finance Director") ("private equity" OR "PE") ("deal execution")
+   - ("Finance" OR "Financial") ("post-merger integration" OR "PMI") "Hong Kong"
+
+2. **COMPETITOR MAPPING QUERIES (3-5 if applicable)**
+   - Identify 3-5 peer companies/competitors in the industry
+   - Create targeted queries: "CompanyName" "Title" year
+   - Only include if industry context is clear
+   
+   Examples:
+   - "Hillhouse Capital" "CFO" 2024
+   - "Baring Private Equity" "Finance Director" 2024
+
+3. **X/TWITTER STRATEGIES (2-3 social signal queries)**
+   - Create Twitter/X advanced search queries
+   - Target industry influencers, job postings, professional communities
+   - Use from: operators for relevant accounts
+   
+   Examples:
+   - from:PE_Asia OR from:ChinaPE "mandarin" "CFO"
+   - from:LinkedInPEJobs "M&A" "CFO" "Hong Kong"
+
+**CRITICAL RULES:**
+- UNIVERSAL: Queries must work for THIS SPECIFIC role (adapt to CFO, CTO, Associate, VP, etc.)
+- Focus on HARD SKILLS only (what's visible on LinkedIn profiles)
+- Each query must be DISTINCT (no duplicates)
+- Prioritize must-have skills with highest weights
+- Include location keywords if specified
+- Generate 8-15 Boolean queries minimum
+- Be specific but not overly restrictive
+
+Respond in JSON format:
+{
+  "booleanQueries": ["query1", "query2", ... 8-15 queries],
+  "competitorQueries": ["query1", "query2", ... 3-5 queries or empty if not applicable],
+  "xStrategies": ["strategy1", "strategy2", ... 2-3 strategies],
+  "queryRationale": "<1-2 sentences explaining WHY these queries target the right candidates>",
+  "estimatedCoverage": "<Expected % of addressable market these queries will reach>"
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert executive search consultant. Generate comprehensive, targeted LinkedIn search queries. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 2000,
+      temperature: 0.7 // Slight creativity for query variations
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    
+    // Validate and structure response
+    const strategy: MultiQueryStrategy = {
+      booleanQueries: result.booleanQueries || [],
+      competitorQueries: result.competitorQueries || [],
+      xStrategies: result.xStrategies || [],
+      totalQueries: 
+        (result.booleanQueries?.length || 0) + 
+        (result.competitorQueries?.length || 0) + 
+        (result.xStrategies?.length || 0),
+      queryRationale: result.queryRationale || 'Query strategy generated from NAP analysis',
+      estimatedCoverage: result.estimatedCoverage || '60-80% of addressable market'
+    };
+    
+    console.log(`   ✅ Generated ${strategy.totalQueries} total queries:`);
+    console.log(`      - ${strategy.booleanQueries.length} Boolean queries`);
+    console.log(`      - ${strategy.competitorQueries.length} Competitor queries`);
+    console.log(`      - ${strategy.xStrategies.length} X/Twitter strategies`);
+    console.log(`   📊 Estimated Coverage: ${strategy.estimatedCoverage}`);
+    
+    return strategy;
+    
+  } catch (error) {
+    console.error('[Query Generator] Error:', error);
+    throw new Error(`Failed to generate query strategy: ${error}`);
+  }
+}
+
+/**
+ * EXTRACT HARD SKILLS FROM NAP
+ * 
+ * Helper function to parse NAP "need" field and extract hard skill requirements with weights
+ * This enables scoring against the 70-point hard skill scale
+ */
+export async function extractHardSkillsFromNAP(
+  nap: Pick<UniversalNAP, 'need' | 'title' | 'industry'>
+): Promise<Record<string, number>> {
+  console.log(`\n📋 [Query Generator] Extracting hard skills from NAP...`);
+  
+  const prompt = `You are analyzing a job requirement to extract HARD SKILLS (visible on LinkedIn/resume).
+
+**ROLE:** ${nap.title}
+**INDUSTRY:** ${nap.industry || 'Not specified'}
+**NEED:** ${nap.need}
+
+**TASK:**
+Extract 4-8 HARD SKILL requirements and assign point weights (total must = 70 points).
+
+**HARD SKILLS = Observable on LinkedIn/Resume:**
+- Technical skills (e.g., "Python", "M&A execution", "financial modeling")
+- Experience requirements (e.g., "PE fund experience", "scaling SaaS")
+- Certifications (e.g., "CFA", "CPA", "AWS certified")
+- Industry background (e.g., "fintech experience", "healthcare")
+- Language proficiency (e.g., "Mandarin fluency")
+- Domain expertise (e.g., "regulatory compliance", "IPO readiness")
+
+**NOT HARD SKILLS (these are soft skills - ignore):**
+- Leadership style
+- Cultural fit
+- Communication skills
+- Personality traits
+- Team dynamics
+
+**WEIGHTING RULES:**
+- Total points MUST equal exactly 70
+- Most critical skills: 20-25 points
+- Important skills: 12-18 points
+- Nice-to-have skills: 5-10 points
+- Extract 4-8 skills maximum
+
+Respond in JSON format:
+{
+  "hardSkills": {
+    "Skill name 1": 25,
+    "Skill name 2": 20,
+    "Skill name 3": 15,
+    "Skill name 4": 10
+  },
+  "totalPoints": 70
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert at analyzing job requirements and extracting measurable hard skills. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 500
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    const hardSkills = result.hardSkills || {};
+    
+    console.log(`   ✅ Extracted ${Object.keys(hardSkills).length} hard skills:`);
+    Object.entries(hardSkills).forEach(([skill, points]) => {
+      console.log(`      - ${skill}: ${points} points`);
+    });
+    
+    return hardSkills;
+    
+  } catch (error) {
+    console.error('[Query Generator] Error extracting hard skills:', error);
+    // Fallback: return empty object, caller can handle
+    return {};
+  }
+}

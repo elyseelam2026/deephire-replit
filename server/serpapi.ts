@@ -1,7 +1,33 @@
 /**
  * SerpAPI Client for External Candidate Sourcing
  * Provides specialized search functions for discovering candidates via LinkedIn and web
+ * 
+ * PHASE 2 of 4-Phase Elite Sourcing: Cheap Fingerprinting
  */
+
+/**
+ * Lightweight fingerprint (Phase 2 output - NO Bright Data yet)
+ */
+export interface CandidateFingerprint {
+  url: string;              // LinkedIn profile URL (unique ID)
+  name: string;
+  title: string;
+  company: string;
+  location: string;
+  snippet: string;          // Brief description for Phase 3 scoring
+  source: string;           // Which query found this candidate
+}
+
+/**
+ * Batch search result from Phase 2
+ */
+export interface BatchFingerprintResult {
+  fingerprints: CandidateFingerprint[];
+  totalUnique: number;
+  queriesExecuted: number;
+  apiCallsMade: number;
+  estimatedCost: number;    // SerpAPI cost ($0.003 per query)
+}
 
 export interface LinkedInSearchParams {
   title?: string;           // Job title (e.g., "CFO", "Investment Director")
@@ -422,4 +448,146 @@ export function isValidLinkedInUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * PHASE 2: BATCH FINGERPRINTING (Cheap Candidate Discovery)
+ * 
+ * Runs 8-15 queries from Phase 1 in parallel via SerpAPI
+ * Collects 300-800 LinkedIn URLs + snippets
+ * Deduplicates by URL
+ * 
+ * NO Bright Data scraping yet - just lightweight metadata
+ * Cost: $0.003 per query × 15 queries = $0.045 total
+ * 
+ * @param queries - Array of Boolean search queries from Phase 1
+ * @param location - Optional location filter
+ * @param maxResultsPerQuery - Max results to collect per query (default: 50)
+ */
+export async function batchFingerprintSearch(
+  queries: string[],
+  location?: string,
+  maxResultsPerQuery: number = 50
+): Promise<BatchFingerprintResult> {
+  console.log(`\n🔍 [Phase 2: Batch Fingerprinting] Starting...`);
+  console.log(`   Queries to execute: ${queries.length}`);
+  console.log(`   Max results per query: ${maxResultsPerQuery}`);
+  
+  const apiKey = process.env.SERPAPI_API_KEY;
+  if (!apiKey) {
+    throw new Error('SERPAPI_API_KEY not configured');
+  }
+
+  // Execute all queries in parallel
+  const searchPromises = queries.map(async (query, index) => {
+    console.log(`   [Query ${index + 1}/${queries.length}] "${query.substring(0, 60)}..."`);
+    
+    try {
+      // Build LinkedIn site-search query
+      const linkedInQuery = `site:linkedin.com/in ${query}`;
+      
+      const url = new URL('https://serpapi.com/search.json');
+      url.searchParams.set('api_key', apiKey);
+      url.searchParams.set('engine', 'google');
+      url.searchParams.set('q', linkedInQuery);
+      url.searchParams.set('num', String(Math.min(maxResultsPerQuery, 100)));
+      if (location) {
+        url.searchParams.set('location', location);
+      }
+      
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        console.error(`   ❌ Query ${index + 1} failed: ${response.status}`);
+        return { query, profiles: [], error: `HTTP ${response.status}` };
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error(`   ❌ Query ${index + 1} error: ${data.error}`);
+        return { query, profiles: [], error: data.error };
+      }
+      
+      // Parse results into fingerprints
+      const results = data.organic_results || [];
+      const profiles: CandidateFingerprint[] = [];
+      
+      for (const result of results) {
+        const profileUrl = result.link || '';
+        
+        // Only process valid LinkedIn profile URLs
+        if (!profileUrl.includes('linkedin.com/in/')) {
+          continue;
+        }
+        
+        // Extract profile data from Google result
+        const titleParts = (result.title || '').split(/[\-|]/);
+        const name = titleParts[0]?.trim() || 'Unknown';
+        const title = titleParts[1]?.trim() || 'No title';
+        const company = titleParts[2]?.replace('LinkedIn', '').trim() || 'Unknown';
+        
+        profiles.push({
+          url: profileUrl,
+          name,
+          title,
+          company,
+          location: location || 'Unknown',
+          snippet: result.snippet || '',
+          source: `Query ${index + 1}: ${query.substring(0, 40)}...`
+        });
+      }
+      
+      console.log(`   ✅ Query ${index + 1}: Found ${profiles.length} profiles`);
+      return { query, profiles, error: null };
+      
+    } catch (error) {
+      console.error(`   ❌ Query ${index + 1} exception:`, error);
+      return { query, profiles: [], error: String(error) };
+    }
+  });
+
+  // Wait for all queries to complete
+  const results = await Promise.all(searchPromises);
+  
+  // Collect all fingerprints
+  const allFingerprints: CandidateFingerprint[] = [];
+  for (const result of results) {
+    allFingerprints.push(...result.profiles);
+  }
+  
+  console.log(`\n📊 [Phase 2: Deduplication] Total fingerprints collected: ${allFingerprints.length}`);
+  
+  // Deduplicate by URL (same person may appear in multiple queries)
+  const uniqueMap = new Map<string, CandidateFingerprint>();
+  for (const fingerprint of allFingerprints) {
+    // Normalize URL (remove trailing slashes, query params)
+    const normalizedUrl = fingerprint.url.split('?')[0].replace(/\/$/, '');
+    
+    if (!uniqueMap.has(normalizedUrl)) {
+      uniqueMap.set(normalizedUrl, fingerprint);
+    }
+  }
+  
+  const uniqueFingerprints = Array.from(uniqueMap.values());
+  
+  // Calculate cost
+  const queriesExecuted = queries.length;
+  const apiCallsMade = queriesExecuted; // 1 API call per query
+  const estimatedCost = apiCallsMade * 0.003; // $0.003 per SerpAPI call
+  
+  console.log(`✅ [Phase 2: Complete]`);
+  console.log(`   Total profiles found: ${allFingerprints.length}`);
+  console.log(`   Unique profiles: ${uniqueFingerprints.length}`);
+  console.log(`   Queries executed: ${queriesExecuted}`);
+  console.log(`   API calls made: ${apiCallsMade}`);
+  console.log(`   Estimated cost: $${estimatedCost.toFixed(3)}`);
+  
+  return {
+    fingerprints: uniqueFingerprints,
+    totalUnique: uniqueFingerprints.length,
+    queriesExecuted,
+    apiCallsMade,
+    estimatedCost
+  };
 }
