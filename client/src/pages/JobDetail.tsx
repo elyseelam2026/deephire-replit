@@ -63,7 +63,7 @@ export default function JobDetail() {
 
   // Mutation to update search depth
   const updateSearchDepthMutation = useMutation({
-    mutationFn: async (newTarget: '8_elite' | '20_standard' | '50_at_60' | '100_plus') => {
+    mutationFn: async (newTarget: 'elite_8' | 'elite_15' | 'standard_25' | 'deep_60' | 'market_scan' | '8_elite' | '20_standard' | '50_at_60' | '100_plus') => {
       const response = await fetch(`/api/jobs/${jobId}/search-depth`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -97,14 +97,17 @@ export default function JobDetail() {
     const target = config.target;
     let targetMet = false;
     
-    if (target === '8_elite') {
-      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 85).length >= 8;
-    } else if (target === '20_standard') {
-      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 75).length >= 20;
-    } else if (target === '50_at_60') {
-      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 60).length >= 50;
-    } else if (target === '100_plus') {
-      targetMet = jobCandidates.length >= 100;
+    // Support both new and legacy tier identifiers
+    if (target === 'elite_8' || target === '8_elite') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 88).length >= 8;
+    } else if (target === 'elite_15') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 84).length >= 15;
+    } else if (target === 'standard_25' || target === '20_standard') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 76).length >= 25;
+    } else if (target === 'deep_60' || target === '50_at_60') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 66).length >= 60;
+    } else if (target === 'market_scan' || target === '100_plus') {
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 58).length >= 150;
     }
 
     if (targetMet) {
