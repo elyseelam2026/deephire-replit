@@ -8,6 +8,7 @@ import { Job } from "@shared/schema";
 import { Link } from "wouter";
 import CandidatePipeline from "@/components/CandidatePipeline";
 import { SearchPyramid } from "@/components/SearchPyramid";
+import { MarketCoverage } from "@/components/MarketCoverage";
 import { DepthControl } from "@/components/DepthControl";
 import { CollapsibleJobInfo } from "@/components/CollapsibleJobInfo";
 import { useToast } from "@/hooks/use-toast";
@@ -197,9 +198,13 @@ export default function JobDetail() {
       {/* Main Content - Pyramid + Pipeline */}
       <div className="flex-1 overflow-hidden p-6">
         <div className="grid grid-cols-12 gap-6 h-full">
-          {/* Left: Search Pyramid (4 cols) + Depth Control */}
+          {/* Left: Search Pyramid (4 cols) + Market Coverage + Depth Control */}
           <div className="col-span-4 space-y-4 overflow-y-auto">
             <SearchPyramid candidates={jobCandidates} />
+            <MarketCoverage 
+              jobId={Number(jobId)}
+              presentedCount={jobCandidates.length}
+            />
             <DepthControl 
               current={searchConfig.target} 
               isRunning={searchConfig.isRunning}

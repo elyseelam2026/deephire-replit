@@ -459,6 +459,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get candidate clues (screened-out + market intelligence) for a job
+  app.get("/api/candidate-clues/:jobId", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const clues = await db
+        .select({
+          id: candidateClues.id,
+          tier: candidateClues.tier,
+          predictedScore: candidateClues.predictedScore,
+          jobTitle: candidateClues.jobTitle,
+          companyName: candidateClues.companyName,
+          location: candidateClues.location,
+          linkedinUrl: candidateClues.linkedinUrl,
+          snippetText: candidateClues.snippetText,
+        })
+        .from(candidateClues)
+        .where(eq(candidateClues.jobId, jobId));
+      
+      res.json(clues);
+    } catch (error) {
+      console.error("Error fetching candidate clues:", error);
+      res.status(500).json({ error: "Failed to fetch candidate clues" });
+    }
+  });
+
   // Update job candidate status with history tracking
   app.patch("/api/job-candidates/:id/status", async (req, res) => {
     try {
