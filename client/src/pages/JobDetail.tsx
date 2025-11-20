@@ -132,7 +132,7 @@ export default function JobDetail() {
   }
 
   const searchConfig = (job.searchDepthConfig || {
-    target: '50_at_60',
+    target: 'standard_25',
     isRunning: false,
     marketCoverage: 0,
     estimatedMarketSize: 200
