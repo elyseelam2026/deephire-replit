@@ -946,6 +946,57 @@ export interface EliteSourcingConfig {
   batchSize?: number;              // Bright Data batch size (default: 5)
 }
 
+/**
+ * Maps search depth presets to sourcing configuration
+ * Prevents wasting credits on low-quality candidates
+ */
+export function mapSearchDepthToConfig(
+  searchDepth: '8_elite' | '20_standard' | '50_at_60' | '100_plus'
+): Pick<EliteSourcingConfig, 'targetQualityCount' | 'minQualityPercentage' | 'maxBudgetUsd' | 'maxSearchIterations'> {
+  switch (searchDepth) {
+    case '8_elite':
+      return {
+        targetQualityCount: 8,
+        minQualityPercentage: 85,  // Elite only (≥85% hard skills)
+        maxBudgetUsd: 20,           // ~8 candidates × $2.50 avg
+        maxSearchIterations: 2      // Quick, focused search
+      };
+    
+    case '20_standard':
+      return {
+        targetQualityCount: 20,
+        minQualityPercentage: 75,  // Standard quality (≥75% hard skills)
+        maxBudgetUsd: 50,           // ~20 candidates × $2.50 avg
+        maxSearchIterations: 3      // Standard depth
+      };
+    
+    case '50_at_60':
+      return {
+        targetQualityCount: 50,
+        minQualityPercentage: 60,  // Deep dive - acceptable tier
+        maxBudgetUsd: 125,          // ~50 candidates × $2.50 avg
+        maxSearchIterations: 5      // Deeper search
+      };
+    
+    case '100_plus':
+      return {
+        targetQualityCount: 100,
+        minQualityPercentage: 60,  // Exhaustive - go nuclear
+        maxBudgetUsd: 300,          // ~100+ candidates × $2.50 avg
+        maxSearchIterations: 10     // Full market scan
+      };
+    
+    default:
+      // Default to standard
+      return {
+        targetQualityCount: 20,
+        minQualityPercentage: 75,
+        maxBudgetUsd: 50,
+        maxSearchIterations: 3
+      };
+  }
+}
+
 export interface EliteSourcingResult {
   candidatesCreated: number;
   qualityDistribution: {
