@@ -37,7 +37,14 @@ export default function Companies() {
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Company>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { toast } = useToast();
+  const [showAddCompanyDialog, setShowAddCompanyDialog] = useState(false);
+  const [newCompanyData, setNewCompanyData] = useState({
+    name: "",
+    website: "",
+    location: "",
+    industry: "",
+  });
+  const { toast} = useToast();
   
   const { data: companies, isLoading, error } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
@@ -209,6 +216,31 @@ export default function Companies() {
       toast({
         title: "Error",
         description: "Failed to update company",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Create company mutation
+  const createCompany = useMutation({
+    mutationFn: async (companyData: { name: string; website?: string; location?: string; industry?: string }) => {
+      const response = await apiRequest('POST', '/api/companies', companyData);
+      return await response.json();
+    },
+    onSuccess: (newCompany) => {
+      toast({
+        title: "Success!",
+        description: "Company created successfully",
+      });
+      setShowAddCompanyDialog(false);
+      setNewCompanyData({ name: "", website: "", location: "", industry: "" });
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      setSelectedCompany(newCompany);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create company",
         variant: "destructive",
       });
     },
@@ -410,7 +442,7 @@ export default function Companies() {
             {searchQuery ? `Search results for "${searchQuery}"` : `Manage your client companies (${companies?.length || 0} headquarters)`}
           </p>
         </div>
-        <Button data-testid="button-add-company">
+        <Button onClick={() => setShowAddCompanyDialog(true)} data-testid="button-add-company">
           <Building2 className="h-4 w-4 mr-2" />
           Add Company
         </Button>
@@ -515,7 +547,7 @@ export default function Companies() {
             <p className="text-muted-foreground mb-4">
               Add your first company to start posting jobs and finding candidates.
             </p>
-            <Button data-testid="button-add-first-company">
+            <Button onClick={() => setShowAddCompanyDialog(true)} data-testid="button-add-first-company">
               <Building2 className="h-4 w-4 mr-2" />
               Add Company
             </Button>
@@ -1357,6 +1389,79 @@ export default function Companies() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Company Dialog */}
+      <Dialog open={showAddCompanyDialog} onOpenChange={setShowAddCompanyDialog}>
+        <DialogContent data-testid="dialog-add-company">
+          <DialogHeader>
+            <DialogTitle>Add New Company</DialogTitle>
+            <DialogDescription>
+              Create a new client company in your database
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="company-name">Company Name *</Label>
+              <Input
+                id="company-name"
+                placeholder="e.g., KKR & Co."
+                value={newCompanyData.name}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, name: e.target.value })}
+                data-testid="input-company-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="company-website">Website</Label>
+              <Input
+                id="company-website"
+                placeholder="e.g., https://www.kkr.com"
+                value={newCompanyData.website}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, website: e.target.value })}
+                data-testid="input-company-website"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="company-location">Location</Label>
+              <Input
+                id="company-location"
+                placeholder="e.g., New York, NY"
+                value={newCompanyData.location}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, location: e.target.value })}
+                data-testid="input-company-location"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="company-industry">Industry</Label>
+              <Input
+                id="company-industry"
+                placeholder="e.g., Private Equity"
+                value={newCompanyData.industry}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, industry: e.target.value })}
+                data-testid="input-company-industry"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddCompanyDialog(false);
+                setNewCompanyData({ name: "", website: "", location: "", industry: "" });
+              }}
+              data-testid="button-cancel-add-company"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createCompany.mutate(newCompanyData)}
+              disabled={!newCompanyData.name || createCompany.isPending}
+              data-testid="button-submit-add-company"
+            >
+              {createCompany.isPending ? 'Creating...' : 'Add Company'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
