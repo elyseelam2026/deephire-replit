@@ -5669,6 +5669,7 @@ CRITICAL RULES - You MUST follow these strictly:
         jobId,
         minQualityPercentage: config.minQualityPercentage,
         targetQualityCount: config.targetQualityCount,
+        maxCandidates: config.maxCandidates,
         maxBudgetUsd: config.maxBudgetUsd,
         maxSearchIterations: config.maxSearchIterations
       }).catch(error => {

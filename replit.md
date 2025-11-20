@@ -27,6 +27,20 @@ The frontend is built with React 18, TypeScript, Radix UI, shadcn/ui, Tailwind C
 - When soft skills > 0: finalPercentage = hardSkillScore + softSkillScore (additive model)
 - Quality Tiers: Elite (≥85%, requires ≥60/70 hard skills when soft=0), Standard (70-84%, requires ≥49/70), Acceptable (60-69%, requires ≥42/70), Rejected (<60%)
 
+**VALUE-BASED PRICING MODEL** (Implemented Jan 2025 - Grok + ChatGPT Strategy)
+The platform employs a revolutionary pricing strategy that mirrors real executive search economics: **Elite searches cost MORE (precision is valuable), volume searches cost LESS per candidate (noise is cheap)**. This inverts the typical SaaS pricing model to reward quality-focused recruiting.
+
+**Search Depth Tiers** (server/sourcing-orchestrator.ts - `mapSearchDepthToConfig`):
+- **Elite 8** (≥88% hard skills): $149 - C-suite, PE CFO/COO, Fund Partners. Premium pricing reflects the difficulty of finding 8 perfect candidates who can transform a portfolio company.
+- **Elite 15** (≥84% hard skills): $199 - VP/SVP, GM, Functional Heads. Highest-priced tier emphasizes precision over volume.
+- **Standard 25** (≥76% hard skills): $129 - Director-level, Senior roles. Sweet spot for most executive searches.
+- **Deep 60** (≥66% hard skills): $149 - Specialists, wide net, niche roles. More candidates but cheaper per candidate than elite tiers.
+- **Market Scan** (≥58% hard skills): $179 flat fee - Intelligence gathering, market mapping, salary benchmarking. Cheapest per-candidate option (150+ profiles).
+
+**Pricing Philosophy**: Finding 8 perfect PE CFO candidates requires more AI compute, deeper market research, and stricter quality gates than finding 150 mediocre profiles. Users pay for **precision, not noise** - exactly how traditional executive search firms justify 20-33% of first-year compensation for quality placements. The system enforces early stopping when target quality count is reached, preventing credit waste on low-quality candidates.
+
+**Legacy Tier Support**: The system maintains backward compatibility with legacy tier names (8_elite → elite_8, 20_standard → standard_25, 50_at_60 → deep_60, 100_plus → market_scan) during the transition period.
+
 **Candidate Detail Workspace** - A comprehensive full-page interface featuring 6 tabs (Overview, Activity Log, Files, Job Assignments, Career History, Executive Biography) with inline activity creation, document management, and job assignment tracking. The hybrid approach retains War Room modal quick previews with a "View Full Profile" button for deep-dive candidate management.
 
 ### System Design Choices

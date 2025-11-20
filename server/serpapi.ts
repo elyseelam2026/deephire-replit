@@ -69,7 +69,8 @@ export interface LinkedInPeopleSearchResult {
  */
 export async function searchLinkedInPeople(
   params: LinkedInSearchParams,
-  limit: number = 20
+  limit: number = 20,
+  shortlistLimit?: number
 ): Promise<LinkedInPeopleSearchResult> {
   const apiKey = process.env.SERPAPI_API_KEY;
   
@@ -178,7 +179,7 @@ export async function searchLinkedInPeople(
     
     // RELEVANCE FILTER: Pre-screen before Bright Data scraping
     let filteredProfiles = profiles;
-    const shortlistLimit = 12; // Cap at 12 high-quality candidates
+    const effectiveShortlistLimit = shortlistLimit || 12; // Use tier limit or default 12
     
     if (params.prioritySignals && params.requiredKeywords && 
         (params.prioritySignals.length > 0 || params.requiredKeywords.length > 0)) {
@@ -204,11 +205,11 @@ export async function searchLinkedInPeople(
       console.log(`🎯 [Relevance Filter] ${filteredProfiles.length}/${profiles.length} profiles passed quality gate`);
     }
     
-    // Cap at shortlist limit (12 high-quality candidates)
-    const finalProfiles = filteredProfiles.slice(0, shortlistLimit);
+    // Cap at shortlist limit (tier-based or default 12)
+    const finalProfiles = filteredProfiles.slice(0, effectiveShortlistLimit);
     
-    if (filteredProfiles.length > shortlistLimit) {
-      console.log(`📊 [Shortlist] Capped to ${shortlistLimit} top candidates (${filteredProfiles.length - shortlistLimit} excluded)`);
+    if (filteredProfiles.length > effectiveShortlistLimit) {
+      console.log(`📊 [Shortlist] Capped to ${effectiveShortlistLimit} top candidates (${filteredProfiles.length - effectiveShortlistLimit} excluded)`);
     }
     
     return {
@@ -467,11 +468,13 @@ export function isValidLinkedInUrl(url: string): boolean {
 export async function batchFingerprintSearch(
   queries: string[],
   location?: string,
-  maxResultsPerQuery: number = 50
+  maxResultsPerQuery: number = 50,
+  totalCandidateLimit?: number
 ): Promise<BatchFingerprintResult> {
   console.log(`\n🔍 [Phase 2: Batch Fingerprinting] Starting...`);
   console.log(`   Queries to execute: ${queries.length}`);
   console.log(`   Max results per query: ${maxResultsPerQuery}`);
+  console.log(`   Total candidate limit: ${totalCandidateLimit || 'unlimited'}`);
   
   const apiKey = process.env.SERPAPI_API_KEY;
   if (!apiKey) {
@@ -569,7 +572,13 @@ export async function batchFingerprintSearch(
     }
   }
   
-  const uniqueFingerprints = Array.from(uniqueMap.values());
+  let uniqueFingerprints = Array.from(uniqueMap.values());
+  
+  // Apply total candidate limit (tier-based cap)
+  if (totalCandidateLimit && uniqueFingerprints.length > totalCandidateLimit) {
+    console.log(`\n📊 [Tier Limit] Capping fingerprints to ${totalCandidateLimit} (${uniqueFingerprints.length - totalCandidateLimit} excluded)`);
+    uniqueFingerprints = uniqueFingerprints.slice(0, totalCandidateLimit);
+  }
   
   // Calculate cost
   const queriesExecuted = queries.length;
@@ -579,6 +588,7 @@ export async function batchFingerprintSearch(
   console.log(`✅ [Phase 2: Complete]`);
   console.log(`   Total profiles found: ${allFingerprints.length}`);
   console.log(`   Unique profiles: ${uniqueFingerprints.length}`);
+  console.log(`   Tier limit applied: ${totalCandidateLimit ? `${totalCandidateLimit} candidates` : 'none'}`);
   console.log(`   Queries executed: ${queriesExecuted}`);
   console.log(`   API calls made: ${apiCallsMade}`);
   console.log(`   Estimated cost: $${estimatedCost.toFixed(3)}`);
