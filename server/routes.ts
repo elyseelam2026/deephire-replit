@@ -5595,22 +5595,15 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(404).json({ error: 'Job not found' });
       }
       
-      // Parse depth control parameters from request
-      const {
-        depthTarget = '20_standard',
-        maxBudgetUsd = 100,
-        maxIterations = 5
-      } = req.body;
+      // Get search depth from job's searchDepthConfig OR request body
+      const jobSearchConfig = job.searchDepthConfig as any;
+      const depthTarget = jobSearchConfig?.target || req.body.depthTarget || '20_standard';
       
-      // Map depth targets to quality requirements
-      const depthConfig: Record<string, { minQualityPercentage: number; targetQualityCount: number }> = {
-        '8_elite': { minQualityPercentage: 85, targetQualityCount: 8 },
-        '20_standard': { minQualityPercentage: 70, targetQualityCount: 20 },
-        '50_at_60': { minQualityPercentage: 60, targetQualityCount: 50 },
-        '100_plus': { minQualityPercentage: 60, targetQualityCount: 100 }
-      };
+      // Import the search depth mapper
+      const { mapSearchDepthToConfig } = await import('./sourcing-orchestrator');
       
-      const config = depthConfig[depthTarget] || depthConfig['20_standard'];
+      // Map depth preset to config values (uses built-in quality thresholds and budgets)
+      const config = mapSearchDepthToConfig(depthTarget as any);
       
       // Create sourcing run with quality threshold persisted
       const sourcingRun = await storage.createSourcingRun({
@@ -5622,8 +5615,8 @@ CRITICAL RULES - You MUST follow these strictly:
         depthTarget,
         minQualityPercentage: config.minQualityPercentage, // Phase 3 filtering threshold
         targetQualityCount: config.targetQualityCount,
-        maxBudgetUsd,
-        maxSearchIterations: maxIterations,
+        maxBudgetUsd: config.maxBudgetUsd,
+        maxSearchIterations: config.maxSearchIterations,
         actualCostUsd: 0
       });
       
@@ -5657,8 +5650,8 @@ CRITICAL RULES - You MUST follow these strictly:
         jobId,
         minQualityPercentage: config.minQualityPercentage,
         targetQualityCount: config.targetQualityCount,
-        maxBudgetUsd,
-        maxSearchIterations: maxIterations
+        maxBudgetUsd: config.maxBudgetUsd,
+        maxSearchIterations: config.maxSearchIterations
       }).catch(error => {
         console.error('[Elite Sourcing API] Orchestration failed:', error);
         storage.updateSourcingRun(sourcingRun.id, {
@@ -5675,7 +5668,7 @@ CRITICAL RULES - You MUST follow these strictly:
           depthTarget,
           minQualityPercentage: config.minQualityPercentage,
           targetQualityCount: config.targetQualityCount,
-          maxBudgetUsd
+          maxBudgetUsd: config.maxBudgetUsd
         }
       });
       
