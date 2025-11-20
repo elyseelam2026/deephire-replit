@@ -107,7 +107,7 @@ export default function JobDetail() {
     } else if (target === 'deep_60' || target === '50_at_60') {
       targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 66).length >= 60;
     } else if (target === 'market_scan' || target === '100_plus') {
-      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 58).length >= 150;
+      targetMet = jobCandidates.filter((c: any) => (c.hardSkillScore ?? 0) >= 60).length >= 150;
     }
 
     if (targetMet) {

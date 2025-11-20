@@ -1012,7 +1012,7 @@ export function mapSearchDepthToConfig(
       config = {
         targetQualityCount: 150,
         maxCandidates: 999,         // Essentially unlimited for market scans
-        minQualityPercentage: 58,   // INTELLIGENCE: ≥58% hard skills - Market mapping
+        minQualityPercentage: 60,   // UNIVERSAL FLOOR: ≥60% hard skills - Market mapping
         maxBudgetUsd: 179,           // $179 flat - Cheapest per candidate
         maxSearchIterations: 10      // Full market scan for intel
       };
@@ -1244,6 +1244,7 @@ export async function orchestrateEliteSourcing(
     console.log(`\n💎 [PHASE 4: Three-Tier Candidate Storage]`);
     
     // Separate candidates by tier BEFORE scraping
+    const screenedOut = scoringResult.scoredFingerprints.filter(fp => fp.predictedPercentage < 60);
     const clueTier = scoringResult.scoredFingerprints.filter(fp => fp.predictedPercentage >= 60 && fp.predictedPercentage < 68);
     const warmTier = scoringResult.scoredFingerprints.filter(fp => fp.predictedPercentage >= 68 && fp.predictedPercentage < 85);
     const eliteTier = scoringResult.scoredFingerprints.filter(fp => fp.predictedPercentage >= 85);
@@ -1252,7 +1253,34 @@ export async function orchestrateEliteSourcing(
     console.log(`      🌟 Elite (≥85%): ${eliteTier.length} → Full scrape + hot vault`);
     console.log(`      🔥 Warm (68-84%): ${warmTier.length} → Full scrape + warm vault`);
     console.log(`      🔍 Clues (60-67%): ${clueTier.length} → Fingerprint only (NO scraping)`);
-    console.log(`      💰 Cost savings from NOT scraping clues: $${(clueTier.length * 0.50).toFixed(2)}`);
+    console.log(`      ❌ Screened Out (<60%): ${screenedOut.length} → Proof of market coverage (client confidence)`);
+    console.log(`      💰 Cost savings from NOT scraping clues+screened: $${((clueTier.length + screenedOut.length) * 0.50).toFixed(2)}`);
+    
+    // ─────────────────────────────────────────────────────────────────
+    // INSERT SCREENED-OUT CANDIDATES (Market coverage proof!)
+    // ─────────────────────────────────────────────────────────────────
+    
+    console.log(`\n❌ [Screened Out Layer: Inserting ${screenedOut.length} rejected candidates for market coverage proof]`);
+    
+    for (const rejected of screenedOut) {
+      try {
+        await db.insert(candidateClues).values({
+          linkedinUrl: rejected.url,
+          snippetText: rejected.snippet,
+          predictedScore: rejected.predictedPercentage,
+          tier: 'screened_out', // Mark as screened out
+          jobTitle: rejected.title || null,
+          companyName: rejected.company || null,
+          location: rejected.location || null,
+          sourcingRunId: config.sourcingRunId,
+          jobId: config.jobId,
+        });
+        result.qualityDistribution.rejected++;
+        console.log(`   ❌ SCREENED: ${rejected.title || 'Unknown'} at ${rejected.company || 'Unknown'} (${rejected.predictedPercentage}%)`);
+      } catch (error) {
+        console.log(`   ⚠️  Failed to insert screened-out candidate: ${rejected.url}`);
+      }
+    }
     
     // ─────────────────────────────────────────────────────────────────
     // INSERT CLUE-TIER CANDIDATES (No scraping required!)
@@ -1266,6 +1294,7 @@ export async function orchestrateEliteSourcing(
           linkedinUrl: clue.url,
           snippetText: clue.snippet,
           predictedScore: clue.predictedPercentage,
+          tier: 'clue', // Mark as clue (market intelligence)
           jobTitle: clue.title || null,
           companyName: clue.company || null,
           location: clue.location || null,

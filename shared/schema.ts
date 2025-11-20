@@ -559,10 +559,11 @@ export const sourcingRuns = pgTable("sourcing_runs", {
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
 });
 
-// Candidate Clues - Lightweight fingerprints for 60-67% scored candidates (Detective Clue Layer)
-// These are candidates that passed Phase 3 scoring (60-67% predicted quality) but weren't scraped
-// in Phase 4. We preserve them as "clues" for market mapping, pattern detection, and future re-scoring
-// without polluting the hot candidate database or incurring scraping costs.
+// Candidate Clues - Lightweight fingerprints for candidates that weren't fully scraped
+// Two tiers:
+// - CLUES (60-67%): Potentially valuable for market mapping, pattern detection, future re-scoring
+// - SCREENED_OUT (<60%): Rejected candidates showing market coverage proof for client confidence
+// Both preserved without polluting hot candidate database or incurring scraping costs.
 export const candidateClues = pgTable("candidate_clues", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   
@@ -571,7 +572,8 @@ export const candidateClues = pgTable("candidate_clues", {
   
   // Snippet data (from Phase 3 scoring)
   snippetText: text("snippet_text"), // Raw snippet from SerpAPI (contains title, company, location, brief description)
-  predictedScore: integer("predicted_score"), // AI-predicted quality score (60-67% range)
+  predictedScore: integer("predicted_score"), // AI-predicted quality score
+  tier: text("tier").notNull().default('clue'), // 'clue' (60-67%) or 'screened_out' (<60%)
   
   // Extracted metadata (parsed from snippet for quick filtering)
   jobTitle: varchar("job_title", { length: 200 }),
