@@ -182,9 +182,19 @@ export const jobs = pgTable("jobs", {
   requireAllMustHaves: boolean("require_all_must_haves").default(false), // Elite mode requires 100% must-haves
   maxCandidates: integer("max_candidates"), // Optional limit, null = unlimited
   
-  // Search Depth Control (War Room Feature)
+  // Search Depth Control - VALUE-BASED PRICING MODEL
+  // Elite searches cost MORE (precision is valuable), volume searches cost LESS per candidate
   searchDepthConfig: jsonb("search_depth_config").$type<{
-    target: '8_elite' | '20_standard' | '50_at_60' | '100_plus'; // Search depth preset
+    target: 
+      | 'elite_8'       // New: ≥88% @ $149 - C-suite, PE CFO/COO
+      | 'elite_15'      // New: ≥84% @ $199 - VP/SVP, GM
+      | 'standard_25'   // New: ≥76% @ $129 - Director level
+      | 'deep_60'       // New: ≥66% @ $149 - Specialists
+      | 'market_scan'   // New: ≥58% @ $179 - Intelligence
+      | '8_elite'       // Legacy (maps to elite_8)
+      | '20_standard'   // Legacy (maps to standard_25)
+      | '50_at_60'      // Legacy (maps to deep_60)
+      | '100_plus';     // Legacy (maps to market_scan)
     isRunning: boolean; // Whether autonomous search is active
     marketCoverage: number; // Percentage of market mapped (0-100)
     estimatedMarketSize: number; // Total addressable candidates in market

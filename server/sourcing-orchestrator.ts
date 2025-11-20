@@ -948,50 +948,67 @@ export interface EliteSourcingConfig {
 
 /**
  * Maps search depth presets to sourcing configuration
- * Prevents wasting credits on low-quality candidates
+ * VALUE-BASED PRICING: Elite searches cost MORE (precision is valuable)
+ * Volume searches cost LESS per candidate (noise is cheap)
+ * 
+ * Strategy Credit: Grok + ChatGPT consensus on headhunter economics
  */
 export function mapSearchDepthToConfig(
-  searchDepth: '8_elite' | '20_standard' | '50_at_60' | '100_plus'
+  searchDepth: 'elite_8' | 'elite_15' | 'standard_25' | 'deep_60' | 'market_scan' | '8_elite' | '20_standard' | '50_at_60' | '100_plus'
 ): Pick<EliteSourcingConfig, 'targetQualityCount' | 'minQualityPercentage' | 'maxBudgetUsd' | 'maxSearchIterations'> {
+  
+  // Support both new and legacy tier names during transition
   switch (searchDepth) {
+    case 'elite_8':
     case '8_elite':
       return {
         targetQualityCount: 8,
-        minQualityPercentage: 85,  // Elite only (≥85% hard skills)
-        maxBudgetUsd: 20,           // ~8 candidates × $2.50 avg
-        maxSearchIterations: 2      // Quick, focused search
+        minQualityPercentage: 88,  // PREMIUM: ≥88% hard skills - C-suite only
+        maxBudgetUsd: 149,          // $149 - Finding gold is VALUABLE
+        maxSearchIterations: 3      // Thorough search for rare talent
       };
     
+    case 'elite_15':
+      return {
+        targetQualityCount: 15,
+        minQualityPercentage: 84,  // PREMIUM: ≥84% hard skills - VP/SVP/GM
+        maxBudgetUsd: 199,          // $199 - Most expensive tier (highest value)
+        maxSearchIterations: 4      // Deep search for functional heads
+      };
+    
+    case 'standard_25':
     case '20_standard':
       return {
-        targetQualityCount: 20,
-        minQualityPercentage: 75,  // Standard quality (≥75% hard skills)
-        maxBudgetUsd: 50,           // ~20 candidates × $2.50 avg
+        targetQualityCount: 25,
+        minQualityPercentage: 76,  // BALANCED: ≥76% hard skills - Director level
+        maxBudgetUsd: 129,          // $129 - Sweet spot for most searches
         maxSearchIterations: 3      // Standard depth
       };
     
+    case 'deep_60':
     case '50_at_60':
       return {
-        targetQualityCount: 50,
-        minQualityPercentage: 60,  // Deep dive - acceptable tier
-        maxBudgetUsd: 125,          // ~50 candidates × $2.50 avg
-        maxSearchIterations: 5      // Deeper search
+        targetQualityCount: 60,
+        minQualityPercentage: 66,  // WIDE NET: ≥66% hard skills - Specialists
+        maxBudgetUsd: 149,          // $149 - Cheaper per candidate than elite
+        maxSearchIterations: 5      // Wider search for niche roles
       };
     
+    case 'market_scan':
     case '100_plus':
       return {
-        targetQualityCount: 100,
-        minQualityPercentage: 60,  // Exhaustive - go nuclear
-        maxBudgetUsd: 300,          // ~100+ candidates × $2.50 avg
-        maxSearchIterations: 10     // Full market scan
+        targetQualityCount: 150,
+        minQualityPercentage: 58,  // INTELLIGENCE: ≥58% hard skills - Market mapping
+        maxBudgetUsd: 179,          // $179 flat - Cheapest per candidate
+        maxSearchIterations: 10     // Full market scan for intel
       };
     
     default:
-      // Default to standard
+      // Default to standard (most common use case)
       return {
-        targetQualityCount: 20,
-        minQualityPercentage: 75,
-        maxBudgetUsd: 50,
+        targetQualityCount: 25,
+        minQualityPercentage: 76,
+        maxBudgetUsd: 129,
         maxSearchIterations: 3
       };
   }
