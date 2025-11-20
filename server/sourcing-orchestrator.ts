@@ -1260,9 +1260,18 @@ export async function orchestrateEliteSourcing(
     // SCRAPE WARM + ELITE TIER CANDIDATES ONLY
     // ─────────────────────────────────────────────────────────────────
     
-    const toScrape = [...eliteTier, ...warmTier];
+    const allAbove60 = [...eliteTier, ...warmTier];
+    
+    // CRITICAL: Filter by tier-specific quality threshold (88%, 84%, 76%, 66%, 58%)
+    // This prevents scraping "rubbish" candidates below the tier's standard
+    const toScrape = allAbove60.filter(fp => fp.predictedPercentage >= config.minQualityPercentage);
+    const filteredOut = allAbove60.length - toScrape.length;
+    
     console.log(`\n💎 [Selective Deep Scraping: ${toScrape.length} candidates]`);
+    console.log(`   Quality Filter: ≥${config.minQualityPercentage}% threshold enforced`);
+    console.log(`   Filtered out ${filteredOut} candidates below tier standard`);
     console.log(`   (Avoided wasting $${(clueTier.length * 0.50).toFixed(2)} on scraping clue-tier)`);
+    console.log(`   (Avoided wasting $${(filteredOut * 0.50).toFixed(2)} on scraping below-threshold)`);
     
     const scrapedProfiles: LinkedInProfileData[] = [];
     const scrapedWithTier: Array<{ profile: LinkedInProfileData; predictedTier: 'elite' | 'warm'; predictedScore: number }> = [];
