@@ -1,12 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Briefcase, MapPin, Clock, Users, TrendingUp, Building2 } from "lucide-react";
-import { Job } from "@shared/schema";
+import { Job, Company } from "@shared/schema";
 import { Link } from "wouter";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const formatDate = (dateString: string | Date) => {
   const date = new Date(dateString);
@@ -19,9 +25,46 @@ const formatDate = (dateString: string | Date) => {
 
 export default function Jobs() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [showPostJobDialog, setShowPostJobDialog] = useState(false);
+  const [newJobData, setNewJobData] = useState({
+    title: "",
+    companyId: "",
+    department: "",
+    jdText: "",
+    urgency: "medium",
+  });
+  const { toast } = useToast();
   
   const { data: jobs, isLoading, error } = useQuery<Job[]>({
     queryKey: ['/api/jobs'],
+  });
+
+  const { data: companies } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+  });
+
+  // Create job mutation
+  const createJob = useMutation({
+    mutationFn: async (jobData: any) => {
+      const response = await apiRequest('POST', '/api/jobs', jobData);
+      return await response.json();
+    },
+    onSuccess: (newJob) => {
+      toast({
+        title: "Success!",
+        description: "Job posted successfully",
+      });
+      setShowPostJobDialog(false);
+      setNewJobData({ title: "", companyId: "", department: "", jdText: "", urgency: "medium" });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create job",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -115,7 +158,7 @@ export default function Jobs() {
             Manage job postings and track candidates ({jobs?.length || 0} total)
           </p>
         </div>
-        <Button data-testid="button-post-job">
+        <Button onClick={() => setShowPostJobDialog(true)} data-testid="button-post-job">
           <Briefcase className="h-4 w-4 mr-2" />
           Post Job
         </Button>
@@ -222,7 +265,7 @@ export default function Jobs() {
             <p className="text-muted-foreground mb-4">
               Create your first job posting to start finding great candidates.
             </p>
-            <Button data-testid="button-post-first-job">
+            <Button onClick={() => setShowPostJobDialog(true)} data-testid="button-post-first-job">
               <Briefcase className="h-4 w-4 mr-2" />
               Post Your First Job
             </Button>
@@ -297,6 +340,108 @@ export default function Jobs() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Post Job Dialog */}
+      <Dialog open={showPostJobDialog} onOpenChange={setShowPostJobDialog}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-post-job">
+          <DialogHeader>
+            <DialogTitle>Post New Job</DialogTitle>
+            <DialogDescription>
+              Create a new job posting for your company
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="job-title">Job Title *</Label>
+              <Input
+                id="job-title"
+                placeholder="e.g., Chief Financial Officer"
+                value={newJobData.title}
+                onChange={(e) => setNewJobData({ ...newJobData, title: e.target.value })}
+                data-testid="input-job-title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="job-company">Company *</Label>
+              <Select 
+                value={newJobData.companyId} 
+                onValueChange={(value) => setNewJobData({ ...newJobData, companyId: value })}
+              >
+                <SelectTrigger id="job-company" data-testid="select-job-company">
+                  <SelectValue placeholder="Select a company" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies?.map((company) => (
+                    <SelectItem key={company.id} value={company.id.toString()}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="job-department">Department</Label>
+              <Input
+                id="job-department"
+                placeholder="e.g., Finance"
+                value={newJobData.department}
+                onChange={(e) => setNewJobData({ ...newJobData, department: e.target.value })}
+                data-testid="input-job-department"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="job-urgency">Urgency</Label>
+              <Select 
+                value={newJobData.urgency} 
+                onValueChange={(value) => setNewJobData({ ...newJobData, urgency: value })}
+              >
+                <SelectTrigger id="job-urgency" data-testid="select-job-urgency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="job-description">Job Description *</Label>
+              <Textarea
+                id="job-description"
+                placeholder="Enter the complete job description..."
+                value={newJobData.jdText}
+                onChange={(e) => setNewJobData({ ...newJobData, jdText: e.target.value })}
+                rows={6}
+                data-testid="textarea-job-description"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPostJobDialog(false);
+                setNewJobData({ title: "", companyId: "", department: "", jdText: "", urgency: "medium" });
+              }}
+              data-testid="button-cancel-post-job"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createJob.mutate({ 
+                ...newJobData, 
+                companyId: parseInt(newJobData.companyId) 
+              })}
+              disabled={!newJobData.title || !newJobData.companyId || !newJobData.jdText || createJob.isPending}
+              data-testid="button-submit-post-job"
+            >
+              {createJob.isPending ? 'Posting...' : 'Post Job'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
