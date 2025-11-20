@@ -958,60 +958,69 @@ export function mapSearchDepthToConfig(
   searchDepth: 'elite_8' | 'elite_15' | 'standard_25' | 'deep_60' | 'market_scan' | '8_elite' | '20_standard' | '50_at_60' | '100_plus'
 ): Pick<EliteSourcingConfig, 'targetQualityCount' | 'minQualityPercentage' | 'maxBudgetUsd' | 'maxSearchIterations'> & { maxCandidates: number } {
   
+  console.log(`\n🎯 [Tier Config] Mapping search depth: ${searchDepth}`);
+  
   // Support both new and legacy tier names during transition
+  let config: Pick<EliteSourcingConfig, 'targetQualityCount' | 'minQualityPercentage' | 'maxBudgetUsd' | 'maxSearchIterations'> & { maxCandidates: number };
+  
   switch (searchDepth) {
     case 'elite_8':
     case '8_elite':
-      return {
+      config = {
         targetQualityCount: 8,
         maxCandidates: 10,          // Allow up to 10 candidates (buffer for quality)
         minQualityPercentage: 88,   // PREMIUM: ≥88% hard skills - C-suite only
         maxBudgetUsd: 149,           // $149 - Finding gold is VALUABLE
         maxSearchIterations: 3       // Thorough search for rare talent
       };
+      break;
     
     case 'elite_15':
-      return {
+      config = {
         targetQualityCount: 15,
         maxCandidates: 18,          // Allow up to 18 candidates (buffer for quality)
         minQualityPercentage: 84,   // PREMIUM: ≥84% hard skills - VP/SVP/GM
         maxBudgetUsd: 199,           // $199 - Most expensive tier (highest value)
         maxSearchIterations: 4       // Deep search for functional heads
       };
+      break;
     
     case 'standard_25':
     case '20_standard':
-      return {
+      config = {
         targetQualityCount: 25,
         maxCandidates: 30,          // Allow up to 30 candidates (buffer for quality)
         minQualityPercentage: 76,   // BALANCED: ≥76% hard skills - Director level
         maxBudgetUsd: 129,           // $129 - Sweet spot for most searches
         maxSearchIterations: 3       // Standard depth
       };
+      break;
     
     case 'deep_60':
     case '50_at_60':
-      return {
+      config = {
         targetQualityCount: 60,
         maxCandidates: 70,          // Allow up to 70 candidates (buffer for quality)
         minQualityPercentage: 66,   // WIDE NET: ≥66% hard skills - Specialists
         maxBudgetUsd: 149,           // $149 - Cheaper per candidate than elite
         maxSearchIterations: 5       // Wider search for niche roles
       };
+      break;
     
     case 'market_scan':
     case '100_plus':
-      return {
+      config = {
         targetQualityCount: 150,
         maxCandidates: 999,         // Essentially unlimited for market scans
         minQualityPercentage: 58,   // INTELLIGENCE: ≥58% hard skills - Market mapping
         maxBudgetUsd: 179,           // $179 flat - Cheapest per candidate
         maxSearchIterations: 10      // Full market scan for intel
       };
+      break;
     
     default:
-      // Default to standard (most common use case)
-      return {
+      console.warn(`⚠️  [Tier Config] Unknown search depth: ${searchDepth}, using standard_25 default`);
+      config = {
         targetQualityCount: 25,
         maxCandidates: 30,
         minQualityPercentage: 76,
@@ -1019,6 +1028,20 @@ export function mapSearchDepthToConfig(
         maxSearchIterations: 3
       };
   }
+  
+  // DEFENSIVE LOGGING: Ensure maxCandidates is set
+  if (!config.maxCandidates || config.maxCandidates === 0) {
+    console.error(`❌ [Tier Config] CRITICAL: maxCandidates is ${config.maxCandidates}! This will break candidate limits!`);
+  }
+  
+  console.log(`✅ [Tier Config] Applied configuration:`);
+  console.log(`   Target: ${config.targetQualityCount} quality candidates`);
+  console.log(`   Max Candidates: ${config.maxCandidates} (hard limit for this tier)`);
+  console.log(`   Quality Threshold: ≥${config.minQualityPercentage}%`);
+  console.log(`   Budget: $${config.maxBudgetUsd}`);
+  console.log(`   Max Iterations: ${config.maxSearchIterations}`);
+  
+  return config;
 }
 
 export interface EliteSourcingResult {
