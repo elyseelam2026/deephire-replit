@@ -5595,9 +5595,28 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(404).json({ error: 'Job not found' });
       }
       
-      // Get search depth from job's searchDepthConfig OR request body
-      const jobSearchConfig = job.searchDepthConfig as any;
-      const depthTarget = jobSearchConfig?.target || req.body.depthTarget || '20_standard';
+      // Get search depth from job's searchDepthConfig (never from req.body to avoid regression)
+      // If job doesn't have searchDepthConfig, initialize it with default
+      let jobSearchConfig = job.searchDepthConfig as any;
+      
+      if (!jobSearchConfig || !jobSearchConfig.target) {
+        // Initialize default search depth config if missing
+        jobSearchConfig = {
+          target: '20_standard',
+          isRunning: false,
+          marketCoverage: 0,
+          estimatedMarketSize: 200
+        };
+        
+        // Update job record with default config
+        await db.update(jobs)
+          .set({ searchDepthConfig: jobSearchConfig })
+          .where(eq(jobs.id, jobId));
+        
+        console.log(`✅ Initialized default search depth config for job #${jobId}: 20_standard`);
+      }
+      
+      const depthTarget = jobSearchConfig.target;
       
       // Import the search depth mapper
       const { mapSearchDepthToConfig } = await import('./sourcing-orchestrator');
