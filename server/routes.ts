@@ -14,7 +14,7 @@ import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
 import { detectPromise, createPromiseFromConversation } from "./promise-detection";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues } from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel, computeJobPricing } from "@shared/pricing";
 import { duplicateDetectionService } from "./duplicate-detection";
@@ -1300,6 +1300,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching companies:", error);
       res.status(500).json({ error: "Failed to fetch companies" });
+    }
+  });
+
+  // Create a new company
+  app.post("/api/companies", async (req, res) => {
+    try {
+      const { name, website, location, industry } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ error: "Company name is required" });
+      }
+
+      const newCompany = await db.insert(companies).values({
+        name,
+        website: website || null,
+        location: location || null,
+        industry: industry || null,
+      }).returning();
+
+      console.log(`✅ Created new company: ${name}`);
+      res.json(newCompany[0]);
+    } catch (error) {
+      console.error("Error creating company:", error);
+      res.status(500).json({ error: "Failed to create company" });
     }
   });
 
