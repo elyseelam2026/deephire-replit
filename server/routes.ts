@@ -2,6 +2,8 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { createRequire } from "module";
 import multer from "multer";
+import bcrypt from "bcryptjs";
+import twilio from "twilio";
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
@@ -5993,6 +5995,13 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(400).json({ error: "Missing required fields" });
       }
 
+      if (password.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
       // Create candidate
       const candidate = await storage.createCandidate({
         firstName,
@@ -6181,6 +6190,42 @@ CRITICAL RULES - You MUST follow these strictly:
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
+  // Get Twilio client
+  async function getTwilioClient() {
+    try {
+      const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+      const xReplitToken = process.env.REPL_IDENTITY 
+        ? 'repl ' + process.env.REPL_IDENTITY 
+        : process.env.WEB_REPL_RENEWAL 
+        ? 'depl ' + process.env.WEB_REPL_RENEWAL 
+        : null;
+
+      if (!xReplitToken || !hostname) return null;
+
+      const connectionSettings = await fetch(
+        'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=twilio',
+        {
+          headers: {
+            'Accept': 'application/json',
+            'X_REPLIT_TOKEN': xReplitToken
+          }
+        }
+      ).then(res => res.json()).then(data => data.items?.[0]);
+
+      if (!connectionSettings?.settings?.account_sid) return null;
+
+      return {
+        client: twilio(connectionSettings.settings.api_key, connectionSettings.settings.api_key_secret, {
+          accountSid: connectionSettings.settings.account_sid
+        }),
+        phoneNumber: connectionSettings.settings.phone_number
+      };
+    } catch (error) {
+      console.error("Twilio not configured:", error);
+      return null;
+    }
+  }
+
   // SEND VERIFICATION CODE (email or SMS)
   app.post("/api/send-verification", async (req, res) => {
     try {
@@ -6202,8 +6247,22 @@ CRITICAL RULES - You MUST follow these strictly:
         expiresAt,
       });
 
-      // TODO: Integrate with SendGrid (email) or Twilio (SMS) to actually send
-      console.log(`[DEV] Verification code for ${method}: ${code}`);
+      // Send via Twilio (SMS) or log for email (SendGrid would go here)
+      if (method === "sms") {
+        const twilioConfig = await getTwilioClient();
+        if (twilioConfig) {
+          await twilioConfig.client.messages.create({
+            body: `Your DeepHire verification code is: ${code}. Valid for 10 minutes.`,
+            from: twilioConfig.phoneNumber,
+            to: phoneNumber
+          });
+        } else {
+          console.log(`[DEV] SMS verification code for ${phoneNumber}: ${code}`);
+        }
+      } else {
+        console.log(`[DEV] Email verification code for ${email}: ${code}`);
+        // TODO: Integrate with SendGrid to send email
+      }
 
       res.json({ success: true, message: `Code sent via ${method}` });
     } catch (error) {
@@ -6257,6 +6316,44 @@ CRITICAL RULES - You MUST follow these strictly:
     } catch (error) {
       console.error("Error verifying code:", error);
       res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // COMPANY PORTAL: Register company
+  app.post("/api/company/register", async (req, res) => {
+    try {
+      const { companyName, email, password, location, industry, description } = req.body;
+
+      if (!companyName || !email || !password || !location || !industry) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create company
+      const company = await storage.createCompany({
+        name: companyName,
+        location,
+        industry,
+        description,
+        primaryEmail: email,
+      });
+
+      console.log(`[DEV] Company registered: ${companyName} (ID: ${company.id})`);
+
+      res.json({
+        success: true,
+        companyId: company.id,
+        message: "Company registered successfully"
+      });
+    } catch (error: any) {
+      console.error("Error registering company:", error);
+      res.status(500).json({ error: error.message || "Registration failed" });
     }
   });
 
