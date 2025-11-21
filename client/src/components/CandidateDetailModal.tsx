@@ -154,11 +154,16 @@ export function CandidateDetailModal({
                 </div>
               </TabsContent>
 
-              <TabsContent value="soft-skills" className="space-y-4">
+              <TabsContent value="soft-skills" className="space-y-4 space-y-4">
+                <ATSPipelineStatus
+                  jobId={jobId}
+                  candidateId={candidate.id}
+                  currentStatus={jc?.status || 'sourced'}
+                />
                 <SoftSkillsEvaluator
                   jobId={jobId}
                   candidateId={candidateId}
-                  currentSoftSkillScore={jobCandidate?.softSkillScore}
+                  currentSoftSkillScore={jobCandidate?.softSkillScore ?? undefined}
                 />
               </TabsContent>
 
