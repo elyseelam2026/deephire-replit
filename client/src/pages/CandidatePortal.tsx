@@ -114,21 +114,17 @@ export default function CandidatePortal() {
 
       if (!response.ok) throw new Error("Registration failed");
 
-      toast({
-        title: "Success!",
-        description: "Your profile has been saved to our talent bank!",
-      });
+      const responseData = await response.json();
+      const candidateId = responseData.candidateId;
 
-      const candidateId = response.json().then(r => r.candidateId);
       toast({
         title: "Success!",
-        description: "Profile saved! Redirecting to recommendations...",
+        description: "Profile saved! Redirecting to job recommendations...",
       });
       
       setIsRegistered(true);
-      setTimeout(async () => {
-        const id = await candidateId;
-        window.location.href = `/candidate-portal/dashboard/${id || 1}`;
+      setTimeout(() => {
+        window.location.href = `/candidate-portal/dashboard/${candidateId}`;
       }, 2000);
     } catch (error) {
       toast({
