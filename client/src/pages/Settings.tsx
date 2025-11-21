@@ -14,6 +14,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -234,9 +235,17 @@ export default function Settings() {
     }
   });
 
+  const [, setLocation] = useLocation();
+
   const handleSave = () => {
     console.log('Saving settings:', settings);
     // TODO: Implement settings save functionality
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("companyId");
+    localStorage.removeItem("email");
+    setLocation("/");
   };
 
   const updateSetting = (key: string, value: any) => {
@@ -314,10 +323,15 @@ export default function Settings() {
             Manage your application preferences and configuration
           </p>
         </div>
-        <Button onClick={handleSave} data-testid="button-save-settings">
-          <Save className="h-4 w-4 mr-2" />
-          Save Changes
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleSave} data-testid="button-save-settings">
+            <Save className="h-4 w-4 mr-2" />
+            Save Changes
+          </Button>
+          <Button onClick={handleLogout} variant="destructive" data-testid="button-logout-settings">
+            Logout
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
