@@ -6279,6 +6279,10 @@ CRITICAL RULES - You MUST follow these strictly:
         }
       } else {
         console.log(`[DEV] Email verification code for ${email}: ${code}`);
+        // For development: return the code in response so it can be displayed in UI
+        if (process.env.NODE_ENV === 'development') {
+          return res.json({ success: true, message: `Code sent via ${method}`, devCode: code });
+        }
         // TODO: Integrate with SendGrid to send email
       }
 
