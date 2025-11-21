@@ -6749,7 +6749,7 @@ CRITICAL RULES - You MUST follow these strictly:
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create company with password
+      // Create company with password - using direct db insert
       const company = await db.insert(schema.companies).values({
         name: companyName,
         location,
@@ -6757,9 +6757,20 @@ CRITICAL RULES - You MUST follow these strictly:
         description,
         primaryEmail: email,
         password: hashedPassword,
+        businessLicenseVerified: false,
       }).returning();
 
-      console.log(`[DEV] Company registered: ${companyName} (ID: ${company[0].id})`);
+      // Log registration
+      await db.insert(schema.auditLogs).values({
+        companyId: company[0].id,
+        eventType: "registration",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, companyName },
+      });
+
+      console.log(`[DEV] Company registered: ${companyName} (ID: ${company[0].id}) with email: ${email}`);
+      console.log(`[DEV] Password hash: ${hashedPassword.substring(0, 10)}...`);
 
       res.json({
         success: true,

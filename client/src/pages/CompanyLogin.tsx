@@ -131,18 +131,30 @@ export default function CompanyLogin() {
               </form>
             </Form>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Don't have an account?{" "}
+            <div className="mt-6 space-y-3">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Don't have an account?{" "}
+                  <Button 
+                    variant="link" 
+                    className="p-0 h-auto" 
+                    onClick={() => setLocation("/company/register")}
+                    data-testid="button-to-company-register"
+                  >
+                    Register here
+                  </Button>
+                </p>
+              </div>
+              <div className="text-center">
                 <Button 
                   variant="link" 
-                  className="p-0 h-auto" 
-                  onClick={() => setLocation("/company/register")}
-                  data-testid="button-to-company-register"
+                  className="p-0 h-auto text-sm" 
+                  onClick={() => setLocation("/company/reset-password")}
+                  data-testid="button-company-forgot-password"
                 >
-                  Register here
+                  Forgot password?
                 </Button>
-              </p>
+              </div>
             </div>
           </CardContent>
         </Card>

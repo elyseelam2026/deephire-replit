@@ -51,6 +51,7 @@ function AppRouter() {
       {/* Company Portal Routes */}
       <Route path="/company/register" component={CompanyRegister} />
       <Route path="/company/login" component={CompanyLogin} />
+      <Route path="/company/reset-password" component={PasswordReset} />
       <Route path="/company/portal" component={CompanyPortal} />
       
       {/* Client Portal Routes */}
