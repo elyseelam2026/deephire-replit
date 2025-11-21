@@ -44,6 +44,7 @@ const candidateItems = [
 // Admin Portal - For system administrators
 const adminItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
+  { title: "Staging", url: "/admin/staging", icon: Clock },
   { title: "Bulk Upload", url: "/admin/bulk-upload", icon: Upload },
   { title: "Data Quality", url: "/admin/data-quality", icon: Database },
   { title: "User Management", url: "/admin/users", icon: Users },
