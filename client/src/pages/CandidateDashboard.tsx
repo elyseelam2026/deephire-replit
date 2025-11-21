@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,6 @@ interface JobRecommendation {
   jobUrl: string;
   reasoning: any;
 }
-
-import { useLocation } from "wouter";
 
 export default function CandidateDashboard() {
   const { candidateId } = useParams<{ candidateId: string }>();
