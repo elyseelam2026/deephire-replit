@@ -33,20 +33,33 @@ export default function CompanyLogin() {
   const onSubmit = async (data: LoginData) => {
     setIsSubmitting(true);
     try {
-      // For now, log in and redirect to Client Portal dashboard
-      // In real app, would verify credentials
+      const response = await fetch("/api/company/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Login failed");
+      }
+
       toast({
         title: "Welcome back!",
         description: "Redirecting to your dashboard...",
       });
       
+      // Store company ID in localStorage for context
+      localStorage.setItem("companyId", result.companyId.toString());
+      
       setTimeout(() => {
         setLocation("/client");
       }, 1000);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Login failed. Please try again.",
+        description: error.message || "Login failed. Please try again.",
         variant: "destructive",
       });
       setIsSubmitting(false);

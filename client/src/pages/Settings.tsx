@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -35,15 +35,28 @@ import {
 
 export default function Settings() {
   const { toast } = useToast();
+  const [companyId] = useState(() => parseInt(localStorage.getItem("companyId") || "0"));
+  
+  // Fetch company data
+  const { data: company, isLoading: companyLoading } = useQuery({
+    queryKey: ['/api/companies', companyId],
+    queryFn: async () => {
+      const response = await fetch(`/api/companies/${companyId}`);
+      if (!response.ok) throw new Error('Failed to fetch company');
+      return response.json();
+    },
+    enabled: !!companyId,
+  });
+
   const [settings, setSettings] = useState({
     // Profile settings
-    companyName: "DeepHire Recruiting",
-    companyEmail: "admin@deephire.com",
-    companyPhone: "+1 (555) 123-4567",
-    companyWebsite: "https://deephire.com",
+    companyName: company?.name || "Loading...",
+    companyEmail: company?.primaryEmail || "",
+    companyPhone: company?.primaryPhone || "",
+    companyWebsite: company?.website || "",
     
     // Email settings
-    emailSignature: "Best regards,\nThe DeepHire Team\n\nDeepHire - AI-Powered Talent Acquisition\nhttps://deephire.com",
+    emailSignature: `Best regards,\n${company?.name || 'Your Company'} Team`,
     enableEmailNotifications: true,
     enableCandidateNotifications: true,
     
@@ -60,6 +73,20 @@ export default function Settings() {
     theme: "system",
     language: "en"
   });
+  
+  // Update settings when company data loads
+  useEffect(() => {
+    if (company) {
+      setSettings(prev => ({
+        ...prev,
+        companyName: company.name || "Loading...",
+        companyEmail: company.primaryEmail || "",
+        companyPhone: company.primaryPhone || "",
+        companyWebsite: company.website || "",
+        emailSignature: `Best regards,\n${company.name || 'Your Company'} Team`
+      }));
+    }
+  }, [company]);
   
   // Custom Fields state
   const [selectedEntityType, setSelectedEntityType] = useState<string>("candidates");
