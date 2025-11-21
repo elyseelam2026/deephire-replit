@@ -33,15 +33,15 @@ export default function CompanyLogin() {
   const onSubmit = async (data: LoginData) => {
     setIsSubmitting(true);
     try {
-      // For now, log in and redirect to portal
+      // For now, log in and redirect to Client Portal dashboard
       // In real app, would verify credentials
       toast({
         title: "Welcome back!",
-        description: "Redirecting to your portal...",
+        description: "Redirecting to your dashboard...",
       });
       
       setTimeout(() => {
-        setLocation("/company/portal");
+        setLocation("/client");
       }, 1000);
     } catch (error) {
       toast({
