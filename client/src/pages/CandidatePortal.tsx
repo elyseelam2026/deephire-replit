@@ -48,6 +48,7 @@ export default function CandidatePortal() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isAutofilling, setIsAutofilling] = useState(false);
   const [verifyEmail, setVerifyEmail] = useState("");
+  const [candidateId, setCandidateId] = useState<number | null>(null);
 
   const [workExperience, setWorkExperience] = useState<WorkExperience[]>([]);
   const [newWork, setNewWork] = useState({ company: "", position: "", years: "" });
@@ -128,6 +129,7 @@ export default function CandidatePortal() {
         description: "Check your email for verification code",
       });
       
+      setCandidateId(responseData.candidateId);
       setVerifyEmail(data.email);
       setIsVerifying(true);
     } catch (error) {
@@ -148,7 +150,7 @@ export default function CandidatePortal() {
           setIsVerifying(false);
           setIsRegistered(true);
           setTimeout(() => {
-            window.location.href = `/candidate/dashboard/1`;
+            window.location.href = `/candidate/dashboard/${candidateId}`;
           }, 2000);
         }}
       />
