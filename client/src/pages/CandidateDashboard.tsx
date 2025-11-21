@@ -21,8 +21,11 @@ interface JobRecommendation {
   reasoning: any;
 }
 
+import { useLocation } from "wouter";
+
 export default function CandidateDashboard() {
   const { candidateId } = useParams<{ candidateId: string }>();
+  const [, setLocation] = useLocation();
   const [appliedJobs, setAppliedJobs] = useState<number[]>([]);
 
   // Fetch job recommendations

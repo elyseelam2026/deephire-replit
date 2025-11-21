@@ -37,6 +37,7 @@ interface Education {
 }
 
 export default function CandidatePortal() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,7 +125,7 @@ export default function CandidatePortal() {
       
       setIsRegistered(true);
       setTimeout(() => {
-        window.location.href = `/candidate-portal/dashboard/${candidateId}`;
+        window.location.href = `/candidate/dashboard/${candidateId}`;
       }, 2000);
     } catch (error) {
       toast({
@@ -157,10 +158,23 @@ export default function CandidatePortal() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 py-12 px-4">
       <div className="max-w-2xl mx-auto">
+        {/* Header with Back Button */}
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setLocation("/auth")}
+            data-testid="button-back-to-auth"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </div>
+
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-2">Join Our Talent Bank</h1>
-          <p className="text-lg text-muted-foreground">Connect with top private equity firms and executive recruiters</p>
+          <h1 className="text-4xl font-bold mb-2">Create Your Candidate Profile</h1>
+          <p className="text-lg text-muted-foreground">Join our talent bank and let AI find perfect opportunities</p>
         </div>
 
         {/* Progress Steps */}

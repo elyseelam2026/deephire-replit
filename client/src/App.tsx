@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import LandingHome from "@/pages/LandingHome";
+import Auth from "@/pages/Auth";
 import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
 import Admin from "@/pages/Admin";
@@ -31,8 +33,14 @@ import NotFound from "@/pages/not-found";
 function AppRouter() {
   return (
     <Switch>
-      {/* Landing Page */}
-      <Route path="/" component={Landing} />
+      {/* Public Pages */}
+      <Route path="/" component={LandingHome} />
+      <Route path="/auth" component={Auth} />
+      
+      {/* Candidate Portal Routes */}
+      <Route path="/candidate/register" component={CandidatePortal} />
+      <Route path="/candidate/dashboard/:candidateId" component={CandidateDashboard} />
+      <Route path="/candidate/login" component={() => <div className="flex items-center justify-center min-h-screen"><div className="text-center"><p className="text-xl mb-4">Login coming soon</p></div></div>} />
       
       {/* Client Portal Routes */}
       <Route path="/client" component={() => <ClientApp><ClientPortal /></ClientApp>} />
@@ -64,10 +72,6 @@ function AppRouter() {
       
       {/* Admin Portal Routes */}
       <Route path="/admin" component={AdminApp} />
-      
-      {/* Candidate Portal Routes */}
-      <Route path="/candidate-portal" component={CandidatePortal} />
-      <Route path="/candidate-portal/dashboard/:candidateId" component={CandidateDashboard} />
       
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
