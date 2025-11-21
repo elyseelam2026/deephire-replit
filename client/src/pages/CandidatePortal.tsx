@@ -119,9 +119,16 @@ export default function CandidatePortal() {
         description: "Your profile has been saved to our talent bank!",
       });
 
+      const candidateId = response.json().then(r => r.candidateId);
+      toast({
+        title: "Success!",
+        description: "Profile saved! Redirecting to recommendations...",
+      });
+      
       setIsRegistered(true);
-      setTimeout(() => {
-        window.location.href = "/";
+      setTimeout(async () => {
+        const id = await candidateId;
+        window.location.href = `/candidate-portal/dashboard/${id || 1}`;
       }, 2000);
     } catch (error) {
       toast({

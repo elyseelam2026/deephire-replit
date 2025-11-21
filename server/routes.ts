@@ -14,7 +14,7 @@ import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
 import { detectPromise, createPromiseFromConversation } from "./promise-detection";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium, jobListings, candidateJobRecommendations } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel, computeJobPricing } from "@shared/pricing";
@@ -6047,6 +6047,191 @@ CRITICAL RULES - You MUST follow these strictly:
     } catch (error) {
       console.error("Error fetching candidate profile:", error);
       res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Get job recommendations based on profile
+  app.get("/api/candidate/:candidateId/job-recommendations", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      
+      // Get candidate profile
+      const candidateResult = await db
+        .select()
+        .from(schema.candidates)
+        .where(eq(schema.candidates.id, candidateId))
+        .limit(1);
+      
+      if (!candidateResult.length) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+      
+      const candidate = candidateResult[0];
+      
+      // If no recommendations exist yet, generate them
+      const existingRecs = await db
+        .select()
+        .from(candidateJobRecommendations)
+        .where(eq(candidateJobRecommendations.candidateId, candidateId));
+      
+      if (existingRecs.length === 0) {
+        // Generate initial recommendations by matching skills
+        const jobs = await db.select().from(jobListings).where(eq(jobListings.isActive, true)).limit(20);
+        
+        for (const job of jobs) {
+          // Simple matching: check if candidate skills overlap with job requirements
+          const candidateSkills = (candidate.skills || []) as string[];
+          const requiredSkills = job.requiredSkills || [];
+          
+          const matchCount = candidateSkills.filter(s => 
+            requiredSkills.some(r => r.toLowerCase().includes(s.toLowerCase()))
+          ).length;
+          
+          const hardSkillMatch = requiredSkills.length > 0 
+            ? Math.round((matchCount / requiredSkills.length) * 100)
+            : 50;
+          
+          const matchScore = Math.round(hardSkillMatch * 0.8); // 80% weight on hard skills
+          
+          if (matchScore >= 40) { // Only create recommendations with 40%+ match
+            await db.insert(candidateJobRecommendations).values({
+              candidateId,
+              jobListingId: job.id,
+              matchScore,
+              hardSkillMatch,
+              softSkillMatch: 30,
+              reasoningJSON: {
+                matchedSkills: candidateSkills.filter(s => 
+                  requiredSkills.some(r => r.toLowerCase().includes(s.toLowerCase()))
+                ),
+                candidateLevel: candidate.currentTitle || "Unknown",
+                jobLevel: job.experienceLevel || "Unknown"
+              },
+              status: "new"
+            });
+          }
+        }
+      }
+      
+      // Get all recommendations with job details
+      const recommendations = await db
+        .select({
+          id: candidateJobRecommendations.id,
+          matchScore: candidateJobRecommendations.matchScore,
+          status: candidateJobRecommendations.status,
+          jobTitle: jobListings.jobTitle,
+          companyName: jobListings.companyName,
+          location: jobListings.location,
+          salaryMin: jobListings.salaryMin,
+          salaryMax: jobListings.salaryMax,
+          remote: jobListings.remote,
+          requiredSkills: jobListings.requiredSkills,
+          jobUrl: jobListings.jobUrl,
+          reasoning: candidateJobRecommendations.reasoningJSON,
+        })
+        .from(candidateJobRecommendations)
+        .innerJoin(jobListings, eq(candidateJobRecommendations.jobListingId, jobListings.id))
+        .where(eq(candidateJobRecommendations.candidateId, candidateId))
+        .orderBy(desc(candidateJobRecommendations.matchScore));
+      
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error fetching recommendations:", error);
+      res.status(500).json({ error: "Failed to fetch recommendations" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Record job application
+  app.post("/api/candidate/:candidateId/apply-job/:recommendationId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const recommendationId = parseInt(req.params.recommendationId);
+      
+      await db
+        .update(candidateJobRecommendations)
+        .set({
+          status: "applied",
+          appliedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(candidateJobRecommendations.id, recommendationId));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error applying to job:", error);
+      res.status(500).json({ error: "Failed to apply to job" });
+    }
+  });
+
+  // SEED JOB LISTINGS (for demo)
+  app.post("/api/seed-jobs", async (req, res) => {
+    try {
+      // Sample jobs for testing
+      const sampleJobs = [
+        {
+          source: "internal",
+          companyName: "Tech Corp",
+          jobTitle: "Senior Frontend Engineer",
+          jobDescription: "Looking for experienced React developer",
+          requiredSkills: ["React", "TypeScript", "Node.js", "CSS"],
+          preferredSkills: ["Next.js", "GraphQL"],
+          experienceYears: 5,
+          experienceLevel: "senior",
+          salaryMin: 150000,
+          salaryMax: 200000,
+          location: "San Francisco, CA",
+          remote: "hybrid",
+          industry: "Technology",
+          jobUrl: "https://example.com/jobs/1",
+          postedDate: new Date(),
+          isActive: true,
+        },
+        {
+          source: "internal",
+          companyName: "Finance Inc",
+          jobTitle: "VP of Finance",
+          jobDescription: "Lead financial strategy for growth company",
+          requiredSkills: ["Financial Planning", "FP&A", "Excel", "Data Analysis"],
+          preferredSkills: ["Python", "Tableau"],
+          experienceYears: 8,
+          experienceLevel: "executive",
+          salaryMin: 200000,
+          salaryMax: 300000,
+          location: "New York, NY",
+          remote: "on-site",
+          industry: "Finance",
+          jobUrl: "https://example.com/jobs/2",
+          postedDate: new Date(),
+          isActive: true,
+        },
+        {
+          source: "internal",
+          companyName: "Data Systems",
+          jobTitle: "Machine Learning Engineer",
+          jobDescription: "Build ML models for production systems",
+          requiredSkills: ["Python", "ML", "TensorFlow", "SQL"],
+          preferredSkills: ["Spark", "AWS"],
+          experienceYears: 4,
+          experienceLevel: "mid",
+          salaryMin: 160000,
+          salaryMax: 220000,
+          location: "Remote",
+          remote: "remote",
+          industry: "Technology",
+          jobUrl: "https://example.com/jobs/3",
+          postedDate: new Date(),
+          isActive: true,
+        }
+      ];
+      
+      for (const job of sampleJobs) {
+        await db.insert(jobListings).values(job);
+      }
+      
+      res.json({ success: true, jobsAdded: sampleJobs.length });
+    } catch (error) {
+      console.error("Error seeding jobs:", error);
+      res.status(500).json({ error: "Failed to seed jobs" });
     }
   });
 

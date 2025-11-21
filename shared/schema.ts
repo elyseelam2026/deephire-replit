@@ -2318,3 +2318,60 @@ export const insertAuctionBidSchema = createInsertSchema(auctionBids).omit({
 });
 export type InsertAuctionBid = z.infer<typeof insertAuctionBidSchema>;
 export type AuctionBid = typeof auctionBids.$inferSelect;
+
+// Job Listings Table (External jobs + internal postings)
+export const jobListings = pgTable("job_listings", {
+  id: serial("id").primaryKey(),
+  externalId: varchar("external_id").unique(), // from Indeed, Glassdoor, etc.
+  source: varchar("source"), // "indeed", "glassdoor", "linkedin", "internal"
+  companyId: integer("company_id").references(() => companies.id),
+  companyName: varchar("company_name"),
+  jobTitle: varchar("job_title").notNull(),
+  jobDescription: text("job_description"),
+  requiredSkills: text("required_skills").array().default(sql`ARRAY[]::text[]`),
+  preferredSkills: text("preferred_skills").array().default(sql`ARRAY[]::text[]`),
+  experienceYears: integer("experience_years"),
+  experienceLevel: varchar("experience_level"), // entry, mid, senior, executive
+  salaryMin: integer("salary_min"),
+  salaryMax: integer("salary_max"),
+  location: varchar("location"),
+  remote: varchar("remote"), // on-site, hybrid, remote
+  industry: varchar("industry"),
+  jobUrl: text("job_url"),
+  postedDate: timestamp("posted_date"),
+  expiryDate: timestamp("expiry_date"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Candidate Job Recommendations
+export const candidateJobRecommendations = pgTable("candidate_job_recommendations", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").notNull().references(() => candidates.id),
+  jobListingId: integer("job_listing_id").notNull().references(() => jobListings.id),
+  matchScore: integer("match_score"), // 0-100
+  hardSkillMatch: integer("hard_skill_match"), // % of required skills matched
+  softSkillMatch: integer("soft_skill_match"), // estimated soft skill match
+  reasoningJSON: jsonb("reasoning_json"), // AI reasoning for match
+  status: varchar("status").default("new"), // new, viewed, applied, rejected
+  appliedAt: timestamp("applied_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertJobListingSchema = createInsertSchema(jobListings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertJobListing = z.infer<typeof insertJobListingSchema>;
+export type JobListing = typeof jobListings.$inferSelect;
+
+export const insertCandidateJobRecommendationSchema = createInsertSchema(candidateJobRecommendations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCandidateJobRecommendation = z.infer<typeof insertCandidateJobRecommendationSchema>;
+export type CandidateJobRecommendation = typeof candidateJobRecommendations.$inferSelect;

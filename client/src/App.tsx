@@ -12,6 +12,7 @@ import Dashboard from "@/pages/Dashboard";
 import Admin from "@/pages/Admin";
 import ClientPortal from "@/pages/ClientPortal";
 import CandidatePortal from "@/pages/CandidatePortal";
+import CandidateDashboard from "@/pages/CandidateDashboard";
 import Companies from "@/pages/Companies";
 import Jobs from "@/pages/Jobs";
 import JobDetail from "@/pages/JobDetail";
@@ -66,7 +67,7 @@ function AppRouter() {
       
       {/* Candidate Portal Routes */}
       <Route path="/candidate-portal" component={CandidatePortal} />
-      <Route path="/candidate-portal/dashboard" component={() => <CandidatesOnly />} />
+      <Route path="/candidate-portal/dashboard/:candidateId" component={CandidateDashboard} />
       
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
