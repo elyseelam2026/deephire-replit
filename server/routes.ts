@@ -6923,6 +6923,235 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // COMPANY PORTAL: Change password
+  app.post("/api/company/change-password", async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const companyId = parseInt(localStorage.getItem("companyId") || req.body.companyId || "0");
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Current and new password required" });
+      }
+
+      if (!companyId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Find company
+      const companies = await db
+        .select()
+        .from(schema.companies)
+        .where(eq(schema.companies.id, companyId))
+        .limit(1);
+
+      if (!companies.length) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      const company = companies[0];
+
+      // Verify current password
+      if (!company.password || !(await bcrypt.compare(currentPassword, company.password))) {
+        return res.status(401).json({ error: "Invalid current password" });
+      }
+
+      // Validate new password strength
+      const { isValid, feedback } = validatePasswordStrength(newPassword);
+      if (!isValid) {
+        return res.status(400).json({ 
+          error: "New password is too weak",
+          feedback
+        });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update company password
+      await db
+        .update(schema.companies)
+        .set({ password: hashedPassword })
+        .where(eq(schema.companies.id, company.id));
+
+      // Log password change
+      await db.insert(schema.auditLogs).values({
+        companyId: company.id,
+        eventType: "password_changed",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { action: "password_change" },
+      });
+
+      console.log(`[DEV] Password changed for company ${company.id}`);
+      res.json({ success: true, message: "Password changed successfully" });
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      res.status(500).json({ error: "Failed to change password" });
+    }
+  });
+
+  // COMPANY PORTAL: Request password reset
+  app.post("/api/company/request-reset", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: "Email required" });
+      }
+
+      // Find company
+      const companies = await db
+        .select()
+        .from(schema.companies)
+        .where(eq(schema.companies.primaryEmail, email))
+        .limit(1);
+
+      if (!companies.length) {
+        // Don't reveal if email exists for security
+        return res.json({ success: true, message: "If email exists, reset code sent" });
+      }
+
+      const company = companies[0];
+
+      // Generate reset token
+      const token = generatePasswordResetToken();
+      const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // Update company with reset token
+      await db
+        .update(schema.companies)
+        .set({
+          passwordResetToken: token,
+          passwordResetTokenExpiry: tokenExpiry,
+        })
+        .where(eq(schema.companies.id, company.id));
+
+      // Log password reset request
+      await db.insert(schema.auditLogs).values({
+        companyId: company.id,
+        eventType: "password_reset_requested",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, action: "reset_requested" },
+      });
+
+      console.log(`[DEV] Password reset token for company ${email}: ${token}`);
+
+      res.json({ 
+        success: true, 
+        message: "If email exists, reset code sent",
+        devToken: process.env.NODE_ENV === 'development' ? token : undefined
+      });
+    } catch (error: any) {
+      console.error("Error requesting password reset:", error);
+      res.status(500).json({ error: "Failed to request password reset" });
+    }
+  });
+
+  // COMPANY PORTAL: Reset password with token
+  app.post("/api/company/reset-password", async (req, res) => {
+    try {
+      const { email, token, newPassword } = req.body;
+
+      if (!email || !token || !newPassword) {
+        return res.status(400).json({ error: "Email, token, and new password required" });
+      }
+
+      // Validate new password strength
+      const { isValid, feedback } = validatePasswordStrength(newPassword);
+      if (!isValid) {
+        return res.status(400).json({ 
+          error: "Password is too weak",
+          feedback
+        });
+      }
+
+      // Find company with valid reset token
+      const companies = await db
+        .select()
+        .from(schema.companies)
+        .where(
+          and(
+            eq(schema.companies.primaryEmail, email),
+            eq(schema.companies.passwordResetToken, token)
+          )
+        )
+        .limit(1);
+
+      if (!companies.length) {
+        return res.status(401).json({ error: "Invalid reset token" });
+      }
+
+      const company = companies[0];
+
+      // Check token expiry
+      if (!company.passwordResetTokenExpiry || new Date() > company.passwordResetTokenExpiry) {
+        return res.status(401).json({ error: "Reset token has expired" });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update company password and clear reset token
+      await db
+        .update(schema.companies)
+        .set({
+          password: hashedPassword,
+          passwordResetToken: null,
+          passwordResetTokenExpiry: null,
+        })
+        .where(eq(schema.companies.id, company.id));
+
+      // Log password reset
+      await db.insert(schema.auditLogs).values({
+        companyId: company.id,
+        eventType: "password_reset",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, action: "password_reset" },
+      });
+
+      console.log(`[DEV] Password reset for company ${email}`);
+      res.json({ success: true, message: "Password reset successfully" });
+    } catch (error: any) {
+      console.error("Error resetting password:", error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
+  // COMPANY PORTAL: Update 2FA setting
+  app.post("/api/company/update-2fa", async (req, res) => {
+    try {
+      const { enabled } = req.body;
+      const companyId = parseInt(localStorage.getItem("companyId") || req.body.companyId || "0");
+
+      if (companyId === 0) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Update company 2FA setting
+      await db
+        .update(schema.companies)
+        .set({ twoFactorEnabled: enabled })
+        .where(eq(schema.companies.id, companyId));
+
+      // Log 2FA change
+      await db.insert(schema.auditLogs).values({
+        companyId,
+        eventType: "2fa_updated",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { enabled },
+      });
+
+      console.log(`[DEV] 2FA ${enabled ? 'enabled' : 'disabled'} for company ${companyId}`);
+      res.json({ success: true, message: `Two-factor authentication ${enabled ? 'enabled' : 'disabled'}` });
+    } catch (error: any) {
+      console.error("Error updating 2FA:", error);
+      res.status(500).json({ error: "Failed to update 2FA" });
+    }
+  });
+
   // SEED JOB LISTINGS (for demo)
   app.post("/api/seed-jobs", async (req, res) => {
     try {

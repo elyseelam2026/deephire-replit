@@ -96,6 +96,15 @@ export default function Settings() {
   const [editingField, setEditingField] = useState<any>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{type: 'section' | 'field', id: number} | null>(null);
+  
+  // Change Password states
+  const [showChangePasswordDialog, setShowChangePasswordDialog] = useState(false);
+  const [changePasswordForm, setChangePasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
+  
   const [sectionForm, setSectionForm] = useState({
     name: "",
     label: "",
@@ -193,6 +202,36 @@ export default function Settings() {
       toast({ title: "Field deleted successfully" });
     },
     onError: () => toast({ title: "Failed to delete field", variant: "destructive" })
+  });
+  
+  const changePasswordMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/company/change-password", data),
+    onSuccess: () => {
+      setShowChangePasswordDialog(false);
+      setChangePasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      toast({ title: "Password changed successfully" });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to change password", 
+        description: error.message || "Invalid current password",
+        variant: "destructive" 
+      });
+    }
+  });
+  
+  const updateTwoFactorMutation = useMutation({
+    mutationFn: (enabled: boolean) => apiRequest("POST", "/api/company/update-2fa", { enabled }),
+    onSuccess: () => {
+      toast({ title: "Two-factor authentication updated" });
+    },
+    onError: () => {
+      toast({ 
+        title: "Failed to update 2FA", 
+        variant: "destructive" 
+      });
+      setSettings(prev => ({ ...prev, enableTwoFactor: !prev.enableTwoFactor }));
+    }
   });
 
   const handleSave = () => {
@@ -517,7 +556,11 @@ export default function Settings() {
                 <Switch
                   id="twoFactor"
                   checked={settings.enableTwoFactor}
-                  onCheckedChange={(checked) => updateSetting('enableTwoFactor', checked)}
+                  onCheckedChange={(checked) => {
+                    updateSetting('enableTwoFactor', checked);
+                    updateTwoFactorMutation.mutate(checked);
+                  }}
+                  disabled={updateTwoFactorMutation.isPending}
                   data-testid="switch-two-factor"
                 />
               </div>
@@ -540,7 +583,11 @@ export default function Settings() {
               </div>
               <Separator />
               <div>
-                <Button variant="outline" data-testid="button-change-password">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowChangePasswordDialog(true)}
+                  data-testid="button-change-password"
+                >
                   <Key className="h-4 w-4 mr-2" />
                   Change Password
                 </Button>
@@ -854,6 +901,77 @@ export default function Settings() {
               data-testid="button-save-field"
             >
               {editingField ? 'Update' : 'Create'} Field
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Change Password Dialog */}
+      <Dialog open={showChangePasswordDialog} onOpenChange={setShowChangePasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new one
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={changePasswordForm.currentPassword}
+                onChange={(e) => setChangePasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                placeholder="Enter current password"
+                data-testid="input-current-password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={changePasswordForm.newPassword}
+                onChange={(e) => setChangePasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                placeholder="Enter new password"
+                data-testid="input-new-password"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Must be at least 8 characters with uppercase, lowercase, number, and special character
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={changePasswordForm.confirmPassword}
+                onChange={(e) => setChangePasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                placeholder="Confirm new password"
+                data-testid="input-confirm-password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangePasswordDialog(false)} data-testid="button-cancel-password">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
+                  toast({ title: "Passwords don't match", variant: "destructive" });
+                  return;
+                }
+                changePasswordMutation.mutate({
+                  currentPassword: changePasswordForm.currentPassword,
+                  newPassword: changePasswordForm.newPassword
+                });
+              }}
+              disabled={changePasswordMutation.isPending || !changePasswordForm.currentPassword || !changePasswordForm.newPassword}
+              data-testid="button-change-password-submit"
+            >
+              {changePasswordMutation.isPending ? "Changing..." : "Change Password"}
             </Button>
           </DialogFooter>
         </DialogContent>
