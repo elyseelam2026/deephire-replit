@@ -136,6 +136,12 @@ export const companies = pgTable("companies", {
   privacyPolicyUrl: text("privacy_policy_url"),
   industryCompliance: text("industry_compliance").array(), // HIPAA, SOX, etc.
   
+  // Business License Verification (MANDATORY for posting jobs)
+  businessLicenseVerified: boolean("business_license_verified").default(false).notNull(),
+  businessLicenseVerifiedAt: timestamp("business_license_verified_at"),
+  businessLicenseUrl: text("business_license_url"), // URL to uploaded license document
+  businessLicenseExpiryDate: timestamp("business_license_expiry_date"),
+  
   // Company Normalization & Matching (for AI-powered deduplication)
   normalizedAliases: text("normalized_aliases").array().default(sql`ARRAY[]::text[]`), // ["boyu-capital", "博裕资本", "boyu-capital-partners"]
   primaryDomain: text("primary_domain"), // Main website domain for matching (e.g., "boyucapital.com")
@@ -420,6 +426,10 @@ export const candidates = pgTable("candidates", {
   marketingOptIn: boolean("marketing_opt_in").default(false),
   gdprConsent: boolean("gdpr_consent"),
   dataRetentionUntil: timestamp("data_retention_until"),
+  
+  // Email Verification (MANDATORY for portal access)
+  isEmailVerified: boolean("is_email_verified").default(false).notNull(),
+  emailVerifiedAt: timestamp("email_verified_at"),
   
   // Verification & Data Quality (new - for production candidates)
   verificationStatus: text("verification_status").default("unverified"), // verified, unverified, needs_review
