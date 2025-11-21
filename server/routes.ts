@@ -6045,6 +6045,14 @@ CRITICAL RULES - You MUST follow these strictly:
       });
     } catch (error: any) {
       console.error("Error registering candidate:", error);
+      
+      // Check for duplicate email
+      if (error.code === '23505' && error.constraint === 'candidates_email_unique') {
+        return res.status(400).json({ 
+          error: "This email is already registered. Please log in instead or use a different email address." 
+        });
+      }
+      
       res.status(500).json({ error: error.message || "Registration failed" });
     }
   });

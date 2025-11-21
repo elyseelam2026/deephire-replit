@@ -7,21 +7,26 @@ DeepHire is an AI-powered enterprise B2B recruiting platform that revolutionizes
 Preferred communication style: Simple, everyday language.
 
 ## Latest Build Session (Nov 21, 2025)
-**Complete Two-Sided Authentication & Portal System**
+**Complete Two-Sided Authentication & Portal System with Email Verification Gates**
 - Landing Home page (`/`) with two-sided marketplace explanation
 - Unified Auth flow with role selection (Candidate/Company) → Register/Login selector
-- **Candidate Portal**: Registration with 3-step form (Account → Profile → Experience), email verification, job recommendations dashboard with AI-matched jobs
+- **Candidate Portal**: Registration saves to PostgreSQL database with password hashing (bcryptjs, 10 rounds)
+- **Email Verification Blocking Gate**: Mandatory email verification with 6-digit codes (10-min expiration) BEFORE access to dashboard
+- **Development Mode**: Verification codes auto-display on verification page in blue box for easy testing (no external email service needed)
+- **Dashboard Access**: Only unlocks after email verification succeeds - shows job recommendations matching candidate profile
 - **Company Portal**: Registration → redirect to dashboard (`/company/portal`) with Post Job tab, My Jobs, Search Candidates, Settings
-- **Password Hashing**: bcryptjs with 10 rounds of salt for all registrations
-- **Email/SMS Verification**: 6-digit codes, 10-min expiration, rate limiting, Twilio integration ready for SMS
 - **Company Features**: Post jobs endpoint (`/api/company/post-job`), Get company jobs endpoint, Job listing form with title/description/location/salary/level/skills
+- **Duplicate Email Prevention**: Clear error message if registering with existing email - directs to login instead
 - **Backend Endpoints**: 
-  - `/api/candidate/register` - Hash password + create candidate + send verification code
+  - `/api/candidate/register` - Create candidate in DB with hashed password, `isEmailVerified: false`
+  - `/api/candidate/:candidateId` - Fetch candidate profile, enforces verification check in frontend
   - `/api/company/register` - Hash password + create company
   - `/api/company/post-job` - Create job listings
-  - `/api/send-verification` - Send SMS via Twilio (when configured) or email
-  - `/api/verify-code` - Verify 6-digit codes
-- **Flow**: Landing → Auth role select → Register (candidate/company) → Verify Email → Dashboard/Portal
+  - `/api/send-verification` - Send 6-digit code (dev mode returns code in response for auto-filling)
+  - `/api/verify-code` - Verify code, updates `isEmailVerified: true` in database
+  - `/api/candidate/:candidateId/job-recommendations` - Fetch AI-matched jobs (blocked if not verified)
+- **Flow**: Landing → Auth role select → Register (new email only) → Email Verification (BLOCKING) → Dashboard unlocks → See recommendations
+- **Database Integration**: All candidate data persists in PostgreSQL (Neon serverless), not in-memory storage
 
 ## System Architecture
 
