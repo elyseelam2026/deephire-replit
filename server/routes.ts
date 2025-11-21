@@ -6927,7 +6927,7 @@ CRITICAL RULES - You MUST follow these strictly:
   app.post("/api/company/change-password", async (req, res) => {
     try {
       const { currentPassword, newPassword } = req.body;
-      const companyId = parseInt(localStorage.getItem("companyId") || req.body.companyId || "0");
+      const companyId = req.session?.companyId || req.body?.companyId;
 
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ error: "Current and new password required" });
@@ -7123,9 +7123,9 @@ CRITICAL RULES - You MUST follow these strictly:
   app.post("/api/company/update-2fa", async (req, res) => {
     try {
       const { enabled } = req.body;
-      const companyId = parseInt(localStorage.getItem("companyId") || req.body.companyId || "0");
+      const companyId = req.session?.companyId || req.body?.companyId;
 
-      if (companyId === 0) {
+      if (!companyId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
 
