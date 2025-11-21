@@ -12,8 +12,17 @@ export default function LandingHome() {
       <nav className="sticky top-0 z-50 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 border-b">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="text-2xl font-bold text-primary">DeepHire</div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setLocation("/auth")}>
+          <div className="flex gap-2 items-center">
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/client")} data-testid="nav-client-portal">
+              Client Portal
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/recruiting")} data-testid="nav-recruiting-portal">
+              Recruiting
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")} data-testid="nav-admin-portal">
+              Admin
+            </Button>
+            <Button variant="outline" onClick={() => setLocation("/auth")} data-testid="nav-sign-in">
               Sign In
             </Button>
           </div>
@@ -32,8 +41,8 @@ export default function LandingHome() {
           </Button>
         </div>
 
-        {/* Two-Sided Marketplace */}
-        <div className="grid md:grid-cols-2 gap-8 mt-16">
+        {/* Three-Sided Marketplace */}
+        <div className="grid md:grid-cols-3 gap-8 mt-16">
           {/* Candidates */}
           <Card className="hover-elevate">
             <CardContent className="pt-8">
@@ -59,6 +68,7 @@ export default function LandingHome() {
               <Button 
                 className="w-full" 
                 onClick={() => setLocation("/auth?role=candidate")}
+                data-testid="button-candidate-signup"
               >
                 Join as Candidate
               </Button>
@@ -90,8 +100,41 @@ export default function LandingHome() {
               <Button 
                 className="w-full" 
                 onClick={() => setLocation("/auth?role=company")}
+                data-testid="button-company-signup"
               >
                 Sign Up Company
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Recruiters */}
+          <Card className="hover-elevate">
+            <CardContent className="pt-8">
+              <Users className="h-12 w-12 text-purple-600 mb-4" />
+              <h3 className="text-2xl font-bold mb-3">For Recruiters</h3>
+              <p className="text-muted-foreground mb-6">
+                Manage candidate pipelines, run AI-powered searches, and access the full recruiting platform with comprehensive tooling.
+              </p>
+              <ul className="space-y-2 mb-6">
+                <li className="flex gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                  <span>Full candidate management</span>
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                  <span>AI-powered search engine</span>
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                  <span>Team collaboration tools</span>
+                </li>
+              </ul>
+              <Button 
+                className="w-full"
+                onClick={() => setLocation("/recruiting")}
+                data-testid="button-recruiter-access"
+              >
+                Access Recruiting Portal
               </Button>
             </CardContent>
           </Card>
