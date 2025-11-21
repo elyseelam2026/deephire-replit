@@ -3,10 +3,12 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, TrendingUp } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, ArrowLeft, TrendingUp, Users, BarChart3 } from "lucide-react";
 import { Job } from "@shared/schema";
 import { Link } from "wouter";
 import CandidatePipeline from "@/components/CandidatePipeline";
+import CandidateLonglist from "@/components/CandidateLonglist";
 import { SearchPyramid } from "@/components/SearchPyramid";
 import { MarketCoverage } from "@/components/MarketCoverage";
 import { DepthControl } from "@/components/DepthControl";
@@ -195,7 +197,7 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Main Content - Pyramid + Pipeline */}
+      {/* Main Content - Pyramid + Pipeline/Longlist */}
       <div className="flex-1 overflow-hidden p-6">
         <div className="grid grid-cols-12 gap-6 h-full">
           {/* Left: Search Pyramid (4 cols) + Market Coverage + Depth Control */}
@@ -212,9 +214,28 @@ export default function JobDetail() {
             />
           </div>
 
-          {/* Right: Pipeline Kanban (8 cols) */}
-          <div className="col-span-8 overflow-y-auto" data-testid="panel-pipeline">
-            <CandidatePipeline jobId={jobId!} />
+          {/* Right: Pipeline or Longlist (8 cols) */}
+          <div className="col-span-8 overflow-hidden" data-testid="panel-main-content">
+            <Tabs defaultValue="longlist" className="h-full flex flex-col">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="longlist" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Longlist ({jobCandidates.length})
+                </TabsTrigger>
+                <TabsTrigger value="pipeline" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Pipeline
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="longlist" className="flex-1 overflow-y-auto" data-testid="tab-longlist">
+                <CandidateLonglist jobId={jobId!} />
+              </TabsContent>
+              
+              <TabsContent value="pipeline" className="flex-1 overflow-y-auto" data-testid="tab-pipeline">
+                <CandidatePipeline jobId={jobId!} />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
