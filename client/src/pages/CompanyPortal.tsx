@@ -83,9 +83,14 @@ export default function CompanyPortal() {
               </h1>
               <p className="text-muted-foreground mt-2">Post jobs, find candidates, and manage your hiring</p>
             </div>
-            <Button onClick={() => setLocation("/")} variant="outline" data-testid="button-logout">
-              Logout
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setLocation("/")} variant="outline" data-testid="button-home">
+                Home
+              </Button>
+              <Button onClick={() => setLocation("/")} variant="default" data-testid="button-logout">
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
 

@@ -58,7 +58,7 @@ export default function CompanyRegister() {
 
       setIsRegistered(true);
       setTimeout(() => {
-        setLocation("/company/login");
+        setLocation("/company/portal");
       }, 2000);
     } catch (error) {
       toast({
