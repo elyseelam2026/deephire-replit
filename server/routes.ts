@@ -5982,7 +5982,7 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
-  // CANDIDATE PORTAL: Register candidate
+  // CANDIDATE PORTAL: Register candidate with enhanced security
   app.post("/api/candidate/register", async (req, res) => {
     try {
       const { 
@@ -5995,8 +5995,14 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      if (password.length < 8) {
-        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      // Validate password strength
+      const { isValid, score, feedback } = require("./security").validatePasswordStrength(password);
+      if (!isValid) {
+        return res.status(400).json({ 
+          error: "Password is too weak",
+          feedback,
+          score
+        });
       }
 
       // Hash password
@@ -6014,6 +6020,8 @@ CRITICAL RULES - You MUST follow these strictly:
         skills: (skills || []) as string[],
         isEmailVerified: false,
         isAvailable: true,
+        failedLoginAttempts: 0,
+        passwordLastChangedAt: new Date(),
       }).returning();
 
       const candidate = candidateResult[0];
@@ -6036,6 +6044,15 @@ CRITICAL RULES - You MUST follow these strictly:
         expiresAt,
       });
 
+      // Log registration
+      await db.insert(schema.auditLogs).values({
+        candidateId: candidate.id,
+        eventType: "registration",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, success: true },
+      });
+
       console.log(`[DEV] Email verification code for ${email}: ${code}`);
 
       res.json({
@@ -6054,6 +6071,263 @@ CRITICAL RULES - You MUST follow these strictly:
       }
       
       res.status(500).json({ error: error.message || "Registration failed" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Login with security
+  app.post("/api/candidate/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      // Find candidate
+      const candidates = await db
+        .select()
+        .from(schema.candidates)
+        .where(eq(schema.candidates.email, email))
+        .limit(1);
+
+      if (!candidates.length) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      const candidate = candidates[0];
+
+      // Check account lockout
+      const { isAccountLocked } = require("./security");
+      if (isAccountLocked(candidate.accountLockedUntil)) {
+        return res.status(403).json({ 
+          error: "Account temporarily locked due to too many failed login attempts. Try again later.",
+          lockedUntil: candidate.accountLockedUntil
+        });
+      }
+
+      // Verify password
+      const passwordMatch = await bcrypt.compare(password, candidate.password || "");
+      if (!passwordMatch) {
+        // Increment failed attempts
+        let newFailedAttempts = (candidate.failedLoginAttempts || 0) + 1;
+        let lockoutExpiry = null;
+
+        const { calculateLockoutExpiry, ACCOUNT_LOCKOUT_CONFIG } = require("./security");
+        
+        if (newFailedAttempts >= 5) {
+          lockoutExpiry = calculateLockoutExpiry();
+        }
+
+        await db
+          .update(schema.candidates)
+          .set({
+            failedLoginAttempts: newFailedAttempts,
+            accountLockedUntil: lockoutExpiry,
+          })
+          .where(eq(schema.candidates.id, candidate.id));
+
+        // Log failed attempt
+        await db.insert(schema.auditLogs).values({
+          candidateId: candidate.id,
+          eventType: "login_failed",
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          details: { email, attemptNumber: newFailedAttempts },
+        });
+
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Reset failed attempts on success
+      await db
+        .update(schema.candidates)
+        .set({
+          failedLoginAttempts: 0,
+          lastLoginAt: new Date(),
+        })
+        .where(eq(schema.candidates.id, candidate.id));
+
+      // Log successful login
+      await db.insert(schema.auditLogs).values({
+        candidateId: candidate.id,
+        eventType: "login_success",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, success: true },
+      });
+
+      // Set session
+      req.session.candidateId = candidate.id;
+      req.session.email = candidate.email;
+
+      res.json({
+        success: true,
+        candidateId: candidate.id,
+        isEmailVerified: candidate.isEmailVerified,
+      });
+    } catch (error) {
+      console.error("Error logging in:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Request password reset
+  app.post("/api/candidate/request-reset", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: "Email required" });
+      }
+
+      // Find candidate
+      const candidates = await db
+        .select()
+        .from(schema.candidates)
+        .where(eq(schema.candidates.email, email))
+        .limit(1);
+
+      if (!candidates.length) {
+        // Don't reveal if email exists for security
+        return res.json({ success: true, message: "If email exists, reset code sent" });
+      }
+
+      const candidate = candidates[0];
+      const { generatePasswordResetToken } = require("./security");
+
+      // Generate reset token
+      const token = generatePasswordResetToken();
+      const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // Update candidate with reset token
+      await db
+        .update(schema.candidates)
+        .set({
+          passwordResetToken: token,
+          passwordResetTokenExpiry: tokenExpiry,
+        })
+        .where(eq(schema.candidates.id, candidate.id));
+
+      // Log password reset request
+      await db.insert(schema.auditLogs).values({
+        candidateId: candidate.id,
+        eventType: "password_reset",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, action: "reset_requested" },
+      });
+
+      console.log(`[DEV] Password reset token for ${email}: ${token}`);
+
+      res.json({ 
+        success: true, 
+        message: "If email exists, reset code sent",
+        devToken: process.env.NODE_ENV === 'development' ? token : undefined
+      });
+    } catch (error) {
+      console.error("Error requesting reset:", error);
+      res.status(500).json({ error: "Failed to request password reset" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Reset password with token
+  app.post("/api/candidate/reset-password", async (req, res) => {
+    try {
+      const { email, token, newPassword } = req.body;
+
+      if (!email || !token || !newPassword) {
+        return res.status(400).json({ error: "Email, token, and new password required" });
+      }
+
+      // Validate password strength
+      const { validatePasswordStrength } = require("./security");
+      const { isValid, feedback } = validatePasswordStrength(newPassword);
+      if (!isValid) {
+        return res.status(400).json({ 
+          error: "New password is too weak",
+          feedback
+        });
+      }
+
+      // Find candidate with valid reset token
+      const candidates = await db
+        .select()
+        .from(schema.candidates)
+        .where(and(
+          eq(schema.candidates.email, email),
+          eq(schema.candidates.passwordResetToken, token)
+        ))
+        .limit(1);
+
+      if (!candidates.length) {
+        return res.status(400).json({ error: "Invalid reset link" });
+      }
+
+      const candidate = candidates[0];
+
+      // Check token expiry
+      if (!candidate.passwordResetTokenExpiry || new Date() > candidate.passwordResetTokenExpiry) {
+        return res.status(400).json({ error: "Reset link expired" });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password and clear reset token
+      await db
+        .update(schema.candidates)
+        .set({
+          password: hashedPassword,
+          passwordResetToken: null,
+          passwordResetTokenExpiry: null,
+          passwordLastChangedAt: new Date(),
+          failedLoginAttempts: 0,
+          accountLockedUntil: null,
+        })
+        .where(eq(schema.candidates.id, candidate.id));
+
+      // Log password change
+      await db.insert(schema.auditLogs).values({
+        candidateId: candidate.id,
+        eventType: "password_changed",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, action: "password_reset_completed" },
+      });
+
+      res.json({ success: true, message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Error resetting password:", error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Logout
+  app.post("/api/candidate/logout", async (req, res) => {
+    try {
+      const candidateId = req.session.candidateId;
+
+      if (candidateId) {
+        // Log logout
+        await db.insert(schema.auditLogs).values({
+          candidateId,
+          eventType: "logout",
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          details: { action: "user_initiated_logout" },
+        });
+      }
+
+      // Destroy session
+      req.session.destroy((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Logout failed" });
+        }
+        res.json({ success: true, message: "Logged out successfully" });
+      });
+    } catch (error) {
+      console.error("Error logging out:", error);
+      res.status(500).json({ error: "Logout failed" });
     }
   });
 

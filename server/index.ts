@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { sessionConfig } from "./security";
 
 const app = express();
 
@@ -26,6 +28,9 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Session middleware - MUST come after body parsing
+app.use(session(sessionConfig as any));
 
 app.use((req, res, next) => {
   const start = Date.now();
