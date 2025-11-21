@@ -21,6 +21,8 @@ export default function CompanyForgotPassword() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [resetLink, setResetLink] = useState("");
+  const [devToken, setDevToken] = useState("");
 
   const form = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -44,11 +46,14 @@ export default function CompanyForgotPassword() {
         throw new Error(result.error || "Failed to send reset email");
       }
 
-      // In development, show the token
+      // In development, show the token and generate reset link
       if (result.devToken) {
+        const link = `/company/reset-password?email=${encodeURIComponent(data.email)}&token=${result.devToken}`;
+        setDevToken(result.devToken);
+        setResetLink(link);
         toast({
-          title: "Reset Token (Dev Mode)",
-          description: `Token: ${result.devToken}. Use it on the reset page.`,
+          title: "Reset Link Generated (Dev Mode)",
+          description: "Click the link below or check your email",
         });
       }
 
@@ -68,20 +73,35 @@ export default function CompanyForgotPassword() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
-          <CardContent className="pt-12 pb-8 text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto">
+          <CardContent className="pt-12 pb-8">
+            <div className="mb-6 text-center">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="h-8 w-8 text-blue-600 dark:text-blue-400" />
               </div>
+              <h2 className="text-2xl font-bold mb-2">Check Your Email!</h2>
+              <p className="text-muted-foreground mb-6">
+                We've sent a password reset link to your email. Click the link to reset your password.
+              </p>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Check Your Email!</h2>
-            <p className="text-muted-foreground mb-6">
-              We've sent a password reset link to your email. Click the link to reset your password.
-            </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              In development mode, check the notification above for your reset token.
-            </p>
-            <Button onClick={() => setLocation("/company/login")} className="w-full">
+
+            {resetLink && (
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-3">Dev Mode: Click to reset password</p>
+                <Button 
+                  onClick={() => setLocation(resetLink)}
+                  variant="outline"
+                  className="w-full mb-3"
+                  data-testid="button-click-reset-link"
+                >
+                  Reset Password
+                </Button>
+                <div className="text-xs text-muted-foreground mt-3 p-2 bg-white dark:bg-slate-900 rounded border border-gray-200 dark:border-slate-700 break-all">
+                  <p className="font-mono text-blue-600 dark:text-blue-400">{resetLink}</p>
+                </div>
+              </div>
+            )}
+
+            <Button onClick={() => setLocation("/company/login")} variant="outline" className="w-full">
               Back to Login
             </Button>
           </CardContent>
