@@ -39,6 +39,22 @@ export default function CompanyPortal() {
     },
   });
 
+  const handleLogout = async () => {
+    try {
+      // Clear localStorage
+      localStorage.removeItem("companyId");
+      localStorage.removeItem("email");
+      // Redirect to home
+      setLocation("/");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive",
+      });
+    }
+  };
+
   const onSubmit = async (data: JobPostData) => {
     setIsSubmitting(true);
     try {
@@ -87,7 +103,10 @@ export default function CompanyPortal() {
               <Button onClick={() => setLocation("/")} variant="outline" data-testid="button-home">
                 Home
               </Button>
-              <Button onClick={() => setLocation("/")} variant="default" data-testid="button-logout">
+              <Button onClick={() => setLocation("/company/portal#settings")} variant="outline" data-testid="button-settings">
+                Settings
+              </Button>
+              <Button onClick={handleLogout} variant="default" data-testid="button-logout">
                 Logout
               </Button>
             </div>
