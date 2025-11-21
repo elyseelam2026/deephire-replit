@@ -145,7 +145,11 @@ export default function CandidatePortal() {
       <VerifyEmail 
         email={verifyEmail} 
         onVerified={() => {
-          setStep(2);
+          setIsVerifying(false);
+          setIsRegistered(true);
+          setTimeout(() => {
+            window.location.href = `/candidate/dashboard/1`;
+          }, 2000);
         }}
       />
     );
