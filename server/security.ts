@@ -89,6 +89,12 @@ export function generatePasswordResetToken(): string {
 
 /**
  * Validate password strength
+ * REQUIRED: All of these must be present:
+ * 1. At least 8 characters
+ * 2. Lowercase letter
+ * 3. Uppercase letter
+ * 4. Number
+ * 5. Special character (!@#$%^&*)
  */
 export function validatePasswordStrength(password: string): {
   isValid: boolean;
@@ -97,29 +103,35 @@ export function validatePasswordStrength(password: string): {
 } {
   const feedback: string[] = [];
   let score = 0;
+  
+  const hasMinLength = password.length >= 8;
+  const hasLowercase = /[a-z]/.test(password);
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecialChar = /[!@#$%^&*]/.test(password);
 
-  if (password.length >= 8) score += 1;
-  else feedback.push("At least 8 characters");
+  if (hasMinLength) score += 1;
+  else feedback.push("At least 8 characters required");
 
-  if (password.length >= 12) score += 1;
-  else if (password.length >= 8) feedback.push("12+ characters recommended");
+  if (hasLowercase) score += 1;
+  else feedback.push("Lowercase letters required");
 
-  if (/[a-z]/.test(password)) score += 1;
-  else feedback.push("Add lowercase letters");
+  if (hasUppercase) score += 1;
+  else feedback.push("Uppercase letters required");
 
-  if (/[A-Z]/.test(password)) score += 1;
-  else feedback.push("Add uppercase letters");
+  if (hasNumber) score += 1;
+  else feedback.push("Numbers required");
 
-  if (/[0-9]/.test(password)) score += 1;
-  else feedback.push("Add numbers");
+  if (hasSpecialChar) score += 1;
+  else feedback.push("Special character required (!@#$%^&*)");
 
-  if (/[!@#$%^&*]/.test(password)) score += 1;
-  else feedback.push("Add special characters (!@#$%^&*)");
+  // MUST have all 5 core requirements (length, lowercase, uppercase, number, special char)
+  const isValid = hasMinLength && hasLowercase && hasUppercase && hasNumber && hasSpecialChar;
 
   return {
-    isValid: score >= 3, // At least 3 of 6 requirements
+    isValid,
     score,
-    feedback,
+    feedback: isValid ? [] : feedback, // Show feedback only if invalid
   };
 }
 
