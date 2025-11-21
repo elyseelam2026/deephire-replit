@@ -490,6 +490,15 @@ export const candidates = pgTable("candidates", {
   creditsBalance: integer("credits_balance").default(0).notNull(), // Free credits earned for profile completion
   profileCompletionBonus: boolean("profile_completion_bonus").default(false), // Whether AI auto-fill bonus was awarded
   
+  // Security & Authentication
+  password: text("password"), // Hashed password for login
+  failedLoginAttempts: integer("failed_login_attempts").default(0), // Track failed logins for lockout
+  accountLockedUntil: timestamp("account_locked_until"), // When account was locked due to failed attempts
+  lastLoginAt: timestamp("last_login_at"), // Track last successful login
+  passwordResetToken: text("password_reset_token"), // Token for password reset flow
+  passwordResetTokenExpiry: timestamp("password_reset_token_expiry"), // When reset token expires
+  passwordLastChangedAt: timestamp("password_last_changed_at"), // Track password change history
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
@@ -2413,3 +2422,23 @@ export const insertVerificationCodeSchema = createInsertSchema(verificationCodes
 });
 export type InsertVerificationCode = z.infer<typeof insertVerificationCodeSchema>;
 export type VerificationCode = typeof verificationCodes.$inferSelect;
+
+// Audit Logs Table - Track all security events
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id),
+  companyId: integer("company_id").references(() => companies.id),
+  userId: integer("user_id"),
+  eventType: varchar("event_type").notNull(), // registration, login_success, login_failed, password_reset, account_locked, logout, password_changed
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  details: jsonb("details"), // Additional context {email, reason, attemptNumber, etc}
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
