@@ -38,8 +38,7 @@ export default function Landing() {
       buttonText: "Access Candidate Portal",
       route: "/candidate-portal",
       color: "bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800",
-      iconColor: "text-purple-600 dark:text-purple-400",
-      comingSoon: true
+      iconColor: "text-purple-600 dark:text-purple-400"
     },
     {
       id: "admin",

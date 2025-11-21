@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +11,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUpload } from "@/components/FileUpload";
 import { 
   User, Briefcase, Star, Upload, Building2, 
-  MapPin, DollarSign, Clock, CheckCircle 
+  MapPin, DollarSign, Clock, CheckCircle, Loader2
 } from "lucide-react";
 
 export default function CandidatePortal() {
-  // todo: remove mock functionality - replace with real candidate data
+  const { data: jobs = [] } = useQuery<any[]>({
+    queryKey: ['/api/jobs/published'],
+    queryFn: async () => {
+      const response = await fetch('/api/jobs?status=open');
+      if (!response.ok) return [];
+      return response.json();
+    }
+  });
+
   const [profile, setProfile] = useState({
     firstName: "Sarah",
     lastName: "Chen",
@@ -27,39 +36,6 @@ export default function CandidatePortal() {
     skills: ["React", "TypeScript", "Node.js", "Python", "AWS", "Docker"],
     bio: "Passionate full-stack developer with 6+ years of experience building scalable web applications. Strong background in React, Node.js, and cloud technologies.",
   });
-
-  const [jobMatches] = useState([
-    {
-      id: 1,
-      title: "Senior Frontend Developer",
-      company: "TechCorp Inc",
-      location: "San Francisco, CA",
-      salary: "$160k - $200k",
-      matchScore: 92,
-      postedDays: 2,
-      status: "new",
-    },
-    {
-      id: 2,
-      title: "Full Stack Engineer",
-      company: "StartupXYZ",
-      location: "Remote",
-      salary: "$140k - $180k",
-      matchScore: 88,
-      postedDays: 5,
-      status: "applied",
-    },
-    {
-      id: 3,
-      title: "Senior React Developer",
-      company: "Enterprise Corp",
-      location: "New York, NY",
-      salary: "$170k - $210k",
-      matchScore: 85,
-      postedDays: 1,
-      status: "interviewing",
-    },
-  ]);
 
   const handleProfileUpdate = () => {
     console.log('Profile updated:', profile);
@@ -107,7 +83,7 @@ export default function CandidatePortal() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
+      <Tabs defaultValue="matches" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="profile" data-testid="tab-profile">
             <User className="h-4 w-4 mr-2" />
@@ -115,7 +91,7 @@ export default function CandidatePortal() {
           </TabsTrigger>
           <TabsTrigger value="matches" data-testid="tab-matches">
             <Briefcase className="h-4 w-4 mr-2" />
-            Job Matches
+            Available Jobs ({jobs.length})
           </TabsTrigger>
           <TabsTrigger value="applications" data-testid="tab-applications">
             <Star className="h-4 w-4 mr-2" />
