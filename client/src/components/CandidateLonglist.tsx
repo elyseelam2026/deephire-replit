@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ExternalLink, MapPin, Briefcase, TrendingUp, Search } from "lucide-react";
+import { ExternalLink, MapPin, Briefcase, TrendingUp, Search, Eye } from "lucide-react";
 import { Link } from "wouter";
+import { CandidateDetailModal } from "./CandidateDetailModal";
 
 interface Candidate {
   id: number;
@@ -52,6 +53,8 @@ const getScoreBadgeVariant = (score: number | null) => {
 export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"fit" | "hardSkill" | "recent">("fit");
+  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { data: candidates = [], isLoading } = useQuery<JobCandidate[]>({
     queryKey: ['/api/jobs', jobId, 'candidates'],
@@ -209,7 +212,20 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
                       </div>
                     </div>
 
-                    {/* View Profile Button */}
+                    {/* Quick View Button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedCandidateId(candidate.id);
+                        setIsModalOpen(true);
+                      }}
+                      data-testid={`button-quick-view-${jc.id}`}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+
+                    {/* Full Profile Link */}
                     <Link href={`/recruiting/candidates/${candidate.id}`}>
                       <Button variant="ghost" size="icon" data-testid={`button-view-profile-${jc.id}`}>
                         <ExternalLink className="h-4 w-4" />
@@ -222,6 +238,14 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
           })
         )}
       </div>
+
+      {/* Candidate Detail Modal */}
+      <CandidateDetailModal
+        isOpen={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        jobId={jobId}
+        candidateId={selectedCandidateId}
+      />
     </div>
   );
 }
