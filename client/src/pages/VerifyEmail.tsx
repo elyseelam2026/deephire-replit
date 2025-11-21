@@ -26,11 +26,17 @@ export default function VerifyEmail({ email, onVerified }: VerifyEmailProps) {
   const { toast } = useToast();
   const [isResending, setIsResending] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const form = useForm<VerifyFormData>({
     resolver: zodResolver(verifySchema),
     defaultValues: { code: "" },
   });
+
+  useEffect(() => {
+    // Auto-send code on mount
+    handleResend();
+  }, []);
 
   const onSubmit = async (data: VerifyFormData) => {
     setIsSubmitting(true);
@@ -62,15 +68,23 @@ export default function VerifyEmail({ email, onVerified }: VerifyEmailProps) {
   const handleResend = async () => {
     setIsResending(true);
     try {
-      await fetch("/api/send-verification", {
+      const response = await fetch("/api/send-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, method: "email" }),
       });
 
+      const data = await response.json();
+      
+      // In development mode, the code is returned in response
+      if (data.devCode) {
+        setDevCode(data.devCode);
+        form.setValue("code", data.devCode);
+      }
+
       toast({
         title: "Code sent",
-        description: "Check your email for the verification code",
+        description: data.devCode ? `Test code: ${data.devCode}` : "Check your email for the verification code",
       });
     } catch (error) {
       toast({
@@ -98,6 +112,14 @@ export default function VerifyEmail({ email, onVerified }: VerifyEmailProps) {
           <p className="text-sm text-muted-foreground text-center">
             We sent a 6-digit code to <strong>{email}</strong>
           </p>
+
+          {devCode && (
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Development Mode</p>
+              <p className="text-lg font-mono font-bold text-blue-600 dark:text-blue-300" data-testid="text-dev-code">{devCode}</p>
+              <p className="text-xs text-muted-foreground mt-1">Auto-filled above</p>
+            </div>
+          )}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
