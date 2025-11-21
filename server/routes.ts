@@ -5979,6 +5979,76 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // CANDIDATE PORTAL: Register candidate
+  app.post("/api/candidate/register", async (req, res) => {
+    try {
+      const { 
+        email, password, firstName, lastName, headline, location, bio,
+        skills, workExperience, education
+      } = req.body;
+
+      // Validate required fields
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Create candidate
+      const candidate = await storage.createCandidate({
+        firstName,
+        lastName,
+        email,
+        headline: headline || "",
+        location: location || "",
+        biography: bio || "",
+        skills: skills || [],
+        workHistory: workExperience || [],
+        education: education || [],
+        isAvailable: true,
+        sourceChannel: "candidate_portal",
+      });
+
+      // Create premium tier record (free tier by default)
+      await db.insert(schema.candidatePremium).values({
+        candidateId: candidate.id,
+        tier: "free",
+        visibilityLevel: "public",
+      });
+
+      res.json({
+        success: true,
+        candidateId: candidate.id,
+        message: "Profile registered successfully"
+      });
+    } catch (error: any) {
+      console.error("Error registering candidate:", error);
+      res.status(500).json({ error: error.message || "Registration failed" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Get current candidate profile
+  app.get("/api/candidate/me", async (req, res) => {
+    try {
+      // In real app, would use session/auth to get current user
+      // For now, return dummy data
+      res.json({
+        id: 1,
+        firstName: "John",
+        lastName: "Doe",
+        headline: "Software Engineer",
+        location: "San Francisco, CA",
+        email: "john@example.com",
+        bio: "Passionate developer",
+        skills: ["React", "TypeScript", "Node.js"],
+        workExperience: [],
+        education: [],
+        profileCompleteness: 75
+      });
+    } catch (error) {
+      console.error("Error fetching candidate profile:", error);
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Start the promise worker to execute AI commitments

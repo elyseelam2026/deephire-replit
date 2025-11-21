@@ -64,9 +64,12 @@ function AppRouter() {
       {/* Admin Portal Routes */}
       <Route path="/admin" component={AdminApp} />
       
+      {/* Candidate Portal Routes */}
+      <Route path="/candidate-portal" component={CandidatePortal} />
+      <Route path="/candidate-portal/dashboard" component={() => <CandidatesOnly />} />
+      
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
-      <Route path="/candidate-portal" component={CandidatePortal} />
       <Route path="/candidates" component={CandidatesOnly} />
       
       {/* 404 */}
