@@ -486,6 +486,10 @@ export const candidates = pgTable("candidates", {
   lastRefreshedAt: timestamp("last_refreshed_at"), // When candidate data was last refreshed from LinkedIn
   nextRefreshDue: timestamp("next_refresh_due"), // When next refresh should occur (monthly for elite, 6-month for warm)
   
+  // Credits & Rewards System
+  creditsBalance: integer("credits_balance").default(0).notNull(), // Free credits earned for profile completion
+  profileCompletionBonus: boolean("profile_completion_bonus").default(false), // Whether AI auto-fill bonus was awarded
+  
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted

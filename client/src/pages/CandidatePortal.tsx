@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import VerifyEmail from "./VerifyEmail";
+import ProfileAutofill from "./ProfileAutofill";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,7 @@ export default function CandidatePortal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isAutofilling, setIsAutofilling] = useState(false);
   const [verifyEmail, setVerifyEmail] = useState("");
 
   const [workExperience, setWorkExperience] = useState<WorkExperience[]>([]);
@@ -143,10 +145,29 @@ export default function CandidatePortal() {
       <VerifyEmail 
         email={verifyEmail} 
         onVerified={() => {
-          setIsRegistered(true);
-          setTimeout(() => {
-            window.location.href = `/candidate/dashboard/1`;
-          }, 2000);
+          setIsAutofilling(true);
+        }}
+      />
+    );
+  }
+
+  if (isAutofilling) {
+    return (
+      <ProfileAutofill
+        email={verifyEmail}
+        onAutofillComplete={(profileData) => {
+          form.setValue("headline", profileData.currentTitle);
+          form.setValue("location", profileData.location);
+          form.setValue("bio", profileData.biography);
+          setSkills(profileData.skills || []);
+          setWorkExperience(profileData.workExperience || []);
+          setEducation(profileData.education || []);
+          setIsAutofilling(false);
+          setStep(2);
+        }}
+        onSkip={() => {
+          setIsAutofilling(false);
+          setStep(2);
         }}
       />
     );

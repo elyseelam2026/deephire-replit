@@ -6301,6 +6301,99 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // PARSE CV AND AUTO-FILL PROFILE
+  app.post("/api/candidate/autofill-profile", async (req, res) => {
+    try {
+      const { email, linkedinUrl } = req.body;
+      const cvFile = req.files?.cv as any;
+
+      if (!email) {
+        return res.status(400).json({ error: "Email required" });
+      }
+
+      let profileData: any = {
+        currentTitle: "Professional",
+        location: "",
+        skills: [],
+        workExperience: [],
+        education: [],
+        biography: ""
+      };
+
+      let cvText = "";
+
+      // Extract text from CV if provided
+      if (cvFile) {
+        if (cvFile.mimetype === "application/pdf") {
+          const pdfParse = await import("pdf-parse");
+          const data = await pdfParse(cvFile.data);
+          cvText = data.text;
+        } else if (cvFile.mimetype === "text/plain") {
+          cvText = cvFile.data.toString();
+        } else {
+          const mammoth = await import("mammoth");
+          const result = await mammoth.extractRawText({ buffer: cvFile.data });
+          cvText = result.value;
+        }
+      }
+
+      // If LinkedIn URL provided, use it
+      if (linkedinUrl) {
+        // In production, would scrape LinkedIn, but for now use Grok to generate from URL
+        cvText += `\nLinkedIn Profile: ${linkedinUrl}`;
+      }
+
+      // Use Grok AI to parse CV and extract profile data
+      if (cvText) {
+        const grokResponse = await fetch("https://api.x.ai/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.XAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "grok-2",
+            messages: [
+              {
+                role: "user",
+                content: `Extract professional information from this CV/profile and return JSON:\n${cvText}\n\nReturn this exact JSON format:\n{\n  "currentTitle": "string",\n  "location": "string",\n  "skills": ["skill1", "skill2"],\n  "biography": "string (3-4 sentences)",\n  "workExperience": [{"company": "string", "position": "string", "years": "duration"}],\n  "education": [{"school": "string", "degree": "string", "field": "string"}]\n}`
+              }
+            ],
+          }),
+        });
+
+        const grokData = await grokResponse.json();
+        if (grokData.choices?.[0]?.message?.content) {
+          try {
+            const extracted = JSON.parse(grokData.choices[0].message.content);
+            profileData = { ...profileData, ...extracted };
+          } catch (e) {
+            console.log("Could not parse Grok response");
+          }
+        }
+      }
+
+      // Award credits to candidate
+      await db
+        .update(schema.candidates)
+        .set({
+          creditsBalance: 50,
+          profileCompletionBonus: true,
+        })
+        .where(eq(schema.candidates.email, email));
+
+      res.json({
+        success: true,
+        profileData,
+        creditsAwarded: 50,
+        message: "Profile auto-filled successfully!"
+      });
+    } catch (error) {
+      console.error("Error auto-filling profile:", error);
+      res.status(500).json({ error: "Failed to auto-fill profile" });
+    }
+  });
+
   // VERIFY CODE
   app.post("/api/verify-code", async (req, res) => {
     try {
