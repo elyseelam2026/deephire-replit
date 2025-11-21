@@ -138,7 +138,15 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
             const initials = `${candidate.firstName[0]}${candidate.lastName[0]}`.toUpperCase();
             
             return (
-              <Card key={jc.id} className="p-4 hover-elevate cursor-pointer" data-testid={`card-candidate-${jc.id}`}>
+              <Card 
+                key={jc.id} 
+                className="p-4 hover-elevate cursor-pointer" 
+                data-testid={`card-candidate-${jc.id}`}
+                onClick={() => {
+                  setSelectedCandidateId(candidate.id);
+                  setIsModalOpen(true);
+                }}
+              >
                 <div className="flex gap-4">
                   {/* Avatar */}
                   <Avatar className="h-12 w-12 flex-shrink-0">
