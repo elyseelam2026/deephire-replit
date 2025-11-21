@@ -7,6 +7,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SoftSkillsEvaluator } from "./SoftSkillsEvaluator";
 import { ActivityLog } from "./ActivityLog";
 import { ATSPipelineStatus } from "./ATSPipelineStatus";
+import { CandidateCareerHistoryTab } from "./CandidateCareerHistoryTab";
+import { CandidateFilesTab } from "./CandidateFilesTab";
+import { CandidateJobAssignmentsTab } from "./CandidateJobAssignmentsTab";
+import { CandidateExecutiveBioTab } from "./CandidateExecutiveBioTab";
 
 interface Candidate {
   id: number;
@@ -57,7 +61,7 @@ export function CandidateDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -132,11 +136,13 @@ export function CandidateDetailModal({
 
             {/* Tabs */}
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="soft-skills">Soft Skills</TabsTrigger>
+                <TabsTrigger value="evaluation">Evaluation</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
-                <TabsTrigger value="links">Links</TabsTrigger>
+                <TabsTrigger value="career">Career</TabsTrigger>
+                <TabsTrigger value="files">Files</TabsTrigger>
+                <TabsTrigger value="jobs">Jobs</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="space-y-4">
@@ -150,29 +156,7 @@ export function CandidateDetailModal({
                     </div>
                   </div>
                 )}
-                <div className="text-sm text-muted-foreground py-8 text-center">
-                  View full profile in recruiting portal for career history
-                </div>
-              </TabsContent>
-
-              <TabsContent value="soft-skills" className="space-y-4">
-                <ATSPipelineStatus
-                  jobId={jobId}
-                  candidateId={candidateId}
-                  currentStatus={jobCandidate?.status || 'sourced'}
-                />
-                <SoftSkillsEvaluator
-                  jobId={jobId}
-                  candidateId={candidateId}
-                  currentSoftSkillScore={jobCandidate?.softSkillScore ?? undefined}
-                />
-              </TabsContent>
-
-              <TabsContent value="activity" className="space-y-4">
-                <ActivityLog jobId={jobId} candidateId={candidateId} />
-              </TabsContent>
-
-              <TabsContent value="links" className="space-y-4">
+                <CandidateExecutiveBioTab candidateId={candidate.id} />
                 {candidate.linkedinUrl && (
                   <a
                     href={candidate.linkedinUrl}
@@ -180,8 +164,8 @@ export function CandidateDetailModal({
                     rel="noopener noreferrer"
                     className="block p-3 border rounded-lg hover:bg-accent"
                   >
-                    <div className="font-medium">LinkedIn Profile</div>
-                    <div className="text-sm text-muted-foreground truncate">
+                    <div className="font-medium text-sm">LinkedIn Profile</div>
+                    <div className="text-xs text-muted-foreground truncate">
                       {candidate.linkedinUrl}
                     </div>
                   </a>
@@ -193,12 +177,43 @@ export function CandidateDetailModal({
                     rel="noopener noreferrer"
                     className="block p-3 border rounded-lg hover:bg-accent"
                   >
-                    <div className="font-medium">CV / Resume</div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="font-medium text-sm">Resume / CV</div>
+                    <div className="text-xs text-muted-foreground">
                       Download resume
                     </div>
                   </a>
                 )}
+              </TabsContent>
+
+              <TabsContent value="evaluation" className="space-y-4">
+                {jobCandidate && (
+                  <ATSPipelineStatus
+                    jobId={jobId}
+                    candidateId={candidateId}
+                    currentStatus={jobCandidate.status || 'sourced'}
+                  />
+                )}
+                <SoftSkillsEvaluator
+                  jobId={jobId}
+                  candidateId={candidateId}
+                  currentSoftSkillScore={jobCandidate?.softSkillScore ?? undefined}
+                />
+              </TabsContent>
+
+              <TabsContent value="activity" className="space-y-4">
+                <ActivityLog jobId={jobId} candidateId={candidateId} />
+              </TabsContent>
+
+              <TabsContent value="career">
+                <CandidateCareerHistoryTab candidateId={candidate.id} />
+              </TabsContent>
+
+              <TabsContent value="files">
+                <CandidateFilesTab candidateId={candidate.id} />
+              </TabsContent>
+
+              <TabsContent value="jobs">
+                <CandidateJobAssignmentsTab candidateId={candidate.id} />
               </TabsContent>
             </Tabs>
           </>
