@@ -145,28 +145,6 @@ export default function CandidatePortal() {
       <VerifyEmail 
         email={verifyEmail} 
         onVerified={() => {
-          setIsAutofilling(true);
-        }}
-      />
-    );
-  }
-
-  if (isAutofilling) {
-    return (
-      <ProfileAutofill
-        email={verifyEmail}
-        onAutofillComplete={(profileData) => {
-          form.setValue("headline", profileData.currentTitle);
-          form.setValue("location", profileData.location);
-          form.setValue("bio", profileData.biography);
-          setSkills(profileData.skills || []);
-          setWorkExperience(profileData.workExperience || []);
-          setEducation(profileData.education || []);
-          setIsAutofilling(false);
-          setStep(2);
-        }}
-        onSkip={() => {
-          setIsAutofilling(false);
           setStep(2);
         }}
       />
