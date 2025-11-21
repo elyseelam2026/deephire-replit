@@ -6002,20 +6002,21 @@ CRITICAL RULES - You MUST follow these strictly:
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create candidate
-      const candidate = await storage.createCandidate({
+      // Create candidate in database
+      const candidateResult = await db.insert(schema.candidates).values({
         firstName,
         lastName,
         email,
+        password: hashedPassword,
         currentTitle: headline || "",
         location: location || "",
         biography: bio || "",
-        skills: skills || [],
-        workHistory: workExperience || [],
-        education: education || [],
+        skills: (skills || []) as string[],
+        isEmailVerified: false,
         isAvailable: true,
-        sourceChannel: "candidate_portal",
-      });
+      }).returning();
+
+      const candidate = candidateResult[0];
 
       // Create premium tier record (free tier by default)
       await db.insert(candidatePremium).values({
