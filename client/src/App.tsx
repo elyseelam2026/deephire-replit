@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import LandingHome from "@/pages/LandingHome";
 import Auth from "@/pages/Auth";
+import CandidateLogin from "@/pages/CandidateLogin";
 import CompanyRegister from "@/pages/CompanyRegister";
 import CompanyLogin from "@/pages/CompanyLogin";
 import CompanyPortal from "@/pages/CompanyPortal";
@@ -43,7 +44,7 @@ function AppRouter() {
       {/* Candidate Portal Routes */}
       <Route path="/candidate/register" component={CandidatePortal} />
       <Route path="/candidate/dashboard/:candidateId" component={CandidateDashboard} />
-      <Route path="/candidate/login" component={() => <div className="flex items-center justify-center min-h-screen"><div className="text-center"><p className="text-xl mb-4">Login coming soon</p></div></div>} />
+      <Route path="/candidate/login" component={CandidateLogin} />
 
       {/* Company Portal Routes */}
       <Route path="/company/register" component={CompanyRegister} />
