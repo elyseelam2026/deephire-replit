@@ -33,20 +33,30 @@ export default function CandidateLogin() {
   const onSubmit = async (data: LoginData) => {
     setIsSubmitting(true);
     try {
-      // For now, log in and redirect to dashboard
-      // In real app, would verify credentials and get actual candidate ID
+      const response = await fetch("/api/candidate/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Login failed");
+      }
+
       toast({
         title: "Welcome back!",
         description: "Redirecting to your dashboard...",
       });
       
       setTimeout(() => {
-        setLocation("/candidate/dashboard/1");
+        setLocation(`/candidate/dashboard/${result.candidateId}`);
       }, 1000);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Login failed. Please try again.",
+        description: error.message || "Login failed. Please try again.",
         variant: "destructive",
       });
       setIsSubmitting(false);
@@ -118,18 +128,30 @@ export default function CandidateLogin() {
               </form>
             </Form>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Don't have an account?{" "}
+            <div className="mt-6 space-y-3">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Don't have an account?{" "}
+                  <Button 
+                    variant="link" 
+                    className="p-0 h-auto" 
+                    onClick={() => setLocation("/candidate/register")}
+                    data-testid="button-to-candidate-register"
+                  >
+                    Register here
+                  </Button>
+                </p>
+              </div>
+              <div className="text-center">
                 <Button 
                   variant="link" 
-                  className="p-0 h-auto" 
-                  onClick={() => setLocation("/candidate/register")}
-                  data-testid="button-to-candidate-register"
+                  className="p-0 h-auto text-sm" 
+                  onClick={() => setLocation("/candidate/reset-password")}
+                  data-testid="button-forgot-password"
                 >
-                  Register here
+                  Forgot password?
                 </Button>
-              </p>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -4,6 +4,12 @@ import { createRequire } from "module";
 import multer from "multer";
 import bcrypt from "bcryptjs";
 import twilio from "twilio";
+import { 
+  validatePasswordStrength, 
+  isAccountLocked, 
+  calculateLockoutExpiry, 
+  generatePasswordResetToken 
+} from "./security";
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
@@ -5996,7 +6002,7 @@ CRITICAL RULES - You MUST follow these strictly:
       }
 
       // Validate password strength
-      const { isValid, score, feedback } = require("./security").validatePasswordStrength(password);
+      const { isValid, score, feedback } = validatePasswordStrength(password);
       if (!isValid) {
         return res.status(400).json({ 
           error: "Password is too weak",
@@ -6097,7 +6103,6 @@ CRITICAL RULES - You MUST follow these strictly:
       const candidate = candidates[0];
 
       // Check account lockout
-      const { isAccountLocked } = require("./security");
       if (isAccountLocked(candidate.accountLockedUntil)) {
         return res.status(403).json({ 
           error: "Account temporarily locked due to too many failed login attempts. Try again later.",
@@ -6111,8 +6116,6 @@ CRITICAL RULES - You MUST follow these strictly:
         // Increment failed attempts
         let newFailedAttempts = (candidate.failedLoginAttempts || 0) + 1;
         let lockoutExpiry = null;
-
-        const { calculateLockoutExpiry, ACCOUNT_LOCKOUT_CONFIG } = require("./security");
         
         if (newFailedAttempts >= 5) {
           lockoutExpiry = calculateLockoutExpiry();
@@ -6193,7 +6196,6 @@ CRITICAL RULES - You MUST follow these strictly:
       }
 
       const candidate = candidates[0];
-      const { generatePasswordResetToken } = require("./security");
 
       // Generate reset token
       const token = generatePasswordResetToken();
@@ -6240,7 +6242,6 @@ CRITICAL RULES - You MUST follow these strictly:
       }
 
       // Validate password strength
-      const { validatePasswordStrength } = require("./security");
       const { isValid, feedback } = validatePasswordStrength(newPassword);
       if (!isValid) {
         return res.status(400).json({ 

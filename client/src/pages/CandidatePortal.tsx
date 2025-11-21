@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, Briefcase, GraduationCap, Award, Mail, Lock, User, Plus, Trash2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 
 const candidateRegistrationSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -58,6 +59,7 @@ export default function CandidatePortal() {
 
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState("");
+  const [passwordStrength, setPasswordStrength] = useState({ isValid: false, score: 0, feedback: [] as string[] });
 
   const form = useForm<RegistrationFormData>({
     resolver: zodResolver(candidateRegistrationSchema),
@@ -106,6 +108,15 @@ export default function CandidatePortal() {
   };
 
   const onSubmit = async (data: RegistrationFormData) => {
+    if (!passwordStrength.isValid) {
+      toast({
+        title: "Weak Password",
+        description: "Please use a stronger password",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -120,9 +131,11 @@ export default function CandidatePortal() {
         }),
       });
 
-      if (!response.ok) throw new Error("Registration failed");
-
       const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.error || "Registration failed");
+      }
       
       toast({
         title: "Profile saved!",
@@ -132,10 +145,10 @@ export default function CandidatePortal() {
       setCandidateId(responseData.candidateId);
       setVerifyEmail(data.email);
       setIsVerifying(true);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to register. Please try again.",
+        description: error.message || "Failed to register. Please try again.",
         variant: "destructive",
       });
       setIsSubmitting(false);
@@ -284,6 +297,10 @@ export default function CandidatePortal() {
                           <Input type="password" placeholder="••••••••" {...field} data-testid="input-password" />
                         </FormControl>
                         <FormMessage />
+                        <PasswordStrengthMeter 
+                          password={field.value}
+                          onChange={setPasswordStrength}
+                        />
                       </FormItem>
                     )}
                   />

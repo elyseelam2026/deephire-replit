@@ -1,10 +1,11 @@
 import { useParams, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, MapPin, DollarSign, Zap, ExternalLink, ChevronRight } from "lucide-react";
+import { Briefcase, MapPin, DollarSign, Zap, ExternalLink, ChevronRight, LogOut } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface JobRecommendation {
   id: number;
@@ -24,7 +25,34 @@ interface JobRecommendation {
 export default function CandidateDashboard() {
   const { candidateId } = useParams<{ candidateId: string }>();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [appliedJobs, setAppliedJobs] = useState<number[]>([]);
+
+  // Logout mutation
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/candidate/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error("Logout failed");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out",
+      });
+      setLocation("/candidate/login");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Check if email is verified - if not, redirect back
   const { data: candidateData } = useQuery({
@@ -112,11 +140,24 @@ export default function CandidateDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Your Job Recommendations</h1>
-          <p className="text-lg text-muted-foreground">
-            AI found {recommendationsByScore.length} opportunities matched to your profile
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">Your Job Recommendations</h1>
+            <p className="text-lg text-muted-foreground">
+              AI found {recommendationsByScore.length} opportunities matched to your profile
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+            data-testid="button-logout"
+            className="gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
         </div>
 
         {/* Jobs Grid */}
