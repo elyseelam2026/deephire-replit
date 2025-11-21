@@ -35,8 +35,28 @@ export default function VerifyEmail({ email, onVerified }: VerifyEmailProps) {
 
   useEffect(() => {
     // Auto-send code on mount
-    handleResend();
-  }, []);
+    const sendCode = async () => {
+      try {
+        const response = await fetch("/api/send-verification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, method: "email" }),
+        });
+
+        const data = await response.json();
+        
+        // In development mode, the code is returned in response
+        if (data.devCode) {
+          setDevCode(data.devCode);
+          form.setValue("code", data.devCode);
+        }
+      } catch (error) {
+        console.error("Error sending code:", error);
+      }
+    };
+
+    sendCode();
+  }, [email, form]);
 
   const onSubmit = async (data: VerifyFormData) => {
     setIsSubmitting(true);
