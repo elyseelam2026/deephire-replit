@@ -2155,3 +2155,166 @@ export const insertCandidateInterviewSchema = createInsertSchema(candidateInterv
 });
 export type InsertCandidateInterview = z.infer<typeof insertCandidateInterviewSchema>;
 export type CandidateInterview = typeof candidateInterviews.$inferSelect;
+
+// ===== CANDIDATE PORTAL: SOCIAL FEATURES (Future-Proofing) =====
+
+// Candidate Connections - For social network (followers/connections)
+export const candidateConnections = pgTable("candidate_connections", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  followerId: integer("follower_id").references(() => candidates.id).notNull(),
+  followingId: integer("following_id").references(() => candidates.id).notNull(),
+  connectionType: text("connection_type").default("follower"), // follower, connection, blocked
+  connectedAt: timestamp("connected_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Candidate Endorsements - Skills endorsements from other candidates/recruiters
+export const candidateEndorsements = pgTable("candidate_endorsements", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  endorsedBy: integer("endorsed_by").references(() => candidates.id), // null if from company
+  skill: text("skill").notNull(),
+  endorsementCount: integer("endorsement_count").default(1),
+  endorsedAt: timestamp("endorsed_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Candidate Messages - DMs between candidates and recruiters
+export const candidateMessages = pgTable("candidate_messages", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  senderId: integer("sender_id").references(() => users.id).notNull(), // user_id (could be recruiter or candidate user)
+  recipientId: integer("recipient_id").references(() => candidates.id).notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Candidate Premium Tiers - For pay-to-win model
+export const candidatePremium = pgTable("candidate_premium", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull().unique(),
+  tier: text("tier").default("free"), // free, premium, elite
+  visibilityLevel: text("visibility_level").default("public"), // public, premium_only, stealth
+  profileBoost: boolean("profile_boost").default(false), // featured in searches
+  endorsementVisible: boolean("endorsement_visible").default(true),
+  salaryVisible: boolean("salary_visible").default(true),
+  
+  // Subscription
+  subscriptionStartDate: timestamp("subscription_start_date"),
+  subscriptionEndDate: timestamp("subscription_end_date"),
+  autoRenew: boolean("auto_renew").default(true),
+  
+  // Blind Auction Ready
+  canLaunchAuctions: boolean("can_launch_auctions").default(false),
+  auctionCreditsRemaining: integer("auction_credits_remaining").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Blind Auctions - Anonymous bidding system
+export const blindAuctions = pgTable("blind_auctions", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  
+  // Teaser info (all anonymous)
+  currentTitle: text("current_title").notNull(),
+  yearsExperience: integer("years_experience"),
+  currentCompanyTier: text("current_company_tier"), // FAANG, Series-D, Startup, etc
+  currentCompensation: text("current_compensation"), // e.g., "$650k-$750k"
+  
+  // Preferences
+  mustHaveDeals: text("must_have_deals").array(), // Remote, No Finance, etc
+  oneLineProof: text("one_line_proof"), // "Grew DAU from 8M → 120M"
+  
+  // Auction Settings
+  auctionDuration: text("auction_duration"), // 24h, 72h, 7days
+  status: text("status").default("active"), // active, closed, accepted, canceled
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  endsAt: timestamp("ends_at"),
+  
+  // Winner (after reveal)
+  winnerCompanyId: integer("winner_company_id").references(() => companies.id),
+  candidateRevealed: boolean("candidate_revealed").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Auction Bids - Companies bidding on anonymous candidates
+export const auctionBids = pgTable("auction_bids", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  auctionId: integer("auction_id").references(() => blindAuctions.id).notNull(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  
+  // Offer Details
+  baseSalary: real("base_salary"),
+  bonus: real("bonus"),
+  equity: real("equity"), // percentage
+  equityVesting: text("equity_vesting"), // e.g., "4-year cliff"
+  
+  // Additional
+  reportingLine: text("reporting_line"), // Who they report to
+  teamSize: integer("team_size"),
+  loomeVideoUrl: text("loom_video_url"), // 60-sec hiring manager intro
+  otherPerks: text("other_perks"),
+  
+  // Bid Status
+  bidAmount: real("bid_amount"), // Total compensation for ranking
+  bidStatus: text("bid_status").default("active"), // active, accepted, rejected, expired
+  
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Zod schemas for new tables
+export const insertCandidateConnectionSchema = createInsertSchema(candidateConnections).omit({
+  id: true,
+  connectedAt: true,
+  createdAt: true,
+});
+export type InsertCandidateConnection = z.infer<typeof insertCandidateConnectionSchema>;
+export type CandidateConnection = typeof candidateConnections.$inferSelect;
+
+export const insertCandidateEndorsementSchema = createInsertSchema(candidateEndorsements).omit({
+  id: true,
+  endorsedAt: true,
+  createdAt: true,
+});
+export type InsertCandidateEndorsement = z.infer<typeof insertCandidateEndorsementSchema>;
+export type CandidateEndorsement = typeof candidateEndorsements.$inferSelect;
+
+export const insertCandidateMessageSchema = createInsertSchema(candidateMessages).omit({
+  id: true,
+  readAt: true,
+  createdAt: true,
+});
+export type InsertCandidateMessage = z.infer<typeof insertCandidateMessageSchema>;
+export type CandidateMessage = typeof candidateMessages.$inferSelect;
+
+export const insertCandidatePremiumSchema = createInsertSchema(candidatePremium).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCandidatePremium = z.infer<typeof insertCandidatePremiumSchema>;
+export type CandidatePremium = typeof candidatePremium.$inferSelect;
+
+export const insertBlindAuctionSchema = createInsertSchema(blindAuctions).omit({
+  id: true,
+  startedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBlindAuction = z.infer<typeof insertBlindAuctionSchema>;
+export type BlindAuction = typeof blindAuctions.$inferSelect;
+
+export const insertAuctionBidSchema = createInsertSchema(auctionBids).omit({
+  id: true,
+  submittedAt: true,
+  createdAt: true,
+});
+export type InsertAuctionBid = z.infer<typeof insertAuctionBidSchema>;
+export type AuctionBid = typeof auctionBids.$inferSelect;

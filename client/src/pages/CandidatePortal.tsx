@@ -1,509 +1,226 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Briefcase, GraduationCap, Award, Mail, Lock, User, MapPin, Plus, Trash2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Edit2, Eye, Heart, MessageSquare, Users, Zap, LogOut, Settings,
+  TrendingUp, Bell, Share2
+} from "lucide-react";
 
-const candidateRegistrationSchema = z.object({
-  email: z.string().email("Invalid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  firstName: z.string().min(1, "First name required"),
-  lastName: z.string().min(1, "Last name required"),
-  headline: z.string().min(1, "Professional headline required"),
-  location: z.string().min(1, "Location required"),
-  bio: z.string().min(10, "Bio must be at least 10 characters"),
-});
-
-type RegistrationFormData = z.infer<typeof candidateRegistrationSchema>;
-
-interface WorkExperience {
-  company: string;
-  position: string;
-  years: string;
+interface CandidateProfile {
+  id: number;
+  firstName: string;
+  lastName: string;
+  headline: string;
+  location: string;
+  email: string;
+  bio: string;
+  skills: string[];
+  workExperience: Array<{ company: string; position: string; years: string }>;
+  education: Array<{ school: string; degree: string; field: string }>;
+  profileCompleteness: number;
 }
 
-interface Education {
-  school: string;
-  degree: string;
-  field: string;
-}
+export default function CandidateDashboard() {
+  const [profile, setProfile] = useState<CandidateProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-export default function CandidatePortal() {
-  const { toast } = useToast();
-  const [step, setStep] = useState(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRegistered, setIsRegistered] = useState(false);
-
-  const [workExperience, setWorkExperience] = useState<WorkExperience[]>([]);
-  const [newWork, setNewWork] = useState({ company: "", position: "", years: "" });
-
-  const [education, setEducation] = useState<Education[]>([]);
-  const [newEdu, setNewEdu] = useState({ school: "", degree: "", field: "" });
-
-  const [skills, setSkills] = useState<string[]>([]);
-  const [newSkill, setNewSkill] = useState("");
-
-  const form = useForm<RegistrationFormData>({
-    resolver: zodResolver(candidateRegistrationSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      firstName: "",
-      lastName: "",
-      headline: "",
-      location: "",
-      bio: "",
-    },
+  // Fetch candidate profile
+  const { data: candidateData } = useQuery({
+    queryKey: ["/api/candidate/me"],
+    refetchOnWindowFocus: false,
   });
 
-  const addWorkExperience = () => {
-    if (newWork.company && newWork.position && newWork.years) {
-      setWorkExperience([...workExperience, newWork]);
-      setNewWork({ company: "", position: "", years: "" });
-    }
-  };
+  useState(() => {
+    setProfile(candidateData);
+    setIsLoading(false);
+  }, [candidateData]);
 
-  const removeWorkExperience = (index: number) => {
-    setWorkExperience(workExperience.filter((_, i) => i !== index));
-  };
+  if (isLoading) {
+    return <div className="p-8 text-center">Loading profile...</div>;
+  }
 
-  const addEducation = () => {
-    if (newEdu.school && newEdu.degree && newEdu.field) {
-      setEducation([...education, newEdu]);
-      setNewEdu({ school: "", degree: "", field: "" });
-    }
-  };
-
-  const removeEducation = (index: number) => {
-    setEducation(education.filter((_, i) => i !== index));
-  };
-
-  const addSkill = () => {
-    if (newSkill.trim()) {
-      setSkills([...skills, newSkill]);
-      setNewSkill("");
-    }
-  };
-
-  const removeSkill = (index: number) => {
-    setSkills(skills.filter((_, i) => i !== index));
-  };
-
-  const onSubmit = async (data: RegistrationFormData) => {
-    setIsSubmitting(true);
-    
-    // Simulate API call to register and save to talent bank
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    toast({
-      title: "Success!",
-      description: "Your profile has been saved to our talent bank. Recruiters will start reviewing your profile.",
-    });
-
-    setIsRegistered(true);
-    setIsSubmitting(false);
-  };
-
-  if (isRegistered) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-12 pb-8 text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Registration Complete!</h2>
-            <p className="text-muted-foreground mb-6">
-              Your profile has been successfully added to our talent bank. Top recruiters will start reaching out to you based on your qualifications.
-            </p>
-            <Button onClick={() => window.location.href = "/"} className="w-full">
-              Back to Home
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  if (!profile) {
+    return <div className="p-8 text-center">Profile not found</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-2">Join Our Talent Bank</h1>
-          <p className="text-lg text-muted-foreground">
-            Connect with top private equity firms and executive recruiters
-          </p>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="flex gap-4 mb-12 px-4">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex-1 flex items-center gap-2">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                  step >= s
-                    ? "bg-blue-600 text-white"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {s}
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-12 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-6">
+              <Avatar className="h-24 w-24 border-4 border-white">
+                <AvatarFallback>{profile.firstName[0]}{profile.lastName[0]}</AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-3xl font-bold mb-1">{profile.firstName} {profile.lastName}</h1>
+                <p className="text-blue-100 mb-3">{profile.headline}</p>
+                <div className="flex gap-2">
+                  <Badge variant="secondary">{profile.location}</Badge>
+                  <Badge variant="secondary">{profile.skills.length} skills</Badge>
+                </div>
               </div>
-              <span className="text-sm font-medium hidden sm:inline">
-                {s === 1 ? "Account" : s === 2 ? "Profile" : "Experience"}
-              </span>
             </div>
-          ))}
+            <div className="flex gap-2">
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+                <Edit2 className="h-4 w-4 mr-2" />
+                Edit Profile
+              </Button>
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+                <Share2 className="h-4 w-4 mr-2" />
+                Share
+              </Button>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Form */}
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            {/* Step 1: Account Credentials */}
-            {step === 1 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lock className="h-5 w-5 text-blue-600" />
-                    Create Account
-                  </CardTitle>
-                  <CardDescription>Set up your login credentials</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="firstName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="lastName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Last Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Doe" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Sidebar Stats */}
+          <div className="lg:col-span-1 space-y-4">
+            {/* Profile Completeness */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span>Profile Strength</span>
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Progress value={profile.profileCompleteness} className="h-3" />
+                <p className="text-sm font-medium">{profile.profileCompleteness}% Complete</p>
+                <p className="text-xs text-muted-foreground">Complete your profile to get discovered by recruiters</p>
+              </CardContent>
+            </Card>
 
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="john@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+            {/* Quick Stats */}
+            <Card>
+              <CardContent className="pt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm"><Eye className="h-4 w-4" /> Profile Views</span>
+                  <span className="font-bold">234</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm"><Heart className="h-4 w-4" /> Endorsements</span>
+                  <span className="font-bold">18</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm"><MessageSquare className="h-4 w-4" /> Messages</span>
+                  <span className="font-bold">3</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm"><Users className="h-4 w-4" /> Followers</span>
+                  <span className="font-bold">42</span>
+                </div>
+              </CardContent>
+            </Card>
 
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+            {/* Premium Upgrade */}
+            <Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <Zap className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                  <p className="font-semibold text-sm mb-2">Go Premium</p>
+                  <p className="text-xs text-muted-foreground mb-4">Unlock blind auctions & premium visibility</p>
+                  <Button className="w-full" size="sm">Upgrade Now</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-                  <Separator />
+          {/* Main Content */}
+          <div className="lg:col-span-2">
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="activity">Activity</TabsTrigger>
+                <TabsTrigger value="messages">Messages</TabsTrigger>
+                <TabsTrigger value="settings">Settings</TabsTrigger>
+              </TabsList>
 
-                  <Button
-                    type="button"
-                    className="w-full"
-                    onClick={() => {
-                      if (form.getValues("firstName") && form.getValues("lastName") && form.getValues("email") && form.getValues("password")) {
-                        setStep(2);
-                      }
-                    }}
-                  >
-                    Continue to Profile
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+              <TabsContent value="overview" className="space-y-6 mt-6">
+                {/* About */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <CardTitle>About</CardTitle>
+                    <Button variant="ghost" size="sm"><Edit2 className="h-4 w-4" /></Button>
+                  </CardHeader>
+                  <CardContent>
+                    <p>{profile.bio}</p>
+                  </CardContent>
+                </Card>
 
-            {/* Step 2: Basic Profile */}
-            {step === 2 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600" />
-                    Build Your Profile
-                  </CardTitle>
-                  <CardDescription>Tell recruiters about yourself</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="headline"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Professional Headline</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g., VP Finance at Fortune 500 Tech Company"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="location"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Location</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., New York, NY" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="bio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>About You</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Tell us about your background, expertise, and what you're looking for..."
-                            className="min-h-24"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Separator />
-
-                  <div className="flex gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setStep(1)}
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      type="button"
-                      className="flex-1"
-                      onClick={() => setStep(3)}
-                    >
-                      Continue to Experience
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Step 3: Experience & Skills */}
-            {step === 3 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-blue-600" />
-                    Experience & Skills
-                  </CardTitle>
-                  <CardDescription>Add your work history and skills</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Work Experience */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <Briefcase className="h-4 w-4" />
-                      <h3 className="font-semibold">Work Experience</h3>
-                    </div>
-                    <div className="space-y-3 mb-4">
-                      {workExperience.map((exp, idx) => (
-                        <div key={idx} className="p-3 bg-muted rounded-lg flex justify-between items-start">
-                          <div className="text-sm">
-                            <p className="font-medium">{exp.position}</p>
-                            <p className="text-xs text-muted-foreground">{exp.company} • {exp.years}</p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeWorkExperience(idx)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                {/* Skills */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Skills</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.skills.map((skill) => (
+                        <Badge key={skill} variant="secondary">{skill}</Badge>
                       ))}
                     </div>
-                    <div className="grid gap-2 p-3 bg-muted/50 rounded-lg">
-                      <Input
-                        placeholder="Company"
-                        value={newWork.company}
-                        onChange={(e) => setNewWork({ ...newWork, company: e.target.value })}
-                      />
-                      <Input
-                        placeholder="Position"
-                        value={newWork.position}
-                        onChange={(e) => setNewWork({ ...newWork, position: e.target.value })}
-                      />
-                      <Input
-                        placeholder="Years (e.g., 2018-2023)"
-                        value={newWork.years}
-                        onChange={(e) => setNewWork({ ...newWork, years: e.target.value })}
-                      />
-                      <Button type="button" size="sm" variant="outline" onClick={addWorkExperience} className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        Add Experience
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="activity">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-center text-muted-foreground">No recent activity</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="messages">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      Messages
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">No messages yet</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="settings">
+                <Card>
+                  <CardContent className="pt-6 space-y-4">
+                    <div>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" defaultChecked className="w-4 h-4" />
+                        <span>Email notifications from recruiters</span>
+                      </label>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" defaultChecked className="w-4 h-4" />
+                        <span>Open to opportunities</span>
+                      </label>
+                    </div>
+                    <div className="pt-4 border-t">
+                      <Button variant="destructive" className="w-full gap-2">
+                        <LogOut className="h-4 w-4" />
+                        Logout
                       </Button>
                     </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Education */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <GraduationCap className="h-4 w-4" />
-                      <h3 className="font-semibold">Education</h3>
-                    </div>
-                    <div className="space-y-3 mb-4">
-                      {education.map((edu, idx) => (
-                        <div key={idx} className="p-3 bg-muted rounded-lg flex justify-between items-start">
-                          <div className="text-sm">
-                            <p className="font-medium">{edu.degree} in {edu.field}</p>
-                            <p className="text-xs text-muted-foreground">{edu.school}</p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeEducation(idx)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid gap-2 p-3 bg-muted/50 rounded-lg">
-                      <Input
-                        placeholder="School/University"
-                        value={newEdu.school}
-                        onChange={(e) => setNewEdu({ ...newEdu, school: e.target.value })}
-                      />
-                      <Input
-                        placeholder="Degree (e.g., Bachelor of Science)"
-                        value={newEdu.degree}
-                        onChange={(e) => setNewEdu({ ...newEdu, degree: e.target.value })}
-                      />
-                      <Input
-                        placeholder="Field of Study"
-                        value={newEdu.field}
-                        onChange={(e) => setNewEdu({ ...newEdu, field: e.target.value })}
-                      />
-                      <Button type="button" size="sm" variant="outline" onClick={addEducation} className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        Add Education
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Skills */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <Award className="h-4 w-4" />
-                      <h3 className="font-semibold">Key Skills</h3>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {skills.map((skill, idx) => (
-                        <Badge key={idx} variant="secondary" className="gap-2">
-                          {skill}
-                          <button
-                            type="button"
-                            onClick={() => removeSkill(idx)}
-                            className="ml-1 hover:text-destructive"
-                          >
-                            ✕
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Add a skill..."
-                        value={newSkill}
-                        onChange={(e) => setNewSkill(e.target.value)}
-                        onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addSkill())}
-                      />
-                      <Button type="button" variant="outline" size="sm" onClick={addSkill}>
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="flex gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setStep(2)}
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? "Submitting..." : "Complete Registration"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </form>
-        </Form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
       </div>
     </div>
   );
