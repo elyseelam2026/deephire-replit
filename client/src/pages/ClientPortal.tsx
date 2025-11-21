@@ -133,7 +133,61 @@ export default function ClientPortal() {
   });
 
   const handleSendMessage = async (content: string, file?: File) => {
-    await sendMessageMutation.mutateAsync({ message: content, file });
+    // If file is uploaded, parse as job description and create job
+    if (file) {
+      try {
+        setIsProcessing(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const parseResponse = await fetch('/api/parse-job-description', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (parseResponse.ok) {
+          const parsed = await parseResponse.json();
+          
+          // Create job from parsed JD
+          const jobResponse = await fetch('/api/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: parsed.parsed?.title || 'Untitled Job',
+              description: parsed.jdText,
+              jdText: parsed.jdText,
+              skills: parsed.parsed?.skills || [],
+              companyId: 1, // Default company
+              companyName: parsed.parsed?.company || 'Unknown Company',
+              searchTier: 'standard_25',
+              urgency: 'standard',
+              status: 'active',
+              salary: parsed.parsed?.salary
+            })
+          });
+          
+          if (jobResponse.ok) {
+            const job = await jobResponse.json();
+            
+            // Send message to chat with job created notification
+            await sendMessageMutation.mutateAsync({
+              message: `I've created a job: "${parsed.parsed?.title || 'Untitled Job'}" - sourcing candidates now with ${parsed.longlist?.length || 0} initial matches found.`,
+              file: undefined
+            });
+            
+            // Invalidate jobs query to refresh list
+            queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+          }
+        }
+        setIsProcessing(false);
+      } catch (error) {
+        console.error('Error processing JD:', error);
+        setIsProcessing(false);
+      }
+    } else {
+      // Regular text message
+      await sendMessageMutation.mutateAsync({ message: content, file });
+    }
   };
 
   // Fetch real jobs from API

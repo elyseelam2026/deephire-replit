@@ -278,6 +278,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Trigger NAP sourcing pipeline automatically
+      console.log(`🚀 Job ${job.id} created - Triggering sourcing pipeline...`);
+      setImmediate(async () => {
+        try {
+          await orchestrateEliteSourcing(job.id, {
+            jdText: job.jdText || "",
+            skills: job.skills || [],
+            searchTier: jobData.searchTier || "standard_25",
+            urgency: jobData.urgency || "standard"
+          });
+          console.log(`✅ Sourcing pipeline started for job ${job.id}`);
+        } catch (error) {
+          console.error(`❌ Sourcing pipeline failed for job ${job.id}:`, error);
+        }
+      });
+
       res.json(job);
     } catch (error) {
       console.error("Error creating job:", error);
