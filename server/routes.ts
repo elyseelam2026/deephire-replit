@@ -5893,6 +5893,92 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // Update job candidate soft skills evaluation
+  app.patch("/api/jobs/:jobId/candidates/:candidateId/soft-skills", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const candidateId = parseInt(req.params.candidateId);
+      const { softSkillScore, softSkillDimensions, evaluationReasoning } = req.body;
+
+      if (softSkillScore === undefined) {
+        return res.status(400).json({ error: "softSkillScore is required" });
+      }
+
+      // Find job candidate
+      const [jc] = await db
+        .select()
+        .from(jobCandidates)
+        .where(and(eq(jobCandidates.jobId, jobId), eq(jobCandidates.candidateId, candidateId)))
+        .limit(1);
+
+      if (!jc) {
+        return res.status(404).json({ error: "Job candidate not found" });
+      }
+
+      // Calculate new fit score (hard + soft)
+      const hardSkill = jc.hardSkillScore || 0;
+      const newFitScore = Math.min(100, hardSkill + softSkillScore);
+
+      // Update with soft skills
+      await db
+        .update(jobCandidates)
+        .set({
+          softSkillScore,
+          fitScore: newFitScore,
+          fitReasoning: evaluationReasoning,
+          updatedAt: new Date()
+        })
+        .where(eq(jobCandidates.id, jc.id));
+
+      res.json({
+        success: true,
+        softSkillScore,
+        fitScore: newFitScore
+      });
+    } catch (error) {
+      console.error("Error updating soft skills:", error);
+      res.status(500).json({ error: "Failed to update soft skills" });
+    }
+  });
+
+  // Get job candidate activities (via job-scoped route)
+  app.get("/api/jobs/:jobId/candidates/:candidateId/activities", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const activities = await storage.getCandidateActivities(candidateId);
+      res.json(activities || []);
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+      res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  // Create job candidate activity (via job-scoped route)
+  app.post("/api/jobs/:jobId/candidates/:candidateId/activities", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const candidateId = parseInt(req.params.candidateId);
+      const { type, content } = req.body;
+
+      if (!type || !content) {
+        return res.status(400).json({ error: "type and content are required" });
+      }
+
+      const activity = await storage.createCandidateActivity({
+        candidateId,
+        type,
+        content,
+        occurredAt: new Date(),
+        createdBy: req.user?.username || 'system'
+      });
+
+      res.json(activity);
+    } catch (error) {
+      console.error("Error creating activity:", error);
+      res.status(400).json({ error: "Failed to create activity" });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Start the promise worker to execute AI commitments

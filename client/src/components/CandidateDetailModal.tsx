@@ -6,6 +6,7 @@ import { Loader2, MapPin, Briefcase, Mail, Phone } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SoftSkillsEvaluator } from "./SoftSkillsEvaluator";
 import { ActivityLog } from "./ActivityLog";
+import { ATSPipelineStatus } from "./ATSPipelineStatus";
 
 interface Candidate {
   id: number;
@@ -154,11 +155,11 @@ export function CandidateDetailModal({
                 </div>
               </TabsContent>
 
-              <TabsContent value="soft-skills" className="space-y-4 space-y-4">
+              <TabsContent value="soft-skills" className="space-y-4">
                 <ATSPipelineStatus
                   jobId={jobId}
-                  candidateId={candidate.id}
-                  currentStatus={jc?.status || 'sourced'}
+                  candidateId={candidateId}
+                  currentStatus={jobCandidate?.status || 'sourced'}
                 />
                 <SoftSkillsEvaluator
                   jobId={jobId}
