@@ -65,6 +65,7 @@ function AppRouter() {
       <Route path="/client/recycling-bin" component={() => <ClientApp><RecyclingBin /></ClientApp>} />
       <Route path="/client/conversations/:id" component={() => <ClientApp><ConversationDetail /></ClientApp>} />
       <Route path="/client/messages" component={() => <ClientApp><Conversations /></ClientApp>} />
+      <Route path="/client/settings" component={() => <ClientApp><Settings /></ClientApp>} />
       
       {/* Recruiting Portal Routes */}
       <Route path="/recruiting" component={() => <RecruitingApp><Dashboard /></RecruitingApp>} />
