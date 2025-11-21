@@ -26,14 +26,17 @@ const agencyItems = [
   { title: "Settings", url: "/recruiting/settings", icon: Settings },
 ];
 
-// Client Portal - For PE firms hiring through agency
+// Client Portal - For PE firms hiring through agency (same as agency portal)
 const clientItems = [
   { title: "Dashboard", url: "/client", icon: BarChart3 },
   { title: "Companies", url: "/client/companies", icon: Building2 },
   { title: "Jobs", url: "/client/jobs", icon: Briefcase },
   { title: "Candidates", url: "/client/candidates", icon: Users },
   { title: "Recycling Bin", url: "/client/recycling-bin", icon: Trash2 },
-  { title: "Messages", url: "/client/messages", icon: MessageSquare },
+  { title: "Staging", url: "/client/staging", icon: Clock },
+  { title: "Conversations", url: "/client/conversations", icon: MessageSquare },
+  { title: "Outreach", url: "/client/outreach", icon: Mail },
+  { title: "Settings", url: "/client/settings", icon: Settings },
 ];
 
 // Candidate Portal - For job seekers
