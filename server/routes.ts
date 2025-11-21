@@ -14,7 +14,8 @@ import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
 import { detectPromise, createPromiseFromConversation } from "./promise-detection";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium } from "@shared/schema";
+import * as schema from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel, computeJobPricing } from "@shared/pricing";
 import { duplicateDetectionService } from "./duplicate-detection";
@@ -5997,7 +5998,7 @@ CRITICAL RULES - You MUST follow these strictly:
         firstName,
         lastName,
         email,
-        headline: headline || "",
+        currentTitle: headline || "",
         location: location || "",
         biography: bio || "",
         skills: skills || [],
@@ -6008,7 +6009,7 @@ CRITICAL RULES - You MUST follow these strictly:
       });
 
       // Create premium tier record (free tier by default)
-      await db.insert(schema.candidatePremium).values({
+      await db.insert(candidatePremium).values({
         candidateId: candidate.id,
         tier: "free",
         visibilityLevel: "public",
