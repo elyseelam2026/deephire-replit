@@ -30,8 +30,7 @@ const agencyItems = [
 const clientItems = [
   { title: "Dashboard", url: "/client", icon: BarChart3 },
   { title: "Companies", url: "/client/companies", icon: Building2 },
-  { title: "Post Job", url: "/client/post-job", icon: Briefcase },
-  { title: "My Jobs", url: "/client/jobs", icon: Briefcase },
+  { title: "Jobs", url: "/client/jobs", icon: Briefcase },
   { title: "Candidates", url: "/client/candidates", icon: Users },
   { title: "Recycling Bin", url: "/client/recycling-bin", icon: Trash2 },
   { title: "Messages", url: "/client/messages", icon: MessageSquare },

@@ -278,30 +278,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Trigger sourcing automatically for new jobs
-      console.log(`🚀 Job created (ID: ${job.id}) - Triggering NAP sourcing pipeline...`);
-      setImmediate(async () => {
-        try {
-          // Get NAP context from job
-          const napContext = {
-            jobId: job.id,
-            jdText: job.jdText || "",
-            skills: job.skills || [],
-            searchTier: jobData.searchTier || "standard_25",
-            urgency: jobData.urgency || "standard"
-          };
-
-          // Trigger the 4-phase sourcing pipeline
-          await queueBulkUrlJob(job.id, [], {
-            napContext,
-            autoStart: true
-          });
-          console.log(`✅ Sourcing pipeline queued for job ${job.id}`);
-        } catch (error) {
-          console.error(`❌ Failed to trigger sourcing for job ${job.id}:`, error);
-        }
-      });
-
       res.json(job);
     } catch (error) {
       console.error("Error creating job:", error);
