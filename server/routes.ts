@@ -6357,6 +6357,53 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // COMPANY PORTAL: Post a new job
+  app.post("/api/company/post-job", async (req, res) => {
+    try {
+      const { title, description, location, salary, level, skills, companyId } = req.body;
+
+      if (!title || !description || !location || !salary || !level) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // For now, use a sample company ID (in real app, would use session/auth)
+      const sampleCompanyId = companyId || 1;
+
+      // Create job listing
+      const jobListing = await db.insert(jobListings).values({
+        title,
+        description,
+        location,
+        salary,
+        requirements: skills && Array.isArray(skills) ? skills : [],
+        companyId: sampleCompanyId,
+      }).returning();
+
+      console.log(`[DEV] Job posted: ${title} at company ${sampleCompanyId}`);
+
+      res.json({
+        success: true,
+        jobId: jobListing[0].id,
+        message: "Job posted successfully"
+      });
+    } catch (error: any) {
+      console.error("Error posting job:", error);
+      res.status(500).json({ error: error.message || "Failed to post job" });
+    }
+  });
+
+  // COMPANY PORTAL: Get company's jobs
+  app.get("/api/company/:companyId/jobs", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const jobs = await db.select().from(jobListings).where(eq(jobListings.companyId, companyId));
+      res.json(jobs);
+    } catch (error: any) {
+      console.error("Error fetching jobs:", error);
+      res.status(500).json({ error: "Failed to fetch jobs" });
+    }
+  });
+
   // SEED JOB LISTINGS (for demo)
   app.post("/api/seed-jobs", async (req, res) => {
     try {

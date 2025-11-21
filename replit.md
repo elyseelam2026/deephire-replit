@@ -7,17 +7,21 @@ DeepHire is an AI-powered enterprise B2B recruiting platform that revolutionizes
 Preferred communication style: Simple, everyday language.
 
 ## Latest Build Session (Nov 21, 2025)
-**Candidate Portal Auth & Job Discovery System**
-- Landing Home page (`/`) with two-sided marketplace explanation (Candidates & Companies)
-- Unified Auth flow with role selection → Register/Login selector
-- Candidate registration (`/candidate/register`) with 3-step form (Account → Profile → Experience)
-- Email/SMS verification system with 6-digit codes, 10-min expiration, rate limiting
-- Job recommendations dashboard (`/candidate/dashboard/:id`) with AI-matched job cards
-- Backend verification endpoints: `/api/send-verification` and `/api/verify-code`
-- Database tables: `verification_codes`, `job_listings`, `candidate_job_recommendations`
-- All routes: `/` (landing) → `/auth` (role/method) → `/candidate/register` → Verify Email → `/candidate/dashboard/:id`
-- Job matching algorithm: compares candidate skills to job requirements, 0-100 match score
-- Ready for SendGrid/Twilio integration (currently logs codes to server console for dev)
+**Complete Two-Sided Authentication & Portal System**
+- Landing Home page (`/`) with two-sided marketplace explanation
+- Unified Auth flow with role selection (Candidate/Company) → Register/Login selector
+- **Candidate Portal**: Registration with 3-step form (Account → Profile → Experience), email verification, job recommendations dashboard with AI-matched jobs
+- **Company Portal**: Registration → redirect to dashboard (`/company/portal`) with Post Job tab, My Jobs, Search Candidates, Settings
+- **Password Hashing**: bcryptjs with 10 rounds of salt for all registrations
+- **Email/SMS Verification**: 6-digit codes, 10-min expiration, rate limiting, Twilio integration ready for SMS
+- **Company Features**: Post jobs endpoint (`/api/company/post-job`), Get company jobs endpoint, Job listing form with title/description/location/salary/level/skills
+- **Backend Endpoints**: 
+  - `/api/candidate/register` - Hash password + create candidate + send verification code
+  - `/api/company/register` - Hash password + create company
+  - `/api/company/post-job` - Create job listings
+  - `/api/send-verification` - Send SMS via Twilio (when configured) or email
+  - `/api/verify-code` - Verify 6-digit codes
+- **Flow**: Landing → Auth role select → Register (candidate/company) → Verify Email → Dashboard/Portal
 
 ## System Architecture
 
