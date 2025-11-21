@@ -6,6 +6,19 @@ DeepHire is an AI-powered enterprise B2B recruiting platform that revolutionizes
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Latest Build Session (Nov 21, 2025)
+**Candidate Portal Auth & Job Discovery System**
+- Landing Home page (`/`) with two-sided marketplace explanation (Candidates & Companies)
+- Unified Auth flow with role selection → Register/Login selector
+- Candidate registration (`/candidate/register`) with 3-step form (Account → Profile → Experience)
+- Email/SMS verification system with 6-digit codes, 10-min expiration, rate limiting
+- Job recommendations dashboard (`/candidate/dashboard/:id`) with AI-matched job cards
+- Backend verification endpoints: `/api/send-verification` and `/api/verify-code`
+- Database tables: `verification_codes`, `job_listings`, `candidate_job_recommendations`
+- All routes: `/` (landing) → `/auth` (role/method) → `/candidate/register` → Verify Email → `/candidate/dashboard/:id`
+- Job matching algorithm: compares candidate skills to job requirements, 0-100 match score
+- Ready for SendGrid/Twilio integration (currently logs codes to server console for dev)
+
 ## System Architecture
 
 ### UI/UX Decisions
