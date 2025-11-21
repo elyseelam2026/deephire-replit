@@ -26,6 +26,32 @@ export default function CandidateDashboard() {
   const [, setLocation] = useLocation();
   const [appliedJobs, setAppliedJobs] = useState<number[]>([]);
 
+  // Check if email is verified - if not, redirect back
+  const { data: candidateData } = useQuery({
+    queryKey: [`/api/candidate/${candidateId}`],
+  });
+
+  if (candidateData && !candidateData.isEmailVerified) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 p-6 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-12 pb-8 text-center">
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Briefcase className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold mb-2">Email Verification Required</h2>
+            <p className="text-muted-foreground mb-4">Please verify your email before accessing job recommendations</p>
+            <button onClick={() => setLocation("/candidate/register")} className="text-blue-600 hover:underline">
+              Back to Registration
+            </button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Fetch job recommendations
   const { data: recommendations, isLoading, error } = useQuery<JobRecommendation[]>({
     queryKey: [`/api/candidate/${candidateId}/job-recommendations`],

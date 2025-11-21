@@ -6048,24 +6048,22 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
-  // CANDIDATE PORTAL: Get current candidate profile
-  app.get("/api/candidate/me", async (req, res) => {
+  // CANDIDATE PORTAL: Get current candidate profile by ID
+  app.get("/api/candidate/:candidateId", async (req, res) => {
     try {
-      // In real app, would use session/auth to get current user
-      // For now, return dummy data
-      res.json({
-        id: 1,
-        firstName: "John",
-        lastName: "Doe",
-        headline: "Software Engineer",
-        location: "San Francisco, CA",
-        email: "john@example.com",
-        bio: "Passionate developer",
-        skills: ["React", "TypeScript", "Node.js"],
-        workExperience: [],
-        education: [],
-        profileCompleteness: 75
-      });
+      const candidateId = parseInt(req.params.candidateId);
+      
+      const candidate = await db
+        .select()
+        .from(schema.candidates)
+        .where(eq(schema.candidates.id, candidateId))
+        .limit(1);
+      
+      if (!candidate.length) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+      
+      res.json(candidate[0]);
     } catch (error) {
       console.error("Error fetching candidate profile:", error);
       res.status(500).json({ error: "Failed to fetch profile" });
@@ -6330,6 +6328,17 @@ CRITICAL RULES - You MUST follow these strictly:
           verifiedAt: new Date(),
         })
         .where(eq(verificationCodes.id, verifyRecord.id));
+
+      // Update candidate email verified status
+      if (email) {
+        await db
+          .update(schema.candidates)
+          .set({
+            isEmailVerified: true,
+            emailVerifiedAt: new Date(),
+          })
+          .where(eq(schema.candidates.email, email));
+      }
 
       res.json({ success: true, verified: true });
     } catch (error) {
