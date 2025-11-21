@@ -6737,32 +6737,131 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      if (password.length < 8) {
-        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      // Validate password strength
+      const { isValid, feedback } = validatePasswordStrength(password);
+      if (!isValid) {
+        return res.status(400).json({ 
+          error: "Password is too weak",
+          feedback
+        });
       }
 
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create company
-      const company = await storage.createCompany({
+      // Create company with password
+      const company = await db.insert(schema.companies).values({
         name: companyName,
         location,
         industry,
         description,
         primaryEmail: email,
-      });
+        password: hashedPassword,
+      }).returning();
 
-      console.log(`[DEV] Company registered: ${companyName} (ID: ${company.id})`);
+      console.log(`[DEV] Company registered: ${companyName} (ID: ${company[0].id})`);
 
       res.json({
         success: true,
-        companyId: company.id,
+        companyId: company[0].id,
         message: "Company registered successfully"
       });
     } catch (error: any) {
       console.error("Error registering company:", error);
       res.status(500).json({ error: error.message || "Registration failed" });
+    }
+  });
+
+  // COMPANY PORTAL: Login with security
+  app.post("/api/company/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      // Find company
+      const companies = await db
+        .select()
+        .from(schema.companies)
+        .where(eq(schema.companies.primaryEmail, email))
+        .limit(1);
+
+      if (!companies.length) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      const company = companies[0];
+
+      // Check account lockout
+      if (isAccountLocked(company.accountLockedUntil)) {
+        return res.status(403).json({ 
+          error: "Account temporarily locked due to too many failed login attempts. Try again later.",
+          lockedUntil: company.accountLockedUntil
+        });
+      }
+
+      // Verify password
+      const passwordMatch = await bcrypt.compare(password, company.password || "");
+      if (!passwordMatch) {
+        // Increment failed attempts
+        let newFailedAttempts = (company.failedLoginAttempts || 0) + 1;
+        let lockoutExpiry = null;
+        
+        if (newFailedAttempts >= 5) {
+          lockoutExpiry = calculateLockoutExpiry();
+        }
+
+        await db
+          .update(schema.companies)
+          .set({
+            failedLoginAttempts: newFailedAttempts,
+            accountLockedUntil: lockoutExpiry,
+          })
+          .where(eq(schema.companies.id, company.id));
+
+        // Log failed attempt
+        await db.insert(schema.auditLogs).values({
+          companyId: company.id,
+          eventType: "login_failed",
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          details: { email, attemptNumber: newFailedAttempts },
+        });
+
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Reset failed attempts on success
+      await db
+        .update(schema.companies)
+        .set({
+          failedLoginAttempts: 0,
+          lastLoginAt: new Date(),
+        })
+        .where(eq(schema.companies.id, company.id));
+
+      // Log successful login
+      await db.insert(schema.auditLogs).values({
+        companyId: company.id,
+        eventType: "login_success",
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        details: { email, success: true },
+      });
+
+      // Set session
+      req.session.companyId = company.id;
+      req.session.email = company.primaryEmail;
+
+      res.json({
+        success: true,
+        companyId: company.id,
+      });
+    } catch (error) {
+      console.error("Error logging in:", error);
+      res.status(500).json({ error: "Login failed" });
     }
   });
 

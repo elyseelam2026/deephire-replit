@@ -146,6 +146,12 @@ export const companies = pgTable("companies", {
   normalizedAliases: text("normalized_aliases").array().default(sql`ARRAY[]::text[]`), // ["boyu-capital", "博裕资本", "boyu-capital-partners"]
   primaryDomain: text("primary_domain"), // Main website domain for matching (e.g., "boyucapital.com")
   
+  // Security & Authentication
+  password: text("password"), // Hashed password for company login
+  failedLoginAttempts: integer("failed_login_attempts").default(0),
+  accountLockedUntil: timestamp("account_locked_until"),
+  lastLoginAt: timestamp("last_login_at"),
+  
   // System fields (existing)
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
