@@ -21,6 +21,7 @@ const clientItems = [
   { title: "Candidates", url: "/client/candidates", icon: Users },
   { title: "Recycling Bin", url: "/client/recycling-bin", icon: Trash2 },
   { title: "Messages", url: "/client/messages", icon: MessageSquare },
+  { title: "Settings", url: "/client/settings", icon: Settings },
 ];
 
 // Agency Portal - For recruiting team (same as client portal)
@@ -31,6 +32,7 @@ const agencyItems = [
   { title: "Candidates", url: "/recruiting/candidates", icon: Users },
   { title: "Recycling Bin", url: "/recruiting/recycling-bin", icon: Trash2 },
   { title: "Messages", url: "/recruiting/conversations", icon: MessageSquare },
+  { title: "Settings", url: "/recruiting/settings", icon: Settings },
 ];
 
 // Candidate Portal - For job seekers
