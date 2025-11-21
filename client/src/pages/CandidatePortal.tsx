@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useLocation } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import VerifyEmail from "./VerifyEmail";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,8 @@ export default function CandidatePortal() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyEmail, setVerifyEmail] = useState("");
 
   const [workExperience, setWorkExperience] = useState<WorkExperience[]>([]);
   const [newWork, setNewWork] = useState({ company: "", position: "", years: "" });
@@ -117,17 +120,14 @@ export default function CandidatePortal() {
       if (!response.ok) throw new Error("Registration failed");
 
       const responseData = await response.json();
-      const candidateId = responseData.candidateId;
-
+      
       toast({
-        title: "Success!",
-        description: "Profile saved! Redirecting to job recommendations...",
+        title: "Profile saved!",
+        description: "Check your email for verification code",
       });
       
-      setIsRegistered(true);
-      setTimeout(() => {
-        window.location.href = `/candidate/dashboard/${candidateId}`;
-      }, 2000);
+      setVerifyEmail(data.email);
+      setIsVerifying(true);
     } catch (error) {
       toast({
         title: "Error",
@@ -137,6 +137,20 @@ export default function CandidatePortal() {
       setIsSubmitting(false);
     }
   };
+
+  if (isVerifying) {
+    return (
+      <VerifyEmail 
+        email={verifyEmail} 
+        onVerified={() => {
+          setIsRegistered(true);
+          setTimeout(() => {
+            window.location.href = `/candidate/dashboard/1`;
+          }, 2000);
+        }}
+      />
+    );
+  }
 
   if (isRegistered) {
     return (

@@ -2375,3 +2375,27 @@ export const insertCandidateJobRecommendationSchema = createInsertSchema(candida
 });
 export type InsertCandidateJobRecommendation = z.infer<typeof insertCandidateJobRecommendationSchema>;
 export type CandidateJobRecommendation = typeof candidateJobRecommendations.$inferSelect;
+
+// Email/SMS Verification Codes Table
+export const verificationCodes = pgTable("verification_codes", {
+  id: serial("id").primaryKey(),
+  email: varchar("email"),
+  phoneNumber: varchar("phone_number"),
+  code: varchar("code").notNull(),
+  method: varchar("method").notNull(), // "email" or "sms"
+  expiresAt: timestamp("expires_at").notNull(),
+  isVerified: boolean("is_verified").default(false),
+  verifiedAt: timestamp("verified_at"),
+  attemptCount: integer("attempt_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertVerificationCodeSchema = createInsertSchema(verificationCodes).omit({
+  id: true,
+  isVerified: true,
+  verifiedAt: true,
+  attemptCount: true,
+  createdAt: true,
+});
+export type InsertVerificationCode = z.infer<typeof insertVerificationCodeSchema>;
+export type VerificationCode = typeof verificationCodes.$inferSelect;

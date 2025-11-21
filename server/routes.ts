@@ -14,7 +14,7 @@ import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
 import { detectPromise, createPromiseFromConversation } from "./promise-detection";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium, jobListings, candidateJobRecommendations } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium, jobListings, candidateJobRecommendations, verificationCodes } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel, computeJobPricing } from "@shared/pricing";
@@ -6015,10 +6015,23 @@ CRITICAL RULES - You MUST follow these strictly:
         visibilityLevel: "public",
       });
 
+      // Send verification code
+      const code = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      
+      await db.insert(verificationCodes).values({
+        email,
+        code,
+        method: "email",
+        expiresAt,
+      });
+
+      console.log(`[DEV] Email verification code for ${email}: ${code}`);
+
       res.json({
         success: true,
         candidateId: candidate.id,
-        message: "Profile registered successfully"
+        message: "Profile registered. Check your email for verification code."
       });
     } catch (error: any) {
       console.error("Error registering candidate:", error);
@@ -6160,6 +6173,90 @@ CRITICAL RULES - You MUST follow these strictly:
     } catch (error) {
       console.error("Error applying to job:", error);
       res.status(500).json({ error: "Failed to apply to job" });
+    }
+  });
+
+  // Generate 6-digit verification code
+  function generateVerificationCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  // SEND VERIFICATION CODE (email or SMS)
+  app.post("/api/send-verification", async (req, res) => {
+    try {
+      const { email, phoneNumber, method } = req.body;
+
+      if (!method || (method === "email" && !email) || (method === "sms" && !phoneNumber)) {
+        return res.status(400).json({ error: "Invalid parameters" });
+      }
+
+      const code = generateVerificationCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      // Store verification code
+      await db.insert(verificationCodes).values({
+        email: method === "email" ? email : undefined,
+        phoneNumber: method === "sms" ? phoneNumber : undefined,
+        code,
+        method,
+        expiresAt,
+      });
+
+      // TODO: Integrate with SendGrid (email) or Twilio (SMS) to actually send
+      console.log(`[DEV] Verification code for ${method}: ${code}`);
+
+      res.json({ success: true, message: `Code sent via ${method}` });
+    } catch (error) {
+      console.error("Error sending verification:", error);
+      res.status(500).json({ error: "Failed to send verification code" });
+    }
+  });
+
+  // VERIFY CODE
+  app.post("/api/verify-code", async (req, res) => {
+    try {
+      const { email, phoneNumber, code } = req.body;
+
+      if (!code || (!email && !phoneNumber)) {
+        return res.status(400).json({ error: "Invalid parameters" });
+      }
+
+      const query = email ? eq(verificationCodes.email, email) : eq(verificationCodes.phoneNumber, phoneNumber);
+      const record = await db
+        .select()
+        .from(verificationCodes)
+        .where(and(query, eq(verificationCodes.code, code)))
+        .limit(1);
+
+      if (!record.length) {
+        return res.status(400).json({ error: "Invalid code" });
+      }
+
+      const verifyRecord = record[0];
+
+      // Check expiration
+      if (new Date() > verifyRecord.expiresAt) {
+        return res.status(400).json({ error: "Code expired" });
+      }
+
+      // Check attempt count
+      if (verifyRecord.attemptCount >= 3) {
+        return res.status(400).json({ error: "Too many attempts" });
+      }
+
+      // Mark as verified
+      await db
+        .update(verificationCodes)
+        .set({
+          isVerified: true,
+          verifiedAt: new Date(),
+        })
+        .where(eq(verificationCodes.id, verifyRecord.id));
+
+      res.json({ success: true, verified: true });
+    } catch (error) {
+      console.error("Error verifying code:", error);
+      res.status(500).json({ error: "Verification failed" });
     }
   });
 
