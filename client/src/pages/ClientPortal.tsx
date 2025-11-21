@@ -133,7 +133,61 @@ export default function ClientPortal() {
   });
 
   const handleSendMessage = async (content: string, file?: File) => {
-    await sendMessageMutation.mutateAsync({ message: content, file });
+    // If file uploaded, parse as JD and create job
+    if (file) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Parse the job description
+        const parseRes = await fetch('/api/upload-jd', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!parseRes.ok) throw new Error('Failed to parse JD');
+        const parsed = await parseRes.json();
+        
+        // Create job from parsed data
+        const jobRes = await fetch('/api/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: parsed.parsed?.title || 'Untitled Position',
+            jdText: parsed.jdText,
+            description: parsed.jdText,
+            skills: parsed.parsed?.skills || [],
+            searchTier: 'standard_25',
+            urgency: 'standard',
+            status: 'active',
+            companyName: 'Your Company',
+            companyId: 1
+          })
+        });
+        
+        if (!jobRes.ok) throw new Error('Failed to create job');
+        const job = await jobRes.json();
+        
+        // Send confirmation message
+        await sendMessageMutation.mutateAsync({
+          message: `✅ Created job: **${parsed.parsed?.title || 'New Position'}**\n\nI found ${parsed.longlist?.length || 0} candidate matches and started sourcing. [View job →](jobs/${job.id})\n\nStarting 4-phase search:\n1️⃣ Generating Boolean queries\n2️⃣ Searching LinkedIn\n3️⃣ AI quality filtering\n4️⃣ Scraping top candidates`,
+          file: undefined
+        });
+        
+        // Refresh jobs list
+        queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      } catch (error) {
+        console.error('Job creation error:', error);
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to process job description',
+          variant: 'destructive'
+        });
+      }
+    } else {
+      // Regular text message
+      await sendMessageMutation.mutateAsync({ message: content, file });
+    }
   };
 
   // Fetch real jobs from API
