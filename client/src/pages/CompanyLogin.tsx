@@ -149,7 +149,7 @@ export default function CompanyLogin() {
                 <Button 
                   variant="link" 
                   className="p-0 h-auto text-sm" 
-                  onClick={() => setLocation("/company/reset-password")}
+                  onClick={() => setLocation("/company/forgot-password")}
                   data-testid="button-company-forgot-password"
                 >
                   Forgot password?
