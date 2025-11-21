@@ -13,30 +13,24 @@ import {
 
 // Navigation items for different user roles
 
-// Agency Portal - For recruiting team (internal users)
-const agencyItems = [
-  { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
-  { title: "Companies", url: "/recruiting/companies", icon: Building2 },
-  { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
-  { title: "Candidates", url: "/recruiting/candidates", icon: Users },
-  { title: "Recycling Bin", url: "/recruiting/recycling-bin", icon: Trash2 },
-  { title: "Staging", url: "/recruiting/staging", icon: Clock },
-  { title: "Conversations", url: "/recruiting/conversations", icon: MessageSquare },
-  { title: "Outreach", url: "/recruiting/outreach", icon: Mail },
-  { title: "Settings", url: "/recruiting/settings", icon: Settings },
-];
-
-// Client Portal - For PE firms hiring through agency (same as agency portal)
+// Client Portal - For PE firms hiring through agency (MASTER)
 const clientItems = [
   { title: "Dashboard", url: "/client", icon: BarChart3 },
   { title: "Companies", url: "/client/companies", icon: Building2 },
   { title: "Jobs", url: "/client/jobs", icon: Briefcase },
   { title: "Candidates", url: "/client/candidates", icon: Users },
   { title: "Recycling Bin", url: "/client/recycling-bin", icon: Trash2 },
-  { title: "Staging", url: "/client/staging", icon: Clock },
-  { title: "Conversations", url: "/client/conversations", icon: MessageSquare },
-  { title: "Outreach", url: "/client/outreach", icon: Mail },
-  { title: "Settings", url: "/client/settings", icon: Settings },
+  { title: "Messages", url: "/client/messages", icon: MessageSquare },
+];
+
+// Agency Portal - For recruiting team (same as client portal)
+const agencyItems = [
+  { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
+  { title: "Companies", url: "/recruiting/companies", icon: Building2 },
+  { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
+  { title: "Candidates", url: "/recruiting/candidates", icon: Users },
+  { title: "Recycling Bin", url: "/recruiting/recycling-bin", icon: Trash2 },
+  { title: "Messages", url: "/recruiting/conversations", icon: MessageSquare },
 ];
 
 // Candidate Portal - For job seekers
