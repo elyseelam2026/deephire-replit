@@ -186,10 +186,15 @@ function ClientApp({ children }: { children: React.ReactNode }) {
 }
 
 function AdminApp() {
+  const [, setLocation] = useLocation();
+  
   return (
     <div className="min-h-screen bg-background">
       <header className="flex items-center justify-between p-4 border-b">
-        <div>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => setLocation('/')} data-testid="button-back-home">
+            ← Back to Home
+          </Button>
           <h1 className="text-2xl font-bold">Admin Portal</h1>
         </div>
         <ThemeToggle />
