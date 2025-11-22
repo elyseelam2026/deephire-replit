@@ -104,13 +104,18 @@ function AppRouter() {
       <Route path="/recruiting/outreach" component={() => <RecruitingApp><Outreach /></RecruitingApp>} />
       <Route path="/recruiting/settings" component={() => <RecruitingApp><Settings /></RecruitingApp>} />
       
+      {/* Researchers Portal Routes */}
+      <Route path="/researchers" component={() => <ResearchersApp><Dashboard /></ResearchersApp>} />
+      <Route path="/researchers/companies" component={() => <ResearchersApp><Companies /></ResearchersApp>} />
+      <Route path="/researchers/companies/:id" component={() => <ResearchersApp><CompanyDetail /></ResearchersApp>} />
+      <Route path="/researchers/candidates" component={() => <ResearchersApp><Candidates /></ResearchersApp>} />
+      <Route path="/researchers/candidates/:id" component={() => <ResearchersApp><CandidateDetail /></ResearchersApp>} />
+      <Route path="/researchers/staging" component={() => <ResearchersApp><Staging /></ResearchersApp>} />
+      <Route path="/researchers/bulk-upload" component={() => <ResearchersApp><AdminBulkUpload /></ResearchersApp>} />
+      <Route path="/researchers/database-management" component={() => <ResearchersApp><DatabaseManagement /></ResearchersApp>} />
+      
       {/* Admin Portal Routes */}
       <Route path="/admin" component={() => <AdminApp><Admin /></AdminApp>} />
-      <Route path="/admin/companies" component={() => <AdminApp><Companies /></AdminApp>} />
-      <Route path="/admin/candidates" component={() => <AdminApp><Candidates /></AdminApp>} />
-      <Route path="/admin/staging" component={() => <AdminApp><Staging /></AdminApp>} />
-      <Route path="/admin/bulk-upload" component={() => <AdminApp><AdminBulkUpload /></AdminApp>} />
-      <Route path="/admin/database-management" component={() => <AdminApp><DatabaseManagement /></AdminApp>} />
       <Route path="/admin/users" component={() => <AdminApp><AdminUserManagement /></AdminApp>} />
       <Route path="/admin/system" component={() => <AdminApp><AdminSystemSettings /></AdminApp>} />
       
