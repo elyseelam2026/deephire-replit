@@ -14,10 +14,10 @@ export default function LandingHome() {
           <div className="text-2xl font-bold text-primary">DeepHire</div>
           <div className="flex gap-2 items-center">
             <Button variant="ghost" size="sm" onClick={() => setLocation("/client")} data-testid="nav-client-portal">
-              Client Portal
+              Client
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setLocation("/recruiting")} data-testid="nav-recruiting-portal">
-              Recruiting
+              Recruiter
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")} data-testid="nav-admin-portal">
               Admin
