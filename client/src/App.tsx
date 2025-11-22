@@ -43,6 +43,7 @@ import AdminBulkUpload from "@/pages/AdminBulkUpload";
 import AdminUserManagement from "@/pages/AdminUserManagement";
 import AdminSystemSettings from "@/pages/AdminSystemSettings";
 import AdminDashboard from "@/pages/AdminDashboard";
+import ResearchersDashboard from "@/pages/ResearchersDashboard";
 import VerifyEmail from "@/pages/VerifyEmail";
 import CompanyVerifyEmail from "@/pages/CompanyVerifyEmail";
 import NotFound from "@/pages/not-found";
@@ -106,7 +107,7 @@ function AppRouter() {
       <Route path="/recruiting/settings" component={() => <RecruitingApp><Settings /></RecruitingApp>} />
       
       {/* Researchers Portal Routes */}
-      <Route path="/researchers" component={() => <ResearchersApp><Admin /></ResearchersApp>} />
+      <Route path="/researchers" component={() => <ResearchersApp><ResearchersDashboard /></ResearchersApp>} />
       <Route path="/researchers/companies" component={() => <ResearchersApp><Companies /></ResearchersApp>} />
       <Route path="/researchers/companies/:id" component={() => <ResearchersApp><CompanyDetail /></ResearchersApp>} />
       <Route path="/researchers/candidates" component={() => <ResearchersApp><Candidates /></ResearchersApp>} />
