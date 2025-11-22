@@ -44,11 +44,6 @@ import NotFound from "@/pages/not-found";
 import WarRoom from "@/pages/WarRoom";
 import SalaryBenchmark from "@/pages/SalaryBenchmark";
 import PredictiveScore from "@/pages/PredictiveScore";
-import ATSIntegrations from "@/pages/ATSIntegrations";
-import PassiveTalent from "@/pages/PassiveTalent";
-import SlackIntegration from "@/pages/SlackIntegration";
-import WhiteLabel from "@/pages/WhiteLabel";
-import FeaturesOverview from "@/pages/FeaturesOverview";
 
 function AppRouter() {
   return (
@@ -111,15 +106,10 @@ function AppRouter() {
       <Route path="/client-portal" component={ClientPortal} />
       <Route path="/candidates" component={CandidatesOnly} />
       
-      {/* Enterprise Features - 10 Feature Platform */}
-      <Route path="/features" component={() => <ClientApp><FeaturesOverview /></ClientApp>} />
+      {/* Enterprise Features */}
       <Route path="/war-room" component={() => <ClientApp><WarRoom /></ClientApp>} />
       <Route path="/salary-benchmark" component={() => <ClientApp><SalaryBenchmark /></ClientApp>} />
       <Route path="/predictive-score" component={() => <ClientApp><PredictiveScore /></ClientApp>} />
-      <Route path="/ats-integrations" component={() => <ClientApp><ATSIntegrations /></ClientApp>} />
-      <Route path="/passive-talent" component={() => <ClientApp><PassiveTalent /></ClientApp>} />
-      <Route path="/slack-integration" component={() => <ClientApp><SlackIntegration /></ClientApp>} />
-      <Route path="/white-label" component={() => <ClientApp><WhiteLabel /></ClientApp>} />
       
       {/* 404 */}
       <Route component={NotFound} />
