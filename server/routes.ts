@@ -7052,6 +7052,73 @@ CRITICAL RULES - You MUST follow these strictly:
         businessLicenseVerified: false,
       }).returning();
 
+      // Generate 6-digit verification code
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Store verification code in database
+      await db.insert(schema.verificationCodes).values({
+        email,
+        code: verificationCode,
+        method: "email",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      });
+
+      // Send verification email via SendGrid
+      try {
+        const sgMail = (await import('@sendgrid/mail')).default;
+        const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+        const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@deephire.com';
+        
+        if (SENDGRID_API_KEY) {
+          sgMail.setApiKey(SENDGRID_API_KEY);
+          
+          await sgMail.send({
+            to: email,
+            from: FROM_EMAIL,
+            subject: 'Verify Your DeepHire Email - 6-Digit Code',
+            html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #1e3a8a; color: white; padding: 30px; border-radius: 8px 8px 0 0; text-align: center; }
+    .content { background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; }
+    .code-box { background: #f1f5f9; border: 2px solid #1e3a8a; padding: 20px; border-radius: 6px; text-align: center; margin: 20px 0; }
+    .code { font-size: 32px; font-weight: bold; color: #1e3a8a; letter-spacing: 4px; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="margin: 0;">Verify Your Email</h1>
+    </div>
+    <div class="content">
+      <p>Hi ${companyName},</p>
+      <p>Thank you for registering with DeepHire! Use the code below to verify your email address.</p>
+      <div class="code-box">
+        <div class="code">${verificationCode}</div>
+      </div>
+      <p style="color: #64748b; font-size: 14px;">This code expires in 24 hours.</p>
+      <p>If you didn't register for DeepHire, please ignore this email.</p>
+    </div>
+    <div class="footer">
+      <p><strong>DeepHire</strong> – AI-Powered Executive Search</p>
+    </div>
+  </div>
+</body>
+</html>
+            `,
+            text: `Your DeepHire verification code is: ${verificationCode}`
+          });
+          console.log(`[Email] Verification code sent to ${email}`);
+        }
+      } catch (emailError) {
+        console.warn(`[Email] Failed to send verification email: ${emailError}`);
+      }
+
       // Log registration
       await db.insert(schema.auditLogs).values({
         companyId: company[0].id,
@@ -7067,11 +7134,69 @@ CRITICAL RULES - You MUST follow these strictly:
       res.json({
         success: true,
         companyId: company[0].id,
-        message: "Company registered successfully"
+        requiresVerification: true,
+        message: "Company registered. Please verify your email."
       });
     } catch (error: any) {
       console.error("Error registering company:", error);
       res.status(500).json({ error: error.message || "Registration failed" });
+    }
+  });
+
+  // COMPANY PORTAL: Verify email
+  app.post("/api/company/verify-email", async (req, res) => {
+    try {
+      const { email, code } = req.body;
+
+      if (!email || !code) {
+        return res.status(400).json({ error: "Email and code required" });
+      }
+
+      // Find verification code
+      const verRecord = await db
+        .select()
+        .from(schema.verificationCodes)
+        .where(
+          and(
+            eq(schema.verificationCodes.email, email),
+            eq(schema.verificationCodes.code, code),
+            eq(schema.verificationCodes.method, "email")
+          )
+        )
+        .limit(1);
+
+      if (!verRecord.length) {
+        return res.status(400).json({ error: "Invalid verification code" });
+      }
+
+      const record = verRecord[0];
+
+      // Check expiration
+      if (new Date() > record.expiresAt!) {
+        return res.status(400).json({ error: "Verification code expired" });
+      }
+
+      // Mark as verified
+      await db
+        .update(schema.verificationCodes)
+        .set({
+          isVerified: true,
+          verifiedAt: new Date(),
+        })
+        .where(eq(schema.verificationCodes.id, record.id));
+
+      // Update company email verified status
+      await db
+        .update(schema.companies)
+        .set({
+          emailVerifiedAt: new Date(),
+        })
+        .where(eq(schema.companies.primaryEmail, email));
+
+      res.json({ success: true, verified: true });
+    } catch (error) {
+      console.error("Error verifying email:", error);
+      res.status(500).json({ error: "Verification failed" });
     }
   });
 
