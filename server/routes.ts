@@ -6402,7 +6402,7 @@ CRITICAL RULES - You MUST follow these strictly:
         const jobs = await db.select().from(jobListings).where(eq(jobListings.isActive, true)).limit(20);
         
         for (const job of jobs) {
-          // Simple matching: check if candidate skills overlap with job requirements
+          // Weighted scoring: Hard Skills 70% + Soft Skills 30%
           const candidateSkills = (candidate.skills || []) as string[];
           const requiredSkills = job.requiredSkills || [];
           
@@ -6410,23 +6410,33 @@ CRITICAL RULES - You MUST follow these strictly:
             requiredSkills.some(r => r.toLowerCase().includes(s.toLowerCase()))
           ).length;
           
-          const hardSkillMatch = requiredSkills.length > 0 
+          // Hard skills: 0-70 points (percentage match * 70)
+          const hardSkillPercentage = requiredSkills.length > 0 
             ? Math.round((matchCount / requiredSkills.length) * 100)
             : 50;
+          const hardSkillScore = Math.round((hardSkillPercentage / 100) * 70);
           
-          const matchScore = Math.round(hardSkillMatch * 0.8); // 80% weight on hard skills
+          // Soft skills: 0-30 points (estimated from title match)
+          const titleMatch = candidate.currentTitle?.toLowerCase().includes(job.experienceLevel?.toLowerCase() || "") ? 15 : 0;
+          const softSkillScore = titleMatch + 15; // 15-30 baseline + title bonus
           
-          if (matchScore >= 40) { // Only create recommendations with 40%+ match
+          // Total normalized to 0-100
+          const totalScore = Math.min(100, Math.round((hardSkillScore + softSkillScore) / 100 * 100));
+          
+          if (totalScore >= 40) { // Only create recommendations with 40%+ match
             await db.insert(candidateJobRecommendations).values({
               candidateId,
               jobListingId: job.id,
-              matchScore,
-              hardSkillMatch,
-              softSkillMatch: 30,
+              matchScore: totalScore,
+              hardSkillMatch: hardSkillPercentage,
+              softSkillMatch: Math.min(30, softSkillScore),
               reasoningJSON: {
                 matchedSkills: candidateSkills.filter(s => 
                   requiredSkills.some(r => r.toLowerCase().includes(s.toLowerCase()))
                 ),
+                hardSkillScore,
+                softSkillScore,
+                totalScore,
                 candidateLevel: candidate.currentTitle || "Unknown",
                 jobLevel: job.experienceLevel || "Unknown"
               },
