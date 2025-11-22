@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database, Users } from "lucide-react";
+import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database, Users, Checkbox as CheckboxIcon } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CompanyResearch } from "@/components/admin/CompanyResearch";
 import { PromiseStatus } from "@/components/admin/PromiseStatus";
 
@@ -28,6 +29,7 @@ export default function ResearchManagement() {
   const [booleanSearch, setBooleanSearch] = useState("");
   const [booleanSearchResults, setBooleanSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [useBrightData, setUseBrightData] = useState(false);
 
   // Research mutation
   const researchMutation = useMutation({
@@ -89,7 +91,8 @@ export default function ResearchManagement() {
 
     try {
       const response = await apiRequest('POST', '/api/admin/boolean-search', {
-        query: booleanSearch.trim()
+        query: booleanSearch.trim(),
+        useBrightData
       });
       const data = await response.json();
       
@@ -97,7 +100,7 @@ export default function ResearchManagement() {
         setBooleanSearchResults(data.results);
         toast({
           title: "Search Complete",
-          description: `Found ${data.results.length} candidates. Select one to add.`,
+          description: `Found ${data.results.length} candidates${useBrightData ? ' (with enhanced profile data)' : ''}. Select one to add.`,
         });
       } else {
         toast({
@@ -351,6 +354,27 @@ export default function ResearchManagement() {
                   </p>
                 </div>
 
+                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <Checkbox 
+                    id="brightdata-toggle"
+                    checked={useBrightData}
+                    onCheckedChange={(checked) => setUseBrightData(checked as boolean)}
+                    disabled={isSearching}
+                    data-testid="checkbox-bright-data"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="brightdata-toggle" className="font-semibold text-sm cursor-pointer">
+                      Enhanced Profile Scraping
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {useBrightData ? "Bright Data will scrape full LinkedIn profile data for richer candidate information" : "Use Bright Data to extract complete profile information (recommended)"}
+                    </p>
+                  </div>
+                  <Badge variant={useBrightData ? "default" : "outline"} className="text-xs whitespace-nowrap">
+                    {useBrightData ? "Enhanced" : "Basic"}
+                  </Badge>
+                </div>
+
                 <Button
                   onClick={handleBooleanSearch}
                   disabled={isSearching}
@@ -360,7 +384,7 @@ export default function ResearchManagement() {
                   {isSearching ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Searching LinkedIn...
+                      Searching LinkedIn{useBrightData ? " & Scraping..." : "..."}
                     </>
                   ) : (
                     <>
