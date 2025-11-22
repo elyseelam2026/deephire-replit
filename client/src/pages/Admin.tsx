@@ -2337,6 +2337,8 @@ export default function Admin() {
             </CardContent>
           </Card>
         </TabsContent>
+          </Tabs>
+        </TabsContent>
 
         {/* Quality Management Tab Content */}
         <TabsContent value="quality-management" className="space-y-6">
