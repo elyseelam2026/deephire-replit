@@ -1,37 +1,32 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
-import { apiRequest, queryClient } from '@/lib/queryClient';
-import { AlertCircle, TrendingDown, TrendingUp } from 'lucide-react';
+import { AlertCircle, TrendingUp } from 'lucide-react';
 
 export default function PredictiveScore() {
-  const [jobId, setJobId] = useState<number | null>(null);
-  const [candidateId, setCandidateId] = useState<number | null>(null);
+  const [jobId, setJobId] = useState<number>(1);
+  const [candidateId, setCandidateId] = useState<number>(1);
+  const [scoreData, setScoreData] = useState<any>(null);
+  const [isPending, setIsPending] = useState(false);
 
-  const { data: scoreData } = useQuery({
-    queryKey: ['/api/predictive-score', jobId, candidateId],
-    queryFn: async () => {
-      if (!jobId || !candidateId) return null;
-      const res = await fetch(`/api/predictive-score?jobId=${jobId}&candidateId=${candidateId}`);
-      return res.json();
-    },
-    enabled: !!jobId && !!candidateId
-  });
-
-  const scoreMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('POST', '/api/predictive-score', {
-        jobId,
-        candidateId
+  const handleCalculate = async () => {
+    setIsPending(true);
+    try {
+      const res = await fetch('/api/predictive-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, candidateId })
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/predictive-score'] });
+      const data = await res.json();
+      setScoreData(data);
+    } catch (error) {
+      console.error('Failed to calculate score:', error);
+    } finally {
+      setIsPending(false);
     }
-  });
+  };
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -73,15 +68,15 @@ export default function PredictiveScore() {
       </div>
 
       <Button
-        onClick={() => scoreMutation.mutate()}
-        disabled={!jobId || !candidateId}
+        onClick={handleCalculate}
+        disabled={isPending}
         size="lg"
         className="mb-8"
       >
         Calculate Predictive Score
       </Button>
 
-      {scoreMutation.isPending && (
+      {isPending && (
         <div className="text-center py-8">Analyzing historical success patterns...</div>
       )}
 

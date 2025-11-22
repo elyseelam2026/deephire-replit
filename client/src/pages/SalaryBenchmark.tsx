@@ -1,36 +1,31 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { apiRequest, queryClient } from '@/lib/queryClient';
 import { DollarSign, TrendingUp } from 'lucide-react';
 
 export default function SalaryBenchmark() {
-  const [jobId, setJobId] = useState<number | null>(null);
-  const [candidateId, setCandidateId] = useState<number | null>(null);
+  const [jobId, setJobId] = useState<number>(1);
+  const [candidateId, setCandidateId] = useState<number>(1);
+  const [offerData, setOfferData] = useState<any>(null);
+  const [isPending, setIsPending] = useState(false);
 
-  const { data: offerData } = useQuery({
-    queryKey: ['/api/offer-optimization', jobId, candidateId],
-    queryFn: async () => {
-      if (!jobId || !candidateId) return null;
-      const res = await fetch(`/api/offer-optimization?jobId=${jobId}&candidateId=${candidateId}`);
-      return res.json();
-    },
-    enabled: !!jobId && !!candidateId
-  });
-
-  const optimizeMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('POST', '/api/offer-optimization', {
-        jobId,
-        candidateId
+  const handleOptimize = async () => {
+    setIsPending(true);
+    try {
+      const res = await fetch('/api/offer-optimization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, candidateId })
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/offer-optimization'] });
+      const data = await res.json();
+      setOfferData(data);
+    } catch (error) {
+      console.error('Failed to optimize offer:', error);
+    } finally {
+      setIsPending(false);
     }
-  });
+  };
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -58,15 +53,15 @@ export default function SalaryBenchmark() {
       </div>
 
       <Button
-        onClick={() => optimizeMutation.mutate()}
-        disabled={!jobId || !candidateId}
+        onClick={handleOptimize}
+        disabled={isPending}
         className="mb-8"
         size="lg"
       >
         Generate Offer Recommendation
       </Button>
 
-      {optimizeMutation.isPending && (
+      {isPending && (
         <div className="text-center py-8">Calculating market-competitive offer...</div>
       )}
 
