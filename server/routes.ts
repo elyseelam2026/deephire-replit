@@ -6486,6 +6486,143 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // CANDIDATE PORTAL: Update candidate profile
+  app.post("/api/candidate/:candidateId/update-profile", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const { skills, employmentType, salaryExpectations, salaryCurrency, softSkills, technicalSkills, workArrangement, yearsExperience } = req.body;
+
+      await db
+        .update(schema.candidates)
+        .set({
+          skills: skills || undefined,
+          employmentType: employmentType || undefined,
+          salaryExpectations: salaryExpectations || undefined,
+          salaryCurrency: salaryCurrency || "USD",
+          softSkills: softSkills || undefined,
+          technicalSkills: technicalSkills || undefined,
+          workArrangement: workArrangement || undefined,
+          yearsExperience: yearsExperience || undefined,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.candidates.id, candidateId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Get candidate applications
+  app.get("/api/candidate/:candidateId/applications", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+
+      const applications = await db
+        .select({
+          id: candidateJobRecommendations.id,
+          matchScore: candidateJobRecommendations.matchScore,
+          status: candidateJobRecommendations.status,
+          appliedAt: candidateJobRecommendations.appliedAt,
+          jobTitle: jobListings.jobTitle,
+          companyName: jobListings.companyName,
+          location: jobListings.location,
+          salaryMin: jobListings.salaryMin,
+          salaryMax: jobListings.salaryMax,
+          remote: jobListings.remote,
+          requiredSkills: jobListings.requiredSkills,
+          jobUrl: jobListings.jobUrl,
+          createdAt: candidateJobRecommendations.createdAt
+        })
+        .from(candidateJobRecommendations)
+        .innerJoin(jobListings, eq(candidateJobRecommendations.jobListingId, jobListings.id))
+        .where(eq(candidateJobRecommendations.candidateId, candidateId))
+        .orderBy(desc(candidateJobRecommendations.createdAt));
+
+      res.json(applications);
+    } catch (error) {
+      console.error("Error fetching applications:", error);
+      res.status(500).json({ error: "Failed to fetch applications" });
+    }
+  });
+
+  // CLIENT PORTAL: Start AI candidate sourcing
+  app.post("/api/jobs/:jobId/start-sourcing", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const { depthTarget, napContext, hardSkills, softSkills } = req.body;
+
+      // Create new sourcing run
+      const result = await db
+        .insert(sourcingRuns)
+        .values({
+          jobId,
+          searchType: "linkedin_people_search",
+          searchIntent: napContext || "AI-powered candidate search",
+          status: "queued",
+          depthTarget: depthTarget || "standard_25",
+          minHardSkillScore: depthTarget === "elite_8" ? 88 : depthTarget === "elite_15" ? 84 : depthTarget === "deep_60" ? 66 : depthTarget === "market_scan" ? 58 : 76,
+          minQualityPercentage: 68,
+          targetQualityCount: depthTarget === "elite_8" ? 8 : depthTarget === "elite_15" ? 15 : depthTarget === "deep_60" ? 60 : depthTarget === "market_scan" ? 150 : 25,
+          maxBudgetUsd: depthTarget === "elite_8" ? 149 : depthTarget === "elite_15" ? 199 : depthTarget === "deep_60" ? 149 : depthTarget === "market_scan" ? 179 : 129,
+          progress: {
+            phase: "queued",
+            message: "Sourcing job queued and waiting to start"
+          },
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.json({ 
+        success: true, 
+        sourcingRunId: result[0]?.id,
+        depthTarget,
+        estimatedCost: depthTarget === "elite_8" ? 149 : depthTarget === "elite_15" ? 199 : depthTarget === "deep_60" ? 149 : depthTarget === "market_scan" ? 179 : 129
+      });
+    } catch (error) {
+      console.error("Error starting sourcing:", error);
+      res.status(500).json({ error: "Failed to start sourcing" });
+    }
+  });
+
+  // CLIENT PORTAL: Get sourcing status
+  app.get("/api/jobs/:jobId/sourcing-status", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+
+      const runs = await db
+        .select()
+        .from(sourcingRuns)
+        .where(eq(sourcingRuns.jobId, jobId))
+        .orderBy(desc(sourcingRuns.createdAt));
+
+      if (!runs.length) {
+        return res.json({ status: "not_started", runs: [] });
+      }
+
+      const latestRun = runs[0];
+      res.json({
+        status: latestRun.status,
+        progress: latestRun.progress,
+        depthTarget: latestRun.depthTarget,
+        targetQualityCount: latestRun.targetQualityCount,
+        qualityQuotaMet: latestRun.qualityQuotaMet,
+        qualityDistribution: latestRun.qualityDistribution,
+        candidatesCreated: latestRun.candidatesCreated?.length || 0,
+        actualCostUsd: latestRun.actualCostUsd || 0,
+        maxBudgetUsd: latestRun.maxBudgetUsd,
+        startedAt: latestRun.startedAt,
+        completedAt: latestRun.completedAt,
+        runs
+      });
+    } catch (error) {
+      console.error("Error fetching sourcing status:", error);
+      res.status(500).json({ error: "Failed to fetch sourcing status" });
+    }
+  });
+
   // Generate 6-digit verification code
   function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
