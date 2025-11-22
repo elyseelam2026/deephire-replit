@@ -247,9 +247,10 @@ featuresRouter.get('/api/competitor-alerts/:candidateId', async (req, res) => {
       .from(schema.competitorInterviews)
       .where(eq(schema.competitorInterviews.candidateId, parseInt(candidateId)));
     
+    const competitorSet = new Set(interviews.map((i: any) => i.competitorCompany));
     res.json({
       activeInterviews: interviews.filter((i: any) => !i.detectedAt || new Date(i.detectedAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
-      competitors: [...new Set(interviews.map((i: any) => i.competitorCompany))]
+      competitors: Array.from(competitorSet)
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch competitor alerts' });

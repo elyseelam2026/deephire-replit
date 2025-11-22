@@ -37,8 +37,8 @@ export default function SalaryBenchmark() {
           <Input
             type="number"
             placeholder="Enter job ID"
-            value={jobId || ''}
-            onChange={(e) => setJobId(parseInt(e.target.value) || null)}
+            value={jobId}
+            onChange={(e) => setJobId(parseInt(e.target.value) || 1)}
           />
         </div>
         <div>
@@ -46,8 +46,8 @@ export default function SalaryBenchmark() {
           <Input
             type="number"
             placeholder="Enter candidate ID"
-            value={candidateId || ''}
-            onChange={(e) => setCandidateId(parseInt(e.target.value) || null)}
+            value={candidateId}
+            onChange={(e) => setCandidateId(parseInt(e.target.value) || 1)}
           />
         </div>
       </div>
