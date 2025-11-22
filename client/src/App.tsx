@@ -107,7 +107,7 @@ function AppRouter() {
       <Route path="/recruiting/settings" component={() => <RecruitingApp><Settings /></RecruitingApp>} />
       
       {/* Researchers Portal Routes */}
-      <Route path="/researchers" component={() => <ResearchersApp><ResearchersDashboard /></ResearchersApp>} />
+      <Route path="/researchers" component={() => <ResearchersApp><Admin /></ResearchersApp>} />
       <Route path="/researchers/companies" component={() => <ResearchersApp><Companies /></ResearchersApp>} />
       <Route path="/researchers/companies/:id" component={() => <ResearchersApp><CompanyDetail /></ResearchersApp>} />
       <Route path="/researchers/candidates" component={() => <ResearchersApp><Candidates /></ResearchersApp>} />
