@@ -712,7 +712,6 @@ export default function Admin() {
       company: quickAddCompany.trim(),
       jobTitle: quickAddJobTitle.trim() || undefined,
       linkedinUrl: quickAddLinkedinUrl.trim() || undefined,
-      processingMode: quickAddProcessingMode
     });
   };
 
