@@ -39,6 +39,9 @@ import ConversationDetail from "@/pages/ConversationDetail";
 import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
 import DataQualityDashboard from "@/pages/DataQualityDashboard";
+import AdminBulkUpload from "@/pages/AdminBulkUpload";
+import AdminUserManagement from "@/pages/AdminUserManagement";
+import AdminSystemSettings from "@/pages/AdminSystemSettings";
 import VerifyEmail from "@/pages/VerifyEmail";
 import CompanyVerifyEmail from "@/pages/CompanyVerifyEmail";
 import NotFound from "@/pages/not-found";
@@ -106,10 +109,10 @@ function AppRouter() {
       <Route path="/admin/companies" component={() => <AdminApp><Companies /></AdminApp>} />
       <Route path="/admin/candidates" component={() => <AdminApp><Candidates /></AdminApp>} />
       <Route path="/admin/staging" component={() => <AdminApp><Staging /></AdminApp>} />
-      <Route path="/admin/bulk-upload" component={() => <AdminApp><Admin /></AdminApp>} />
+      <Route path="/admin/bulk-upload" component={() => <AdminApp><AdminBulkUpload /></AdminApp>} />
       <Route path="/admin/data-quality" component={() => <AdminApp><DataQualityDashboard /></AdminApp>} />
-      <Route path="/admin/users" component={() => <AdminApp><Admin /></AdminApp>} />
-      <Route path="/admin/system" component={() => <AdminApp><Admin /></AdminApp>} />
+      <Route path="/admin/users" component={() => <AdminApp><AdminUserManagement /></AdminApp>} />
+      <Route path="/admin/system" component={() => <AdminApp><AdminSystemSettings /></AdminApp>} />
       
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
