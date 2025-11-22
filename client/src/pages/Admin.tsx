@@ -1020,41 +1020,47 @@ export default function Admin() {
         </div>
       </div>
 
-      <Tabs defaultValue="quick-add" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8">
-          <TabsTrigger value="quick-add" data-testid="tab-quick-add">
-            <UserPlus className="h-4 w-4 mr-2" />
-            Quick Add
-          </TabsTrigger>
-          <TabsTrigger value="candidates" data-testid="tab-candidates">
-            <Users className="h-4 w-4 mr-2" />
-            Candidate Upload
-          </TabsTrigger>
-          <TabsTrigger value="companies" data-testid="tab-companies">
-            <Building2 className="h-4 w-4 mr-2" />
-            Company Upload
-          </TabsTrigger>
-          <TabsTrigger value="research" data-testid="tab-research">
+      <Tabs defaultValue="research-management" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="research-management" data-testid="tab-research-management">
             <Search className="h-4 w-4 mr-2" />
-            AI Research
-          </TabsTrigger>
-          <TabsTrigger value="promises" data-testid="tab-promises">
-            <Zap className="h-4 w-4 mr-2" />
-            AI Promises
-          </TabsTrigger>
-          <TabsTrigger value="duplicates" data-testid="tab-duplicates">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            Duplicate Review
-          </TabsTrigger>
-          <TabsTrigger value="history" data-testid="tab-history">
-            <FileText className="h-4 w-4 mr-2" />
-            Upload History
+            Research Management
           </TabsTrigger>
           <TabsTrigger value="quality-management" data-testid="tab-quality-management">
             <Database className="h-4 w-4 mr-2" />
             Quality Management
           </TabsTrigger>
         </TabsList>
+
+        {/* Research Management Tab - Contains nested tabs */}
+        <TabsContent value="research-management" className="space-y-6">
+          <Tabs defaultValue="quick-add" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="quick-add" data-testid="tab-quick-add">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Quick Add
+              </TabsTrigger>
+              <TabsTrigger value="candidates" data-testid="tab-candidates">
+                <Users className="h-4 w-4 mr-2" />
+                Candidate Upload
+              </TabsTrigger>
+              <TabsTrigger value="companies" data-testid="tab-companies">
+                <Building2 className="h-4 w-4 mr-2" />
+                Company Upload
+              </TabsTrigger>
+              <TabsTrigger value="research" data-testid="tab-research">
+                <Search className="h-4 w-4 mr-2" />
+                AI Research
+              </TabsTrigger>
+              <TabsTrigger value="promises" data-testid="tab-promises">
+                <Zap className="h-4 w-4 mr-2" />
+                AI Promises
+              </TabsTrigger>
+              <TabsTrigger value="duplicates" data-testid="tab-duplicates">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Duplicates
+              </TabsTrigger>
+            </TabsList>
 
         {/* Quick Add Tab Content */}
         <TabsContent value="quick-add" className="space-y-6">
