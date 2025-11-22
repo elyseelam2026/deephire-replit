@@ -46,7 +46,7 @@ const adminItems = [
   { title: "Candidates", url: "/admin/candidates", icon: Users },
   { title: "Staging", url: "/admin/staging", icon: Clock },
   { title: "Bulk Upload", url: "/admin/bulk-upload", icon: Upload },
-  { title: "Data Quality", url: "/admin/data-quality", icon: Database },
+  { title: "Database Management", url: "/admin/database-management", icon: Database },
   { title: "User Management", url: "/admin/users", icon: Users },
   { title: "System Settings", url: "/admin/system", icon: Shield },
 ];

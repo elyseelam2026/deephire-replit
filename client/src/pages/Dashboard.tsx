@@ -1,219 +1,184 @@
-import { useState, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChatInterface } from "@/components/ChatInterface";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
-
-type Message = {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: string;
-  metadata?: {
-    type?: 'jd_upload' | 'candidate_results' | 'clarification' | 'text' | 'job_created';
-    fileName?: string;
-    candidateIds?: number[];
-    jobId?: number;
-  };
-};
-
-type Conversation = {
-  id: number;
-  messages: Message[];
-  status: string;
-  phase: string;
-  searchContext?: any;
-  matchedCandidates?: any[];
-};
+import { Link } from "wouter";
+import { TrendingUp, Users, Briefcase, CheckCircle, Clock, AlertCircle } from "lucide-react";
 
 export default function Dashboard() {
-  const [conversationId, setConversationId] = useState<number | null>(null);
-  const { toast} = useToast();
-  const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
-
-  // Get companyId from URL params (for demo/testing purposes)
-  // TODO: This will come from user session when authentication is implemented
-  const urlParams = new URLSearchParams(window.location.search);
-  const companyId = urlParams.get('companyId');
-
-  // Create conversation on mount (once)
-  const createConversationMutation = useMutation({
-    mutationFn: async () => {
-      const body: any = { portal: 'client' };
-      if (companyId) {
-        body.companyId = parseInt(companyId);
-      }
-      
-      const response = await fetch('/api/conversations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) throw new Error('Failed to create conversation');
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setConversationId(data.id);
-      // Persist conversation ID in localStorage for memory
-      localStorage.setItem('currentConversationId', data.id.toString());
-    },
-  });
-
-  // Load existing conversation from localStorage OR create new one
-  useEffect(() => {
-    // Check if there's a saved conversation ID
-    const savedConversationId = localStorage.getItem('currentConversationId');
-    
-    if (savedConversationId) {
-      // Resume existing conversation
-      const id = parseInt(savedConversationId);
-      setConversationId(id);
-    } else if (!conversationId && !createConversationMutation.isPending) {
-      // Create new conversation only if no saved one exists
-      createConversationMutation.mutate();
-    }
-  }, []);
-
-  // Fetch current conversation with error handling for missing conversations
-  const { data: conversation, isLoading } = useQuery<Conversation>({
-    queryKey: ['/api/conversations', conversationId],
-    queryFn: async () => {
-      if (!conversationId) return null;
-      const response = await fetch(`/api/conversations/${conversationId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          localStorage.removeItem('currentConversationId');
-          setConversationId(null);
-          createConversationMutation.mutate();
-          return null;
-        }
-        throw new Error('Failed to fetch conversation');
-      }
-      return response.json();
-    },
-    enabled: !!conversationId,
-    staleTime: 0,
-    refetchOnMount: true,
-    retry: false,
-  });
-
-  // Send message mutation
-  const sendMessageMutation = useMutation({
-    mutationFn: async ({ message, file }: { message: string; file?: File }) => {
-      const formData = new FormData();
-      formData.append('message', message);
-      if (file) {
-        formData.append('file', file);
-      }
-
-      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to send message');
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSendMessage = async (content: string, file?: File) => {
-    if (!conversationId) {
-      toast({
-        title: "Error",
-        description: "No active conversation",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    await sendMessageMutation.mutateAsync({ message: content, file });
+  // Sample metrics - these will come from API in production
+  const metrics = {
+    totalJobs: 24,
+    activePostings: 8,
+    totalCandidates: 1243,
+    activeCandidates: 487,
+    hires: 42,
+    avgTimeToHire: "18 days",
   };
 
-  // Auto-redirect to Jobs page when job is created (only once per job)
-  useEffect(() => {
-    if (!conversation?.messages) return;
-    
-    const lastMessage = conversation.messages[conversation.messages.length - 1];
-    if (lastMessage?.metadata?.type === 'job_created' && lastMessage.metadata.jobId) {
-      const jobId = lastMessage.metadata.jobId;
-      
-      // Check if we've already redirected for this job
-      const redirectedJobs = JSON.parse(localStorage.getItem('redirectedJobs') || '[]');
-      if (redirectedJobs.includes(jobId)) {
-        return; // Already redirected, don't do it again
-      }
-      
-      // Mark this job as redirected
-      redirectedJobs.push(jobId);
-      localStorage.setItem('redirectedJobs', JSON.stringify(redirectedJobs));
-      
-      // Small delay to show "Job Created!" message first
-      const timer = setTimeout(() => {
-        toast({
-          title: "Redirecting...",
-          description: "Taking you to the Jobs page to see your results",
-        });
-        setLocation('/jobs');
-      }, 1500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [conversation?.messages]);
+  const recentJobs = [
+    { id: 1, title: "Senior Software Engineer", team: "Engineering", status: "Active", applications: 23 },
+    { id: 2, title: "Product Manager", team: "Product", status: "Active", applications: 15 },
+    { id: 3, title: "Data Scientist", team: "Data", status: "Closed", applications: 8 },
+  ];
 
-  const handleNewConversation = () => {
-    // Clear localStorage and create new conversation
-    localStorage.removeItem('currentConversationId');
-    setConversationId(null);
-    createConversationMutation.mutate();
-  };
-
-  const messages = conversation?.messages || [];
-  const matchedCandidates = conversation?.matchedCandidates || [];
+  const recentActivity = [
+    { id: 1, action: "New application", candidate: "Alex Johnson", job: "Senior Software Engineer", time: "2 hours ago" },
+    { id: 2, action: "Candidate advanced", candidate: "Sarah Chen", job: "Product Manager", time: "4 hours ago" },
+    { id: 3, action: "Interview scheduled", candidate: "Michael Brown", job: "Data Scientist", time: "1 day ago" },
+    { id: 4, action: "Job closed", job: "QA Engineer", count: "34 applications", time: "2 days ago" },
+  ];
 
   return (
-    <div className="h-full flex flex-col" data-testid="dashboard">
-      {/* Header with New Conversation button */}
-      {messages.length > 0 && (
-        <div className="p-3 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Conversation #{conversationId}</span>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleNewConversation}
-            data-testid="button-new-conversation"
-          >
-            New Conversation
-          </Button>
-        </div>
-      )}
-      <div className="flex-1 overflow-hidden">
-        <ChatInterface
-          conversationId={conversationId || undefined}
-          messages={messages}
-          matchedCandidates={matchedCandidates}
-          onSendMessage={handleSendMessage}
-          isLoading={sendMessageMutation.isPending}
-        />
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Recruiting Dashboard</h1>
+        <p className="text-muted-foreground mt-2">Overview of your recruitment pipeline and activity</p>
+      </div>
+
+      {/* Top Metrics Grid */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <Card className="hover-elevate">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span>Total Jobs</span>
+              <Briefcase className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalJobs}</div>
+            <p className="text-xs text-muted-foreground mt-1">{metrics.activePostings} currently active</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-elevate">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span>Candidates</span>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalCandidates}</div>
+            <p className="text-xs text-muted-foreground mt-1">{metrics.activeCandidates} in active pipeline</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-elevate">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span>Hires</span>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.hires}</div>
+            <p className="text-xs text-muted-foreground mt-1">Avg time to hire: {metrics.avgTimeToHire}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Active Jobs */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              Active Job Postings
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentJobs.map((job) => (
+                <Link key={job.id} href={`/recruiting/jobs/${job.id}`}>
+                  <div className="p-3 border rounded-lg hover-elevate cursor-pointer" data-testid={`card-job-${job.id}`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{job.title}</p>
+                        <p className="text-xs text-muted-foreground">{job.team}</p>
+                      </div>
+                      <Badge variant={job.status === "Active" ? "default" : "secondary"}>
+                        {job.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">{job.applications} applications</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <Button variant="outline" className="w-full mt-4" asChild data-testid="button-view-all-jobs">
+              <Link href="/recruiting/jobs">View All Jobs</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentActivity.map((activity) => (
+                <div key={activity.id} className="flex gap-3 pb-3 border-b last:border-0 last:pb-0" data-testid={`item-activity-${activity.id}`}>
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm">
+                      <span className="font-medium">{activity.action}</span>
+                      {activity.candidate && (
+                        <>
+                          {" for "}
+                          <span className="font-medium">{activity.candidate}</span>
+                          {" on "}
+                          <span className="text-muted-foreground">{activity.job}</span>
+                        </>
+                      )}
+                      {activity.count && (
+                        <>
+                          {" - "}
+                          <span className="text-muted-foreground">{activity.count}</span>
+                        </>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* CTA Cards */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card className="bg-muted/50 border-muted">
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Post a New Job</h3>
+              <p className="text-sm text-muted-foreground">Start recruiting for an open position</p>
+            </div>
+            <Button asChild data-testid="button-post-job">
+              <Link href="/recruiting/jobs">Post Job</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-muted/50 border-muted">
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Source Candidates</h3>
+              <p className="text-sm text-muted-foreground">Find and add candidates to your pipeline</p>
+            </div>
+            <Button asChild data-testid="button-source-candidates">
+              <Link href="/recruiting/candidates">Source</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ import Conversations from "@/pages/Conversations";
 import ConversationDetail from "@/pages/ConversationDetail";
 import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
-import DataQualityDashboard from "@/pages/DataQualityDashboard";
+import DatabaseManagement from "@/pages/DatabaseManagement";
 import AdminBulkUpload from "@/pages/AdminBulkUpload";
 import AdminUserManagement from "@/pages/AdminUserManagement";
 import AdminSystemSettings from "@/pages/AdminSystemSettings";
@@ -110,7 +110,7 @@ function AppRouter() {
       <Route path="/admin/candidates" component={() => <AdminApp><Candidates /></AdminApp>} />
       <Route path="/admin/staging" component={() => <AdminApp><Staging /></AdminApp>} />
       <Route path="/admin/bulk-upload" component={() => <AdminApp><AdminBulkUpload /></AdminApp>} />
-      <Route path="/admin/data-quality" component={() => <AdminApp><DataQualityDashboard /></AdminApp>} />
+      <Route path="/admin/database-management" component={() => <AdminApp><DatabaseManagement /></AdminApp>} />
       <Route path="/admin/users" component={() => <AdminApp><AdminUserManagement /></AdminApp>} />
       <Route path="/admin/system" component={() => <AdminApp><AdminSystemSettings /></AdminApp>} />
       
