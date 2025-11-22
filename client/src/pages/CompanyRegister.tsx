@@ -55,6 +55,13 @@ export default function CompanyRegister() {
         throw new Error(errorMessage);
       }
 
+      const responseData = await response.json();
+      
+      // Store companyId in localStorage so Settings page can fetch company data
+      if (responseData.companyId) {
+        localStorage.setItem("companyId", responseData.companyId.toString());
+      }
+
       toast({
         title: "Success!",
         description: "Company registered successfully",

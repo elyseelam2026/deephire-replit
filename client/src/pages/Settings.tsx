@@ -51,7 +51,7 @@ export default function Settings() {
 
   const [settings, setSettings] = useState({
     // Profile settings
-    companyName: company?.name || "Loading...",
+    companyName: company?.name || "",
     companyEmail: company?.primaryEmail || "",
     companyPhone: company?.primaryPhone || "",
     companyWebsite: company?.website || "",
