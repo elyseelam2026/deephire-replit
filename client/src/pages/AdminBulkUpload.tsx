@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileText, Loader2, CheckCircle, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminBulkUpload() {
   const { toast } = useToast();
@@ -25,12 +24,10 @@ export default function AdminBulkUpload() {
     else if (type === "users") input = usersInputRef.current;
     
     const file = input?.files?.[0];
-    
     if (!file) return;
 
     setUploading(type);
     try {
-      // Simulate upload
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       const newUpload = {
@@ -67,14 +64,7 @@ export default function AdminBulkUpload() {
         <p className="text-muted-foreground mt-2">Upload candidates, companies, and team members in bulk</p>
       </div>
 
-      <Tabs defaultValue="data" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="data">Candidate & Company Data</TabsTrigger>
-          <TabsTrigger value="users">Team Members</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="data" className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         <Card className="hover-elevate">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -144,6 +134,44 @@ export default function AdminBulkUpload() {
               ) : (
                 <>
                   <FileText className="h-4 w-4 mr-2" />
+                  Choose File
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-elevate">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Upload Team Members
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Bulk import users with roles and team assignments
+            </p>
+            <input
+              ref={usersInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={() => handleFileSelect("users")}
+            />
+            <Button 
+              className="w-full"
+              onClick={() => usersInputRef.current?.click()}
+              disabled={uploading === "users"}
+            >
+              {uploading === "users" ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Users className="h-4 w-4 mr-2" />
                   Choose File
                 </>
               )}

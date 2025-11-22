@@ -248,7 +248,6 @@ export default function AdminUserManagement() {
       <Tabs defaultValue="users" className="space-y-4">
         <TabsList>
           <TabsTrigger value="users">Users ({users.length})</TabsTrigger>
-          <TabsTrigger value="bulk-import">Bulk Import</TabsTrigger>
           <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
           <TabsTrigger value="activity">Activity Audit</TabsTrigger>
         </TabsList>
@@ -345,114 +344,6 @@ export default function AdminUserManagement() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* BULK IMPORT TAB */}
-        <TabsContent value="bulk-import" className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="h-5 w-5" />
-                  Import Users from CSV
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="border-2 border-dashed rounded-lg p-6 text-center space-y-3 hover:bg-muted/50 cursor-pointer transition" onClick={() => document.getElementById("csv-upload")?.click()} data-testid="dropzone-csv">
-                  <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">Drag CSV file here or click to select</p>
-                    <p className="text-xs text-muted-foreground mt-1">Required columns: name, email. Optional: role, team</p>
-                  </div>
-                  <input 
-                    id="csv-upload" 
-                    type="file" 
-                    accept=".csv" 
-                    hidden 
-                    onChange={(e) => setBulkImportFile(e.target.files?.[0] || null)} 
-                    data-testid="input-csv-file"
-                  />
-                </div>
-                
-                {bulkImportFile && (
-                  <div className="p-3 bg-muted rounded-lg space-y-2">
-                    <p className="text-sm font-medium flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      {bulkImportFile.name}
-                    </p>
-                    <Button onClick={handleBulkImport} disabled={importingBulk} className="w-full" data-testid="button-import-csv">
-                      {importingBulk ? "Importing..." : "Import Users"}
-                    </Button>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">CSV Format Example:</p>
-                  <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
-                    <div>name,email,role,team</div>
-                    <div>Alice Johnson,alice@company.com,recruiter,Enterprise</div>
-                    <div>Bob Smith,bob@company.com,viewer,Core</div>
-                  </div>
-                </div>
-
-                <Button variant="outline" className="w-full" onClick={() => {
-                  const template = "name,email,role,team\nJohn Doe,john@company.com,recruiter,Enterprise\nJane Smith,jane@company.com,hiring_manager,Core";
-                  const blob = new Blob([template], { type: "text/csv" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "users_template.csv";
-                  a.click();
-                }} data-testid="button-download-template">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Template
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Import History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {bulkImportJobs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No imports yet</p>
-                  ) : (
-                    bulkImportJobs.map((job) => (
-                      <div key={job.id} className="p-3 border rounded-lg space-y-2" data-testid={`card-import-job-${job.id}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{job.fileName}</p>
-                            <p className="text-xs text-muted-foreground">{job.team}</p>
-                          </div>
-                          <Badge variant={job.status === "completed" ? "default" : "secondary"}>
-                            {job.status}
-                          </Badge>
-                        </div>
-                        <div className="flex gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3 text-green-600" />
-                            {job.successfulRecords} successful
-                          </span>
-                          {job.failedRecords > 0 && (
-                            <span className="flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3 text-red-600" />
-                              {job.failedRecords} failed
-                            </span>
-                          )}
-                          <span>{job.uploadedAt}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
         {/* ROLES & PERMISSIONS TAB */}
