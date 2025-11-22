@@ -39,6 +39,7 @@ import ConversationDetail from "@/pages/ConversationDetail";
 import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
 import DataQualityDashboard from "@/pages/DataQualityDashboard";
+import VerifyEmail from "@/pages/VerifyEmail";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -50,6 +51,7 @@ function AppRouter() {
       
       {/* Candidate Portal Routes */}
       <Route path="/candidate/register" component={CandidatePortal} />
+      <Route path="/candidate/verify-email/:candidateId" component={VerifyEmail} />
       <Route path="/candidate/dashboard/:candidateId" component={CandidateDashboard} />
       <Route path="/candidate/profile/:candidateId" component={CandidateProfile} />
       <Route path="/candidate/jobs/:candidateId" component={CandidateJobsSearch} />
