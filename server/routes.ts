@@ -6464,7 +6464,7 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
-  // CANDIDATE PORTAL: Record job application
+  // CANDIDATE PORTAL: Record job application (by recommendationId)
   app.post("/api/candidate/:candidateId/apply-job/:recommendationId", async (req, res) => {
     try {
       const candidateId = parseInt(req.params.candidateId);
@@ -6479,6 +6479,55 @@ CRITICAL RULES - You MUST follow these strictly:
         })
         .where(eq(candidateJobRecommendations.id, recommendationId));
       
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error applying to job:", error);
+      res.status(500).json({ error: "Failed to apply to job" });
+    }
+  });
+
+  // CANDIDATE PORTAL: Apply to job directly (by jobId) - creates recommendation if needed
+  app.post("/api/candidate/:candidateId/apply-to-job/:jobId", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      const jobId = parseInt(req.params.jobId);
+
+      // Check if recommendation already exists
+      const existing = await db
+        .select()
+        .from(candidateJobRecommendations)
+        .where(
+          and(
+            eq(candidateJobRecommendations.candidateId, candidateId),
+            eq(candidateJobRecommendations.jobListingId, jobId)
+          )
+        );
+
+      if (existing.length > 0) {
+        // Update existing recommendation to applied
+        await db
+          .update(candidateJobRecommendations)
+          .set({
+            status: "applied",
+            appliedAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(candidateJobRecommendations.id, existing[0].id));
+      } else {
+        // Create new recommendation with applied status
+        await db
+          .insert(candidateJobRecommendations)
+          .values({
+            candidateId,
+            jobListingId: jobId,
+            status: "applied",
+            matchScore: 50, // Default neutral score
+            appliedAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+      }
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error applying to job:", error);

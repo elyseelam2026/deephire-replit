@@ -36,7 +36,7 @@ export default function CandidateJobsSearch() {
   // Apply to job mutation
   const applyMutation = useMutation({
     mutationFn: async (jobId: number) => {
-      const response = await fetch(`/api/candidate/${candidateId}/apply-job/${jobId}`, {
+      const response = await fetch(`/api/candidate/${candidateId}/apply-to-job/${jobId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId }),
