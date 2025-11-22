@@ -42,6 +42,7 @@ import DatabaseManagement from "@/pages/DatabaseManagement";
 import AdminBulkUpload from "@/pages/AdminBulkUpload";
 import AdminUserManagement from "@/pages/AdminUserManagement";
 import AdminSystemSettings from "@/pages/AdminSystemSettings";
+import AdminDashboard from "@/pages/AdminDashboard";
 import VerifyEmail from "@/pages/VerifyEmail";
 import CompanyVerifyEmail from "@/pages/CompanyVerifyEmail";
 import NotFound from "@/pages/not-found";
@@ -105,7 +106,7 @@ function AppRouter() {
       <Route path="/recruiting/settings" component={() => <RecruitingApp><Settings /></RecruitingApp>} />
       
       {/* Researchers Portal Routes */}
-      <Route path="/researchers" component={() => <ResearchersApp><Dashboard /></ResearchersApp>} />
+      <Route path="/researchers" component={() => <ResearchersApp><Admin /></ResearchersApp>} />
       <Route path="/researchers/companies" component={() => <ResearchersApp><Companies /></ResearchersApp>} />
       <Route path="/researchers/companies/:id" component={() => <ResearchersApp><CompanyDetail /></ResearchersApp>} />
       <Route path="/researchers/candidates" component={() => <ResearchersApp><Candidates /></ResearchersApp>} />
@@ -115,7 +116,7 @@ function AppRouter() {
       <Route path="/researchers/database-management" component={() => <ResearchersApp><DatabaseManagement /></ResearchersApp>} />
       
       {/* Admin Portal Routes */}
-      <Route path="/admin" component={() => <AdminApp><Admin /></AdminApp>} />
+      <Route path="/admin" component={() => <AdminApp><AdminDashboard /></AdminApp>} />
       <Route path="/admin/users" component={() => <AdminApp><AdminUserManagement /></AdminApp>} />
       <Route path="/admin/system" component={() => <AdminApp><AdminSystemSettings /></AdminApp>} />
       
