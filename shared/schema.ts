@@ -1161,12 +1161,39 @@ export const users = pgTable("users", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role").notNull(), // admin, client, candidate
+  role: text("role").notNull(), // admin, recruiter, hiring_manager, client_admin, candidate, viewer
   name: text("name").notNull(),
+  jobTitle: text("job_title"),
+  department: text("department"), // recruiting, sales, operations, etc
+  team: text("team"), // team assignment for multi-team orgs
   companyId: integer("company_id").references(() => companies.id),
   candidateId: integer("candidate_id").references(() => candidates.id),
   isActive: boolean("is_active").default(true).notNull(),
+  status: text("status").default("active").notNull(), // active, suspended, pending
+  permissions: text("permissions").array().default(sql`ARRAY[]::text[]`), // feature-level permissions
+  lastLogin: timestamp("last_login"),
+  loginCount: integer("login_count").default(0),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
+// User activity audit log
+export const userActivityLog = pgTable("user_activity_log", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  action: text("action").notNull(), // login, logout, create, update, delete, export, etc
+  resource: text("resource"), // what they acted upon (candidate_id, job_id, etc)
+  details: jsonb("details"), // {fieldChanged: oldValue -> newValue}
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+});
+
+// Role-based permission definitions
+export const rolePermissions = pgTable("role_permissions", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  role: text("role").notNull().unique(), // admin, recruiter, hiring_manager, client_admin, viewer
+  permissions: text("permissions").array().notNull(), // ['view_candidates', 'edit_candidates', 'post_jobs', 'view_analytics', 'manage_users']
 });
 
 // Data ingestion jobs - tracks bulk upload operations

@@ -1,23 +1,25 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Plus, Trash2, Edit2 } from "lucide-react";
+import { Users, Plus, Trash2, Edit2, LogOut, Shield, Activity, Search, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminUserManagement() {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", role: "viewer" });
-  const [users, setUsers] = useState([
-    { id: 1, name: "Admin User", email: "admin@deephire.com", role: "administrator" },
-    { id: 2, name: "John Smith", email: "john@deephire.com", role: "moderator" },
-  ]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [formData, setFormData] = useState({ name: "", email: "", role: "viewer", jobTitle: "", department: "", team: "", permissions: [] as string[] });
 
   const handleOpenDialog = (user?: typeof users[0]) => {
     if (user) {
