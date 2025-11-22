@@ -16,7 +16,6 @@ import {
 // Client Portal - For PE firms hiring through agency (MASTER)
 const clientItems = [
   { title: "Dashboard", url: "/client", icon: BarChart3 },
-  { title: "Companies", url: "/client/companies", icon: Building2 },
   { title: "Jobs", url: "/client/jobs", icon: Briefcase },
   { title: "Candidates", url: "/client/candidates", icon: Users },
   { title: "Recycling Bin", url: "/client/recycling-bin", icon: Trash2 },
@@ -27,7 +26,6 @@ const clientItems = [
 // Agency Portal - For recruiting team (same as client portal)
 const agencyItems = [
   { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
-  { title: "Companies", url: "/recruiting/companies", icon: Building2 },
   { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
   { title: "Candidates", url: "/recruiting/candidates", icon: Users },
   { title: "Recycling Bin", url: "/recruiting/recycling-bin", icon: Trash2 },
@@ -43,9 +41,10 @@ const candidateItems = [
   { title: "Messages", url: "/candidate/messages", icon: MessageSquare },
 ];
 
-// Admin Portal - For system administrators
+// Admin Portal - For system administrators (manages core database)
 const adminItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
+  { title: "Companies", url: "/admin/companies", icon: Building2 },
   { title: "Staging", url: "/admin/staging", icon: Clock },
   { title: "Bulk Upload", url: "/admin/bulk-upload", icon: Upload },
   { title: "Data Quality", url: "/admin/data-quality", icon: Database },
