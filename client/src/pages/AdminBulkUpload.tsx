@@ -1,22 +1,29 @@
 import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, Loader2, CheckCircle } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminBulkUpload() {
   const { toast } = useToast();
   const candidatesInputRef = useRef<HTMLInputElement>(null);
   const companiesInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState<"candidates" | "companies" | null>(null);
+  const usersInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<"candidates" | "companies" | "users" | null>(null);
   const [uploads, setUploads] = useState([
     { id: 1, name: "candidates_batch_1.csv", type: "candidates", date: "2024-11-20", status: "completed", count: 145 },
     { id: 2, name: "companies_q4_2024.xlsx", type: "companies", date: "2024-11-15", status: "completed", count: 89 },
+    { id: 3, name: "recruiting_team_q4.csv", type: "users", date: "2024-11-22", status: "completed", count: 15 },
   ]);
 
-  const handleFileSelect = async (type: "candidates" | "companies") => {
-    const input = type === "candidates" ? candidatesInputRef.current : companiesInputRef.current;
+  const handleFileSelect = async (type: "candidates" | "companies" | "users") => {
+    let input = null;
+    if (type === "candidates") input = candidatesInputRef.current;
+    else if (type === "companies") input = companiesInputRef.current;
+    else if (type === "users") input = usersInputRef.current;
+    
     const file = input?.files?.[0];
     
     if (!file) return;
@@ -36,9 +43,10 @@ export default function AdminBulkUpload() {
       };
       
       setUploads([newUpload, ...uploads]);
+      const typeLabel = type === "users" ? "users" : type;
       toast({
         title: "Upload Complete",
-        description: `${file.name} uploaded successfully with ${newUpload.count} records`,
+        description: `${file.name} uploaded successfully with ${newUpload.count} ${typeLabel}`,
       });
     } catch (error) {
       toast({
@@ -56,10 +64,17 @@ export default function AdminBulkUpload() {
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Bulk Upload</h1>
-        <p className="text-muted-foreground mt-2">Upload candidate and company data in bulk</p>
+        <p className="text-muted-foreground mt-2">Upload candidates, companies, and team members in bulk</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <Tabs defaultValue="data" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="data">Candidate & Company Data</TabsTrigger>
+          <TabsTrigger value="users">Team Members</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="data" className="space-y-6">
+          <div className="grid md:grid-cols-2 gap-6">
         <Card className="hover-elevate">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
