@@ -17,6 +17,8 @@ export default function AdminSystemSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [configDialog, setConfigDialog] = useState<string | null>(null);
+  const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null);
+  const [integrationConfig, setIntegrationConfig] = useState<Record<string, string>>({});
   const [apiKeys, setApiKeys] = useState([
     { id: 1, name: "Production API Key", created: "2024-01-15", lastUsed: "2024-11-22", active: true }
   ]);
@@ -503,10 +505,8 @@ export default function AdminSystemSettings() {
                     size="sm" 
                     className="w-full"
                     onClick={() => {
-                      toast({
-                        title: service.status === "connected" ? "Reconfigure" : "Connect",
-                        description: `${service.name} configuration opened`,
-                      });
+                      setSelectedIntegration(service.name);
+                      setConfigDialog(`integration-${i}`);
                     }}
                   >
                     {service.status === "connected" ? "Reconfigure" : "Connect"}
@@ -752,8 +752,8 @@ export default function AdminSystemSettings() {
         </CardContent>
       </Card>
 
-      {/* Configuration Dialog */}
-      <Dialog open={!!configDialog} onOpenChange={() => setConfigDialog(null)}>
+      {/* Email Template Configuration Dialog */}
+      <Dialog open={configDialog?.startsWith('email-')} onOpenChange={() => setConfigDialog(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Email Template Configuration</DialogTitle>
@@ -778,6 +778,245 @@ export default function AdminSystemSettings() {
                 toast({ title: "Saved", description: "Template saved successfully" });
               }}>
                 Save Template
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Integration Configuration Dialog */}
+      <Dialog open={configDialog?.startsWith('integration-')} onOpenChange={() => setConfigDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedIntegration} Configuration</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedIntegration === "SendGrid" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="sendgrid-key">SendGrid API Key</Label>
+                  <Input 
+                    id="sendgrid-key"
+                    type="password"
+                    placeholder="SG.xxxxxxxxxxxxx"
+                    value={integrationConfig['sendgrid'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, sendgrid: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sendgrid-from">Default From Email</Label>
+                  <Input 
+                    id="sendgrid-from"
+                    placeholder="noreply@deephire.com"
+                    value={integrationConfig['sendgrid-from'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'sendgrid-from': e.target.value})}
+                  />
+                </div>
+              </>
+            )}
+            {selectedIntegration === "Twilio" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="twilio-account">Account SID</Label>
+                  <Input 
+                    id="twilio-account"
+                    placeholder="ACxxxxxxxxxxxxx"
+                    value={integrationConfig['twilio-account'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'twilio-account': e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="twilio-token">Auth Token</Label>
+                  <Input 
+                    id="twilio-token"
+                    type="password"
+                    placeholder="Your auth token"
+                    value={integrationConfig['twilio-token'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'twilio-token': e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="twilio-phone">From Phone Number</Label>
+                  <Input 
+                    id="twilio-phone"
+                    placeholder="+1234567890"
+                    value={integrationConfig['twilio-phone'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'twilio-phone': e.target.value})}
+                  />
+                </div>
+              </>
+            )}
+            {selectedIntegration === "xAI Grok" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="xai-key">xAI API Key</Label>
+                  <Input 
+                    id="xai-key"
+                    type="password"
+                    placeholder="xai-xxxxxxxxxxxxx"
+                    value={integrationConfig['xai'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, xai: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="xai-model">Model</Label>
+                  <Select defaultValue="grok-beta">
+                    <SelectTrigger id="xai-model">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="grok-beta">Grok Beta</SelectItem>
+                      <SelectItem value="grok-1">Grok 1</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {selectedIntegration === "SerpAPI" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="serpapi-key">SerpAPI Key</Label>
+                  <Input 
+                    id="serpapi-key"
+                    type="password"
+                    placeholder="Your SerpAPI key"
+                    value={integrationConfig['serpapi'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, serpapi: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="serpapi-search">Search Engine</Label>
+                  <Select defaultValue="google">
+                    <SelectTrigger id="serpapi-search">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="google">Google</SelectItem>
+                      <SelectItem value="bing">Bing</SelectItem>
+                      <SelectItem value="baidu">Baidu</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {selectedIntegration === "Bright Data" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="brightdata-key">Bright Data API Key</Label>
+                  <Input 
+                    id="brightdata-key"
+                    type="password"
+                    placeholder="Your Bright Data key"
+                    value={integrationConfig['brightdata'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, brightdata: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brightdata-zone">Zone Name</Label>
+                  <Input 
+                    id="brightdata-zone"
+                    placeholder="residential"
+                    value={integrationConfig['brightdata-zone'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'brightdata-zone': e.target.value})}
+                  />
+                </div>
+              </>
+            )}
+            {selectedIntegration === "Voyage AI" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="voyage-key">Voyage API Key</Label>
+                  <Input 
+                    id="voyage-key"
+                    type="password"
+                    placeholder="pa-xxxxxxxxxxxxx"
+                    value={integrationConfig['voyage'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, voyage: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="voyage-model">Embedding Model</Label>
+                  <Select defaultValue="voyage-large-2">
+                    <SelectTrigger id="voyage-model">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="voyage-large-2">Voyage Large 2</SelectItem>
+                      <SelectItem value="voyage-large-2-instruct">Voyage Large 2 Instruct</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {selectedIntegration === "Slack" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="slack-token">Bot Token</Label>
+                  <Input 
+                    id="slack-token"
+                    type="password"
+                    placeholder="xoxb-xxxxxxxxxxxxx"
+                    value={integrationConfig['slack'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, slack: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="slack-channel">Default Channel</Label>
+                  <Input 
+                    id="slack-channel"
+                    placeholder="#recruiting"
+                    value={integrationConfig['slack-channel'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'slack-channel': e.target.value})}
+                  />
+                </div>
+              </>
+            )}
+            {selectedIntegration === "Google Analytics" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="ga-tracking">Tracking ID</Label>
+                  <Input 
+                    id="ga-tracking"
+                    placeholder="G-XXXXXXXXXXXXX"
+                    value={integrationConfig['ga'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, ga: e.target.value})}
+                  />
+                </div>
+              </>
+            )}
+            {selectedIntegration === "Stripe" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="stripe-key">Publishable Key</Label>
+                  <Input 
+                    id="stripe-key"
+                    placeholder="pk_live_xxxxxxxxxxxxx"
+                    value={integrationConfig['stripe-pub'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'stripe-pub': e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stripe-secret">Secret Key</Label>
+                  <Input 
+                    id="stripe-secret"
+                    type="password"
+                    placeholder="sk_live_xxxxxxxxxxxxx"
+                    value={integrationConfig['stripe-secret'] || ''}
+                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'stripe-secret': e.target.value})}
+                  />
+                </div>
+              </>
+            )}
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setConfigDialog(null)}>Cancel</Button>
+              <Button onClick={() => {
+                setConfigDialog(null);
+                toast({ 
+                  title: "Success", 
+                  description: `${selectedIntegration} configuration saved successfully` 
+                });
+              }}>
+                Save Configuration
               </Button>
             </div>
           </div>
