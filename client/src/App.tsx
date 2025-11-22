@@ -105,7 +105,11 @@ function AppRouter() {
       <Route path="/admin" component={() => <AdminApp><Admin /></AdminApp>} />
       <Route path="/admin/companies" component={() => <AdminApp><Companies /></AdminApp>} />
       <Route path="/admin/candidates" component={() => <AdminApp><Candidates /></AdminApp>} />
+      <Route path="/admin/staging" component={() => <AdminApp><Staging /></AdminApp>} />
+      <Route path="/admin/bulk-upload" component={() => <AdminApp><Admin /></AdminApp>} />
       <Route path="/admin/data-quality" component={() => <AdminApp><DataQualityDashboard /></AdminApp>} />
+      <Route path="/admin/users" component={() => <AdminApp><Admin /></AdminApp>} />
+      <Route path="/admin/system" component={() => <AdminApp><Admin /></AdminApp>} />
       
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
