@@ -102,7 +102,10 @@ function AppRouter() {
       <Route path="/recruiting/settings" component={() => <RecruitingApp><Settings /></RecruitingApp>} />
       
       {/* Admin Portal Routes */}
-      <Route path="/admin" component={AdminApp} />
+      <Route path="/admin" component={() => <AdminApp><Admin /></AdminApp>} />
+      <Route path="/admin/companies" component={() => <AdminApp><Companies /></AdminApp>} />
+      <Route path="/admin/candidates" component={() => <AdminApp><Candidates /></AdminApp>} />
+      <Route path="/admin/data-quality" component={() => <AdminApp><DataQualityDashboard /></AdminApp>} />
       
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
@@ -199,24 +202,33 @@ function ClientApp({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AdminApp() {
+function AdminApp({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
-  
+  const style = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => setLocation('/')} data-testid="button-back-home">
-            ← Back to Home
-          </Button>
-          <h1 className="text-2xl font-bold">Admin Portal</h1>
+    <SidebarProvider style={style as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar portal="admin" />
+        <div className="flex flex-col flex-1">
+          <header className="flex items-center justify-between p-2 border-b">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <Button variant="ghost" size="sm" onClick={() => setLocation('/')} data-testid="button-back-home">
+                ← Home
+              </Button>
+            </div>
+            <ThemeToggle />
+          </header>
+          <main className="flex-1 overflow-y-auto">
+            {children}
+          </main>
         </div>
-        <ThemeToggle />
-      </header>
-      <main>
-        <Admin />
-      </main>
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }
 
