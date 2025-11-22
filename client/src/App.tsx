@@ -41,6 +41,9 @@ import Settings from "@/pages/Settings";
 import DataQualityDashboard from "@/pages/DataQualityDashboard";
 import VerifyEmail from "@/pages/VerifyEmail";
 import NotFound from "@/pages/not-found";
+import WarRoom from "@/pages/WarRoom";
+import SalaryBenchmark from "@/pages/SalaryBenchmark";
+import PredictiveScore from "@/pages/PredictiveScore";
 
 function AppRouter() {
   return (
@@ -102,6 +105,11 @@ function AppRouter() {
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />
       <Route path="/candidates" component={CandidatesOnly} />
+      
+      {/* 10-Feature Pages */}
+      <Route path="/war-room" component={() => <ClientApp><WarRoom /></ClientApp>} />
+      <Route path="/salary-benchmark" component={() => <ClientApp><SalaryBenchmark /></ClientApp>} />
+      <Route path="/predictive-score" component={() => <ClientApp><PredictiveScore /></ClientApp>} />
       
       {/* 404 */}
       <Route component={NotFound} />

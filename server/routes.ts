@@ -21,6 +21,7 @@ import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText 
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
 import { detectPromise, createPromiseFromConversation } from "./promise-detection";
+import featuresRouter from "./features";
 import { fileTypeFromBuffer } from 'file-type';
 import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium, jobListings, candidateJobRecommendations, verificationCodes } from "@shared/schema";
 import * as schema from "@shared/schema";
@@ -2274,7 +2275,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             skills: finalCriteria.skills,
             status: 'active',
             searchTier: 'internal',
-            aiGenerated: true,
             searchStrategy: jobDescription
           });
           
@@ -5447,7 +5447,7 @@ CRITICAL RULES - You MUST follow these strictly:
         eq(auditIssues.auditRunId, auditId),
         eq(remediationAttempts.outcome, 'success')
       ))
-      .orderBy(desc(remediationAttempts.updatedAt));
+      .orderBy(desc(remediationAttempts.attemptedAt));
       
       res.json({ fixes });
     } catch (error) {
@@ -5929,7 +5929,7 @@ CRITICAL RULES - You MUST follow these strictly:
           softSkillScore,
           fitScore: newFitScore,
           fitReasoning: evaluationReasoning,
-          updatedAt: new Date()
+          statusChangedAt: new Date()
         })
         .where(eq(jobCandidates.id, jc.id));
 
@@ -5970,7 +5970,7 @@ CRITICAL RULES - You MUST follow these strictly:
       const activity = await storage.createCandidateActivity({
         candidateId,
         activityType: type,
-        content,
+        body: content,
         occurredAt: new Date(),
         createdBy: (req as any).user?.username || 'system'
       });
@@ -6653,9 +6653,9 @@ CRITICAL RULES - You MUST follow these strictly:
           const strategy = await generateSearchStrategy({
             title: job.title || "",
             skills: hardSkills || [],
-            industry: (job as any).industry || "",
-            location: (job as any).location || "",
-            yearsExperience: (job as any).experienceYears || 0,
+            industry: (job.parsedData as any)?.industry || "",
+            location: (job.parsedData as any)?.location || "",
+            yearsExperience: (job.parsedData as any)?.yearsExperience || 0,
             urgency: "high",
             successCriteria: napContext || "Find top candidates",
             searchTier: "external"
@@ -6674,7 +6674,7 @@ CRITICAL RULES - You MUST follow these strictly:
           await db
             .update(sourcingRuns)
             .set({
-              profileUrls: searchResults.profiles.map(p => p.profileUrl || p.url || ""),
+              profileUrls: searchResults.profiles.map(p => (p as any).profileUrl || (p as any).url || (p as any).linkedin_url || ""),
               progress: {
                 phase: "fetching",
                 message: `Found ${searchResults.profiles.length} candidates, starting profile fetching...`,
@@ -7537,6 +7537,9 @@ CRITICAL RULES - You MUST follow these strictly:
       res.status(500).json({ error: "Failed to seed jobs" });
     }
   });
+
+  // Mount 10-feature endpoints
+  app.use(featuresRouter);
 
   const httpServer = createServer(app);
   

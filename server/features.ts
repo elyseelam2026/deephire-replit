@@ -107,10 +107,11 @@ featuresRouter.get('/api/war-rooms/:warRoomId/summary', async (req, res) => {
       .where(eq(schema.warRoomVotes.warRoomId, parseInt(warRoomId)));
     
     // Calculate consensus
-    const voteCount = votes.reduce((acc: any, v: any) => {
-      acc[v.vote] = (acc[v.vote] || 0) + 1;
-      return acc;
-    }, {});
+    const voteCountMap = new Map<string, number>();
+    votes.forEach((v: any) => {
+      voteCountMap.set(v.vote, (voteCountMap.get(v.vote) || 0) + 1);
+    });
+    const voteCount = Object.fromEntries(voteCountMap);
     
     res.json({ votes: voteCount, totalVoters: votes.length });
   } catch (error) {
@@ -173,8 +174,8 @@ featuresRouter.get('/api/diversity-metrics/:jobId', async (req, res) => {
       .where(eq(schema.diversityMetrics.jobId, parseInt(jobId)));
     
     // Calculate diversity score
-    const genderDistribution = new Set(metrics.map((m: any) => m.gender)).size;
-    const ethnicityDistribution = new Set(metrics.map((m: any) => m.ethnicity)).size;
+    const genderDistribution = Array.from(new Set(metrics.map((m: any) => m.gender))).length;
+    const ethnicityDistribution = Array.from(new Set(metrics.map((m: any) => m.ethnicity))).length;
     
     res.json({
       totalCandidates: metrics.length,
