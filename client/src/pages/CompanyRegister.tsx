@@ -57,20 +57,21 @@ export default function CompanyRegister() {
 
       const responseData = await response.json();
       
-      // Store companyId in localStorage so Settings page can fetch company data
+      // Store email and companyId in sessionStorage for verification page
       if (responseData.companyId) {
-        localStorage.setItem("companyId", responseData.companyId.toString());
+        sessionStorage.setItem("registerEmail", data.email);
+        sessionStorage.setItem("registerCompanyId", responseData.companyId.toString());
       }
 
       toast({
         title: "Success!",
-        description: "Company registered successfully",
+        description: "Please verify your email to continue",
       });
 
       setIsRegistered(true);
       setTimeout(() => {
-        setLocation("/client");
-      }, 2000);
+        setLocation("/company/verify-email");
+      }, 1000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to register company. Please try again.";
       toast({
@@ -88,12 +89,12 @@ export default function CompanyRegister() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-12 pb-8 text-center">
             <div className="mb-6">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto">
-                <Briefcase className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto">
+                <Briefcase className="h-8 w-8 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Registration Complete!</h2>
-            <p className="text-muted-foreground">Redirecting to login...</p>
+            <h2 className="text-2xl font-bold mb-2">Verify Your Email</h2>
+            <p className="text-muted-foreground">Redirecting to verification...</p>
           </CardContent>
         </Card>
       </div>

@@ -45,6 +45,11 @@ export default function CompanyLogin() {
         throw new Error(result.error || "Login failed");
       }
 
+      // Check if email is verified
+      if (!result.emailVerified) {
+        throw new Error("Please verify your email before logging in");
+      }
+
       toast({
         title: "Welcome back!",
         description: "Redirecting to your dashboard...",

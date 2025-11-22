@@ -40,6 +40,7 @@ import Outreach from "@/pages/Outreach";
 import Settings from "@/pages/Settings";
 import DataQualityDashboard from "@/pages/DataQualityDashboard";
 import VerifyEmail from "@/pages/VerifyEmail";
+import CompanyVerifyEmail from "@/pages/CompanyVerifyEmail";
 import NotFound from "@/pages/not-found";
 import WarRoom from "@/pages/WarRoom";
 import SalaryBenchmark from "@/pages/SalaryBenchmark";
@@ -64,6 +65,7 @@ function AppRouter() {
 
       {/* Company Portal Routes */}
       <Route path="/company/register" component={CompanyRegister} />
+      <Route path="/company/verify-email" component={CompanyVerifyEmail} />
       <Route path="/company/login" component={CompanyLogin} />
       <Route path="/company/forgot-password" component={CompanyForgotPassword} />
       <Route path="/company/reset-password" component={CompanyPasswordReset} />
