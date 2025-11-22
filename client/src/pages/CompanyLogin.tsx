@@ -141,7 +141,7 @@ export default function CompanyLogin() {
                 <p className="text-sm text-muted-foreground">
                   Don't have an account?{" "}
                   <Button 
-                    variant="link" 
+                    variant="ghost" 
                     className="p-0 h-auto" 
                     onClick={() => setLocation("/company/register")}
                     data-testid="button-to-company-register"
@@ -152,7 +152,7 @@ export default function CompanyLogin() {
               </div>
               <div className="text-center">
                 <Button 
-                  variant="link" 
+                  variant="ghost" 
                   className="p-0 h-auto text-sm" 
                   onClick={() => setLocation("/company/forgot-password")}
                   data-testid="button-company-forgot-password"

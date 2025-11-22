@@ -7186,12 +7186,12 @@ CRITICAL RULES - You MUST follow these strictly:
         .where(eq(schema.verificationCodes.id, record.id));
 
       // Update company email verified status
-      await db
-        .update(schema.companies)
-        .set({
-          emailVerifiedAt: new Date(),
-        })
-        .where(eq(schema.companies.primaryEmail, email));
+      await db.query.companies.update({
+        set: {
+          email_verified_at: new Date(),
+        },
+        where: (companies, { eq }) => eq(companies.primaryEmail, email),
+      });
 
       res.json({ success: true, verified: true });
     } catch (error) {
@@ -7286,6 +7286,7 @@ CRITICAL RULES - You MUST follow these strictly:
       res.json({
         success: true,
         companyId: company.id,
+        emailVerified: !!company.emailVerifiedAt,
       });
     } catch (error) {
       console.error("Error logging in:", error);
