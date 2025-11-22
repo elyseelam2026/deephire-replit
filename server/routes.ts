@@ -1965,6 +1965,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: `Cannot delete company with ${companyJobs.length} linked job(s). Delete all jobs first.` });
       }
 
+      // Delete cascade: remove audit logs, war rooms, diversity metrics, ATS connections, integration connections, 
+      // whitelabel clients, and other dependent records BEFORE deleting the company
+      await Promise.all([
+        db.delete(schema.auditLogs).where(eq(schema.auditLogs.companyId, companyId)).catch(() => null),
+        db.delete(schema.warRooms).where(eq(schema.warRooms.companyId, companyId)).catch(() => null),
+        db.delete(schema.diversityMetrics).where(eq(schema.diversityMetrics.companyId, companyId)).catch(() => null),
+        db.delete(schema.atsConnections).where(eq(schema.atsConnections.companyId, companyId)).catch(() => null),
+        db.delete(schema.integrationConnections).where(eq(schema.integrationConnections.companyId, companyId)).catch(() => null),
+        db.delete(schema.companyHiringPatterns).where(eq(schema.companyHiringPatterns.companyId, companyId)).catch(() => null),
+        db.delete(schema.organizationChart).where(eq(schema.organizationChart.companyId, companyId)).catch(() => null),
+        db.delete(schema.companyTags).where(eq(schema.companyTags.companyId, companyId)).catch(() => null),
+      ]);
+
+      // Now delete the company
       await storage.deleteCompany(companyId);
       res.json({ success: true });
     } catch (error: any) {
