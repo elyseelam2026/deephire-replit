@@ -4051,7 +4051,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Boolean search for LinkedIn candidates
   app.post("/api/admin/boolean-search", async (req, res) => {
     try {
-      const { query } = req.body;
+      const { query, useBrightData } = req.body;
       
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ 
@@ -4059,7 +4059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      console.log(`Boolean search query: ${query}`);
+      console.log(`Boolean search query: ${query}${useBrightData ? ' (with Bright Data scraping)' : ' (basic mode)'}`);
       
       // Use SerpAPI to search with boolean query
       const apiKey = process.env.SERPAPI_API_KEY;
@@ -4087,7 +4087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`SerpAPI returned ${organicResults.length} results`);
       
       // Extract candidate information from search results
-      const results = organicResults
+      let results = organicResults
         .filter((result: any) => result.link?.includes('linkedin.com/in/'))
         .map((result: any) => {
           // Extract LinkedIn URL
@@ -4123,10 +4123,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Extracted ${results.length} LinkedIn profiles from search results`);
       
+      // If Bright Data scraping is enabled, enrich profiles with full data
+      if (useBrightData && results.length > 0) {
+        console.log(`🔍 Starting Bright Data scraping for ${results.length} profiles...`);
+        
+        const brightDataApiKey = process.env.BRIGHTDATA_API_KEY;
+        if (!brightDataApiKey) {
+          console.warn("⚠️ Bright Data API key not configured, returning basic results");
+        } else {
+          const enrichedResults = [];
+          
+          for (const result of results) {
+            try {
+              console.log(`Scraping: ${result.name} - ${result.linkedinUrl}`);
+              
+              const profileData = await scrapeLinkedInProfile(result.linkedinUrl);
+              
+              // Merge scraped data with existing result
+              enrichedResults.push({
+                ...result,
+                // Enhance with scraped data
+                headline: profileData.headline || result.title,
+                about: profileData.about,
+                experience: profileData.experience,
+                education: profileData.education,
+                skills: profileData.skills,
+                location: profileData.location,
+                scrapedAt: new Date().toISOString(),
+                dataSource: 'brightdata'
+              });
+              
+              console.log(`✓ Successfully scraped: ${result.name}`);
+            } catch (scrapeError) {
+              console.warn(`⚠️ Failed to scrape ${result.name}:`, scrapeError);
+              // Fall back to basic result if scraping fails
+              enrichedResults.push(result);
+            }
+          }
+          
+          results = enrichedResults;
+          console.log(`✅ Bright Data scraping complete: ${results.length} profiles enriched`);
+        }
+      }
+      
       res.json({
         success: true,
         query,
         count: results.length,
+        dataSource: useBrightData ? 'brightdata+serpapi' : 'serpapi',
         results
       });
       
