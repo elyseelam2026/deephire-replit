@@ -7764,6 +7764,99 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // Admin: Get users with team filtering
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const { team } = req.query;
+      let query = db.select().from(schema.users);
+      
+      if (team && team !== "all") {
+        query = query.where(eq(schema.users.team, team as string));
+      }
+      
+      const users = await query;
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Admin: Bulk import users from CSV
+  app.post("/api/admin/users/bulk-import", async (req, res) => {
+    try {
+      const { fileName, csvData, team } = req.body;
+      
+      if (!csvData || !team) {
+        return res.status(400).json({ error: "Missing csvData or team" });
+      }
+
+      const lines = csvData.trim().split("\n");
+      const headers = lines[0].split(",").map((h: string) => h.trim().toLowerCase());
+      
+      const nameIdx = headers.indexOf("name");
+      const emailIdx = headers.indexOf("email");
+      const roleIdx = headers.indexOf("role");
+      const teamIdx = headers.indexOf("team");
+      
+      if (nameIdx === -1 || emailIdx === -1) {
+        return res.status(400).json({ error: "CSV must have name and email columns" });
+      }
+
+      const newUsers = [];
+      const errors = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",").map((v: string) => v.trim());
+        if (values.length < 2) continue;
+        
+        try {
+          const tempPassword = Math.random().toString(36).slice(-10);
+          const passwordHash = await bcrypt.hash(tempPassword, 10);
+          
+          const user = await db.insert(schema.users).values({
+            email: values[emailIdx],
+            name: values[nameIdx],
+            passwordHash,
+            role: roleIdx !== -1 ? values[roleIdx] : "viewer",
+            team: teamIdx !== -1 ? values[teamIdx] : team,
+            isActive: true,
+            status: "active",
+            permissions: ["view_candidates"],
+          }).returning();
+          
+          newUsers.push(user[0]);
+        } catch (err: any) {
+          errors.push({ row: i + 1, email: values[emailIdx], error: err.message });
+        }
+      }
+
+      // Log the import job
+      await db.insert(schema.bulkUserImportJobs).values({
+        fileName,
+        uploadedById: 1, // TODO: get from auth
+        team,
+        status: "completed",
+        totalRecords: lines.length - 1,
+        successfulRecords: newUsers.length,
+        failedRecords: errors.length,
+        errorDetails: errors.length > 0 ? errors : null,
+        completedAt: new Date(),
+      });
+
+      res.json({ 
+        success: true, 
+        message: `Imported ${newUsers.length} users${errors.length > 0 ? ` (${errors.length} errors)` : ""}`,
+        successfulRecords: newUsers.length,
+        failedRecords: errors.length,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error: any) {
+      console.error("Error bulk importing users:", error);
+      res.status(500).json({ error: "Failed to bulk import users" });
+    }
+  });
+
   // Mount 10-feature endpoints
   app.use(featuresRouter);
 
