@@ -2702,3 +2702,20 @@ export const whitelabelUsage = pgTable("whitelabel_usage", {
   
   createdAt: timestamp("created_at").default(sql`now()`),
 });
+
+// SYSTEM INTEGRATIONS - Store API keys and credentials globally
+export const systemIntegrations = pgTable("system_integrations", {
+  id: serial("id").primaryKey(),
+  
+  serviceName: text("service_name").notNull().unique(), // sendgrid, twilio, xai, serpapi, brightdata, voyage, slack, google_analytics, stripe
+  apiKey: text("api_key"), // encrypted
+  apiSecret: text("api_secret"), // encrypted (for Stripe, etc)
+  additionalConfig: jsonb("additional_config"), // {accountId, zone, etc}
+  
+  status: text("status").default("inactive"), // active, inactive, error
+  lastTestedAt: timestamp("last_tested_at"),
+  testResult: text("test_result"), // success, failed
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+  updatedAt: timestamp("updated_at").default(sql`now()`),
+});

@@ -7678,19 +7678,84 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
-  // Admin: Check integration status (checks environment variables)
+  // Admin: Get all system integrations
+  app.get("/api/admin/integrations", async (req, res) => {
+    try {
+      const integrations = await db.select().from(schema.systemIntegrations);
+      res.json(integrations.map(i => ({
+        ...i,
+        apiKey: i.apiKey ? '••••••••' : null, // Mask API keys
+        apiSecret: i.apiSecret ? '••••••••' : null,
+      })));
+    } catch (error) {
+      console.error("Error fetching integrations:", error);
+      res.status(500).json({ error: "Failed to fetch integrations" });
+    }
+  });
+
+  // Admin: Update integration API key
+  app.post("/api/admin/integrations/:serviceName", async (req, res) => {
+    try {
+      const { serviceName } = req.params;
+      const { apiKey, apiSecret, additionalConfig } = req.body;
+
+      const updateSchema = z.object({
+        apiKey: z.string().optional(),
+        apiSecret: z.string().optional(),
+        additionalConfig: z.any().optional(),
+      });
+
+      const validated = updateSchema.parse(req.body);
+
+      const existing = await db.select().from(schema.systemIntegrations).where(eq(schema.systemIntegrations.serviceName, serviceName));
+
+      if (existing.length > 0) {
+        await db.update(schema.systemIntegrations)
+          .set({
+            apiKey: validated.apiKey || existing[0].apiKey,
+            apiSecret: validated.apiSecret || existing[0].apiSecret,
+            additionalConfig: validated.additionalConfig || existing[0].additionalConfig,
+            status: validated.apiKey || existing[0].apiKey ? 'active' : 'inactive',
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.systemIntegrations.serviceName, serviceName));
+      } else {
+        await db.insert(schema.systemIntegrations).values({
+          serviceName,
+          apiKey: validated.apiKey,
+          apiSecret: validated.apiSecret,
+          additionalConfig: validated.additionalConfig,
+          status: validated.apiKey ? 'active' : 'inactive',
+        });
+      }
+
+      res.json({ success: true, message: `${serviceName} integration updated` });
+    } catch (error: any) {
+      console.error("Error updating integration:", error);
+      res.status(500).json({ error: "Failed to update integration" });
+    }
+  });
+
+  // Admin: Check integration status (checks database + environment variables)
   app.get("/api/admin/integration-status", async (req, res) => {
     try {
+      const dbIntegrations = await db.select().from(schema.systemIntegrations);
+      const dbStatus: Record<string, boolean> = {};
+      
+      dbIntegrations.forEach(i => {
+        dbStatus[i.serviceName] = i.status === 'active' && !!i.apiKey;
+      });
+
       const integrationStatus = {
-        sendgrid: !!process.env.SENDGRID_API_KEY,
-        twilio: !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN,
-        xai: !!process.env.XAI_API_KEY,
-        serpapi: !!process.env.SERPAPI_API_KEY,
-        brightdata: !!process.env.BRIGHTDATA_API_KEY,
-        voyage: !!process.env.VOYAGE_API_KEY,
-        slack: !!process.env.SLACK_BOT_TOKEN,
-        googleanalytics: !!process.env.GOOGLE_ANALYTICS_KEY,
-        stripe: !!process.env.STRIPE_SECRET_KEY,
+        sendgrid: dbStatus.sendgrid || !!process.env.SENDGRID_API_KEY,
+        twilio: dbStatus.twilio || (!!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN),
+        xai: dbStatus.xai || !!process.env.XAI_API_KEY,
+        serpapi: dbStatus.serpapi || !!process.env.SERPAPI_API_KEY,
+        brightdata: dbStatus.brightdata || !!process.env.BRIGHTDATA_API_KEY,
+        voyage: dbStatus.voyage || !!process.env.VOYAGE_API_KEY,
+        slack: dbStatus.slack || !!process.env.SLACK_BOT_TOKEN,
+        googleanalytics: dbStatus.googleanalytics || !!process.env.GOOGLE_ANALYTICS_KEY,
+        stripe: dbStatus.stripe || !!process.env.STRIPE_SECRET_KEY,
       };
       res.json(integrationStatus);
     } catch (error) {

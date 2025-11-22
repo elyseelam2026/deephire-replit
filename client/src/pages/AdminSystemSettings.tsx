@@ -24,11 +24,34 @@ export default function AdminSystemSettings() {
     { id: 1, name: "Production API Key", created: "2024-01-15", lastUsed: "2024-11-22", active: true }
   ]);
 
-  // Fetch real integration status
-  const { data: integrationStatus, isLoading: statusLoading } = useQuery({
-    queryKey: ["/api/admin/integration-status"],
-    refetchInterval: 30000, // Refetch every 30 seconds
+  // Fetch integrations and real status
+  const { data: integrationsList, isLoading: statusLoading, refetch } = useQuery({
+    queryKey: ["/api/admin/integrations"],
+    refetchInterval: 30000,
   });
+
+  const { data: integrationStatus } = useQuery({
+    queryKey: ["/api/admin/integration-status"],
+    refetchInterval: 30000,
+  });
+
+  const handleSaveIntegration = async (serviceName: string, apiKey: string, apiSecret?: string) => {
+    try {
+      const response = await fetch(`/api/admin/integrations/${serviceName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, apiSecret })
+      });
+
+      if (response.ok) {
+        toast({ title: "Success", description: `${serviceName} API key saved` });
+        setConfigDialog(null);
+        refetch();
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save API key", variant: "destructive" });
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -821,15 +844,7 @@ export default function AdminSystemSettings() {
                     value={integrationConfig['sendgrid'] || ''}
                     onChange={(e) => setIntegrationConfig({...integrationConfig, sendgrid: e.target.value})}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sendgrid-from">Default From Email</Label>
-                  <Input 
-                    id="sendgrid-from"
-                    placeholder="noreply@deephire.com"
-                    value={integrationConfig['sendgrid-from'] || ''}
-                    onChange={(e) => setIntegrationConfig({...integrationConfig, 'sendgrid-from': e.target.value})}
-                  />
+                  <p className="text-xs text-muted-foreground">Get your key from <a href="https://app.sendgrid.com/settings/api_keys" target="_blank" className="underline">SendGrid Dashboard</a></p>
                 </div>
               </>
             )}
@@ -1029,13 +1044,27 @@ export default function AdminSystemSettings() {
             <div className="flex justify-end gap-3 pt-4">
               <Button variant="outline" onClick={() => setConfigDialog(null)}>Cancel</Button>
               <Button onClick={() => {
-                setConfigDialog(null);
-                toast({ 
-                  title: "Success", 
-                  description: `${selectedIntegration} configuration saved successfully` 
-                });
+                if (selectedIntegration === "SendGrid") {
+                  handleSaveIntegration("sendgrid", integrationConfig['sendgrid'] || '');
+                } else if (selectedIntegration === "Twilio") {
+                  handleSaveIntegration("twilio", integrationConfig['twilio-account'] || '', integrationConfig['twilio-token']);
+                } else if (selectedIntegration === "xAI Grok") {
+                  handleSaveIntegration("xai", integrationConfig['xai'] || '');
+                } else if (selectedIntegration === "SerpAPI") {
+                  handleSaveIntegration("serpapi", integrationConfig['serpapi'] || '');
+                } else if (selectedIntegration === "Bright Data") {
+                  handleSaveIntegration("brightdata", integrationConfig['brightdata'] || '');
+                } else if (selectedIntegration === "Voyage AI") {
+                  handleSaveIntegration("voyage", integrationConfig['voyage'] || '');
+                } else if (selectedIntegration === "Slack") {
+                  handleSaveIntegration("slack", integrationConfig['slack'] || '');
+                } else if (selectedIntegration === "Google Analytics") {
+                  handleSaveIntegration("google_analytics", integrationConfig['ga'] || '');
+                } else if (selectedIntegration === "Stripe") {
+                  handleSaveIntegration("stripe", integrationConfig['stripe-pub'] || '', integrationConfig['stripe-secret']);
+                }
               }}>
-                Save Configuration
+                Save API Key
               </Button>
             </div>
           </div>
