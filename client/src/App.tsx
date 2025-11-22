@@ -118,6 +118,7 @@ function AppRouter() {
 }
 
 function RecruitingApp({ children }: { children: React.ReactNode }) {
+  const [, setLocation] = useLocation();
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -129,7 +130,12 @@ function RecruitingApp({ children }: { children: React.ReactNode }) {
         <AppSidebar portal="agency" />
         <div className="flex flex-col flex-1">
           <header className="flex items-center justify-between p-2 border-b">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-2">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <Button variant="ghost" size="sm" onClick={() => setLocation('/')} data-testid="button-back-home">
+                ← Home
+              </Button>
+            </div>
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-y-auto">
@@ -162,6 +168,7 @@ function CandidatesOnly() {
 }
 
 function ClientApp({ children }: { children: React.ReactNode }) {
+  const [, setLocation] = useLocation();
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -173,7 +180,12 @@ function ClientApp({ children }: { children: React.ReactNode }) {
         <AppSidebar portal="client" />
         <div className="flex flex-col flex-1">
           <header className="flex items-center justify-between p-2 border-b">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-2">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <Button variant="ghost" size="sm" onClick={() => setLocation('/')} data-testid="button-back-home">
+                ← Home
+              </Button>
+            </div>
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-y-auto">
