@@ -232,9 +232,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const pricing = computeJobPricing({
           salary,
-          searchTier: jobData.searchTier,
+          searchTier: (jobData.searchTier as 'internal' | 'external') || 'external',
           urgency: jobData.urgency,
-          overrideTurnaroundLevel: jobData.turnaroundLevel
+          overrideTurnaroundLevel: jobData.turnaroundLevel as any
         });
         
         pricingFields = {
@@ -2210,7 +2210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Use AI to score candidates against job requirements
           const jobSkills = finalCriteria.requiredSkills || [];
-          const jobText = `${finalCriteria.title || ''} ${finalCriteria.responsibilities || ''} ${finalCriteria.qualifications || ''}`;
+          const jobText = `${finalCriteria.title || ''} ${(finalCriteria as any).responsibilities || ''} ${(finalCriteria as any).qualifications || ''}`;
           const scoredCandidates = await generateCandidateLonglist(
             allCandidates.map(c => ({
               id: c.id,
@@ -2218,7 +2218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               lastName: c.lastName || '',
               currentTitle: c.currentTitle || '',
               skills: c.skills || [],
-              cvText: c.biography || c.cvText
+              cvText: c.biography || c.cvText || undefined
             })),
             jobSkills,
             jobText,
@@ -2240,8 +2240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // Create company if it doesn't exist
                 const newCompany = await storage.createCompany({
                   name: companyName,
-                  roles: ['prospecting'],
-                  status: 'active'
+                  location: 'Unknown'
                 });
                 jobCompanyId = newCompany.id;
                 console.log(`[Reference Candidate] Created new company: ${companyName} (ID: ${jobCompanyId})`);
@@ -2253,7 +2252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Final fallback: find ANY company
           if (!jobCompanyId) {
-            const allCompanies = await storage.getAllCompanies();
+            const allCompanies = await storage.getCompanies();
             if (allCompanies.length > 0) {
               jobCompanyId = allCompanies[0].id;
               console.log(`[Reference Candidate] Using fallback company ID: ${jobCompanyId}`);
@@ -2352,7 +2351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           yearsExperience: hasValue(parsedJD.yearsExperience) ? parsedJD.yearsExperience : updatedSearchContext.yearsExperience,
           description: hasValue(parsedJD.description) ? parsedJD.description : updatedSearchContext.description,
           requirements: hasValue(parsedJD.requirements) && parsedJD.requirements.length > 0 ? parsedJD.requirements : updatedSearchContext.requirements,
-          responsibilities: hasValue(parsedJD.responsibilities) && parsedJD.responsibilities.length > 0 ? parsedJD.responsibilities : updatedSearchContext.responsibilities,
+          responsibilities: hasValue((parsedJD as any).responsibilities) && (parsedJD as any).responsibilities.length > 0 ? (parsedJD as any).responsibilities : updatedSearchContext.responsibilities,
           company: hasValue(parsedJD.company) ? parsedJD.company : updatedSearchContext.company,
           salary: hasValue(parsedJD.salary) ? parsedJD.salary : updatedSearchContext.salary,
           industry: hasValue(parsedJD.industry) ? parsedJD.industry : updatedSearchContext.industry,
@@ -2439,7 +2438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           yearsExperience: hasValue(parsedRequirements.yearsExperience) ? parsedRequirements.yearsExperience : updatedSearchContext.yearsExperience,
           description: hasValue(parsedRequirements.description) ? parsedRequirements.description : updatedSearchContext.description,
           requirements: hasValue(parsedRequirements.requirements) && parsedRequirements.requirements.length > 0 ? parsedRequirements.requirements : updatedSearchContext.requirements,
-          responsibilities: hasValue(parsedRequirements.responsibilities) && parsedRequirements.responsibilities.length > 0 ? parsedRequirements.responsibilities : updatedSearchContext.responsibilities,
+          responsibilities: hasValue((parsedRequirements as any).responsibilities) && (parsedRequirements as any).responsibilities.length > 0 ? (parsedRequirements as any).responsibilities : updatedSearchContext.responsibilities,
           company: hasValue(parsedRequirements.company) ? parsedRequirements.company : updatedSearchContext.company,
           salary: hasValue(parsedRequirements.salary) ? parsedRequirements.salary : updatedSearchContext.salary,
           industry: hasValue(parsedRequirements.industry) ? parsedRequirements.industry : updatedSearchContext.industry,
