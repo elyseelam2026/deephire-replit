@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, MapPin, DollarSign, Zap, ExternalLink, ChevronRight, LogOut } from "lucide-react";
+import { Briefcase, MapPin, DollarSign, Zap, ExternalLink, ChevronRight, LogOut, Search, FileText } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 

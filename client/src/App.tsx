@@ -19,6 +19,9 @@ import Admin from "@/pages/Admin";
 import ClientPortal from "@/pages/ClientPortal";
 import CandidatePortal from "@/pages/CandidatePortal";
 import CandidateDashboard from "@/pages/CandidateDashboard";
+import CandidateProfile from "@/pages/CandidateProfile";
+import CandidateJobsSearch from "@/pages/CandidateJobsSearch";
+import CandidateApplications from "@/pages/CandidateApplications";
 import PasswordReset from "@/pages/PasswordReset";
 import CompanyForgotPassword from "@/pages/CompanyForgotPassword";
 import CompanyPasswordReset from "@/pages/CompanyPasswordReset";
@@ -47,6 +50,9 @@ function AppRouter() {
       {/* Candidate Portal Routes */}
       <Route path="/candidate/register" component={CandidatePortal} />
       <Route path="/candidate/dashboard/:candidateId" component={CandidateDashboard} />
+      <Route path="/candidate/profile/:candidateId" component={CandidateProfile} />
+      <Route path="/candidate/jobs/:candidateId" component={CandidateJobsSearch} />
+      <Route path="/candidate/applications/:candidateId" component={CandidateApplications} />
       <Route path="/candidate/login" component={CandidateLogin} />
       <Route path="/candidate/reset-password" component={PasswordReset} />
 
