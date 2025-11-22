@@ -54,7 +54,7 @@ interface DashboardData {
   };
 }
 
-export default function DataQualityDashboard() {
+export default function DatabaseManagement() {
   const [detailDialog, setDetailDialog] = useState<{
     isOpen: boolean;
     type: 'total' | 'auto-fixed' | 'manual-queue' | 'performance' | null;

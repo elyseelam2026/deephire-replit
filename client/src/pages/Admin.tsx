@@ -38,12 +38,12 @@ import {
   Search,
   Shield
 } from "lucide-react";
-import DataQualityDashboard from "@/pages/DataQualityDashboard";
+import DatabaseManagement from "@/pages/DatabaseManagement";
 import { CompanyResearch } from "@/components/admin/CompanyResearch";
 import { PromiseStatus } from "@/components/admin/PromiseStatus";
 
 function DataQualityTabContent() {
-  return <DataQualityDashboard />;
+  return <DatabaseManagement />;
 }
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
