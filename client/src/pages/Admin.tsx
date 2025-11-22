@@ -42,7 +42,7 @@ import DatabaseManagement from "@/pages/DatabaseManagement";
 import { CompanyResearch } from "@/components/admin/CompanyResearch";
 import { PromiseStatus } from "@/components/admin/PromiseStatus";
 
-function DataQualityTabContent() {
+function QualityManagementTabContent() {
   return <DatabaseManagement />;
 }
 

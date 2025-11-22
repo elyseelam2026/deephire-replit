@@ -44,7 +44,7 @@ const researcherItems = [
   { title: "Candidates", url: "/researchers/candidates", icon: Users },
   { title: "Staging", url: "/researchers/staging", icon: Clock },
   { title: "Bulk Upload", url: "/researchers/bulk-upload", icon: Upload },
-  { title: "Database Management", url: "/researchers/database-management", icon: Database },
+  { title: "Quality Management", url: "/researchers/quality-management", icon: Database },
 ];
 
 // Admin - Pure system administration
