@@ -366,64 +366,65 @@ export default function ResearchManagement() {
                 />
               ) : (
                 <div className="max-w-2xl space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="boolean-query">
-                    Boolean Search Query
-                  </Label>
-                  <Textarea
-                    id="boolean-query"
-                    placeholder='E.g., (CEO OR "Chief Executive Officer") AND (tech OR software) AND (Series A OR Series B)&#10;E.g., "Product Manager" AND (fintech OR blockchain) AND -crypto&#10;E.g., CTO AND AWS AND (Python OR Go) AND NOT freelance'
-                    className="min-h-[100px] resize-none"
-                    value={booleanSearch}
-                    onChange={(e) => setBooleanSearch(e.target.value)}
-                    disabled={isSearching}
-                    data-testid="input-boolean-query"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Use AND, OR, NOT operators. Enclose phrases in quotes. Use parentheses for grouping.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <Checkbox 
-                    id="brightdata-toggle"
-                    checked={useBrightData}
-                    onCheckedChange={(checked) => setUseBrightData(checked as boolean)}
-                    disabled={isSearching}
-                    data-testid="checkbox-bright-data"
-                  />
-                  <div className="flex-1">
-                    <Label htmlFor="brightdata-toggle" className="font-semibold text-sm cursor-pointer">
-                      Enhanced Profile Scraping
+                  <div className="space-y-2">
+                    <Label htmlFor="boolean-query">
+                      Boolean Search Query
                     </Label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {useBrightData ? "Bright Data will scrape full LinkedIn profile data for richer candidate information" : "Use Bright Data to extract complete profile information (recommended)"}
+                    <Textarea
+                      id="boolean-query"
+                      placeholder='E.g., (CEO OR "Chief Executive Officer") AND (tech OR software) AND (Series A OR Series B)&#10;E.g., "Product Manager" AND (fintech OR blockchain) AND -crypto&#10;E.g., CTO AND AWS AND (Python OR Go) AND NOT freelance'
+                      className="min-h-[100px] resize-none"
+                      value={booleanSearch}
+                      onChange={(e) => setBooleanSearch(e.target.value)}
+                      disabled={isSearching}
+                      data-testid="input-boolean-query"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Use AND, OR, NOT operators. Enclose phrases in quotes. Use parentheses for grouping.
                     </p>
                   </div>
-                  <Badge variant={useBrightData ? "default" : "outline"} className="text-xs whitespace-nowrap">
-                    {useBrightData ? "Enhanced" : "Basic"}
-                  </Badge>
-                </div>
 
-                <Button
-                  onClick={handleBooleanSearch}
-                  disabled={isSearching}
-                  className="w-full"
-                  data-testid="button-start-boolean-search"
-                >
-                  {isSearching ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Searching LinkedIn{useBrightData ? " & Scraping..." : "..."}
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 mr-2" />
-                      Search Candidates
-                    </>
-                  )}
-                </Button>
-              </div>
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <Checkbox 
+                      id="brightdata-toggle"
+                      checked={useBrightData}
+                      onCheckedChange={(checked) => setUseBrightData(checked as boolean)}
+                      disabled={isSearching}
+                      data-testid="checkbox-bright-data"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="brightdata-toggle" className="font-semibold text-sm cursor-pointer">
+                        Enhanced Profile Scraping
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {useBrightData ? "Bright Data will scrape full LinkedIn profile data for richer candidate information" : "Use Bright Data to extract complete profile information (recommended)"}
+                      </p>
+                    </div>
+                    <Badge variant={useBrightData ? "default" : "outline"} className="text-xs whitespace-nowrap">
+                      {useBrightData ? "Enhanced" : "Basic"}
+                    </Badge>
+                  </div>
+
+                  <Button
+                    onClick={handleBooleanSearch}
+                    disabled={isSearching}
+                    className="w-full"
+                    data-testid="button-start-boolean-search"
+                  >
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Searching LinkedIn{useBrightData ? " & Scraping..." : "..."}
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        Search Candidates
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
 
               {/* Results Section */}
               {booleanSearchResults.length > 0 && (
@@ -482,8 +483,6 @@ export default function ResearchManagement() {
                       </Card>
                     ))}
                   </div>
-                </div>
-              )}
                 </div>
               )}
             </CardContent>
