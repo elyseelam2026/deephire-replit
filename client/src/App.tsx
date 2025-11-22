@@ -114,7 +114,7 @@ function AppRouter() {
       <Route path="/researchers/candidates/:id" component={() => <ResearchersApp><CandidateDetail /></ResearchersApp>} />
       <Route path="/researchers/staging" component={() => <ResearchersApp><Staging /></ResearchersApp>} />
       <Route path="/researchers/bulk-upload" component={() => <ResearchersApp><AdminBulkUpload /></ResearchersApp>} />
-      <Route path="/researchers/database-management" component={() => <ResearchersApp><DatabaseManagement /></ResearchersApp>} />
+      <Route path="/researchers/quality-management" component={() => <ResearchersApp><DatabaseManagement /></ResearchersApp>} />
       
       {/* Admin Portal Routes */}
       <Route path="/admin" component={() => <AdminApp><AdminDashboard /></AdminApp>} />

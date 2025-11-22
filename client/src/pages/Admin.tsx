@@ -1050,9 +1050,9 @@ export default function Admin() {
             <FileText className="h-4 w-4 mr-2" />
             Upload History
           </TabsTrigger>
-          <TabsTrigger value="data-quality" data-testid="tab-data-quality">
-            <Shield className="h-4 w-4 mr-2" />
-            Data Quality
+          <TabsTrigger value="quality-management" data-testid="tab-quality-management">
+            <Database className="h-4 w-4 mr-2" />
+            Quality Management
           </TabsTrigger>
         </TabsList>
 
@@ -2332,9 +2332,9 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
-        {/* Data Quality Tab Content */}
-        <TabsContent value="data-quality" className="space-y-6">
-          <DataQualityTabContent />
+        {/* Quality Management Tab Content */}
+        <TabsContent value="quality-management" className="space-y-6">
+          <QualityManagementTabContent />
         </TabsContent>
       </Tabs>
 
