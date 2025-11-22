@@ -1951,25 +1951,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete company
   app.delete("/api/companies/:id", async (req, res) => {
     try {
-      const { id } = req.params;
+      const companyId = parseInt(req.params.id);
       
       // Check if company has child offices
-      const children = await storage.getChildCompanies(parseInt(id));
+      const children = await storage.getChildCompanies(companyId);
       if (children.length > 0) {
         return res.status(400).json({ error: "Cannot delete company with office locations. Delete offices first." });
       }
 
-      await storage.deleteCompany(parseInt(id));
+      // Check if company has linked jobs
+      const companyJobs = await storage.getJobsForCompany(companyId);
+      if (companyJobs.length > 0) {
+        return res.status(400).json({ error: `Cannot delete company with ${companyJobs.length} linked job(s). Delete all jobs first.` });
+      }
+
+      await storage.deleteCompany(companyId);
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error deleting company:", error);
-      
-      // Check if it's a foreign key constraint error (company has jobs)
-      if (error.code === '23503' && error.constraint === 'jobs_company_id_companies_id_fk') {
-        return res.status(400).json({ error: "Cannot delete company with linked jobs. Delete all jobs for this company first." });
-      }
-      
-      res.status(500).json({ error: "Failed to delete company" });
+      res.status(500).json({ error: "Failed to delete company: " + (error.message || "Unknown error") });
     }
   });
 
