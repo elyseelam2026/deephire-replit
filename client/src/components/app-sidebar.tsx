@@ -13,8 +13,7 @@ import {
 
 // Navigation items for different user roles
 
-// Client Portal - For PE firms hiring through agency
-// Access candidates through their jobs only (job-linked candidates)
+// Clients - For Corporate Clients
 const clientItems = [
   { title: "Dashboard", url: "/client", icon: BarChart3 },
   { title: "Jobs", url: "/client/jobs", icon: Briefcase },
@@ -22,8 +21,7 @@ const clientItems = [
   { title: "Settings", url: "/client/settings", icon: Settings },
 ];
 
-// Agency Portal - For recruiting team
-// Access candidates through their jobs only (job-linked candidates)
+// Recruiters - For Recruitment Agencies
 const agencyItems = [
   { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
   { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
@@ -39,7 +37,7 @@ const candidateItems = [
   { title: "Messages", url: "/candidate/messages", icon: MessageSquare },
 ];
 
-// Researchers Portal - For manual researchers working with AI to source candidates
+// Researchers - All sourcing work with AI
 const researcherItems = [
   { title: "Dashboard", url: "/researchers", icon: BarChart3 },
   { title: "Companies", url: "/researchers/companies", icon: Building2 },
@@ -49,7 +47,7 @@ const researcherItems = [
   { title: "Database Management", url: "/researchers/database-management", icon: Database },
 ];
 
-// Admin Portal - For system administrators (pure system administration)
+// Admin - Pure system administration
 const adminItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "User Management", url: "/admin/users", icon: Users },

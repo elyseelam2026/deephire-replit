@@ -37,8 +37,8 @@ export default function AdminDashboard() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Admin Portal</h1>
-        <p className="text-muted-foreground mt-2">System administration and user management</p>
+        <h1 className="text-3xl font-bold">Admin</h1>
+        <p className="text-muted-foreground mt-2">Pure system administration</p>
       </div>
 
       {/* Stats Grid */}
