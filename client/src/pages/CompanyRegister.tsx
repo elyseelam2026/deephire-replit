@@ -49,7 +49,11 @@ export default function CompanyRegister() {
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) throw new Error("Registration failed");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || errorData.error || "Registration failed";
+        throw new Error(errorMessage);
+      }
 
       toast({
         title: "Success!",
@@ -61,9 +65,10 @@ export default function CompanyRegister() {
         setLocation("/client");
       }, 2000);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to register company. Please try again.";
       toast({
         title: "Error",
-        description: "Failed to register company. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
       setIsSubmitting(false);
