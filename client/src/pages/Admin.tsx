@@ -1004,12 +1004,12 @@ export default function Admin() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
-              <Database className="h-8 w-8 text-primary" />
+              <Search className="h-8 w-8 text-primary" />
             </div>
-            Admin Portal
+            Researchers
           </h1>
           <p className="text-muted-foreground">
-            Bulk upload and manage candidate and company data with AI-powered parsing
+            All sourcing work with AI
           </p>
         </div>
         <div className="flex items-center gap-2">
