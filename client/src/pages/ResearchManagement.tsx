@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database, Users, Checkbox as CheckboxIcon } from "lucide-react";
+import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database, Users, Checkbox as CheckboxIcon, Sliders } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CompanyResearch } from "@/components/admin/CompanyResearch";
 import { PromiseStatus } from "@/components/admin/PromiseStatus";
+import { SearchBuilder } from "@/components/admin/SearchBuilder";
 
 export default function ResearchManagement() {
   const { toast } = useToast();
@@ -30,6 +31,7 @@ export default function ResearchManagement() {
   const [booleanSearchResults, setBooleanSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [useBrightData, setUseBrightData] = useState(false);
+  const [searchMode, setSearchMode] = useState<"builder" | "raw">("builder");
 
   // Research mutation
   const researchMutation = useMutation({
@@ -328,14 +330,42 @@ export default function ResearchManagement() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                LinkedIn Boolean Search
+                LinkedIn Candidate Search
               </CardTitle>
               <CardDescription>
-                Search LinkedIn using boolean operators to find candidates with specific skills, experience, or backgrounds.
+                Use the visual builder or boolean operators to find candidates with specific skills, experience, or backgrounds.
               </CardDescription>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant={searchMode === "builder" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSearchMode("builder")}
+                  data-testid="button-mode-builder"
+                >
+                  <Sliders className="h-4 w-4 mr-2" />
+                  Visual Builder
+                </Button>
+                <Button
+                  variant={searchMode === "raw" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSearchMode("raw")}
+                  data-testid="button-mode-raw"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Raw Query
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="max-w-2xl space-y-4">
+              {searchMode === "builder" ? (
+                <SearchBuilder 
+                  onQueryGenerated={(query) => {
+                    setBooleanSearch(query);
+                    handleBooleanSearch();
+                  }}
+                />
+              ) : (
+                <div className="max-w-2xl space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="boolean-query">
                     Boolean Search Query
@@ -452,6 +482,8 @@ export default function ResearchManagement() {
                       </Card>
                     ))}
                   </div>
+                </div>
+              )}
                 </div>
               )}
             </CardContent>
