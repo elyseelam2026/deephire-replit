@@ -21,11 +21,21 @@ import {
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
 
+// Multi-tenant context
+export interface TenantContext {
+  userId: number;
+  companyId: number;
+  userRole: 'candidate' | 'company' | 'admin';
+}
+
 export interface IStorage {
   // User management
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Multi-tenant: Get user's company/tenant
+  getUserTenant(userId: number): Promise<TenantContext | undefined>;
   
   // Company management
   createCompany(company: InsertCompany): Promise<Company>;
@@ -37,6 +47,11 @@ export interface IStorage {
   getParentCompany(childCompanyId: number): Promise<Company | undefined>;
   convertCompanyToHierarchy(companyId: number): Promise<{ parent: Company; children: Company[] }>;
   searchCompanies(query: string): Promise<Array<{ parent: Company; matchedOffices: Company[]; matchType: 'parent' | 'office' | 'both' }>>;
+  
+  // Multi-tenant: Scoped queries by tenant
+  getCompanyJobsForTenant(companyId: number, tenantCompanyId: number): Promise<Job[]>;
+  getCandidatesForTenant(tenantCompanyId: number): Promise<Candidate[]>;
+  getTeamMembersForTenant(companyId: number): Promise<User[]>;
   
   // Company Staging (AI-powered deduplication)
   createCompanyStaging(staging: InsertCompanyStaging): Promise<CompanyStaging>;
@@ -248,6 +263,19 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  // Multi-tenant: Get user's tenant context
+  async getUserTenant(userId: number): Promise<TenantContext | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user || !user.companyId) return undefined;
+    
+    const userRole = user.email?.includes('candidate') ? 'candidate' : user.email?.includes('admin') ? 'admin' : 'company';
+    return {
+      userId,
+      companyId: user.companyId,
+      userRole: userRole as 'candidate' | 'company' | 'admin'
+    };
   }
 
   // Company management
