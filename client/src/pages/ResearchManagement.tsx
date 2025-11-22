@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database } from "lucide-react";
+import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database, Users } from "lucide-react";
 import { CompanyResearch } from "@/components/admin/CompanyResearch";
 import { PromiseStatus } from "@/components/admin/PromiseStatus";
 
@@ -23,6 +23,11 @@ export default function ResearchManagement() {
   const [researchSaveCampaign, setResearchSaveCampaign] = useState("no");
   const [researchResults, setResearchResults] = useState<any>(null);
   const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
+
+  // Boolean Search state
+  const [booleanSearch, setBooleanSearch] = useState("");
+  const [booleanSearchResults, setBooleanSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Research mutation
   const researchMutation = useMutation({
@@ -69,6 +74,49 @@ export default function ResearchManagement() {
     });
   };
 
+  const handleBooleanSearch = async () => {
+    if (!booleanSearch.trim()) {
+      toast({
+        title: "Empty Search",
+        description: "Please enter a boolean search query.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    setBooleanSearchResults([]);
+
+    try {
+      const response = await apiRequest('POST', '/api/admin/boolean-search', {
+        query: booleanSearch.trim()
+      });
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        setBooleanSearchResults(data.results);
+        toast({
+          title: "Search Complete",
+          description: `Found ${data.results.length} candidates. Select one to add.`,
+        });
+      } else {
+        toast({
+          title: "No Results",
+          description: "No candidates found for this search query. Try different terms.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Search Failed",
+        description: error.message || "Failed to search LinkedIn. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -77,10 +125,14 @@ export default function ResearchManagement() {
       </div>
 
       <Tabs defaultValue="ai-research" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="ai-research" data-testid="tab-ai-research">
             <Search className="h-4 w-4 mr-2" />
             AI Research
+          </TabsTrigger>
+          <TabsTrigger value="boolean-search" data-testid="tab-boolean-search">
+            <Users className="h-4 w-4 mr-2" />
+            Boolean Search
           </TabsTrigger>
           <TabsTrigger value="ai-promises" data-testid="tab-ai-promises">
             <Zap className="h-4 w-4 mr-2" />
@@ -261,6 +313,121 @@ export default function ResearchManagement() {
                       No companies found for this research query.
                     </div>
                   )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Boolean Search Tab */}
+        <TabsContent value="boolean-search" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                LinkedIn Boolean Search
+              </CardTitle>
+              <CardDescription>
+                Search LinkedIn using boolean operators to find candidates with specific skills, experience, or backgrounds.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="max-w-2xl space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="boolean-query">
+                    Boolean Search Query
+                  </Label>
+                  <Textarea
+                    id="boolean-query"
+                    placeholder='E.g., (CEO OR "Chief Executive Officer") AND (tech OR software) AND (Series A OR Series B)&#10;E.g., "Product Manager" AND (fintech OR blockchain) AND -crypto&#10;E.g., CTO AND AWS AND (Python OR Go) AND NOT freelance'
+                    className="min-h-[100px] resize-none"
+                    value={booleanSearch}
+                    onChange={(e) => setBooleanSearch(e.target.value)}
+                    disabled={isSearching}
+                    data-testid="input-boolean-query"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Use AND, OR, NOT operators. Enclose phrases in quotes. Use parentheses for grouping.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleBooleanSearch}
+                  disabled={isSearching}
+                  className="w-full"
+                  data-testid="button-start-boolean-search"
+                >
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Searching LinkedIn...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Search Candidates
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Results Section */}
+              {booleanSearchResults.length > 0 && (
+                <div className="mt-8 space-y-4">
+                  <h3 className="text-lg font-semibold">Search Results ({booleanSearchResults.length})</h3>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {booleanSearchResults.map((result: any, idx: number) => (
+                      <Card key={idx} className="p-4 hover-elevate">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-1">
+                            <p className="font-semibold">{result.name || 'Unknown'}</p>
+                            <p className="text-sm text-muted-foreground">{result.title || 'Unknown Title'}</p>
+                            <p className="text-sm text-muted-foreground">{result.company || 'Unknown Company'}</p>
+                            {result.linkedinUrl && (
+                              <a 
+                                href={result.linkedinUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                <LinkIcon className="h-3 w-3" />
+                                View Profile
+                              </a>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const nameParts = result.name?.split(' ') || ['', ''];
+                              const firstName = nameParts[0] || '';
+                              const lastName = nameParts.slice(1).join(' ') || '';
+                              const company = result.company || result.title || 'Unknown Company';
+                              
+                              if (!firstName) {
+                                toast({
+                                  title: "Missing Name",
+                                  description: "Unable to extract name from search result.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              
+                              toast({
+                                title: "Added",
+                                description: `${firstName} ${lastName} added to candidates`,
+                              });
+                              
+                              setBooleanSearchResults([]);
+                              setBooleanSearch("");
+                            }}
+                            data-testid={`button-add-candidate-${idx}`}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
