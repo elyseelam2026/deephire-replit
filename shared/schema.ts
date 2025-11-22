@@ -2448,3 +2448,257 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
 });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+// ============ 10-FEATURE EXPANSION ============
+
+// 1. SALARY BENCHMARKING & OFFER OPTIMIZER
+export const salaryBenchmarks = pgTable("salary_benchmarks", {
+  id: serial("id").primaryKey(),
+  jobTitle: text("job_title").notNull(),
+  location: text("location").notNull(),
+  experience: integer("experience"), // years
+  industry: text("industry"),
+  
+  // Market data
+  salaryLow: real("salary_low"),
+  salaryMid: real("salary_mid"),
+  salaryHigh: real("salary_high"),
+  bonus: real("bonus"), // average bonus %
+  equity: real("equity"), // average equity %
+  totalComp: real("total_comp"),
+  
+  // Sources
+  dataSource: text("data_source").array(), // ['bls', 'glassdoor', 'levels.fyi', 'blind']
+  recordCount: integer("record_count"), // sample size
+  lastUpdated: timestamp("last_updated"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+export const offerOptimizations = pgTable("offer_optimizations", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id),
+  candidateId: integer("candidate_id").references(() => candidates.id),
+  
+  // Market benchmark
+  benchmarkSalary: real("benchmark_salary"),
+  benchmarkBonus: real("benchmark_bonus"),
+  benchmarkEquity: real("benchmark_equity"),
+  
+  // Offer recommendation
+  recommendedSalary: real("recommended_salary"),
+  recommendedBonus: real("recommended_bonus"),
+  recommendedEquity: real("recommended_equity"),
+  acceptanceProbability: real("acceptance_probability"), // 0-1
+  reasoning: text("reasoning"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 2. HIRING COMMITTEE WAR ROOM
+export const warRooms = pgTable("war_rooms", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  
+  name: text("name").notNull(),
+  description: text("description"),
+  status: text("status").default("active"), // active, archived
+  
+  // Committee members
+  members: jsonb("members").$type<Array<{id: number, email: string, name: string, role: string}>>(),
+  
+  // Candidates under review
+  candidatesUnderReview: integer("candidates_under_review").array(),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+  updatedAt: timestamp("updated_at").default(sql`now()`),
+});
+
+export const warRoomVotes = pgTable("war_room_votes", {
+  id: serial("id").primaryKey(),
+  warRoomId: integer("war_room_id").references(() => warRooms.id).notNull(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  
+  voterId: integer("voter_id"), // user ID
+  voterEmail: text("voter_email"),
+  vote: text("vote").notNull(), // strong_yes, yes, maybe, no, strong_no
+  reasoning: text("reasoning"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 3. PREDICTIVE SUCCESS SCORING
+export const predictiveScores = pgTable("predictive_scores", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  
+  // Historical success patterns
+  successProbability: real("success_probability"), // 0-1 (likely to stay 2+ years)
+  stayLength: integer("stay_length"), // predicted months
+  performanceRating: real("performance_rating"), // 1-5
+  retentionRisk: text("retention_risk"), // low, medium, high
+  
+  // Risk factors
+  jobHoppingScore: real("job_hopping_score"),
+  cultureFitScore: real("culture_fit_score"),
+  skillGrowthPotential: real("skill_growth_potential"),
+  
+  reasoning: text("reasoning"),
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 4. VIDEO INTERVIEW SCREENING
+export const videoInterviews = pgTable("video_interviews", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  
+  // Interview details
+  questions: jsonb("questions").$type<Array<{question: string, timeLimit: number}>>(),
+  status: text("status").default("pending"), // pending, in_progress, submitted, scored
+  videoUrl: text("video_url"), // stored video link
+  
+  // AI scoring
+  communicationScore: real("communication_score"), // 0-100
+  enthusiasmScore: real("enthusiasm_score"),
+  clarityScore: real("clarity_score"),
+  overallScore: real("overall_score"),
+  
+  aiTranscript: text("ai_transcript"),
+  aiAnalysis: jsonb("ai_analysis"),
+  
+  submittedAt: timestamp("submitted_at"),
+  scoredAt: timestamp("scored_at"),
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 5. DIVERSITY ANALYTICS
+export const diversityMetrics = pgTable("diversity_metrics", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id),
+  companyId: integer("company_id").references(() => companies.id),
+  
+  // Demographics (optional, consent-based)
+  gender: text("gender"), // M, F, NB, Prefer not to say
+  ethnicity: text("ethnicity"),
+  age: integer("age"),
+  veteranStatus: text("veteran_status"),
+  disabilityStatus: text("disability_status"),
+  
+  // Status in pipeline
+  status: text("status"), // applied, shortlisted, interviewed, offered, hired, rejected
+  advancedFrom: text("advanced_from"), // source
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+export const diversityAlerts = pgTable("diversity_alerts", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  
+  alertType: text("alert_type").notNull(), // all_same_demographic, lack_diversity, bottleneck
+  description: text("description"),
+  severity: text("severity"), // low, medium, high
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 6. COMPETITOR INTELLIGENCE
+export const competitorInterviews = pgTable("competitor_interviews", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  
+  competitorCompany: text("competitor_company").notNull(),
+  interviewStage: text("interview_stage"), // phone, technical, final, offer
+  detectedAt: timestamp("detected_at"),
+  source: text("source"), // manual_report, linkedin_activity, email_signal
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+export const talentFlowAnalytics = pgTable("talent_flow_analytics", {
+  id: serial("id").primaryKey(),
+  sourceCompany: text("source_company").notNull(),
+  targetCompany: text("target_company").notNull(),
+  
+  candidateCount: integer("candidate_count"),
+  averageSalaryLift: real("average_salary_lift"),
+  commonRoles: text("common_roles").array(),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 7. ATS INTEGRATIONS
+export const atsConnections = pgTable("ats_connections", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  
+  atsType: text("ats_type").notNull(), // greenhouse, workday, lever, bullhorn
+  accessToken: text("access_token"), // encrypted
+  refreshToken: text("refresh_token"),
+  
+  status: text("status").default("connected"), // connected, disconnected, error
+  lastSyncAt: timestamp("last_sync_at"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+  updatedAt: timestamp("updated_at").default(sql`now()`),
+});
+
+// 8. PASSIVE TALENT CRM
+export const passiveTalentPool = pgTable("passive_talent_pool", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  
+  source: text("source"), // search_result, referral, rejected
+  reason: text("reason"), // why saved (not right now, but good fit for future)
+  
+  reengagementScheduledFor: timestamp("reengagement_scheduled_for"),
+  lastReengaged: timestamp("last_reengaged"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 9. SLACK/TEAMS INTEGRATION
+export const integrationConnections = pgTable("integration_connections", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  
+  integrationType: text("integration_type").notNull(), // slack, teams, email
+  accessToken: text("access_token"), // encrypted
+  
+  webhookUrl: text("webhook_url"),
+  status: text("status").default("active"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+// 10. WHITE-LABEL PLATFORM
+export const whitelabelClients = pgTable("whitelabel_clients", {
+  id: serial("id").primaryKey(),
+  partnerCompanyId: integer("partner_company_id").references(() => companies.id).notNull(),
+  
+  customDomain: text("custom_domain"),
+  brandingColor: text("branding_color"),
+  logoUrl: text("logo_url"),
+  
+  status: text("status").default("active"),
+  activeSince: timestamp("active_since"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
+export const whitelabelUsage = pgTable("whitelabel_usage", {
+  id: serial("id").primaryKey(),
+  whitelabelClientId: integer("whitelabel_client_id").references(() => whitelabelClients.id).notNull(),
+  
+  month: text("month"), // YYYY-MM
+  jobsPosted: integer("jobs_posted"),
+  candidatesSourced: integer("candidates_sourced"),
+  placementsMade: integer("placements_made"),
+  revenue: real("revenue"),
+  
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
