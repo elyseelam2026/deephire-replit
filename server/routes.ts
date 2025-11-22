@@ -4143,12 +4143,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               enrichedResults.push({
                 ...result,
                 // Enhance with scraped data
-                headline: profileData.headline || result.title,
+                headline: profileData.position || result.title,
                 about: profileData.about,
                 experience: profileData.experience,
                 education: profileData.education,
                 skills: profileData.skills,
-                location: profileData.location,
+                city: profileData.city,
                 scrapedAt: new Date().toISOString(),
                 dataSource: 'brightdata'
               });
