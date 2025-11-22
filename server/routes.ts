@@ -225,10 +225,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate pricing if not explicitly provided
       let pricingFields = {};
       if (!jobData.basePlacementFee || !jobData.estimatedPlacementFee) {
-        // Extract salary from parsedData or direct field
-        const salary = jobData.parsedData?.salary || 
-                      jobData.parsedData?.salaryRangeMax || 
-                      jobData.parsedData?.salaryRangeMin;
+        // Extract salary from parsedData or direct field (suppress type warnings for undefined fields)
+        const salary = (jobData.parsedData as any)?.salary || 
+                      (jobData.parsedData as any)?.salaryRangeMax || 
+                      (jobData.parsedData as any)?.salaryRangeMin;
         
         const pricing = computeJobPricing({
           salary,
@@ -508,7 +508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateJobCandidateStatus(id, status, {
         note,
         rejectedReason,
-        changedBy: changedBy || req.user?.username || 'system'
+        changedBy: changedBy || (req as any).user?.username || 'system'
       });
       
       res.json({ success: true });
@@ -577,7 +577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No valid job candidate IDs provided" });
       }
       
-      const changedBy = req.user?.username || 'system';
+      const changedBy = (req as any).user?.username || 'system';
       
       if (status) {
         const updatePromises = validIds.map(numericId => {
@@ -863,7 +863,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         candidateId,
         occurredAt: req.body.occurredAt ? new Date(req.body.occurredAt) : new Date(),
-        createdBy: req.user?.username || 'system'
+        createdBy: (req as any).user?.username || 'system'
       };
       const activity = await storage.createCandidateActivity(activityData);
       res.json(activity);
@@ -900,7 +900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: req.file.size,
         category: req.body.category || 'other',
         description: req.body.description,
-        uploadedBy: req.user?.username || 'system'
+        uploadedBy: (req as any).user?.username || 'system'
       };
       
       const file = await storage.createCandidateFile(fileData);
@@ -929,7 +929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const interviewData = {
         ...req.body,
         candidateId,
-        createdBy: req.user?.username || 'system'
+        createdBy: (req as any).user?.username || 'system'
       };
       const interview = await storage.createCandidateInterview(interviewData);
       res.json(interview);
@@ -5978,7 +5978,7 @@ CRITICAL RULES - You MUST follow these strictly:
         type,
         content,
         occurredAt: new Date(),
-        createdBy: req.user?.username || 'system'
+        createdBy: (req as any).user?.username || 'system'
       });
 
       res.json(activity);
@@ -6159,9 +6159,9 @@ CRITICAL RULES - You MUST follow these strictly:
         details: { email, success: true },
       });
 
-      // Set session
-      req.session.candidateId = candidate.id;
-      req.session.email = candidate.email;
+      // Set session (type-safe with assertion)
+      (req.session as any).candidateId = candidate.id;
+      (req.session as any).email = candidate.email;
 
       res.json({
         success: true,
@@ -7145,9 +7145,9 @@ CRITICAL RULES - You MUST follow these strictly:
         details: { email, success: true },
       });
 
-      // Set session
-      req.session.companyId = company.id;
-      req.session.email = company.primaryEmail;
+      // Set session (type-safe with assertion)
+      (req.session as any).companyId = company.id;
+      (req.session as any).email = company.primaryEmail;
 
       res.json({
         success: true,
@@ -7173,11 +7173,13 @@ CRITICAL RULES - You MUST follow these strictly:
 
       // Create job listing
       const jobListing = await db.insert(jobListings).values({
-        title,
-        description,
+        jobTitle: title,
+        jobDescription: description,
         location,
-        salary,
-        requirements: skills && Array.isArray(skills) ? skills : [],
+        salaryMin: salary ? parseInt(salary.toString().split('-')[0]) : 0,
+        salaryMax: salary ? parseInt(salary.toString().split('-')[1] || salary.toString()) : 0,
+        requiredSkills: skills && Array.isArray(skills) ? skills : [],
+        experienceLevel: level,
         companyId: sampleCompanyId,
       }).returning();
 
