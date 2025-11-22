@@ -13,22 +13,20 @@ import {
 
 // Navigation items for different user roles
 
-// Client Portal - For PE firms hiring through agency (MASTER)
+// Client Portal - For PE firms hiring through agency
+// Access candidates through their jobs only (job-linked candidates)
 const clientItems = [
   { title: "Dashboard", url: "/client", icon: BarChart3 },
   { title: "Jobs", url: "/client/jobs", icon: Briefcase },
-  { title: "Candidates", url: "/client/candidates", icon: Users },
-  { title: "Recycling Bin", url: "/client/recycling-bin", icon: Trash2 },
   { title: "Messages", url: "/client/messages", icon: MessageSquare },
   { title: "Settings", url: "/client/settings", icon: Settings },
 ];
 
-// Agency Portal - For recruiting team (same as client portal)
+// Agency Portal - For recruiting team
+// Access candidates through their jobs only (job-linked candidates)
 const agencyItems = [
   { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
   { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
-  { title: "Candidates", url: "/recruiting/candidates", icon: Users },
-  { title: "Recycling Bin", url: "/recruiting/recycling-bin", icon: Trash2 },
   { title: "Messages", url: "/recruiting/conversations", icon: MessageSquare },
   { title: "Settings", url: "/recruiting/settings", icon: Settings },
 ];
@@ -45,6 +43,7 @@ const candidateItems = [
 const adminItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "Companies", url: "/admin/companies", icon: Building2 },
+  { title: "Candidates", url: "/admin/candidates", icon: Users },
   { title: "Staging", url: "/admin/staging", icon: Clock },
   { title: "Bulk Upload", url: "/admin/bulk-upload", icon: Upload },
   { title: "Data Quality", url: "/admin/data-quality", icon: Database },
