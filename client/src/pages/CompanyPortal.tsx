@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Briefcase, Users, BarChart3, Settings } from "lucide-react";
+import { Plus, Search, Briefcase, Users, BarChart3, Settings, ExternalLink, Trash2 } from "lucide-react";
 
 const jobPostSchema = z.object({
   title: z.string().min(1, "Job title required"),
@@ -23,10 +24,43 @@ const jobPostSchema = z.object({
 
 type JobPostData = z.infer<typeof jobPostSchema>;
 
+interface Job {
+  id: number;
+  title: string;
+  description: string;
+  location: string;
+  salary: string;
+  requirements: string[];
+  experienceLevel: string;
+  companyId: number;
+  createdAt: string;
+}
+
+interface Applicant {
+  candidateId: number;
+  candidateName: string;
+  candidateTitle: string;
+  candidateCompany: string;
+  jobId: number;
+  jobTitle: string;
+  matchScore: number;
+  status: string;
+  appliedAt: string;
+}
+
 export default function CompanyPortal() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [companyId, setCompanyId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const storedCompanyId = localStorage.getItem("companyId");
+    if (storedCompanyId) {
+      setCompanyId(parseInt(storedCompanyId));
+    }
+  }, []);
+
   const form = useForm<JobPostData>({
     resolver: zodResolver(jobPostSchema),
     defaultValues: {
@@ -37,6 +71,18 @@ export default function CompanyPortal() {
       level: "mid-level",
       skills: "",
     },
+  });
+
+  // Fetch company's posted jobs
+  const { data: jobs = [], isLoading: jobsLoading, refetch: refetchJobs } = useQuery<Job[]>({
+    queryKey: companyId ? [`/api/company/${companyId}/jobs`] : [],
+    enabled: !!companyId,
+  });
+
+  // Fetch applicants for company's jobs
+  const { data: applicants = [], isLoading: applicantsLoading } = useQuery<Applicant[]>({
+    queryKey: companyId ? [`/api/company/${companyId}/applicants`] : [],
+    enabled: !!companyId,
   });
 
   const handleLogout = async () => {
@@ -75,6 +121,7 @@ export default function CompanyPortal() {
       });
 
       form.reset();
+      refetchJobs();
     } catch (error) {
       toast({
         title: "Error",
@@ -120,7 +167,7 @@ export default function CompanyPortal() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Active Jobs</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">0</div>
+              <div className="text-3xl font-bold">{jobs.length}</div>
               <p className="text-xs text-muted-foreground mt-1">Job postings</p>
             </CardContent>
           </Card>
@@ -130,7 +177,7 @@ export default function CompanyPortal() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Candidates</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">0</div>
+              <div className="text-3xl font-bold">{applicants.length}</div>
               <p className="text-xs text-muted-foreground mt-1">Applications received</p>
             </CardContent>
           </Card>
@@ -140,7 +187,7 @@ export default function CompanyPortal() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Pipeline</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">0</div>
+              <div className="text-3xl font-bold">{applicants.filter(a => a.status === 'new' || a.status === 'applied').length}</div>
               <p className="text-xs text-muted-foreground mt-1">In review</p>
             </CardContent>
           </Card>
@@ -279,9 +326,40 @@ export default function CompanyPortal() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No active jobs yet. Post your first job to get started!</p>
-                </div>
+                {jobsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading jobs...</div>
+                ) : jobs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No active jobs yet. Post your first job to get started!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {jobs.map((job) => (
+                      <div key={job.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-base" data-testid={`text-job-title-${job.id}`}>{job.title}</h3>
+                            <p className="text-sm text-muted-foreground">{job.location}</p>
+                            <div className="flex gap-2 mt-2 flex-wrap">
+                              {job.requirements?.map((skill, idx) => (
+                                <span key={idx} className="inline-flex items-center rounded-full bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{job.salary}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{job.experienceLevel}</p>
+                            <Button size="sm" variant="ghost" className="mt-2" data-testid={`button-view-job-${job.id}`}>
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -291,20 +369,46 @@ export default function CompanyPortal() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Search className="h-5 w-5" />
-                  Search Candidates
+                  <Users className="h-5 w-5" />
+                  Applications & Candidates
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <Input placeholder="Search by skills, title, or location..." data-testid="input-search-candidates" />
-                <Button className="w-full" data-testid="button-search-candidates">
-                  <Search className="h-4 w-4 mr-2" />
-                  Search Candidate Database
-                </Button>
-                <div className="mt-8 text-center text-muted-foreground">
-                  <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Premium feature: Search our database of pre-qualified candidates</p>
-                </div>
+              <CardContent>
+                {applicantsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading candidates...</div>
+                ) : applicants.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No applications yet. Your posted jobs will appear here once candidates apply.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {applicants.map((applicant, idx) => (
+                      <div key={idx} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-base" data-testid={`text-candidate-name-${applicant.candidateId}`}>{applicant.candidateName}</h3>
+                            <p className="text-sm text-muted-foreground">{applicant.candidateTitle} at {applicant.candidateCompany}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Applied for: {applicant.jobTitle}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-2xl font-bold text-green-600" data-testid={`text-match-score-${applicant.candidateId}`}>{applicant.matchScore}</span>
+                              <span className="text-xs text-muted-foreground">% match</span>
+                            </div>
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                              applicant.status === 'applied' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-100' :
+                              applicant.status === 'new' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-100' :
+                              'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-100'
+                            }`} data-testid={`text-status-${applicant.candidateId}`}>
+                              {applicant.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
