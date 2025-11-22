@@ -7206,6 +7206,45 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // COMPANY PORTAL: Get applicants for company's jobs
+  app.get("/api/company/:companyId/applicants", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      
+      // Get all jobs for this company
+      const companyJobs = await db.select().from(jobListings).where(eq(jobListings.companyId, companyId));
+      const jobIds = companyJobs.map(j => j.id);
+      
+      if (jobIds.length === 0) {
+        return res.json([]);
+      }
+      
+      // Get all recommendations for these jobs
+      const applicants = await db
+        .select({
+          candidateId: schema.candidates.id,
+          candidateName: sql`CONCAT(${schema.candidates.firstName}, ' ', ${schema.candidates.lastName})`,
+          candidateTitle: schema.candidates.currentTitle,
+          candidateCompany: schema.candidates.currentCompany,
+          jobId: jobListings.id,
+          jobTitle: jobListings.title,
+          matchScore: candidateJobRecommendations.matchScore,
+          status: candidateJobRecommendations.status,
+          appliedAt: candidateJobRecommendations.appliedAt,
+        })
+        .from(candidateJobRecommendations)
+        .innerJoin(jobListings, eq(candidateJobRecommendations.jobListingId, jobListings.id))
+        .innerJoin(schema.candidates, eq(candidateJobRecommendations.candidateId, schema.candidates.id))
+        .where(inArray(candidateJobRecommendations.jobListingId, jobIds))
+        .orderBy(desc(candidateJobRecommendations.matchScore));
+      
+      res.json(applicants);
+    } catch (error: any) {
+      console.error("Error fetching applicants:", error);
+      res.status(500).json({ error: "Failed to fetch applicants" });
+    }
+  });
+
   // COMPANY PORTAL: Change password
   app.post("/api/company/change-password", async (req, res) => {
     try {
