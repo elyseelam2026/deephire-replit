@@ -7227,7 +7227,7 @@ CRITICAL RULES - You MUST follow these strictly:
           candidateTitle: schema.candidates.currentTitle,
           candidateCompany: schema.candidates.currentCompany,
           jobId: jobListings.id,
-          jobTitle: jobListings.title,
+          jobTitle: jobListings.jobTitle,
           matchScore: candidateJobRecommendations.matchScore,
           status: candidateJobRecommendations.status,
           appliedAt: candidateJobRecommendations.appliedAt,
