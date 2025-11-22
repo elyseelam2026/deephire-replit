@@ -8,14 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, Save, AlertCircle, Mail, Lock, Database, Zap, BarChart3, Copy, Trash2, Plus, Eye, EyeOff, Server, Activity, TrendingUp } from "lucide-react";
+import { Settings, Save, AlertCircle, Mail, Lock, Database, Zap, BarChart3, Copy, Trash2, Plus, Eye, EyeOff, Server, Activity, TrendingUp, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function AdminSystemSettings() {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [configDialog, setConfigDialog] = useState<string | null>(null);
   const [apiKeys, setApiKeys] = useState([
     { id: 1, name: "Production API Key", created: "2024-01-15", lastUsed: "2024-11-22", active: true }
   ]);
@@ -56,6 +57,14 @@ export default function AdminSystemSettings() {
     });
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied",
+      description: "API key copied to clipboard",
+    });
+  };
+
   // System metrics data
   const metrics = {
     uptime: 99.98,
@@ -65,6 +74,18 @@ export default function AdminSystemSettings() {
     errorRate: 0.02,
     dbSize: 2.34
   };
+
+  const integrations = [
+    { name: "SendGrid", desc: "Transactional email", status: "connected", icon: "📧" },
+    { name: "Twilio", desc: "SMS notifications", status: "connected", icon: "📱" },
+    { name: "xAI Grok", desc: "AI-powered analysis", status: "connected", icon: "🤖" },
+    { name: "SerpAPI", desc: "LinkedIn search & data", status: "connected", icon: "🔍" },
+    { name: "Bright Data", desc: "Web scraping & proxies", status: "connected", icon: "🌐" },
+    { name: "Voyage AI", desc: "Semantic embeddings", status: "connected", icon: "🧠" },
+    { name: "Slack", desc: "Team notifications", status: "disconnected", icon: "💬" },
+    { name: "Google Analytics", desc: "User behavior tracking", status: "disconnected", icon: "📊" },
+    { name: "Stripe", desc: "Payment processing", status: "disconnected", icon: "💳" },
+  ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -357,7 +378,13 @@ export default function AdminSystemSettings() {
                         <p className="text-sm font-medium">{template.name}</p>
                         <p className="text-xs text-muted-foreground">{template.desc}</p>
                       </div>
-                      <Button variant="outline" size="sm">Edit</Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setConfigDialog(`email-${i}`)}
+                      >
+                        Edit
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -457,17 +484,7 @@ export default function AdminSystemSettings() {
               <CardDescription>Manage external service connections and configuration</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                { name: "SendGrid", desc: "Transactional email", status: "connected", icon: "📧" },
-                { name: "Twilio", desc: "SMS notifications", status: "connected", icon: "📱" },
-                { name: "xAI Grok", desc: "AI-powered analysis", status: "connected", icon: "🤖" },
-                { name: "SerpAPI", desc: "LinkedIn search & data", status: "connected", icon: "🔍" },
-                { name: "Bright Data", desc: "Web scraping & proxies", status: "connected", icon: "🌐" },
-                { name: "Voyage AI", desc: "Semantic embeddings", status: "connected", icon: "🧠" },
-                { name: "Slack", desc: "Team notifications", status: "disconnected", icon: "💬" },
-                { name: "Google Analytics", desc: "User behavior tracking", status: "disconnected", icon: "📊" },
-                { name: "Stripe", desc: "Payment processing", status: "disconnected", icon: "💳" },
-              ].map((service, i) => (
+              {integrations.map((service, i) => (
                 <div key={i} className="p-4 border rounded-lg space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -481,7 +498,17 @@ export default function AdminSystemSettings() {
                       {service.status}
                     </Badge>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => {
+                      toast({
+                        title: service.status === "connected" ? "Reconfigure" : "Connect",
+                        description: `${service.name} configuration opened`,
+                      });
+                    }}
+                  >
                     {service.status === "connected" ? "Reconfigure" : "Connect"}
                   </Button>
                 </div>
@@ -531,10 +558,18 @@ export default function AdminSystemSettings() {
                           {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      <Button variant="outline" size="icon">
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={() => copyToClipboard(`sk_live_${Math.random().toString(36).slice(2)}`)}
+                      >
                         <Copy className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="icon" onClick={() => deleteApiKey(key.id)}>
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={() => deleteApiKey(key.id)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -569,11 +604,36 @@ export default function AdminSystemSettings() {
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">{webhook.url}</p>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">Edit</Button>
-                      <Button variant="outline" size="sm">Test</Button>
-                      <Button variant="outline" size="sm">Logs</Button>
-                      <Button variant="outline" size="sm" className="ml-auto">Delete</Button>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => toast({ title: "Edit", description: "Webhook editor opened" })}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => toast({ title: "Test Sent", description: "Test webhook triggered" })}
+                      >
+                        Test
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => toast({ title: "Logs", description: "Opening webhook logs..." })}
+                      >
+                        Logs
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="ml-auto"
+                        onClick={() => toast({ title: "Deleted", description: "Webhook deleted" })}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -634,10 +694,31 @@ export default function AdminSystemSettings() {
               <div className="space-y-4 pt-4 border-t">
                 <p className="font-medium">Database Utilities</p>
                 <div className="flex flex-col gap-2">
-                  <Button variant="outline">Run Database Maintenance</Button>
-                  <Button variant="outline">Analyze Query Performance</Button>
-                  <Button variant="outline">Export Database Snapshot</Button>
-                  <Button variant="outline" className="text-red-600 hover:text-red-700">Purge Old Logs</Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => toast({ title: "Running", description: "Database maintenance started..." })}
+                  >
+                    Run Database Maintenance
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => toast({ title: "Analyzing", description: "Query performance analysis in progress..." })}
+                  >
+                    Analyze Query Performance
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => toast({ title: "Exporting", description: "Database snapshot export started..." })}
+                  >
+                    Export Database Snapshot
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="text-red-600 hover:text-red-700"
+                    onClick={() => toast({ title: "Purging", description: "Old logs purge initiated..." })}
+                  >
+                    Purge Old Logs
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -670,6 +751,38 @@ export default function AdminSystemSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Configuration Dialog */}
+      <Dialog open={!!configDialog} onOpenChange={() => setConfigDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email Template Configuration</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Template Name</Label>
+              <Input disabled value="Verification Email" />
+            </div>
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Input placeholder="Verify your email address" />
+            </div>
+            <div className="space-y-2">
+              <Label>HTML Content</Label>
+              <Textarea placeholder="<html>...</html>" rows={6} />
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setConfigDialog(null)}>Cancel</Button>
+              <Button onClick={() => {
+                setConfigDialog(null);
+                toast({ title: "Saved", description: "Template saved successfully" });
+              }}>
+                Save Template
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

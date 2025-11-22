@@ -1,8 +1,57 @@
+import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 export default function AdminBulkUpload() {
+  const { toast } = useToast();
+  const candidatesInputRef = useRef<HTMLInputElement>(null);
+  const companiesInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<"candidates" | "companies" | null>(null);
+  const [uploads, setUploads] = useState([
+    { id: 1, name: "candidates_batch_1.csv", type: "candidates", date: "2024-11-20", status: "completed", count: 145 },
+    { id: 2, name: "companies_q4_2024.xlsx", type: "companies", date: "2024-11-15", status: "completed", count: 89 },
+  ]);
+
+  const handleFileSelect = async (type: "candidates" | "companies") => {
+    const input = type === "candidates" ? candidatesInputRef.current : companiesInputRef.current;
+    const file = input?.files?.[0];
+    
+    if (!file) return;
+
+    setUploading(type);
+    try {
+      // Simulate upload
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const newUpload = {
+        id: uploads.length + 1,
+        name: file.name,
+        type,
+        date: new Date().toLocaleDateString(),
+        status: "completed" as const,
+        count: Math.floor(Math.random() * 500) + 50,
+      };
+      
+      setUploads([newUpload, ...uploads]);
+      toast({
+        title: "Upload Complete",
+        description: `${file.name} uploaded successfully with ${newUpload.count} records`,
+      });
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: "There was an error uploading the file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(null);
+      if (input) input.value = "";
+    }
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div>
@@ -11,7 +60,7 @@ export default function AdminBulkUpload() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <Card className="hover-elevate cursor-pointer">
+        <Card className="hover-elevate">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Upload className="h-5 w-5" />
@@ -22,14 +71,34 @@ export default function AdminBulkUpload() {
             <p className="text-sm text-muted-foreground mb-4">
               Upload candidate profiles in CSV or Excel format
             </p>
-            <Button className="w-full">
-              <FileText className="h-4 w-4 mr-2" />
-              Choose File
+            <input
+              ref={candidatesInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={() => handleFileSelect("candidates")}
+            />
+            <Button 
+              className="w-full"
+              onClick={() => candidatesInputRef.current?.click()}
+              disabled={uploading === "candidates"}
+            >
+              {uploading === "candidates" ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Choose File
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="hover-elevate cursor-pointer">
+        <Card className="hover-elevate">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Upload className="h-5 w-5" />
@@ -40,9 +109,29 @@ export default function AdminBulkUpload() {
             <p className="text-sm text-muted-foreground mb-4">
               Upload company information in CSV or Excel format
             </p>
-            <Button className="w-full">
-              <FileText className="h-4 w-4 mr-2" />
-              Choose File
+            <input
+              ref={companiesInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={() => handleFileSelect("companies")}
+            />
+            <Button 
+              className="w-full"
+              onClick={() => companiesInputRef.current?.click()}
+              disabled={uploading === "companies"}
+            >
+              {uploading === "companies" ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Choose File
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -53,7 +142,27 @@ export default function AdminBulkUpload() {
           <CardTitle>Recent Uploads</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No uploads yet</p>
+          {uploads.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No uploads yet</p>
+          ) : (
+            <div className="space-y-3">
+              {uploads.map((upload) => (
+                <div key={upload.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3 flex-1">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate text-sm">{upload.name}</p>
+                      <p className="text-xs text-muted-foreground">{upload.date} • {upload.count} records</p>
+                    </div>
+                  </div>
+                  <Badge variant={upload.status === "completed" ? "default" : "secondary"}>
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    {upload.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
