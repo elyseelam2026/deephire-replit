@@ -31,6 +31,7 @@ import JobDetail from "@/pages/JobDetail";
 import Candidates from "@/pages/Candidates";
 import CandidateDetail from "@/pages/CandidateDetail";
 import CompanyDetail from "@/pages/CompanyDetail";
+import CandidateSourcing from "@/pages/CandidateSourcing";
 import RecyclingBin from "@/pages/RecyclingBin";
 import Staging from "@/pages/Staging";
 import Conversations from "@/pages/Conversations";
@@ -66,6 +67,7 @@ function AppRouter() {
       {/* Client Portal Routes */}
       <Route path="/client" component={() => <ClientApp><ClientPortal /></ClientApp>} />
       <Route path="/client/post-job" component={() => <ClientApp><ClientPortal /></ClientApp>} />
+      <Route path="/client/source-candidates" component={() => <ClientApp><CandidateSourcing /></ClientApp>} />
       <Route path="/client/jobs/:id" component={() => <ClientApp><JobDetail /></ClientApp>} />
       <Route path="/client/jobs" component={() => <ClientApp><Jobs /></ClientApp>} />
       <Route path="/client/candidates/:id" component={() => <ClientApp><CandidateDetail /></ClientApp>} />
