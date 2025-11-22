@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, Save, AlertCircle, Mail, Lock, Database, Zap, BarChart3, Copy, Trash2, Plus, Eye, EyeOff, Server, Activity, TrendingUp, ExternalLink } from "lucide-react";
+import { Settings, Save, AlertCircle, Mail, Lock, Database, Zap, BarChart3, Copy, Trash2, Plus, Eye, EyeOff, Server, Activity, TrendingUp, ExternalLink, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useQuery } from "@tanstack/react-query";
 
 export default function AdminSystemSettings() {
   const { toast } = useToast();
@@ -22,6 +23,12 @@ export default function AdminSystemSettings() {
   const [apiKeys, setApiKeys] = useState([
     { id: 1, name: "Production API Key", created: "2024-01-15", lastUsed: "2024-11-22", active: true }
   ]);
+
+  // Fetch real integration status
+  const { data: integrationStatus, isLoading: statusLoading } = useQuery({
+    queryKey: ["/api/admin/integration-status"],
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -77,17 +84,23 @@ export default function AdminSystemSettings() {
     dbSize: 2.34
   };
 
-  const integrations = [
-    { name: "SendGrid", desc: "Transactional email", status: "connected", icon: "📧" },
-    { name: "Twilio", desc: "SMS notifications", status: "connected", icon: "📱" },
-    { name: "xAI Grok", desc: "AI-powered analysis", status: "connected", icon: "🤖" },
-    { name: "SerpAPI", desc: "LinkedIn search & data", status: "connected", icon: "🔍" },
-    { name: "Bright Data", desc: "Web scraping & proxies", status: "connected", icon: "🌐" },
-    { name: "Voyage AI", desc: "Semantic embeddings", status: "connected", icon: "🧠" },
-    { name: "Slack", desc: "Team notifications", status: "disconnected", icon: "💬" },
-    { name: "Google Analytics", desc: "User behavior tracking", status: "disconnected", icon: "📊" },
-    { name: "Stripe", desc: "Payment processing", status: "disconnected", icon: "💳" },
+  // Map integrations with real status from backend
+  const integrationsList = [
+    { id: "sendgrid", name: "SendGrid", desc: "Transactional email", icon: "📧" },
+    { id: "twilio", name: "Twilio", desc: "SMS notifications", icon: "📱" },
+    { id: "xai", name: "xAI Grok", desc: "AI-powered analysis", icon: "🤖" },
+    { id: "serpapi", name: "SerpAPI", desc: "LinkedIn search & data", icon: "🔍" },
+    { id: "brightdata", name: "Bright Data", desc: "Web scraping & proxies", icon: "🌐" },
+    { id: "voyage", name: "Voyage AI", desc: "Semantic embeddings", icon: "🧠" },
+    { id: "slack", name: "Slack", desc: "Team notifications", icon: "💬" },
+    { id: "googleanalytics", name: "Google Analytics", desc: "User behavior tracking", icon: "📊" },
+    { id: "stripe", name: "Stripe", desc: "Payment processing", icon: "💳" },
   ];
+
+  const integrations = integrationsList.map(svc => ({
+    ...svc,
+    status: integrationStatus?.[svc.id as keyof typeof integrationStatus] ? "connected" : "disconnected"
+  }));
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -486,33 +499,39 @@ export default function AdminSystemSettings() {
               <CardDescription>Manage external service connections and configuration</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {integrations.map((service, i) => (
-                <div key={i} className="p-4 border rounded-lg space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{service.icon}</span>
-                      <div>
-                        <p className="font-medium">{service.name}</p>
-                        <p className="text-xs text-muted-foreground">{service.desc}</p>
-                      </div>
-                    </div>
-                    <Badge variant={service.status === "connected" ? "default" : "outline"}>
-                      {service.status}
-                    </Badge>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full"
-                    onClick={() => {
-                      setSelectedIntegration(service.name);
-                      setConfigDialog(`integration-${i}`);
-                    }}
-                  >
-                    {service.status === "connected" ? "Reconfigure" : "Connect"}
-                  </Button>
+              {statusLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              ))}
+              ) : (
+                integrations.map((service, i) => (
+                  <div key={i} className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{service.icon}</span>
+                        <div>
+                          <p className="font-medium">{service.name}</p>
+                          <p className="text-xs text-muted-foreground">{service.desc}</p>
+                        </div>
+                      </div>
+                      <Badge variant={service.status === "connected" ? "default" : "outline"}>
+                        {service.status}
+                      </Badge>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => {
+                        setSelectedIntegration(service.name);
+                        setConfigDialog(`integration-${i}`);
+                      }}
+                    >
+                      {service.status === "connected" ? "Reconfigure" : "Connect"}
+                    </Button>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>

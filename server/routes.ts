@@ -7678,6 +7678,27 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // Admin: Check integration status (checks environment variables)
+  app.get("/api/admin/integration-status", async (req, res) => {
+    try {
+      const integrationStatus = {
+        sendgrid: !!process.env.SENDGRID_API_KEY,
+        twilio: !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN,
+        xai: !!process.env.XAI_API_KEY,
+        serpapi: !!process.env.SERPAPI_API_KEY,
+        brightdata: !!process.env.BRIGHTDATA_API_KEY,
+        voyage: !!process.env.VOYAGE_API_KEY,
+        slack: !!process.env.SLACK_BOT_TOKEN,
+        googleanalytics: !!process.env.GOOGLE_ANALYTICS_KEY,
+        stripe: !!process.env.STRIPE_SECRET_KEY,
+      };
+      res.json(integrationStatus);
+    } catch (error) {
+      console.error("Error checking integration status:", error);
+      res.status(500).json({ error: "Failed to check integration status" });
+    }
+  });
+
   // Mount 10-feature endpoints
   app.use(featuresRouter);
 
