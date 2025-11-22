@@ -44,6 +44,8 @@ import AdminUserManagement from "@/pages/AdminUserManagement";
 import AdminSystemSettings from "@/pages/AdminSystemSettings";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ResearchersDashboard from "@/pages/ResearchersDashboard";
+import ResearchManagement from "@/pages/ResearchManagement";
+import DataIngestion from "@/pages/DataIngestion";
 import VerifyEmail from "@/pages/VerifyEmail";
 import CompanyVerifyEmail from "@/pages/CompanyVerifyEmail";
 import NotFound from "@/pages/not-found";
@@ -107,14 +109,14 @@ function AppRouter() {
       <Route path="/recruiting/settings" component={() => <RecruitingApp><Settings /></RecruitingApp>} />
       
       {/* Researchers Portal Routes */}
-      <Route path="/researchers" component={() => <ResearchersApp><Admin /></ResearchersApp>} />
+      <Route path="/researchers" component={() => <ResearchersApp><ResearchersDashboard /></ResearchersApp>} />
       <Route path="/researchers/companies" component={() => <ResearchersApp><Companies /></ResearchersApp>} />
       <Route path="/researchers/companies/:id" component={() => <ResearchersApp><CompanyDetail /></ResearchersApp>} />
       <Route path="/researchers/candidates" component={() => <ResearchersApp><Candidates /></ResearchersApp>} />
       <Route path="/researchers/candidates/:id" component={() => <ResearchersApp><CandidateDetail /></ResearchersApp>} />
-      <Route path="/researchers/staging" component={() => <ResearchersApp><Staging /></ResearchersApp>} />
-      <Route path="/researchers/bulk-upload" component={() => <ResearchersApp><AdminBulkUpload /></ResearchersApp>} />
+      <Route path="/researchers/research-management" component={() => <ResearchersApp><ResearchManagement /></ResearchersApp>} />
       <Route path="/researchers/quality-management" component={() => <ResearchersApp><DatabaseManagement /></ResearchersApp>} />
+      <Route path="/researchers/data-ingestion" component={() => <ResearchersApp><DataIngestion /></ResearchersApp>} />
       
       {/* Admin Portal Routes */}
       <Route path="/admin" component={() => <AdminApp><AdminDashboard /></AdminApp>} />

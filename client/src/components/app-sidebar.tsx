@@ -1,4 +1,4 @@
-import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database } from "lucide-react";
+import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database, Search } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -42,9 +42,9 @@ const researcherItems = [
   { title: "Dashboard", url: "/researchers", icon: BarChart3 },
   { title: "Companies", url: "/researchers/companies", icon: Building2 },
   { title: "Candidates", url: "/researchers/candidates", icon: Users },
-  { title: "Staging", url: "/researchers/staging", icon: Clock },
-  { title: "Bulk Upload", url: "/researchers/bulk-upload", icon: Upload },
+  { title: "Research Management", url: "/researchers/research-management", icon: Search },
   { title: "Quality Management", url: "/researchers/quality-management", icon: Database },
+  { title: "Data Ingestion", url: "/researchers/data-ingestion", icon: Upload },
 ];
 
 // Admin - Pure system administration
