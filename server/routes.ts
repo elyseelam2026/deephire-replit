@@ -23,7 +23,7 @@ import { startPromiseWorker } from "./promise-worker";
 import { detectPromise, createPromiseFromConversation } from "./promise-detection";
 import featuresRouter from "./features";
 import { fileTypeFromBuffer } from 'file-type';
-import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium, jobListings, candidateJobRecommendations, verificationCodes } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertCompanySchema, verificationResults, jobCandidates, jobs, companies, candidateClues, candidatePremium, jobListings, candidateJobRecommendations, verificationCodes, systemIntegrations } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { getTurnaroundOptions, calculateEstimatedFee, getTurnaroundByLevel, computeJobPricing } from "@shared/pricing";

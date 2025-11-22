@@ -107,8 +107,8 @@ export default function AdminSystemSettings() {
     dbSize: 2.34
   };
 
-  // Map integrations with real status from backend
-  const integrationsList = [
+  // Integration list with status mapping
+  const integrationDefinitions = [
     { id: "sendgrid", name: "SendGrid", desc: "Transactional email", icon: "📧" },
     { id: "twilio", name: "Twilio", desc: "SMS notifications", icon: "📱" },
     { id: "xai", name: "xAI Grok", desc: "AI-powered analysis", icon: "🤖" },
@@ -120,7 +120,7 @@ export default function AdminSystemSettings() {
     { id: "stripe", name: "Stripe", desc: "Payment processing", icon: "💳" },
   ];
 
-  const integrations = integrationsList.map(svc => ({
+  const integrations = integrationDefinitions.map((svc: any) => ({
     ...svc,
     status: integrationStatus?.[svc.id as keyof typeof integrationStatus] ? "connected" : "disconnected"
   }));
@@ -527,7 +527,7 @@ export default function AdminSystemSettings() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                integrations.map((service, i) => (
+                integrations.map((service: any, i: number) => (
                   <div key={i} className="p-4 border rounded-lg space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
