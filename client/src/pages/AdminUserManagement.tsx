@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Plus, Trash2, Edit2, LogOut, Shield, Activity, Search } from "lucide-react";
+import { Users, Plus, Trash2, Edit2, LogOut, Shield, Activity, Search, Upload, Download, CheckCircle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,6 +52,13 @@ export default function AdminUserManagement() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
+  const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
+  const [importingBulk, setImportingBulk] = useState(false);
+  const [bulkImportJobs, setBulkImportJobs] = useState([
+    { id: 1, fileName: "recruiting_team_q4.csv", team: "Enterprise", status: "completed", successfulRecords: 15, failedRecords: 0, uploadedAt: "2 days ago" },
+    { id: 2, fileName: "sales_team_expansion.csv", team: "Growth", status: "completed", successfulRecords: 8, failedRecords: 2, uploadedAt: "1 week ago" },
+  ]);
   const [formData, setFormData] = useState({
     name: "",
     email: "",

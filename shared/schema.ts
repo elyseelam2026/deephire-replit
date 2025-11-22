@@ -1196,6 +1196,35 @@ export const rolePermissions = pgTable("role_permissions", {
   permissions: text("permissions").array().notNull(), // ['view_candidates', 'edit_candidates', 'post_jobs', 'view_analytics', 'manage_users']
 });
 
+// User invitations for bulk onboarding
+export const userInvitations = pgTable("user_invitations", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  email: text("email").notNull(),
+  invitedBy: integer("invited_by").references(() => users.id),
+  role: text("role").notNull(),
+  team: text("team"),
+  status: text("status").default("pending").notNull(), // pending, accepted, expired
+  invitationToken: text("invitation_token").notNull().unique(),
+  invitationSentAt: timestamp("invitation_sent_at").default(sql`now()`).notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+// Bulk user import jobs tracking
+export const bulkUserImportJobs = pgTable("bulk_user_import_jobs", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  fileName: text("file_name").notNull(),
+  uploadedById: integer("uploaded_by_id").references(() => users.id).notNull(),
+  team: text("team").notNull(),
+  status: text("status").default("processing").notNull(), // processing, completed, failed
+  totalRecords: integer("total_records").default(0),
+  successfulRecords: integer("successful_records").default(0),
+  failedRecords: integer("failed_records").default(0),
+  errorDetails: jsonb("error_details"), // array of {row, email, error}
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
 // Data ingestion jobs - tracks bulk upload operations
 export const dataIngestionJobs = pgTable("data_ingestion_jobs", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
