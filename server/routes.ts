@@ -6602,33 +6602,120 @@ CRITICAL RULES - You MUST follow these strictly:
       const jobId = parseInt(req.params.jobId);
       const { depthTarget, napContext, hardSkills, softSkills } = req.body;
 
+      // Fetch job details
+      const jobData = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+      if (!jobData.length) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      const job = jobData[0];
+
       // Create new sourcing run
       const result = await db
         .insert(sourcingRuns)
         .values({
           jobId,
           searchType: "linkedin_people_search",
-          searchIntent: napContext || "AI-powered candidate search",
-          status: "queued",
+          searchIntent: napContext || `Sourcing for ${job.title}`,
+          status: "searching",
           depthTarget: depthTarget || "standard_25",
           minHardSkillScore: depthTarget === "elite_8" ? 88 : depthTarget === "elite_15" ? 84 : depthTarget === "deep_60" ? 66 : depthTarget === "market_scan" ? 58 : 76,
           minQualityPercentage: 68,
           targetQualityCount: depthTarget === "elite_8" ? 8 : depthTarget === "elite_15" ? 15 : depthTarget === "deep_60" ? 60 : depthTarget === "market_scan" ? 150 : 25,
           maxBudgetUsd: depthTarget === "elite_8" ? 149 : depthTarget === "elite_15" ? 199 : depthTarget === "deep_60" ? 149 : depthTarget === "market_scan" ? 179 : 129,
           progress: {
-            phase: "queued",
-            message: "Sourcing job queued and waiting to start"
+            phase: "searching",
+            message: "Generating Boolean search queries...",
+            profilesFound: 0,
+            profilesFetched: 0,
+            profilesProcessed: 0,
+            candidatesCreated: 0,
+            candidatesDuplicate: 0,
+            currentBatch: 0,
+            totalBatches: 0
           },
           createdAt: new Date(),
           updatedAt: new Date()
         })
         .returning();
 
+      const sourcingRunId = result[0]?.id;
+
+      // Start sourcing asynchronously (fire and forget)
+      setImmediate(async () => {
+        try {
+          // Phase 1: Generate search strategy using NAP context
+          console.log(`🎯 [Sourcing] Phase 1: Generating search queries for run #${sourcingRunId}`);
+          const strategy = await generateSearchStrategy({
+            title: job.title || "",
+            skills: hardSkills || [],
+            industry: job.industry,
+            location: job.location,
+            yearsExperience: job.experienceYears,
+            urgency: "high",
+            successCriteria: napContext || "Find top candidates",
+            searchTier: "external"
+          });
+
+          // Phase 2: Execute LinkedIn searches using SerpAPI
+          console.log(`🔍 [Sourcing] Phase 2: Searching LinkedIn profiles`);
+          const searchResults = await searchLinkedInPeople({
+            booleanQuery: strategy.steps.join(" "),
+            title: job.title,
+            location: job.location,
+            keywords: hardSkills || []
+          }, 100);
+
+          // Update progress
+          await db
+            .update(sourcingRuns)
+            .set({
+              profileUrls: searchResults.profiles.map(p => p.url),
+              progress: {
+                phase: "fetching",
+                message: `Found ${searchResults.profiles.length} candidates, starting profile fetching...`,
+                profilesFound: searchResults.profiles.length,
+                profilesFetched: 0,
+                profilesProcessed: 0,
+                candidatesCreated: 0,
+                candidatesDuplicate: 0,
+                currentBatch: 0,
+                totalBatches: Math.ceil(searchResults.profiles.length / 5)
+              },
+              updatedAt: new Date()
+            })
+            .where(eq(sourcingRuns.id, sourcingRunId));
+
+          console.log(`✅ [Sourcing] Queued for orchestration - run #${sourcingRunId}`);
+        } catch (error) {
+          console.error(`❌ [Sourcing] Error in run #${sourcingRunId}:`, error);
+          await db
+            .update(sourcingRuns)
+            .set({
+              status: "failed",
+              progress: {
+                phase: "failed",
+                message: error instanceof Error ? error.message : "Unknown error",
+                profilesFound: 0,
+                profilesFetched: 0,
+                profilesProcessed: 0,
+                candidatesCreated: 0,
+                candidatesDuplicate: 0,
+                currentBatch: 0,
+                totalBatches: 0
+              },
+              updatedAt: new Date()
+            })
+            .where(eq(sourcingRuns.id, sourcingRunId));
+        }
+      });
+
       res.json({ 
         success: true, 
-        sourcingRunId: result[0]?.id,
+        sourcingRunId,
         depthTarget,
-        estimatedCost: depthTarget === "elite_8" ? 149 : depthTarget === "elite_15" ? 199 : depthTarget === "deep_60" ? 149 : depthTarget === "market_scan" ? 179 : 129
+        estimatedCost: depthTarget === "elite_8" ? 149 : depthTarget === "elite_15" ? 199 : depthTarget === "deep_60" ? 149 : depthTarget === "market_scan" ? 179 : 129,
+        message: "Sourcing started - check status for progress"
       });
     } catch (error) {
       console.error("Error starting sourcing:", error);

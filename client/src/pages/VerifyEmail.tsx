@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,17 +17,20 @@ const verifySchema = z.object({
 
 type VerifyFormData = z.infer<typeof verifySchema>;
 
-interface VerifyEmailProps {
-  email: string;
-  onVerified: () => void;
-}
-
-export default function VerifyEmail({ email, onVerified }: VerifyEmailProps) {
+export default function VerifyEmail() {
+  const { candidateId } = useParams<{ candidateId: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isResending, setIsResending] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [devCode, setDevCode] = useState<string | null>(null);
+  
+  // Fetch candidate data to get email
+  const { data: candidateData, isLoading } = useQuery({
+    queryKey: [`/api/candidate/${candidateId}`],
+  });
+
+  const email = (candidateData as any)?.email || "";
 
   const form = useForm<VerifyFormData>({
     resolver: zodResolver(verifySchema),
@@ -34,7 +38,9 @@ export default function VerifyEmail({ email, onVerified }: VerifyEmailProps) {
   });
 
   useEffect(() => {
-    // Auto-send code on mount
+    // Auto-send code on mount if email is loaded
+    if (!email) return;
+
     const sendCode = async () => {
       try {
         const response = await fetch("/api/send-verification", {
@@ -73,7 +79,7 @@ export default function VerifyEmail({ email, onVerified }: VerifyEmailProps) {
         title: "Success!",
         description: "Email verified successfully",
       });
-      onVerified();
+      setLocation(`/candidate/dashboard/${candidateId}`);
     } catch (error) {
       toast({
         title: "Error",

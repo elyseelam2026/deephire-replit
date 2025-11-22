@@ -71,8 +71,8 @@ export default function CandidateDashboard() {
             </div>
             <h2 className="text-xl font-bold mb-2">Email Verification Required</h2>
             <p className="text-muted-foreground mb-4">Please verify your email before accessing job recommendations</p>
-            <button onClick={() => setLocation("/candidate/register")} className="text-blue-600 hover:underline">
-              Back to Registration
+            <button onClick={() => setLocation(`/candidate/verify-email/${candidateId}`)} className="text-blue-600 hover:underline">
+              Verify Email
             </button>
           </CardContent>
         </Card>
