@@ -9509,6 +9509,63 @@ Provide brief analysis and recommendation.`;
     }
   });
 
+  // ============ CANDIDATE TENANT (PATH B) ============
+  // Candidates create their own private account/tenant
+  app.post("/api/candidates/create-account", async (req, res) => {
+    try {
+      const { name, email, slug } = req.body;
+      
+      // Create user first
+      const passwordHash = await import("bcryptjs").then(bcrypt => 
+        bcrypt.hash("temp-password-123", 10)
+      );
+      const user = await storage.createUser({
+        email,
+        passwordHash,
+        name,
+        role: "candidate",
+      });
+
+      // Create candidate tenant (type: 'candidate')
+      const candidateTenant = await storage.createTenant({
+        name: `${name}'s Account`,
+        slug: slug || `candidate-${user.id}`,
+        type: "candidate",
+        ownerUserId: user.id,
+        tier: "basic",
+      });
+
+      // Add candidate as member of their own tenant
+      await storage.addTenantMember(candidateTenant.id, user.id, "owner");
+
+      // Update user to be part of their tenant
+      await storage.updateUser(user.id, { tenantId: candidateTenant.id });
+
+      res.json({ 
+        user: { ...user, tenantId: candidateTenant.id }, 
+        tenant: candidateTenant 
+      });
+    } catch (error) {
+      console.error("Create candidate account error:", error);
+      res.status(400).json({ error: "Failed to create candidate account" });
+    }
+  });
+
+  // Get candidate's own tenant
+  app.get("/api/candidates/:userId/account", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const user = await storage.getUser(userId);
+      if (!user || !user.tenantId) {
+        return res.status(404).json({ error: "Candidate account not found" });
+      }
+      const tenant = await storage.getTenant(user.tenantId);
+      res.json({ user, tenant });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to fetch candidate account" });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Start the promise worker to execute AI commitments
