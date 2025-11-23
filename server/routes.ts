@@ -9447,8 +9447,8 @@ Provide brief analysis and recommendation.`;
   // ============ MULTI-TENANT MANAGEMENT ============
   app.post("/api/tenants/create", async (req, res) => {
     try {
-      const { name, slug, type, createdBy } = req.body;
-      const tenant = await storage.createTenant({ name, slug, type, tier: "standard", createdBy });
+      const { name, slug, type, ownerUserId } = req.body;
+      const tenant = await storage.createTenant({ name, slug, type, tier: "standard", ownerUserId });
       res.json(tenant);
     } catch (error) {
       console.error("Create tenant error:", error);

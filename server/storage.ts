@@ -54,6 +54,10 @@ export interface IStorage {
   getCompanyJobsForTenant(companyId: number, tenantCompanyId: number): Promise<Job[]>;
   getCandidatesForTenant(tenantCompanyId: number): Promise<Candidate[]>;
   getTeamMembersForTenant(companyId: number): Promise<User[]>;
+
+  async getCompanyJobsForTenant(companyId: number, tenantCompanyId: number): Promise<Job[]>;
+  async getCandidatesForTenant(tenantCompanyId: number): Promise<Candidate[]>;
+  async getTeamMembersForTenant(companyId: number): Promise<User[]>;
   
   // Company Staging (AI-powered deduplication)
   createCompanyStaging(staging: InsertCompanyStaging): Promise<CompanyStaging>;
