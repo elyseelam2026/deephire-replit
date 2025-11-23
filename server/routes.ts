@@ -9344,3 +9344,128 @@ Provide brief analysis and recommendation.`;
   
   return httpServer;
 }
+  // Data Ingestion Endpoints
+  
+  // POST /api/data-ingestion/quick-add - Add single candidate
+  app.post("/api/data-ingestion/quick-add", async (req, res) => {
+    try {
+      const { firstName, lastName, email, company, title } = req.body;
+      
+      const result = await db.insert(schema.candidates).values({
+        firstName,
+        lastName,
+        email,
+        currentCompanyName: company,
+        title,
+        sourceType: "manual_entry",
+        status: "active",
+      }).returning();
+      
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Quick add error:", error);
+      res.status(400).json({ error: "Failed to add candidate" });
+    }
+  });
+
+  // POST /api/data-ingestion/quick-add-company - Add single company
+  app.post("/api/data-ingestion/quick-add-company", async (req, res) => {
+    try {
+      const { name, industry, location } = req.body;
+      
+      const result = await db.insert(schema.companies).values({
+        name,
+        industry,
+        location,
+        companyType: "source",
+        status: "verified",
+      }).returning();
+      
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Quick add company error:", error);
+      res.status(400).json({ error: "Failed to add company" });
+    }
+  });
+
+  // POST /api/data-ingestion/bulk-candidates - Bulk upload candidates
+  app.post("/api/data-ingestion/bulk-candidates", upload.single("file"), async (req: MulterRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      let data: any[] = [];
+      const fileType = await detectFileType(req.file);
+
+      if (fileType === "csv") {
+        const csvText = req.file.buffer.toString("utf-8");
+        data = await parseCsvStructuredData(csvText);
+      } else if (fileType === "excel") {
+        data = await parseExcelData(req.file.buffer);
+      }
+
+      let count = 0;
+      for (const row of data) {
+        try {
+          await db.insert(schema.candidates).values({
+            firstName: row.firstName || row.first_name || "",
+            lastName: row.lastName || row.last_name || "",
+            email: row.email || "",
+            currentCompanyName: row.company || row.currentCompany,
+            title: row.title || row.jobTitle,
+            sourceType: "bulk_import",
+            status: "active",
+          });
+          count++;
+        } catch (e) {
+          // Skip duplicate or invalid rows
+        }
+      }
+
+      res.json({ count, total: data.length, message: `${count} candidates imported` });
+    } catch (error) {
+      console.error("Bulk candidates error:", error);
+      res.status(400).json({ error: "Failed to upload candidates" });
+    }
+  });
+
+  // POST /api/data-ingestion/bulk-companies - Bulk upload companies
+  app.post("/api/data-ingestion/bulk-companies", upload.single("file"), async (req: MulterRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      let data: any[] = [];
+      const fileType = await detectFileType(req.file);
+
+      if (fileType === "csv") {
+        const csvText = req.file.buffer.toString("utf-8");
+        data = await parseCsvStructuredData(csvText);
+      } else if (fileType === "excel") {
+        data = await parseExcelData(req.file.buffer);
+      }
+
+      let count = 0;
+      for (const row of data) {
+        try {
+          await db.insert(schema.companies).values({
+            name: row.name || row.companyName || "",
+            industry: row.industry,
+            location: row.location,
+            companyType: "source",
+            status: "verified",
+          });
+          count++;
+        } catch (e) {
+          // Skip duplicate or invalid rows
+        }
+      }
+
+      res.json({ count, total: data.length, message: `${count} companies imported` });
+    } catch (error) {
+      console.error("Bulk companies error:", error);
+      res.status(400).json({ error: "Failed to upload companies" });
+    }
+  });
