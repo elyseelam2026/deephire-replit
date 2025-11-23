@@ -9444,6 +9444,71 @@ Provide brief analysis and recommendation.`;
     }
   });
 
+  // ============ MULTI-TENANT MANAGEMENT ============
+  app.post("/api/tenants/create", async (req, res) => {
+    try {
+      const { name, slug, type, createdBy } = req.body;
+      const tenant = await storage.createTenant({ name, slug, type, tier: "standard", createdBy });
+      res.json(tenant);
+    } catch (error) {
+      console.error("Create tenant error:", error);
+      res.status(400).json({ error: "Failed to create tenant" });
+    }
+  });
+
+  app.get("/api/tenants/:id", async (req, res) => {
+    try {
+      const tenant = await storage.getTenant(parseInt(req.params.id));
+      if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+      res.json(tenant);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to fetch tenant" });
+    }
+  });
+
+  app.post("/api/invitations/send", async (req, res) => {
+    try {
+      const { tenantId, email, role, invitedBy } = req.body;
+      const token = require("crypto").randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      
+      const invitation = await storage.createTenantInvitation({
+        tenantId,
+        email,
+        role,
+        invitationToken: token,
+        status: "pending",
+        expiresAt,
+        invitedBy,
+      });
+      
+      res.json({ invitation, token });
+    } catch (error) {
+      console.error("Send invitation error:", error);
+      res.status(400).json({ error: "Failed to send invitation" });
+    }
+  });
+
+  app.post("/api/invitations/accept", async (req, res) => {
+    try {
+      const { token, userId } = req.body;
+      const user = await storage.acceptTenantInvitation(token, userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Accept invitation error:", error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  app.get("/api/tenants/:id/members", async (req, res) => {
+    try {
+      const members = await storage.getTenantMembers(parseInt(req.params.id));
+      res.json(members);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to fetch tenant members" });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Start the promise worker to execute AI commitments
