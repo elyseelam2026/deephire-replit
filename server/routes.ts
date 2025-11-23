@@ -9393,7 +9393,7 @@ Provide brief analysis and recommendation.`;
           firstName: row.firstName || row.first_name || "Unknown",
           lastName: row.lastName || row.last_name || "Unknown",
           email: row.email || `user${count}@example.com`,
-        });
+        } as any);
       }
 
       if (valuesToInsert.length > 0) {
@@ -9429,7 +9429,7 @@ Provide brief analysis and recommendation.`;
       for (const row of data) {
         valuesToInsert.push({
           name: row.name || row.companyName || "Unknown Company",
-        });
+        } as any);
       }
 
       if (valuesToInsert.length > 0) {

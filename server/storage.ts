@@ -54,10 +54,7 @@ export interface IStorage {
   getCompanyJobsForTenant(companyId: number, tenantCompanyId: number): Promise<Job[]>;
   getCandidatesForTenant(tenantCompanyId: number): Promise<Candidate[]>;
   getTeamMembersForTenant(companyId: number): Promise<User[]>;
-
-  async getCompanyJobsForTenant(companyId: number, tenantCompanyId: number): Promise<Job[]>;
-  async getCandidatesForTenant(tenantCompanyId: number): Promise<Candidate[]>;
-  async getTeamMembersForTenant(companyId: number): Promise<User[]>;
+  updateUser(id: number, updates: Partial<InsertUser>): Promise<User | undefined>;
   
   // Company Staging (AI-powered deduplication)
   createCompanyStaging(staging: InsertCompanyStaging): Promise<CompanyStaging>;
@@ -282,6 +279,14 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async updateUser(id: number, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const [user] = await db.update(users)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
   // Multi-tenant: Get user's tenant context
   async getUserTenant(userId: number): Promise<TenantContext | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -325,6 +330,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCompany(id: number): Promise<void> {
     await db.delete(companies).where(eq(companies.id, id));
+  }
+
+  async getCompanyJobsForTenant(companyId: number, tenantCompanyId: number): Promise<Job[]> {
+    return await db.select().from(jobs)
+      .where(and(eq(jobs.companyId, companyId), eq(jobs.companyId, tenantCompanyId)))
+      .orderBy(desc(jobs.createdAt));
+  }
+
+  async getCandidatesForTenant(tenantCompanyId: number): Promise<Candidate[]> {
+    return await db.select().from(candidates)
+      .where(eq(candidates.companyId, tenantCompanyId))
+      .orderBy(desc(candidates.createdAt));
+  }
+
+  async getTeamMembersForTenant(companyId: number): Promise<User[]> {
+    return await db.select().from(users)
+      .where(eq(users.companyId, companyId))
+      .orderBy(users.name);
   }
 
   async getChildCompanies(parentCompanyId: number): Promise<Company[]> {
