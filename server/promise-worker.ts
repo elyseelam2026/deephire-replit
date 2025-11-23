@@ -322,51 +322,62 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       return;
     }
     
-    // Only mark as completed if candidates were actually found
-    const promiseStatus = candidateIds.length > 0 ? 'completed' : 'failed';
+    // Determine status based on results
+    let promiseStatus: string;
+    let deliveryMessage: string;
+    
+    if (candidateIds.length > 0) {
+      // Found candidates - mark as completed
+      promiseStatus = 'completed';
+      deliveryMessage = `✅ **Your ${promise.searchParams.title || 'search'} longlist is ready!**\n\n` +
+        `I've found **${candidateIds.length} qualified candidates** and created Job Order #${jobId}.\n\n` +
+        `🔗 **[View Candidate Pipeline →](jobs/${jobId})**\n\n` +
+        `You can now review candidates, move them through stages, and manage this search.`;
+      console.log(`[Promise Worker] ✅ Promise #${promiseId} completed successfully with ${candidateIds.length} candidates`);
+    } else {
+      // No candidates found - need to discuss with client to refine search
+      promiseStatus = 'needs_discussion';
+      deliveryMessage = `⚠️ **Search Refinement Needed**\n\n` +
+        `I searched for **${promise.searchParams.title || 'candidates'}** but didn't find any matches with the current criteria.\n\n` +
+        `Let's refine the search direction together. Can you help me understand:\n` +
+        `• Are the experience/seniority requirements realistic for the market?\n` +
+        `• Should we expand the location or industry scope?\n` +
+        `• Are there alternative titles or related skills we should consider?\n` +
+        `• Any specific companies or profiles we should be sourcing from?\n\n` +
+        `Once you provide feedback, I'll adjust the search strategy and try again.`;
+      console.log(`[Promise Worker] 🔄 Promise #${promiseId} marked as NEEDS_DISCUSSION - initiating client feedback loop`);
+    }
     
     // Update promise status
     await storage.updateSearchPromise(promiseId, {
       status: promiseStatus,
-      completedAt: new Date(),
-      jobId,
+      completedAt: candidateIds.length > 0 ? new Date() : undefined,
+      jobId: candidateIds.length > 0 ? jobId : undefined,
       candidatesFound: candidateIds.length,
-      candidateIds,
+      candidateIds: candidateIds.length > 0 ? candidateIds : undefined,
       executionLog: [
         ...(latestPromise.executionLog || []),
         {
           timestamp: new Date().toISOString(),
-          event: 'search_completed',
+          event: candidateIds.length > 0 ? 'search_completed' : 'search_zero_results',
           details: {
             searchType: sourcingRunId ? 'external_linkedin' : 'internal_database',
             candidatesFound: candidateIds.length,
             sourcingRunId: sourcingRunId || undefined,
-            jobId,
+            jobId: candidateIds.length > 0 ? jobId : undefined,
             status: promiseStatus,
             message: candidateIds.length > 0 
               ? `Successfully found ${candidateIds.length} candidates` 
-              : 'No candidates found matching criteria'
+              : 'No candidates found - initiating client discussion to refine search'
           }
         }
       ]
     });
     
-    if (candidateIds.length > 0) {
-      console.log(`[Promise Worker] ✅ Promise #${promiseId} completed successfully with ${candidateIds.length} candidates`);
-    } else {
-      console.log(`[Promise Worker] ❌ Promise #${promiseId} marked as FAILED - no candidates found`);
-    }
-    
     // ✉️ SEND RESULTS BACK TO CONVERSATION
     try {
       const conversation = await storage.getConversation(promise.conversationId);
       if (conversation && conversation.messages) {
-        const deliveryMessage = candidateIds.length > 0
-          ? `✅ **Your ${promise.searchParams.title || 'search'} longlist is ready!**\n\n` +
-            `I've found **${candidateIds.length} qualified candidates** and created Job Order #${jobId}.\n\n` +
-            `🔗 **[View Candidate Pipeline →](jobs/${jobId})**\n\n` +
-            `You can now review candidates, move them through stages, and manage this search.`
-          : `I completed the search for ${promise.searchParams.title || 'your position'}, but unfortunately didn't find any candidates matching your criteria. Would you like me to adjust the search parameters?`;
         
         const updatedMessages = [
           ...conversation.messages,
