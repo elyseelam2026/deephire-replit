@@ -8102,57 +8102,39 @@ Keep response brief and actionable.`;
       
       if (!benchmark || benchmark.length === 0) {
         // Generate synthetic benchmark using statistical model
-        // In production, this would call Payscale API or Salary.com
-        const baseYear = new Date().getFullYear();
-        const expMultiplier = 1 + ((experience || 3) * 0.08); // 8% per year
+        const expMultiplier = 1 + ((experience || 3) * 0.08);
         
-        // Industry multipliers (relative to base)
         const industryMultiplier: Record<string, number> = {
-          "Technology": 1.25,
-          "Finance": 1.30,
-          "Healthcare": 0.95,
-          "Consulting": 1.20,
-          "Manufacturing": 0.90,
-          "Retail": 0.75,
-          "Education": 0.80,
+          "Technology": 1.25, "Finance": 1.30, "Healthcare": 0.95,
+          "Consulting": 1.20, "Manufacturing": 0.90, "Retail": 0.75, "Education": 0.80,
         };
         
-        // Location multipliers (cost of living adjustment)
         const locationMultiplier: Record<string, number> = {
-          "San Francisco": 1.40,
-          "New York": 1.35,
-          "Seattle": 1.25,
-          "Boston": 1.20,
-          "Austin": 1.10,
-          "Denver": 0.95,
-          "Chicago": 1.05,
-          "Remote": 1.00,
-          "US Average": 1.00,
+          "San Francisco": 1.40, "New York": 1.35, "Seattle": 1.25, "Boston": 1.20,
+          "Austin": 1.10, "Denver": 0.95, "Chicago": 1.05, "Remote": 1.00, "US Average": 1.00,
         };
         
-        // Base salary for mid-level (e.g., Software Engineer)
         const baseSalary = 120000;
         const indMult = industryMultiplier[industry] || 1.0;
         const locMult = locationMultiplier[location] || 1.0;
-        
         const salaryMid = Math.round(baseSalary * indMult * locMult * expMultiplier);
-        const salaryLow = Math.round(salaryMid * 0.85);
-        const salaryHigh = Math.round(salaryMid * 1.15);
         
-        benchmark = [{
+        const newBenchmark = await db.insert(schema.salaryBenchmarks).values({
           jobTitle,
           location,
           experience: experience || 3,
           industry: industry || "Technology",
-          salaryLow,
+          salaryLow: Math.round(salaryMid * 0.85),
           salaryMid,
-          salaryHigh,
-          bonus: 15, // 15% average bonus
-          equity: 2, // 2% average equity for tech
-          totalComp: Math.round(salaryMid + (salaryMid * 0.15) + (salaryMid * 0.02)),
+          salaryHigh: Math.round(salaryMid * 1.15),
+          bonus: 15,
+          equity: 2,
+          totalComp: Math.round(salaryMid * 1.17),
           dataSource: ["synthetic-model"],
           recordCount: 1,
-        }];
+          lastUpdated: new Date(),
+        }).returning();
+        benchmark = newBenchmark;
       }
       
       res.json({
@@ -8211,43 +8193,39 @@ Keep response brief and actionable.`;
       let reasoning = "Market-based offer calculated";
       let acceptanceProbability = 0.75;
       
-      if (generateConversationalResponse && candidate.currentSalaryExpectation) {
+      const salaryExpectation = (candidate.salaryExpectations as any)?.[0]?.expectation;
+      if (generateConversationalResponse && salaryExpectation) {
         try {
           const prompt = `As a hiring expert, generate an offer recommendation for:
 Candidate: ${candidate.firstName} ${candidate.lastName}
 Current Role: ${candidate.currentTitle}
-Current Salary Expectation: $${candidate.currentSalaryExpectation?.toLocaleString()}
+Salary Expectation: $${salaryExpectation?.toLocaleString() || "Unknown"}
 Market Rate for this role: $${marketSalary.toLocaleString()}
 Job Title: ${job.title}
 
-Provide:
-1. Recommended base salary
-2. Bonus percentage
-3. Equity percentage (if applicable)
-4. Acceptance probability (0-100)
-5. Brief reasoning
-
-Format as JSON.`;
+Provide: 1. Recommended base salary, 2. Bonus percentage, 3. Equity percentage, 4. Acceptance probability (0-100), 5. Brief reasoning. Format as JSON.`;
           
-          const response = await generateConversationalResponse(prompt);
-          if (response && typeof response === 'object') {
-            const parsed = typeof response === 'string' ? JSON.parse(response) : response;
-            marketSalary = parsed.baseSalary || marketSalary;
-            acceptanceProbability = (parsed.acceptanceProbability || 75) / 100;
-            reasoning = parsed.reasoning || "AI-optimized offer for maximum acceptance probability";
+          const response = await generateConversationalResponse(prompt, { context: "offer_optimization" });
+          if (response && typeof response === 'object' && 'response' in response) {
+            try {
+              const parsed = JSON.parse(response.response);
+              marketSalary = parsed.baseSalary || marketSalary;
+              acceptanceProbability = (parsed.acceptanceProbability || 75) / 100;
+              reasoning = parsed.reasoning || "AI-optimized offer";
+            } catch (e) {
+              console.warn("Could not parse xAI response");
+            }
           }
         } catch (error) {
-          console.warn("xAI offer optimization failed, using statistical model:", error);
+          console.warn("xAI offer optimization failed:", error);
         }
       }
       
-      // Statistical fallback: adjust based on candidate expectations
-      if (candidate.currentSalaryExpectation && candidate.currentSalaryExpectation > marketSalary) {
-        // Candidate expects more - high acceptance probability if we match
-        const recommendedSalary = Math.min(marketSalary * 1.15, candidate.currentSalaryExpectation);
-        acceptanceProbability = Math.min(0.95, 0.70 + (recommendedSalary / candidate.currentSalaryExpectation - 0.5));
-      } else if (candidate.currentSalaryExpectation) {
-        // Candidate expects less - very high acceptance probability
+      // Fallback: adjust based on candidate expectations
+      if (salaryExpectation && salaryExpectation > marketSalary) {
+        const recommendedSalary = Math.min(marketSalary * 1.15, salaryExpectation);
+        acceptanceProbability = Math.min(0.95, 0.70 + (recommendedSalary / salaryExpectation - 0.5));
+      } else if (salaryExpectation) {
         acceptanceProbability = 0.90 + Math.random() * 0.08;
       }
       
@@ -8355,29 +8333,25 @@ Format as JSON.`;
       // Use xAI to generate detailed reasoning if available
       if (generateConversationalResponse) {
         try {
-          const prompt = `Analyze this candidate-job fit and provide a brief assessment:
-Candidate: ${candidate.firstName} ${candidate.lastName}
-Background: ${candidate.yearsExperience} years experience as ${candidate.currentTitle}
-Skills: ${candidateSkills.join(", ")}
-
+          const prompt = `Analyze this candidate-job fit:
+Candidate: ${candidate.firstName} ${candidate.lastName}, ${candidate.yearsExperience} years as ${candidate.currentTitle}
+Skills: ${candidateSkills.join(", ") || "General"}
 Job: ${job.title}
-Required Skills: ${jobSkills.join(", ")}
+Required: ${jobSkills.join(", ") || "General"}
 
-Score this candidate's:
-1. Likelihood of 2+ year tenure (0-100)
-2. Performance rating (1-5)
-3. Key success factors
-4. Main risks
-
-Respond as JSON.`;
+Score: 1. 2+ year tenure probability, 2. Performance (1-5), 3. Success factors, 4. Risks. JSON format.`;
           
-          const response = await generateConversationalResponse(prompt);
-          if (response && typeof response === 'object') {
-            const parsed = typeof response === 'string' ? JSON.parse(response) : response;
-            reasoning = parsed.reasoning || reasoning;
+          const response = await generateConversationalResponse(prompt, { context: "predictive_scoring" });
+          if (response && typeof response === 'object' && 'response' in response) {
+            try {
+              const parsed = JSON.parse(response.response);
+              reasoning = parsed.reasoning || reasoning;
+            } catch (e) {
+              console.warn("Could not parse xAI response");
+            }
           }
         } catch (error) {
-          console.warn("xAI reasoning generation failed:", error);
+          console.warn("xAI reasoning failed:", error);
         }
       }
       
