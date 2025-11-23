@@ -9337,16 +9337,7 @@ Provide brief analysis and recommendation.`;
   // Mount 10-feature endpoints
   app.use(featuresRouter);
 
-  const httpServer = createServer(app);
-  
-  // Start the promise worker to execute AI commitments
-  startPromiseWorker();
-  
-  return httpServer;
-}
   // Data Ingestion Endpoints
-  
-  // POST /api/data-ingestion/quick-add - Add single candidate
   app.post("/api/data-ingestion/quick-add", async (req, res) => {
     try {
       const { firstName, lastName, email, company, title } = req.body;
@@ -9355,10 +9346,8 @@ Provide brief analysis and recommendation.`;
         firstName,
         lastName,
         email,
-        currentCompanyName: company,
         title,
         sourceType: "manual_entry",
-        status: "active",
       }).returning();
       
       res.json(result[0]);
@@ -9368,7 +9357,6 @@ Provide brief analysis and recommendation.`;
     }
   });
 
-  // POST /api/data-ingestion/quick-add-company - Add single company
   app.post("/api/data-ingestion/quick-add-company", async (req, res) => {
     try {
       const { name, industry, location } = req.body;
@@ -9377,8 +9365,6 @@ Provide brief analysis and recommendation.`;
         name,
         industry,
         location,
-        companyType: "source",
-        status: "verified",
       }).returning();
       
       res.json(result[0]);
@@ -9388,7 +9374,6 @@ Provide brief analysis and recommendation.`;
     }
   });
 
-  // POST /api/data-ingestion/bulk-candidates - Bulk upload candidates
   app.post("/api/data-ingestion/bulk-candidates", upload.single("file"), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
@@ -9412,10 +9397,8 @@ Provide brief analysis and recommendation.`;
             firstName: row.firstName || row.first_name || "",
             lastName: row.lastName || row.last_name || "",
             email: row.email || "",
-            currentCompanyName: row.company || row.currentCompany,
             title: row.title || row.jobTitle,
             sourceType: "bulk_import",
-            status: "active",
           });
           count++;
         } catch (e) {
@@ -9430,7 +9413,6 @@ Provide brief analysis and recommendation.`;
     }
   });
 
-  // POST /api/data-ingestion/bulk-companies - Bulk upload companies
   app.post("/api/data-ingestion/bulk-companies", upload.single("file"), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
@@ -9454,8 +9436,6 @@ Provide brief analysis and recommendation.`;
             name: row.name || row.companyName || "",
             industry: row.industry,
             location: row.location,
-            companyType: "source",
-            status: "verified",
           });
           count++;
         } catch (e) {
@@ -9469,3 +9449,11 @@ Provide brief analysis and recommendation.`;
       res.status(400).json({ error: "Failed to upload companies" });
     }
   });
+
+  const httpServer = createServer(app);
+  
+  // Start the promise worker to execute AI commitments
+  startPromiseWorker();
+  
+  return httpServer;
+}
