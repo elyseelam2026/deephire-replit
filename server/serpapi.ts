@@ -84,24 +84,103 @@ export async function searchLinkedInPeople(
   
   // Build search query - prioritize NAP Boolean query if provided
   let searchQuery: string;
+  let linkedInDomain = 'linkedin.com'; // Default domain
   
   if (params.booleanQuery) {
     // Use NAP-driven Boolean query directly (e.g., "(CFO OR \"Chief Financial Officer\") AND (M&A OR scaling)")
     searchQuery = params.booleanQuery;
     console.log(`🎯 [NAP-Driven Search] Using Boolean query: "${searchQuery}"`);
   } else {
-    // Fallback: Build simple query from individual params
+    // SMART QUERY BUILDER: Construct intelligent Boolean search
+    // Group keywords by category and use proper quoting/Boolean operators
+    
+    const titleParts: string[] = [];
+    const keywordParts: string[] = [];
+    const locationPart: string[] = [];
+    const companyPart: string[] = [];
+    
+    // 1. TITLE: Use OR for variations (e.g., "Associate" OR "Investment Associate")
+    if (params.title) {
+      // If title has multiple words, quote it
+      if (params.title.includes(' ')) {
+        titleParts.push(`"${params.title}"`);
+      } else {
+        titleParts.push(params.title);
+      }
+    }
+    
+    // 2. KEYWORDS: Group multi-word keywords with quotes, use OR between alternatives
+    if (params.keywords && params.keywords.length > 0) {
+      for (const keyword of params.keywords) {
+        if (keyword.includes(' ')) {
+          // Multi-word keyword: quote it (e.g., "private equity")
+          keywordParts.push(`"${keyword}"`);
+        } else {
+          // Single-word keyword: no quotes needed
+          keywordParts.push(keyword);
+        }
+      }
+    }
+    
+    // 3. INDUSTRY: Quote if multi-word
+    if (params.industry) {
+      if (params.industry.includes(' ')) {
+        keywordParts.push(`"${params.industry}"`);
+      } else {
+        keywordParts.push(params.industry);
+      }
+    }
+    
+    // 4. COMPANY: Quote for exact matching
+    if (params.company) {
+      companyPart.push(`"${params.company}"`);
+    }
+    
+    // 5. LOCATION: Handle regional LinkedIn domains + location filter
+    if (params.location) {
+      // Detect region from location
+      if (params.location.toLowerCase().includes('china') || 
+          params.location.toLowerCase().includes('shanghai') || 
+          params.location.toLowerCase().includes('beijing')) {
+        linkedInDomain = 'cn.linkedin.com';
+      } else if (params.location.toLowerCase().includes('france') || 
+                 params.location.toLowerCase().includes('paris')) {
+        linkedInDomain = 'fr.linkedin.com';
+      } else if (params.location.toLowerCase().includes('uk') || 
+                 params.location.toLowerCase().includes('london')) {
+        linkedInDomain = 'uk.linkedin.com';
+      } else if (params.location.toLowerCase().includes('germany') || 
+                 params.location.toLowerCase().includes('berlin')) {
+        linkedInDomain = 'de.linkedin.com';
+      }
+      
+      locationPart.push(params.location);
+    }
+    
+    // BUILD SMART QUERY with proper grouping:
+    // Format: [title OR variations] AND [keywords grouped] AND [company] [location]
     const queryParts: string[] = [];
     
-    if (params.title) queryParts.push(params.title);
-    if (params.location) queryParts.push(params.location);
-    if (params.company) queryParts.push(params.company);
-    if (params.keywords && params.keywords.length > 0) {
-      queryParts.push(...params.keywords);
+    if (titleParts.length > 0) {
+      queryParts.push(`(${titleParts.join(' OR ')})`);
+    }
+    
+    if (keywordParts.length > 0) {
+      // Group keywords with AND
+      queryParts.push(`(${keywordParts.join(' AND ')})`);
+    }
+    
+    if (companyPart.length > 0) {
+      queryParts.push(companyPart[0]);
+    }
+    
+    if (locationPart.length > 0) {
+      queryParts.push(locationPart[0]);
     }
     
     searchQuery = queryParts.join(' ');
-    console.log(`🔍 [LinkedIn People Search] Simple query: "${searchQuery}"`);
+    console.log(`🔍 [LinkedIn People Search] Smart query: "${searchQuery}"`);
+    console.log(`   LinkedIn domain: ${linkedInDomain}`);
   }
   
   if (!searchQuery.trim()) {
@@ -111,9 +190,9 @@ export async function searchLinkedInPeople(
   console.log(`   Raw fetch: ${rawFetchLimit} profiles (will filter to 12 high-quality)`);
   
   try {
-    // Use Google search with site:linkedin.com/in filter
+    // Use Google search with regional LinkedIn domain filter + Boolean operators
     // This works with basic SerpAPI plans (linkedin_people engine requires premium)
-    const linkedInQuery = `site:linkedin.com/in ${searchQuery}`;
+    const linkedInQuery = `site:${linkedInDomain}/in ${searchQuery}`;
     
     const url = new URL('https://serpapi.com/search.json');
     url.searchParams.set('api_key', apiKey);
@@ -121,7 +200,7 @@ export async function searchLinkedInPeople(
     url.searchParams.set('q', linkedInQuery);
     url.searchParams.set('num', String(Math.min(rawFetchLimit, 100)));
     
-    console.log(`   🌐 Google query: "${linkedInQuery}"`);
+    console.log(`   🌐 SerpAPI Query: "site:${linkedInDomain}/in ${searchQuery}"`);
     
     const response = await fetch(url.toString());
     
