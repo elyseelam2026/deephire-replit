@@ -9340,15 +9340,13 @@ Provide brief analysis and recommendation.`;
   // Data Ingestion Endpoints
   app.post("/api/data-ingestion/quick-add", async (req, res) => {
     try {
-      const { firstName, lastName, email, company, title } = req.body;
+      const { firstName, lastName, email, title } = req.body;
       
-      const result = await db.insert(schema.candidates).values({
-        firstName,
-        lastName,
-        email,
-        title,
-        sourceType: "manual_entry",
-      }).returning();
+      const result = await db.insert(schema.candidates).values([{
+        firstName: firstName || "",
+        lastName: lastName || "",
+        email: email || "",
+      }]).returning();
       
       res.json(result[0]);
     } catch (error) {
@@ -9361,11 +9359,9 @@ Provide brief analysis and recommendation.`;
     try {
       const { name, industry, location } = req.body;
       
-      const result = await db.insert(schema.companies).values({
-        name,
-        industry,
-        location,
-      }).returning();
+      const result = await db.insert(schema.companies).values([{
+        name: name || "",
+      }]).returning();
       
       res.json(result[0]);
     } catch (error) {
@@ -9391,19 +9387,18 @@ Provide brief analysis and recommendation.`;
       }
 
       let count = 0;
+      const valuesToInsert: any[] = [];
       for (const row of data) {
-        try {
-          await db.insert(schema.candidates).values({
-            firstName: row.firstName || row.first_name || "",
-            lastName: row.lastName || row.last_name || "",
-            email: row.email || "",
-            title: row.title || row.jobTitle,
-            sourceType: "bulk_import",
-          });
-          count++;
-        } catch (e) {
-          // Skip duplicate or invalid rows
-        }
+        valuesToInsert.push({
+          firstName: row.firstName || row.first_name || "Unknown",
+          lastName: row.lastName || row.last_name || "Unknown",
+          email: row.email || `user${count}@example.com`,
+        });
+      }
+
+      if (valuesToInsert.length > 0) {
+        await db.insert(schema.candidates).values(valuesToInsert).onConflictDoNothing();
+        count = valuesToInsert.length;
       }
 
       res.json({ count, total: data.length, message: `${count} candidates imported` });
@@ -9430,17 +9425,16 @@ Provide brief analysis and recommendation.`;
       }
 
       let count = 0;
+      const valuesToInsert: any[] = [];
       for (const row of data) {
-        try {
-          await db.insert(schema.companies).values({
-            name: row.name || row.companyName || "",
-            industry: row.industry,
-            location: row.location,
-          });
-          count++;
-        } catch (e) {
-          // Skip duplicate or invalid rows
-        }
+        valuesToInsert.push({
+          name: row.name || row.companyName || "Unknown Company",
+        });
+      }
+
+      if (valuesToInsert.length > 0) {
+        await db.insert(schema.companies).values(valuesToInsert).onConflictDoNothing();
+        count = valuesToInsert.length;
       }
 
       res.json({ count, total: data.length, message: `${count} companies imported` });

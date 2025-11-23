@@ -345,27 +345,71 @@ export default function DataIngestion() {
 
         {/* Bulk Upload Tab */}
         <TabsContent value="bulk-upload" className="space-y-4">
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Combined Bulk Upload</h2>
-            <p className="text-sm text-muted-foreground">Upload multiple files at once for candidates, companies, and team members</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-              <div className="border rounded-lg p-4 text-center">
-                <FileUp className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="font-medium">Candidates</p>
-                <p className="text-xs text-muted-foreground">CSV/Excel format</p>
+          <div className="grid grid-cols-1 gap-4">
+            {/* Candidates Card */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-2">Bulk Upload Candidates</h2>
+              <p className="text-sm text-muted-foreground mb-4">Upload CSV or Excel with columns: firstName, lastName, email</p>
+              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setCandidateFile(file);
+                  }}
+                  data-testid="input-bulk-candidate-file"
+                  className="hidden"
+                  id="bulk-candidate-file-input"
+                />
+                <label htmlFor="bulk-candidate-file-input" className="cursor-pointer">
+                  <FileUp className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm font-medium">Click to select file</p>
+                  {candidateFile && <p className="mt-2 text-sm text-green-600">{candidateFile.name}</p>}
+                </label>
               </div>
-              <div className="border rounded-lg p-4 text-center">
-                <FileUp className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="font-medium">Companies</p>
-                <p className="text-xs text-muted-foreground">CSV/Excel format</p>
+              <Button
+                onClick={() => candidateFile && candidateUploadMutation.mutate(candidateFile)}
+                disabled={!candidateFile || candidateUploadMutation.isPending}
+                className="mt-4 w-full"
+                data-testid="button-bulk-upload-candidates"
+              >
+                {candidateUploadMutation.isPending ? "Uploading..." : "Upload Candidates"}
+              </Button>
+            </Card>
+
+            {/* Companies Card */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-2">Bulk Upload Companies</h2>
+              <p className="text-sm text-muted-foreground mb-4">Upload CSV or Excel with columns: name, industry, location</p>
+              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setCompanyFile(file);
+                  }}
+                  data-testid="input-bulk-company-file"
+                  className="hidden"
+                  id="bulk-company-file-input"
+                />
+                <label htmlFor="bulk-company-file-input" className="cursor-pointer">
+                  <FileUp className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm font-medium">Click to select file</p>
+                  {companyFile && <p className="mt-2 text-sm text-green-600">{companyFile.name}</p>}
+                </label>
               </div>
-              <div className="border rounded-lg p-4 text-center">
-                <FileUp className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="font-medium">Team Members</p>
-                <p className="text-xs text-muted-foreground">CSV/Excel format</p>
-              </div>
-            </div>
-          </Card>
+              <Button
+                onClick={() => companyFile && companyUploadMutation.mutate(companyFile)}
+                disabled={!companyFile || companyUploadMutation.isPending}
+                className="mt-4 w-full"
+                data-testid="button-bulk-upload-companies"
+              >
+                {companyUploadMutation.isPending ? "Uploading..." : "Upload Companies"}
+              </Button>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
