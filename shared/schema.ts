@@ -1156,6 +1156,23 @@ export const emailOutreach = pgTable("email_outreach", {
   sentAt: timestamp("sent_at").default(sql`now()`).notNull(),
 });
 
+// Multi-tenant accounts (companies, agencies, etc.)
+export const tenants = pgTable("tenants", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // company, agency, internal
+  slug: text("slug").notNull().unique(), // URL-friendly identifier
+  domain: text("domain"), // custom domain for white-label
+  ownerUserId: integer("owner_user_id"), // Foreign key to users (set after users table)
+  logo: text("logo"), // logo URL
+  branding: jsonb("branding"), // {primaryColor, secondaryColor, ...}
+  tier: text("tier").default("basic"), // basic, professional, enterprise
+  status: text("status").default("active"), // active, suspended, archived
+  settings: jsonb("settings"), // {allowCandidateSignups, allowAgencyInvites, ...}
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
 // Users table for authentication (clients, admins, candidates)
 export const users = pgTable("users", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -1168,6 +1185,7 @@ export const users = pgTable("users", {
   team: text("team"), // team assignment for multi-team orgs
   companyId: integer("company_id").references(() => companies.id),
   candidateId: integer("candidate_id").references(() => candidates.id),
+  tenantId: integer("tenant_id").references(() => tenants.id), // Multi-tenant: which tenant this user belongs to
   isActive: boolean("is_active").default(true).notNull(),
   status: text("status").default("active").notNull(), // active, suspended, pending
   permissions: text("permissions").array().default(sql`ARRAY[]::text[]`), // feature-level permissions
@@ -1175,6 +1193,30 @@ export const users = pgTable("users", {
   loginCount: integer("login_count").default(0),
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+});
+
+// Tenant members - explicit membership tracking
+export const tenantMembers = pgTable("tenant_members", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  tenantId: integer("tenant_id").references(() => tenants.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull(), // admin, recruiter, hiring_manager, member
+  joinedAt: timestamp("joined_at").default(sql`now()`).notNull(),
+  invitedBy: integer("invited_by").references(() => users.id),
+});
+
+// Tenant invitations for onboarding new team members
+export const tenantInvitations = pgTable("tenant_invitations", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  tenantId: integer("tenant_id").references(() => tenants.id).notNull(),
+  email: text("email").notNull(),
+  role: text("role").notNull(), // admin, recruiter, hiring_manager, member
+  invitationToken: text("invitation_token").notNull().unique(),
+  invitedBy: integer("invited_by").references(() => users.id).notNull(),
+  status: text("status").default("pending"), // pending, accepted, expired, declined
+  acceptedAt: timestamp("accepted_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`now()`).notNull(),
 });
 
 // User activity audit log
