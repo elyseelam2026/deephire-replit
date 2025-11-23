@@ -1,4 +1,4 @@
-import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database, Search } from "lucide-react";
+import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database, Search, Activity } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -51,6 +51,7 @@ const researcherItems = [
 const adminItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "User Management", url: "/admin/users", icon: Users },
+  { title: "Monitoring", url: "/admin/monitoring", icon: Activity },
   { title: "System Settings", url: "/admin/system", icon: Shield },
 ];
 
