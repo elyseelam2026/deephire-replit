@@ -1958,6 +1958,78 @@ export class DatabaseStorage implements IStorage {
       .where(eq(candidates.sourcingRunId, sourcingRunId))
       .orderBy(desc(candidates.createdAt));
   }
+
+  // ============ MULTI-TENANT MANAGEMENT ============
+  async createTenant(tenant: InsertTenant): Promise<Tenant> {
+    const [created] = await db.insert(tenants).values(tenant).returning();
+    return created;
+  }
+
+  async getTenant(id: number): Promise<Tenant | undefined> {
+    const [result] = await db.select().from(tenants).where(eq(tenants.id, id));
+    return result || undefined;
+  }
+
+  async getTenantBySlug(slug: string): Promise<Tenant | undefined> {
+    const [result] = await db.select().from(tenants).where(eq(tenants.slug, slug));
+    return result || undefined;
+  }
+
+  async updateTenant(id: number, updates: Partial<InsertTenant>): Promise<Tenant | undefined> {
+    const [updated] = await db.update(tenants)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(tenants.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async addTenantMember(tenantId: number, userId: number, role: string, invitedBy?: number): Promise<TenantMember> {
+    const [created] = await db.insert(tenantMembers).values({
+      tenantId,
+      userId,
+      role,
+      invitedBy,
+    }).returning();
+    return created;
+  }
+
+  async getTenantMembers(tenantId: number): Promise<TenantMember[]> {
+    return await db.select().from(tenantMembers).where(eq(tenantMembers.tenantId, tenantId));
+  }
+
+  async createTenantInvitation(invitation: InsertTenantInvitation): Promise<TenantInvitation> {
+    const [created] = await db.insert(tenantInvitations).values(invitation).returning();
+    return created;
+  }
+
+  async getTenantInvitation(token: string): Promise<TenantInvitation | undefined> {
+    const [result] = await db.select().from(tenantInvitations)
+      .where(eq(tenantInvitations.invitationToken, token));
+    return result || undefined;
+  }
+
+  async acceptTenantInvitation(token: string, userId: number): Promise<User> {
+    const invitation = await this.getTenantInvitation(token);
+    if (!invitation) throw new Error("Invalid invitation token");
+    if (invitation.status !== "pending") throw new Error("Invitation already accepted or expired");
+    if (new Date() > invitation.expiresAt) throw new Error("Invitation expired");
+
+    // Update invitation status
+    await db.update(tenantInvitations)
+      .set({ status: "accepted", acceptedAt: new Date() })
+      .where(eq(tenantInvitations.invitationToken, token));
+
+    // Add user to tenant
+    await this.addTenantMember(invitation.tenantId, userId, invitation.role);
+
+    // Update user's tenant
+    const [updated] = await db.update(users)
+      .set({ tenantId: invitation.tenantId })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    return updated;
+  }
 }
 
 export const storage = new DatabaseStorage();
