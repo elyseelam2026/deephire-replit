@@ -39,6 +39,8 @@ export interface LinkedInSearchParams {
   booleanQuery?: string;    // NAP-driven Boolean query (takes precedence over individual params)
   prioritySignals?: string[]; // NAP priority signals for relevance filtering
   requiredKeywords?: string[]; // Must-have keywords for quality gate
+  excludeKeywords?: string[]; // Keywords to EXCLUDE (e.g., ["partner", "director"])
+  requireAllKeywords?: boolean; // If true, candidate must match ALL keywords (stricter)
 }
 
 export interface LinkedInProfileResult {
