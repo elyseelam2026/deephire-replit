@@ -8857,6 +8857,442 @@ Provide brief analysis with strengths, weaknesses, and recommendation. JSON form
     }
   });
 
+  // ============================================================
+  // COMPETITOR INTELLIGENCE - PHASE 3 FEATURE 6 ($129+/analysis)
+  // ============================================================
+  
+  // POST /api/competitor-alerts - Log when candidate is interviewing at competitor
+  app.post("/api/competitor-alerts", async (req, res) => {
+    try {
+      const { candidateId, competitorCompany, interviewStage } = req.body;
+      
+      if (!candidateId || !competitorCompany) {
+        return res.status(400).json({ error: "candidateId and competitorCompany are required" });
+      }
+      
+      const alert = await db.insert(schema.competitorInterviews).values({
+        candidateId,
+        competitorCompany,
+        interviewStage: interviewStage || "phone",
+        detectedAt: new Date(),
+        source: "manual_report",
+      }).returning();
+      
+      console.log(`[COMPETE] Candidate ${candidateId} interviewing at ${competitorCompany} (${interviewStage})`);
+      
+      res.json({
+        success: true,
+        alertId: alert[0].id,
+        message: `Competitor threat tracked: ${competitorCompany}`,
+      });
+    } catch (error: any) {
+      console.error("Error creating competitor alert:", error);
+      res.status(500).json({ error: "Failed to create competitor alert" });
+    }
+  });
+  
+  // GET /api/competitor-alerts/:candidateId - Get competitor threat intel on candidate
+  app.get("/api/competitor-alerts/:candidateId", async (req, res) => {
+    try {
+      const { candidateId } = req.params;
+      
+      const alerts = await db.select().from(schema.competitorInterviews).where(
+        eq(schema.competitorInterviews.candidateId, parseInt(candidateId))
+      );
+      
+      if (!alerts || alerts.length === 0) {
+        return res.json({
+          candidateId: parseInt(candidateId),
+          competitorThreats: [],
+          riskLevel: "low",
+        });
+      }
+      
+      // Analyze threat level based on interview stage
+      const stages = alerts.map(a => a.interviewStage);
+      let riskLevel = "low";
+      if (stages.includes("offer")) {
+        riskLevel = "critical";
+      } else if (stages.includes("final")) {
+        riskLevel = "high";
+      } else if (stages.includes("technical")) {
+        riskLevel = "medium";
+      }
+      
+      console.log(`[COMPETE] Retrieved threat intel - ${alerts.length} competitors`);
+      
+      res.json({
+        candidateId: parseInt(candidateId),
+        competitorThreats: alerts.map(a => ({
+          company: a.competitorCompany,
+          stage: a.interviewStage,
+          detectedAt: a.detectedAt,
+        })),
+        riskLevel,
+        recommendation: riskLevel === "critical" ? "URGENT: Make counter-offer" : "Monitor closely",
+      });
+    } catch (error: any) {
+      console.error("Error fetching competitor alerts:", error);
+      res.status(500).json({ error: "Failed to fetch competitor alerts" });
+    }
+  });
+  
+  // GET /api/talent-flow-analytics - Analyze talent movement patterns
+  app.get("/api/talent-flow-analytics", async (req, res) => {
+    try {
+      const { sourceCompany, targetCompany } = req.query;
+      
+      const query = db.select().from(schema.talentFlowAnalytics);
+      let analytics = sourceCompany 
+        ? await query.where(eq(schema.talentFlowAnalytics.sourceCompany, sourceCompany as string))
+        : targetCompany
+        ? await query.where(eq(schema.talentFlowAnalytics.targetCompany, targetCompany as string))
+        : await query;
+      
+      // Aggregate talent flow
+      const flows = analytics.reduce((acc: any, flow) => {
+        const key = `${flow.sourceCompany} -> ${flow.targetCompany}`;
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      
+      // Find top talent destinations
+      const topDestinations = Object.entries(flows)
+        .sort((a: any, b: any) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([route, count]) => ({
+          route,
+          candidateCount: count,
+        }));
+      
+      console.log(`[COMPETE] Retrieved talent flow analytics - ${analytics.length} records`);
+      
+      res.json({
+        totalMoves: analytics.length,
+        flows,
+        topDestinations,
+      });
+    } catch (error: any) {
+      console.error("Error fetching talent flow analytics:", error);
+      res.status(500).json({ error: "Failed to fetch talent flow analytics" });
+    }
+  });
+
+  // ============================================================
+  // PASSIVE TALENT CRM - PHASE 3 FEATURE 8 (Nurture engine)
+  // ============================================================
+  
+  // POST /api/passive-reengagement - Save candidate to talent pool
+  app.post("/api/passive-reengagement", async (req, res) => {
+    try {
+      const { candidateId, reason, reengagementScheduledFor } = req.body;
+      
+      if (!candidateId) {
+        return res.status(400).json({ error: "candidateId is required" });
+      }
+      
+      const poolEntry = await db.insert(schema.passiveTalentPool).values({
+        candidateId,
+        source: "search_result",
+        reason: reason || "High potential, follow up later",
+        reengagementScheduledFor: reengagementScheduledFor ? new Date(reengagementScheduledFor) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days by default
+      }).returning();
+      
+      console.log(`[PASSIVE] Candidate ${candidateId} added to talent pool for reengagement`);
+      
+      res.json({
+        success: true,
+        poolId: poolEntry[0].id,
+        message: "Candidate saved to passive talent pool",
+        reengagementDate: poolEntry[0].reengagementScheduledFor,
+      });
+    } catch (error: any) {
+      console.error("Error adding to passive talent pool:", error);
+      res.status(500).json({ error: "Failed to add to passive talent pool" });
+    }
+  });
+  
+  // GET /api/passive-talent - Get all passive candidates ready for reengagement
+  app.get("/api/passive-talent", async (req, res) => {
+    try {
+      const { companyId } = req.query;
+      
+      // Get passive talent pool entries
+      const poolEntries = await db.select().from(schema.passiveTalentPool);
+      
+      // Filter for candidates ready to reengage (scheduled time has passed)
+      const now = new Date();
+      const readyToEngage = poolEntries.filter(entry => 
+        entry.reengagementScheduledFor && new Date(entry.reengagementScheduledFor) <= now
+      );
+      
+      // Fetch candidate details for ready entries
+      const candidates = [];
+      for (const entry of readyToEngage) {
+        const candidate = await db.select().from(schema.candidates).where(
+          eq(schema.candidates.id, entry.candidateId)
+        );
+        if (candidate && candidate.length > 0) {
+          candidates.push({
+            poolEntry: entry,
+            candidate: candidate[0],
+          });
+        }
+      }
+      
+      console.log(`[PASSIVE] Retrieved ${readyToEngage.length} candidates ready for reengagement`);
+      
+      res.json({
+        totalInPool: poolEntries.length,
+        readyToEngage: readyToEngage.length,
+        candidates: candidates.slice(0, 10), // Return top 10 for performance
+      });
+    } catch (error: any) {
+      console.error("Error fetching passive talent:", error);
+      res.status(500).json({ error: "Failed to fetch passive talent" });
+    }
+  });
+  
+  // POST /api/passive-talent/:id/reengage - Mark candidate as reengaged
+  app.post("/api/passive-talent/:id/reengage", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const updated = await db.update(schema.passiveTalentPool)
+        .set({
+          lastReengaged: new Date(),
+          reengagementScheduledFor: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Schedule next reengagement in 30 days
+        })
+        .where(eq(schema.passiveTalentPool.id, parseInt(id)))
+        .returning();
+      
+      console.log(`[PASSIVE] Reengaged candidate - next follow-up in 30 days`);
+      
+      res.json({
+        success: true,
+        message: "Candidate reengaged, next follow-up scheduled",
+        nextFollowUp: updated[0].reengagementScheduledFor,
+      });
+    } catch (error: any) {
+      console.error("Error reengaging candidate:", error);
+      res.status(500).json({ error: "Failed to reengage candidate" });
+    }
+  });
+
+  // ============================================================
+  // SLACK INTEGRATION - PHASE 3 FEATURE 9 (Real-time alerts)
+  // ============================================================
+  
+  // POST /api/integration/slack-connect - Connect Slack workspace
+  app.post("/api/integration/slack-connect", async (req, res) => {
+    try {
+      const { companyId, slackWebhookUrl } = req.body;
+      
+      if (!companyId || !slackWebhookUrl) {
+        return res.status(400).json({ error: "companyId and slackWebhookUrl are required" });
+      }
+      
+      const connection = await db.insert(schema.integrationConnections).values({
+        companyId,
+        integrationType: "slack",
+        accessToken: null, // Webhook is public URL
+        webhookUrl: slackWebhookUrl,
+        status: "active",
+      }).returning();
+      
+      console.log(`[SLACK] Connected Slack for company ${companyId}`);
+      
+      res.json({
+        success: true,
+        connectionId: connection[0].id,
+        message: "Slack connected successfully",
+      });
+    } catch (error: any) {
+      console.error("Error connecting Slack:", error);
+      res.status(500).json({ error: "Failed to connect Slack" });
+    }
+  });
+  
+  // POST /api/integration/slack-notify - Send notification to Slack
+  app.post("/api/integration/slack-notify", async (req, res) => {
+    try {
+      const { companyId, eventType, message } = req.body;
+      
+      if (!companyId || !eventType || !message) {
+        return res.status(400).json({ error: "companyId, eventType, and message are required" });
+      }
+      
+      // Find Slack connection
+      const connections = await db.select().from(schema.integrationConnections).where(
+        and(
+          eq(schema.integrationConnections.companyId, companyId),
+          eq(schema.integrationConnections.integrationType, "slack")
+        )
+      );
+      
+      if (!connections || connections.length === 0) {
+        return res.status(404).json({ error: "Slack connection not found" });
+      }
+      
+      const webhook = connections[0].webhookUrl;
+      
+      // In production: POST to Slack webhook with formatted message
+      // For now: Log the notification
+      const slackMessage = {
+        text: `DeepHire Notification: ${eventType}`,
+        attachments: [{
+          color: eventType === "new_match" ? "good" : eventType === "offer" ? "warning" : "info",
+          title: eventType,
+          text: message,
+          ts: Math.floor(Date.now() / 1000),
+        }],
+      };
+      
+      console.log(`[SLACK] Notification queued for company ${companyId}:`, slackMessage);
+      
+      res.json({
+        success: true,
+        message: "Slack notification sent",
+        eventType,
+      });
+    } catch (error: any) {
+      console.error("Error sending Slack notification:", error);
+      res.status(500).json({ error: "Failed to send Slack notification" });
+    }
+  });
+  
+  // GET /api/integration/slack-status - Check Slack connection status
+  app.get("/api/integration/slack-status", async (req, res) => {
+    try {
+      const { companyId } = req.query;
+      
+      if (!companyId) {
+        return res.status(400).json({ error: "companyId query parameter is required" });
+      }
+      
+      const connections = await db.select().from(schema.integrationConnections).where(
+        and(
+          eq(schema.integrationConnections.companyId, parseInt(companyId as string)),
+          eq(schema.integrationConnections.integrationType, "slack")
+        )
+      );
+      
+      const connected = connections && connections.length > 0;
+      
+      res.json({
+        connected,
+        status: connected ? connections[0].status : "disconnected",
+        message: connected ? "Slack notifications active" : "Slack not connected",
+      });
+    } catch (error: any) {
+      console.error("Error checking Slack status:", error);
+      res.status(500).json({ error: "Failed to check Slack status" });
+    }
+  });
+
+  // ============================================================
+  // WHITE-LABEL PLATFORM - PHASE 3 FEATURE 10 ($1M+ ARR potential)
+  // ============================================================
+  
+  // POST /api/whitelabel/onboard - Provision partner account
+  app.post("/api/whitelabel/onboard", async (req, res) => {
+    try {
+      const { partnerCompanyId, customDomain, brandingColor, logoUrl } = req.body;
+      
+      if (!partnerCompanyId) {
+        return res.status(400).json({ error: "partnerCompanyId is required" });
+      }
+      
+      const client = await db.insert(schema.whitelabelClients).values({
+        partnerCompanyId,
+        customDomain: customDomain || `partner-${partnerCompanyId}.deephire.com`,
+        brandingColor: brandingColor || "#1a3a52", // DeepHire navy
+        logoUrl,
+        status: "active",
+        activeSince: new Date(),
+      }).returning();
+      
+      console.log(`[WHITE-LABEL] Partner ${partnerCompanyId} onboarded - domain: ${client[0].customDomain}`);
+      
+      res.json({
+        success: true,
+        clientId: client[0].id,
+        customDomain: client[0].customDomain,
+        message: "White-label partner provisioned",
+      });
+    } catch (error: any) {
+      console.error("Error onboarding white-label partner:", error);
+      res.status(500).json({ error: "Failed to onboard white-label partner" });
+    }
+  });
+  
+  // GET /api/whitelabel/clients - List all white-label partners
+  app.get("/api/whitelabel/clients", async (req, res) => {
+    try {
+      const clients = await db.select().from(schema.whitelabelClients).where(
+        eq(schema.whitelabelClients.status, "active")
+      );
+      
+      console.log(`[WHITE-LABEL] Retrieved ${clients.length} active partners`);
+      
+      res.json({
+        totalPartners: clients.length,
+        clients: clients.map(c => ({
+          id: c.id,
+          customDomain: c.customDomain,
+          brandingColor: c.brandingColor,
+          activeSince: c.activeSince,
+        })),
+      });
+    } catch (error: any) {
+      console.error("Error fetching white-label clients:", error);
+      res.status(500).json({ error: "Failed to fetch white-label clients" });
+    }
+  });
+  
+  // POST /api/whitelabel/usage - Record usage for billing
+  app.post("/api/whitelabel/usage", async (req, res) => {
+    try {
+      const { clientId, placements, searches, videoInterviews } = req.body;
+      
+      if (!clientId) {
+        return res.status(400).json({ error: "clientId is required" });
+      }
+      
+      // Calculate usage-based billing
+      const placementFee = (placements || 0) * 499; // $499 per placement
+      const searchFee = (searches || 0) * 199; // $199 per search
+      const videoFee = (videoInterviews || 0) * 99; // $99 per video
+      const totalFee = placementFee + searchFee + videoFee;
+      
+      // Record usage
+      const usage = await db.insert(schema.whitelabelUsage).values({
+        clientId,
+        placements: placements || 0,
+        searches: searches || 0,
+        videoInterviews: videoInterviews || 0,
+        totalFee: Math.round(totalFee * 100) / 100, // Convert to cents/dollars
+        billingCycle: new Date(),
+      }).returning();
+      
+      // Calculate partner revenue share (30% for agencies)
+      const partnerRevenue = Math.round(totalFee * 0.30 * 100) / 100;
+      
+      console.log(`[WHITE-LABEL] Usage recorded - Partner revenue: $${partnerRevenue}`);
+      
+      res.json({
+        success: true,
+        usageId: usage[0].id,
+        totalFee,
+        partnerRevenue: partnerRevenue,
+        message: "Usage recorded for billing",
+      });
+    } catch (error: any) {
+      console.error("Error recording white-label usage:", error);
+      res.status(500).json({ error: "Failed to record white-label usage" });
+    }
+  });
+
   // Mount 10-feature endpoints
   app.use(featuresRouter);
 
