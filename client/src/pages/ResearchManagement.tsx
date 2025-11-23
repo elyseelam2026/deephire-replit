@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database, Users, Checkbox as CheckboxIcon, Sliders } from "lucide-react";
+import { Search, Zap, Loader2, Link as LinkIcon, Building2, Database, Users, CheckSquare as CheckboxIcon, Sliders } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CompanyResearch } from "@/components/admin/CompanyResearch";
 import { PromiseStatus } from "@/components/admin/PromiseStatus";
