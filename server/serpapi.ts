@@ -160,7 +160,7 @@ export async function searchLinkedInPeople(
     }
     
     // BUILD SMART QUERY with proper grouping:
-    // Format: [title OR variations] AND [keywords grouped] AND [company] [location]
+    // Format: [title OR variations] AND [keywords grouped] AND [company] [location] -[exclusions]
     const queryParts: string[] = [];
     
     if (titleParts.length > 0) {
@@ -178,6 +178,16 @@ export async function searchLinkedInPeople(
     
     if (locationPart.length > 0) {
       queryParts.push(locationPart[0]);
+    }
+    
+    // ADD EXCLUSIONS (negative keywords) - e.g., -partner -director
+    if (params.excludeKeywords && params.excludeKeywords.length > 0) {
+      const excludeParts = params.excludeKeywords.map(keyword => {
+        // Prefix with minus sign for Google negative search
+        return `-"${keyword}"`;
+      });
+      queryParts.push(...excludeParts);
+      console.log(`   Excluding: ${params.excludeKeywords.join(', ')}`);
     }
     
     searchQuery = queryParts.join(' ');
@@ -272,7 +282,7 @@ export async function searchLinkedInPeople(
       const filterResults: Array<{profile: LinkedInProfileResult; result: { isRelevant: boolean; reason: string; confidence: number }}> = [];
       
       for (const profile of profiles) {
-        const result = isRelevantProfile(profile, params.prioritySignals, params.requiredKeywords);
+        const result = isRelevantProfile(profile, params.prioritySignals, params.requiredKeywords, params.excludeKeywords);
         filterResults.push({ profile, result });
         
         const confidenceLabel = result.isRelevant ? '✅ ACCEPT' : '❌ REJECT';
@@ -430,13 +440,13 @@ function sanitizeSignals(signals: string[]): string[] {
 
 /**
  * Check if profile is relevant based on NAP priority signals + required keywords
- * Uses OR logic (match EITHER signal OR keyword) to avoid over-filtering
- * SerpAPI often returns minimal snippets, so strict AND logic rejects too many valid profiles
+ * SMARTER filtering: Checks matches AND exclusions
  */
 function isRelevantProfile(
   profile: LinkedInProfileResult, 
   prioritySignals: string[], 
-  requiredKeywords: string[]
+  requiredKeywords: string[],
+  excludeKeywords?: string[]
 ): { isRelevant: boolean; reason: string; confidence: number } {
   
   // Build search text from all available fields
@@ -448,17 +458,39 @@ function isRelevantProfile(
   // Sanitize inputs
   const cleanSignals = sanitizeSignals(prioritySignals);
   const cleanKeywords = sanitizeSignals(requiredKeywords);
+  const cleanExcludes = sanitizeSignals(excludeKeywords || []);
+  
+  // FIRST: Check for EXCLUSIONS - if matched, reject immediately
+  if (cleanExcludes.length > 0) {
+    const matchedExclusions = cleanExcludes.filter(keyword => searchText.includes(keyword));
+    if (matchedExclusions.length > 0) {
+      return {
+        isRelevant: false,
+        reason: `Contains excluded keyword: ${matchedExclusions.join(', ')}`,
+        confidence: 0
+      };
+    }
+  }
   
   // Check for matches
   const matchedSignals = cleanSignals.filter(signal => searchText.includes(signal));
   const matchedKeywords = cleanKeywords.filter(keyword => searchText.includes(keyword));
   
-  // RELAXED LOGIC: Accept if matches EITHER priority signal OR required keyword
-  // This prevents over-filtering when SerpAPI returns minimal snippets
-  if (matchedSignals.length === 0 && matchedKeywords.length === 0) {
+  // STRICTER LOGIC: Require at least one match from keywords if we have keywords
+  if (cleanKeywords.length > 0 && matchedKeywords.length === 0) {
+    // If we specified keywords but matched none, reject
     return {
       isRelevant: false,
-      reason: `No matches (signals: ${cleanSignals.slice(0, 3).join(', ')}, keywords: ${cleanKeywords.slice(0, 3).join(', ')})`,
+      reason: `No keyword match (need: ${cleanKeywords.slice(0, 3).join(', ')})`,
+      confidence: 0
+    };
+  }
+  
+  // Also check if we have priority signals - at least one should match if specified
+  if (cleanSignals.length > 0 && matchedSignals.length === 0 && matchedKeywords.length === 0) {
+    return {
+      isRelevant: false,
+      reason: `No signal or keyword match`,
       confidence: 0
     };
   }
@@ -467,10 +499,13 @@ function isRelevantProfile(
   let confidence = 0;
   if (matchedSignals.length > 0 && matchedKeywords.length > 0) {
     confidence = 100; // Both matched → highest confidence
+  } else if (matchedKeywords.length > 0) {
+    // Boost confidence if we matched most keywords
+    confidence = Math.min(100, 70 + (matchedKeywords.length / cleanKeywords.length) * 30);
   } else if (matchedSignals.length > 0) {
     confidence = 80; // Priority signal matched → high confidence
   } else {
-    confidence = 60; // Only keyword matched → medium confidence
+    confidence = 50; // Fallback match
   }
   
   const matchedItems = [
@@ -481,7 +516,7 @@ function isRelevantProfile(
   return {
     isRelevant: true,
     reason: `Matched: ${matchedItems.join(', ')}`,
-    confidence
+    confidence: Math.round(confidence)
   };
 }
 
