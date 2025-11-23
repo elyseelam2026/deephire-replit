@@ -7901,6 +7901,184 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // ============================================================
+  // WAR ROOM VOTING - PHASE 1 FEATURE 1.2 ($499+/hire)
+  // ============================================================
+  
+  // POST /api/war-rooms - Create hiring committee session
+  app.post("/api/war-rooms", async (req, res) => {
+    try {
+      const { jobId, companyId, name, description, members } = req.body;
+      
+      if (!jobId || !companyId) {
+        return res.status(400).json({ error: "jobId and companyId are required" });
+      }
+      
+      const warRoom = await db.insert(schema.warRooms).values({
+        jobId,
+        companyId,
+        name: name || `War Room for Job ${jobId}`,
+        description: description || "",
+        members: members || [],
+        candidatesUnderReview: [],
+        status: "active"
+      }).returning();
+      
+      res.json(warRoom[0]);
+    } catch (error: any) {
+      console.error("Error creating war room:", error);
+      res.status(500).json({ error: "Failed to create war room" });
+    }
+  });
+
+  // POST /api/war-rooms/:warRoomId/vote - Submit committee vote
+  app.post("/api/war-rooms/:warRoomId/vote", async (req, res) => {
+    try {
+      const { warRoomId } = req.params;
+      const { candidateId, vote, reasoning, voterEmail } = req.body;
+      
+      if (!candidateId || !vote) {
+        return res.status(400).json({ error: "candidateId and vote are required" });
+      }
+      
+      const validVotes = ["strong_yes", "yes", "maybe", "no", "strong_no"];
+      if (!validVotes.includes(vote)) {
+        return res.status(400).json({ error: "Invalid vote option" });
+      }
+      
+      // Store the vote
+      const voteRecord = await db.insert(schema.warRoomVotes).values({
+        warRoomId: parseInt(warRoomId),
+        candidateId,
+        vote,
+        reasoning: reasoning || "",
+        voterEmail: voterEmail || "unknown@deephuire.com"
+      }).returning();
+      
+      res.json({ 
+        success: true, 
+        voteId: voteRecord[0].id,
+        message: `Vote recorded: ${vote}` 
+      });
+    } catch (error: any) {
+      console.error("Error recording vote:", error);
+      res.status(500).json({ error: "Failed to record vote" });
+    }
+  });
+
+  // GET /api/war-rooms/:warRoomId/summary - Get voting consensus with xAI reasoning
+  app.get("/api/war-rooms/:warRoomId/summary", async (req, res) => {
+    try {
+      const { warRoomId } = req.params;
+      
+      // Fetch all votes for this war room
+      const votes = await db.select().from(schema.warRoomVotes).where(
+        eq(schema.warRoomVotes.warRoomId, parseInt(warRoomId))
+      );
+      
+      if (votes.length === 0) {
+        return res.json({ 
+          warRoomId: parseInt(warRoomId),
+          consensusScore: 0,
+          voteBreakdown: { strong_yes: 0, yes: 0, maybe: 0, no: 0, strong_no: 0 },
+          recommendation: "No votes recorded yet",
+          aiSummary: "Waiting for committee votes..."
+        });
+      }
+      
+      // Calculate vote breakdown
+      const breakdown = {
+        strong_yes: votes.filter(v => v.vote === "strong_yes").length,
+        yes: votes.filter(v => v.vote === "yes").length,
+        maybe: votes.filter(v => v.vote === "maybe").length,
+        no: votes.filter(v => v.vote === "no").length,
+        strong_no: votes.filter(v => v.vote === "strong_no").length
+      };
+      
+      // Calculate consensus score (0-100)
+      const totalWeight = 
+        (breakdown.strong_yes * 2) + 
+        (breakdown.yes * 1) + 
+        (breakdown.maybe * 0) + 
+        (breakdown.no * -1) + 
+        (breakdown.strong_no * -2);
+      
+      const maxWeight = votes.length * 2;
+      const consensusScore = Math.round(((totalWeight + maxWeight) / (maxWeight * 2)) * 100);
+      
+      // Get candidate details for xAI context
+      const candidateIds = Array.from(new Set(votes.map(v => v.candidateId)));
+      const candidates = candidateIds.length > 0 
+        ? await db.select().from(schema.candidates).where(inArray(schema.candidates.id, candidateIds))
+        : [];
+      
+      // Prepare data for xAI reasoning
+      const voteReasons = votes
+        .filter(v => v.reasoning)
+        .map(v => `- ${v.voterEmail}: "${v.reasoning}"`)
+        .join("\n");
+      
+      let aiSummary = "";
+      
+      // Call xAI for intelligent consensus analysis if we have reasoning
+      if (voteReasons && generateConversationalResponse) {
+        try {
+          const prompt = `You are a hiring committee analysis AI. Summarize the consensus from these votes:
+          
+Vote Breakdown: ${JSON.stringify(breakdown)}
+Consensus Score: ${consensusScore}/100
+
+Committee Reasoning:
+${voteReasons}
+
+Candidates Under Review: ${candidates.map(c => `${c.firstName} ${c.lastName}`).join(", ")}
+
+Provide:
+1. Key concerns if there's disagreement
+2. Recommended next step (proceed, more interviews, pass)
+3. One sentence risk assessment
+
+Keep response brief and actionable.`;
+          
+          const response = await generateConversationalResponse(prompt);
+          aiSummary = response || "Committee is divided on this candidate";
+        } catch (error) {
+          console.warn("xAI summarization failed, using fallback:", error);
+          aiSummary = consensusScore > 60 
+            ? "Committee leans toward hiring this candidate"
+            : consensusScore < 40
+            ? "Committee leans against this candidate"
+            : "Committee is divided - more discussion needed";
+        }
+      } else {
+        aiSummary = consensusScore > 60 
+          ? "Committee leans toward hiring this candidate"
+          : consensusScore < 40
+          ? "Committee leans against this candidate"
+          : "Committee is divided - more discussion needed";
+      }
+      
+      // Recommendation based on consensus
+      let recommendation = "PASS";
+      if (consensusScore >= 70) recommendation = "PROCEED_HIRE";
+      else if (consensusScore >= 50) recommendation = "CONTINUE_INTERVIEWS";
+      else if (consensusScore <= 30) recommendation = "PASS";
+      
+      res.json({
+        warRoomId: parseInt(warRoomId),
+        totalVotes: votes.length,
+        voteBreakdown: breakdown,
+        consensusScore,
+        recommendation,
+        aiSummary,
+        unanimity: breakdown.strong_yes === votes.length || breakdown.strong_no === votes.length ? "unanimous" : "split"
+      });
+    } catch (error: any) {
+      console.error("Error fetching war room summary:", error);
+      res.status(500).json({ error: "Failed to fetch summary" });
+    }
+  });
+
   // Mount 10-feature endpoints
   app.use(featuresRouter);
 
