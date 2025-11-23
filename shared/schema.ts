@@ -2817,3 +2817,27 @@ export const systemIntegrations = pgTable("system_integrations", {
   createdAt: timestamp("created_at").default(sql`now()`),
   updatedAt: timestamp("updated_at").default(sql`now()`),
 });
+
+// ============ MULTI-TENANT SCHEMAS ============
+export const insertTenantSchema = createInsertSchema(tenants).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTenant = z.infer<typeof insertTenantSchema>;
+export type Tenant = typeof tenants.$inferSelect;
+
+export const insertTenantMembersSchema = createInsertSchema(tenantMembers).omit({
+  id: true,
+  joinedAt: true,
+});
+export type InsertTenantMember = z.infer<typeof insertTenantMembersSchema>;
+export type TenantMember = typeof tenantMembers.$inferSelect;
+
+export const insertTenantInvitationsSchema = createInsertSchema(tenantInvitations).omit({
+  id: true,
+  createdAt: true,
+  acceptedAt: true,
+});
+export type InsertTenantInvitation = z.infer<typeof insertTenantInvitationsSchema>;
+export type TenantInvitation = typeof tenantInvitations.$inferSelect;
