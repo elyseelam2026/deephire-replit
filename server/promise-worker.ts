@@ -322,9 +322,12 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       return;
     }
     
-    // Update promise as completed (using latest executionLog to preserve all events)
+    // Only mark as completed if candidates were actually found
+    const promiseStatus = candidateIds.length > 0 ? 'completed' : 'failed';
+    
+    // Update promise status
     await storage.updateSearchPromise(promiseId, {
-      status: 'completed',
+      status: promiseStatus,
       completedAt: new Date(),
       jobId,
       candidatesFound: candidateIds.length,
@@ -338,13 +341,21 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
             searchType: sourcingRunId ? 'external_linkedin' : 'internal_database',
             candidatesFound: candidateIds.length,
             sourcingRunId: sourcingRunId || undefined,
-            jobId
+            jobId,
+            status: promiseStatus,
+            message: candidateIds.length > 0 
+              ? `Successfully found ${candidateIds.length} candidates` 
+              : 'No candidates found matching criteria'
           }
         }
       ]
     });
     
-    console.log(`[Promise Worker] ✅ Promise #${promiseId} completed successfully`);
+    if (candidateIds.length > 0) {
+      console.log(`[Promise Worker] ✅ Promise #${promiseId} completed successfully with ${candidateIds.length} candidates`);
+    } else {
+      console.log(`[Promise Worker] ❌ Promise #${promiseId} marked as FAILED - no candidates found`);
+    }
     
     // ✉️ SEND RESULTS BACK TO CONVERSATION
     try {
