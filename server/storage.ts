@@ -4,6 +4,7 @@ import {
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
   companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions, searchPromises,
   sourcingRuns, candidateActivities, candidateFiles, candidateInterviews,
+  tenants, tenantMembers, tenantInvitations,
   type Company, type Job, type Candidate, type JobMatch, type JobCandidate, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertJobCandidate, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
@@ -16,7 +17,8 @@ import {
   type SearchPromise, type InsertSearchPromise,
   type SourcingRun, type InsertSourcingRun,
   type CandidateActivity, type InsertCandidateActivity, type CandidateFile, type InsertCandidateFile,
-  type CandidateInterview, type InsertCandidateInterview
+  type CandidateInterview, type InsertCandidateInterview,
+  type Tenant, type InsertTenant, type TenantMember, type InsertTenantMember, type TenantInvitation, type InsertTenantInvitation
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -154,6 +156,17 @@ export interface IStorage {
   getSearchPromisesByConversation(conversationId: number): Promise<SearchPromise[]>;
   getPendingSearchPromises(): Promise<SearchPromise[]>; // Get promises ready to execute
   updateSearchPromise(id: number, updates: Partial<InsertSearchPromise>): Promise<SearchPromise | undefined>;
+
+  // Multi-tenant management
+  createTenant(tenant: InsertTenant): Promise<Tenant>;
+  getTenant(id: number): Promise<Tenant | undefined>;
+  getTenantBySlug(slug: string): Promise<Tenant | undefined>;
+  updateTenant(id: number, updates: Partial<InsertTenant>): Promise<Tenant | undefined>;
+  addTenantMember(tenantId: number, userId: number, role: string, invitedBy?: number): Promise<TenantMember>;
+  getTenantMembers(tenantId: number): Promise<TenantMember[]>;
+  createTenantInvitation(invitation: InsertTenantInvitation): Promise<TenantInvitation>;
+  getTenantInvitation(token: string): Promise<TenantInvitation | undefined>;
+  acceptTenantInvitation(token: string, userId: number): Promise<User>;
   
   // Email outreach management  
   createEmailOutreach(outreach: InsertEmailOutreach): Promise<EmailOutreach>;
