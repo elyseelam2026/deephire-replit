@@ -45,6 +45,10 @@ export async function scoreCandidateFit(
     location?: string;
     industry?: string;
     yearsExperience?: number;
+    growthPreference?: string;     // 'leadership' or 'specialist'
+    remotePolicy?: string;         // 'remote', 'hybrid', 'onsite'
+    leadershipStyle?: string;      // leadership style context
+    competitorContext?: string;    // competitor companies
   }
 ): Promise<{
   fitScore: number;  // 0-100
@@ -53,7 +57,14 @@ export async function scoreCandidateFit(
   concerns: string[];
 }> {
   try {
-    const prompt = `You are an executive search consultant evaluating candidate fit for a client's urgent hiring need.
+    const enrichedContext = `
+**ENHANCED NAP CONTEXT (Deep Signals):**
+- Growth Trajectory: ${napContext.growthPreference || 'Not specified'} (seeking ${napContext.growthPreference === 'leadership' ? 'team builders' : napContext.growthPreference === 'specialist' ? 'deep experts' : 'flexible profile'})
+- Work Location: ${napContext.remotePolicy || 'Not specified'}
+- Leadership Style: ${napContext.leadershipStyle || 'Not specified'}
+- Competitor Talent: ${napContext.competitorContext || 'Open from any company'}`;
+
+    const prompt = `You are an elite executive search consultant evaluating candidate fit using deep NAP signals for a ${napContext.urgency === 'urgent' ? 'time-sensitive' : 'strategic'} hiring need.
 
 **CLIENT'S NEED (NAP Context):**
 - Role: ${napContext.title || 'Not specified'}
@@ -64,6 +75,7 @@ export async function scoreCandidateFit(
 - Urgency: ${napContext.urgency || 'Not specified'}
 - Success Criteria (90 days): ${napContext.successCriteria || 'Not specified'}
 - Team Dynamics: ${napContext.teamDynamics || 'Not specified'}
+${enrichedContext}
 
 **CANDIDATE PROFILE:**
 - Name: ${candidate.name}
@@ -74,16 +86,19 @@ export async function scoreCandidateFit(
 - Experience: ${candidate.experience || 'Not specified'}
 - Education: ${candidate.education || 'Not specified'}
 
-Evaluate this candidate's fit for the role. Consider:
-1. Does their background align with the urgency and success criteria?
-2. Do their skills and experience match the requirements?
-3. Would they succeed in the team dynamics described?
-4. Are there any red flags or concerns?
+Evaluate this candidate's fit using DEEP SIGNALS. Consider:
+1. **Growth Trajectory**: Does their career path match ${napContext.growthPreference === 'leadership' ? 'team-building aspirations' : napContext.growthPreference === 'specialist' ? 'deep expertise goals' : 'the role requirements'}?
+2. **Remote Fit**: Does their location/remote preference (${candidate.location || 'Unknown'}) match the ${napContext.remotePolicy || 'flexible'} policy?
+3. **Leadership Alignment**: Would they thrive under ${napContext.leadershipStyle || 'the described'} leadership style?
+4. **Competitor Signal**: ${napContext.competitorContext ? 'Are they from a target company or similar talent pool?' : 'Are they culturally aligned?'}
+5. **Core Fit**: Do skills, urgency alignment, and team dynamics work?
+
+CRITICAL: If urgency is "urgent" and ${napContext.yearsExperience && napContext.yearsExperience >= 7 ? 'they have 7+ years' : 'they meet core requirements'}, boost score 10-15 points. If remote mismatch on mandatory policy, penalize 15-20 points.
 
 Respond in JSON format:
 {
-  "fitScore": <number 0-100>,
-  "reasoning": "<1-2 sentence explanation of overall fit>",
+  "fitScore": <number 0-100, considering all signals above>,
+  "reasoning": "<2-3 sentences explaining fit considering deep signals like growth trajectory and leadership alignment>",
   "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
   "concerns": ["<concern 1>", "<concern 2>"]
 }`;

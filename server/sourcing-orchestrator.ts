@@ -214,7 +214,7 @@ export async function orchestrateProfileFetching(
             return results; // Return accumulated results (ProfileFetchResult[])
           }
           
-          // Extract NAP context
+          // Extract ENRICHED NAP context with all signals
           const parsedData = job.parsedData as any;
           const needAnalysis = job.needAnalysis as any;
           const searchStrategy = job.searchStrategy as any;
@@ -225,9 +225,15 @@ export async function orchestrateProfileFetching(
             location: parsedData?.location || undefined,
             skills: parsedData?.skills || [],
             yearsExperience: parsedData?.yearsExperience || undefined,
+            // Core NAP signals
             urgency: needAnalysis?.urgency || undefined,
             successCriteria: needAnalysis?.successCriteria || undefined,
             teamDynamics: needAnalysis?.teamDynamics || undefined,
+            // Enhanced NAP signals for richer scoring
+            growthPreference: (needAnalysis as any)?.growthPreference || undefined,  // 'leadership' or 'specialist'
+            remotePolicy: (needAnalysis as any)?.remotePolicy || undefined,          // 'remote', 'hybrid', 'onsite'
+            leadershipStyle: (needAnalysis as any)?.leadershipStyle || undefined,    // leadership style context
+            competitorContext: (needAnalysis as any)?.competitorContext || undefined, // competitor companies to target
           };
           
           // Load all candidate records
@@ -316,7 +322,7 @@ export async function orchestrateProfileFetching(
                   );
                 }
                 
-                // Grok AI scoring (for rich reasoning)
+                // Enhanced Grok AI scoring (for rich reasoning with full NAP signals)
                 const education = candidate.education as any;
                 const fitResult = await scoreCandidateFit(
                   {
@@ -333,7 +339,14 @@ export async function orchestrateProfileFetching(
                 
                 const finalFitScore = napFitResult ? napFitResult.score * 10 : fitResult.fitScore;
                 
-                // Update job_candidates with fit score
+                // CONTEXTUAL QUALITY GATE: Adjust threshold based on urgency
+                const contextualThreshold = 
+                  napContext.urgency === 'urgent' || napContext.urgency?.includes('urgent') ? 65 :  // Lower bar for urgent hires
+                  napContext.urgency === 'long-term' || napContext.urgency?.includes('long') ? 75 : // Higher bar for long-term strategic hires
+                  70; // Default threshold
+                
+                // Update job_candidates with fit score (using contextual threshold)
+                const isRecommended = finalFitScore >= contextualThreshold;
                 await db
                   .update(jobCandidates)
                   .set({
@@ -341,8 +354,8 @@ export async function orchestrateProfileFetching(
                     fitReasoning: fitResult.reasoning,
                     fitStrengths: fitResult.strengths,
                     fitConcerns: fitResult.concerns,
-                    status: finalFitScore >= FIT_SCORE_THRESHOLD ? 'recommended' : 'sourced',
-                    matchScore: finalFitScore >= FIT_SCORE_THRESHOLD ? 80 : null,
+                    status: isRecommended ? 'recommended' : 'sourced',
+                    matchScore: isRecommended ? Math.round(finalFitScore) : null,
                   })
                   .where(
                     and(
@@ -353,10 +366,10 @@ export async function orchestrateProfileFetching(
                 
                 scoredCount++;
                 
-                if (finalFitScore >= FIT_SCORE_THRESHOLD) {
-                  console.log(`   ✅ RECOMMENDED: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100`);
+                if (isRecommended) {
+                  console.log(`   ✅ RECOMMENDED: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100 (threshold: ${contextualThreshold})`);
                 } else {
-                  console.log(`   ⚠️  LOW FIT: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100`);
+                  console.log(`   ⚠️  LOW FIT: ${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle} | Fit: ${finalFitScore}/100 (threshold: ${contextualThreshold})`);
                   jobCandidatesRejected++;
                 }
                 
