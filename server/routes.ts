@@ -2667,7 +2667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hasStrongAgreement,
           hasWeakAgreement,
           userWantsToSkipQuestionsAndSearch,
-          napIsComplete,
+          allNAPQuestionsAnswered,
           userAgreedToSearch,
           hasTitle: !!updatedSearchContext.title,
           jobExists: !!conversation.jobId
