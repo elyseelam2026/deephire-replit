@@ -6819,6 +6819,98 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
+  // NAP CONFIRMATION: Accept confirmed NAP with deal-breakers & skill categories
+  app.post("/api/jobs/:jobId/nap/confirm", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const { dealBreakers, mustHaveSkills, niceToHaveSkills, seniorityLevel, additionalNotes } = req.body;
+
+      if (!jobId || isNaN(jobId)) {
+        return res.status(400).json({ error: "Invalid job ID" });
+      }
+
+      // Fetch current job
+      const jobData = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+      if (!jobData.length) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      const job = jobData[0];
+      const existingNAP = (job.needAnalysis as any) || {};
+
+      // Merge confirmed NAP with existing NAP
+      const confirmedNAP = {
+        ...existingNAP,
+        dealBreakers: dealBreakers || [],
+        mustHaveSkills: mustHaveSkills || [],
+        niceToHaveSkills: niceToHaveSkills || [],
+        seniorityLevel: seniorityLevel || existingNAP.seniorityLevel,
+        additionalNotes: additionalNotes || "",
+        confirmedAt: new Date().toISOString(),
+        confirmationStatus: "confirmed"
+      };
+
+      // Update job with confirmed NAP
+      const updatedJob = await db
+        .update(jobs)
+        .set({
+          needAnalysis: confirmedNAP,
+          updatedAt: new Date()
+        })
+        .where(eq(jobs.id, jobId))
+        .returning();
+
+      // Generate search strategy with enriched context
+      console.log(`📊 [NAP Confirmation] Generating search strategy for job #${jobId} with confirmed NAP`);
+      
+      try {
+        const { generateSearchStrategy } = await import('./nap-strategy');
+        const strategy = await generateSearchStrategy(
+          {
+            need: confirmedNAP.need || `Seeking ${job.title}`,
+            authority: confirmedNAP.authority || "Executive leadership",
+            pain: confirmedNAP.pain || "Strategic hiring need"
+          },
+          {
+            title: job.title,
+            location: confirmedNAP.location,
+            industry: (job.parsedData as any)?.industry,
+            yearsExperience: confirmedNAP.yearsExperience,
+            painPoints: confirmedNAP.pain,
+            urgency: job.urgency,
+            successCriteria: confirmedNAP.successCriteria,
+            mustHaveSignals: mustHaveSkills,
+            decisionMakerProfile: confirmedNAP.authority
+          }
+        );
+
+        // Store search strategy
+        await db
+          .update(jobs)
+          .set({
+            searchStrategy: strategy,
+            searchExecutionStatus: "planning"
+          })
+          .where(eq(jobs.id, jobId));
+
+        console.log(`✅ [NAP Confirmation] Search strategy generated for job #${jobId}`);
+      } catch (strategyError) {
+        console.error(`⚠️ [NAP Confirmation] Strategy generation failed:`, strategyError);
+        // Continue even if strategy generation fails - NAP is still confirmed
+      }
+
+      return res.json({
+        success: true,
+        job: updatedJob[0],
+        confirmedNAP,
+        message: "NAP confirmed and search strategy generated"
+      });
+    } catch (error) {
+      console.error("Error confirming NAP:", error);
+      res.status(500).json({ error: "Failed to confirm NAP" });
+    }
+  });
+
   // CLIENT PORTAL: Get sourcing status
   app.get("/api/jobs/:jobId/sourcing-status", async (req, res) => {
     try {
