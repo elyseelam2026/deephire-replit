@@ -24,7 +24,7 @@ export interface HardSkillsForSourcing {
   title: string;                       // CFO, VP Sales, etc. - REQUIRED for search
   hardSkills: string[];                // M&A, Treasury, FP&A - REQUIRED for search
   location?: string;                   // Hong Kong, SF - used for targeting
-  yearsExperience?: number;            // Min years - used for seniority targeting
+  seniorityLevel?: string;             // CFO, VP, Director - inferred from title + history, NOT years
   competitorCompanies?: string[];      // Hillhouse, Goldman, etc. - REQUIRED for competitor search
   industry?: string;                   // Finance, Tech, etc. - optional targeting
 }
@@ -70,7 +70,7 @@ export async function extractNAPAnswers(
 - Title: What exact role? (CFO, VP Sales, etc.)
 - Hard Skills: What concrete skills? (M&A, Treasury, Python, etc.) - MUST be visible on LinkedIn
 - Location: Where? (Hong Kong, SF, etc.) - visible on LinkedIn
-- Years Experience: Min years? (10+ years CFO) - visible on LinkedIn
+- Seniority: What level? (C-Suite, VP, Director) - inferred from title + company progression
 - Competitor Companies: Which firms to target? (Goldman, Hillhouse, etc.)
 
 **SOFT CONTEXT (for post-sourcing evaluation, NOT used in sourcing):**
@@ -94,7 +94,7 @@ Respond in JSON:
     "title": "string or null",
     "hardSkills": ["skill1", "skill2"],
     "location": "string or null",
-    "yearsExperience": "number or null",
+    "seniorityLevel": "string or null (e.g., CFO, VP, Director - inferred from title and context)",
     "competitorCompanies": ["company1", "company2"],
     "industry": "string or null"
   },
@@ -135,7 +135,7 @@ Respond in JSON:
         title: result.hardSkills?.title || currentHardSkills.title,
         hardSkills: [...(currentHardSkills.hardSkills || []), ...(result.hardSkills?.hardSkills || [])],
         location: result.hardSkills?.location || currentHardSkills.location,
-        yearsExperience: result.hardSkills?.yearsExperience || currentHardSkills.yearsExperience,
+        seniorityLevel: result.hardSkills?.seniorityLevel || currentHardSkills.seniorityLevel,
         competitorCompanies: [...(currentHardSkills.competitorCompanies || []), ...(result.hardSkills?.competitorCompanies || [])],
         industry: result.hardSkills?.industry || currentHardSkills.industry
       },

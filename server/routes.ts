@@ -2412,7 +2412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             title: updatedSearchContext.title,
             hardSkills: updatedSearchContext.skills || [],
             location: updatedSearchContext.location,
-            yearsExperience: updatedSearchContext.yearsExperience,
+            seniorityLevel: (updatedSearchContext as any).seniorityLevel,
             competitorCompanies: (updatedSearchContext as any).competitorContext ? [(updatedSearchContext as any).competitorContext] : [],
             industry: updatedSearchContext.industry
           },
@@ -2431,7 +2431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (extraction.hardSkills.title) updatedSearchContext.title = extraction.hardSkills.title;
         if (extraction.hardSkills.hardSkills?.length > 0) updatedSearchContext.skills = extraction.hardSkills.hardSkills;
         if (extraction.hardSkills.location) updatedSearchContext.location = extraction.hardSkills.location;
-        if (extraction.hardSkills.yearsExperience) updatedSearchContext.yearsExperience = extraction.hardSkills.yearsExperience;
+        if (extraction.hardSkills.seniorityLevel) (updatedSearchContext as any).seniorityLevel = extraction.hardSkills.seniorityLevel;
         if (extraction.hardSkills.competitorCompanies?.length > 0) (updatedSearchContext as any).competitorContext = extraction.hardSkills.competitorCompanies[0];
         if (extraction.hardSkills.industry) updatedSearchContext.industry = extraction.hardSkills.industry;
         
@@ -2457,7 +2457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `- Role: ${extraction.hardSkills.title}\n` +
             `- Hard Skills: ${extraction.hardSkills.hardSkills.join(', ')}\n` +
             `- Location: ${extraction.hardSkills.location || 'Global'}\n` +
-            `- Years: ${extraction.hardSkills.yearsExperience || 'Any'}+\n\n` +
+            `- Seniority: ${extraction.hardSkills.seniorityLevel || 'Any level'}\n\n` +
             (softImpact.coverage < 100 ? 
               `**Optional Context for Better Scoring:**\n` +
               `Still collecting: ${100 - softImpact.coverage}% of optional context (salary, success criteria, team fit, etc.).\n` +
