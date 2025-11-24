@@ -64,21 +64,52 @@ export async function getLearningIntelligence() {
         searchCount: c.searchCount,
         skills: c.skills || [],
         titles: c.titlePatterns || [],
-        industries: c.industries || []
+        industries: c.industries || [],
+        // Feature 1: Compensation Intelligence
+        salaryBands: c.salaryBands as any,
+        avgSalaryLift: c.avgSalaryLift ? Math.round(c.avgSalaryLift) : 0,
+        // Feature 3: Talent Quality Metrics
+        talentQualityScore: c.talentQualityScore ? Math.round(c.talentQualityScore) : 0,
+        avgCandidateFitScore: c.avgCandidateFitScore ? Math.round(c.avgCandidateFitScore) : 0,
+        avgTenureMonths: c.avgTenureMonths || 0,
+        successRate: c.successRate ? Math.round(c.successRate) : 0,
+        avgTimeToHireDay: c.avgTimeToHireDay || 0,
+        departmentStrength: c.departmentStrength as any,
+        promotionRate: c.promotionRate ? Math.round(c.promotionRate * 100) : 0
       })),
       industries: industryData.map(i => ({
         industry: i.industry,
         searchCount: i.searchCount,
         roles: i.typicalRoles || [],
         skills: i.commonSkills || [],
-        seniority: i.typicalSeniority || []
+        seniority: i.typicalSeniority || [],
+        // Feature 1: Compensation benchmarks
+        salaryBenchmarks: i.salaryBenchmarks as any,
+        certificationRate: i.certificationRate ? Math.round(i.certificationRate * 100) : 0,
+        // Feature 2: Career paths
+        careerPaths: i.careerPaths as any,
+        avgTimeToPromotion: i.avgTimeToPromotion || 0,
+        commonNextCompanies: i.commonNextCompanies || [],
+        // Feature 4: Geographic/Seasonal
+        geographicHubs: i.geographicHubs as any,
+        hiringPatterns: i.hiringPatterns as any,
+        talentSupply: i.talentSupply || 'competitive',
+        // Feature 5: Success factors
+        successFactors: i.successFactors as any,
+        regulatoryBurden: i.regulatoryBurden || 'medium',
+        techSkillRequirement: i.techSkillRequirement ? Math.round(i.techSkillRequirement * 100) : 0,
+        commonTools: i.commonTools || []
       })),
       candidates: candidateData.map(c => ({
         pattern: c.description || c.pattern,
         successRate: Math.round((c.successRate || 0) * 100),
         frequency: c.frequencyObserved,
         skills: c.keySkills || [],
-        industries: c.targetIndustries || []
+        industries: c.targetIndustries || [],
+        // Feature 2: Career progression
+        careerProgression: c.careerProgression || [],
+        avgYearsPerRole: c.avgYearsPerRole ? Math.round(c.avgYearsPerRole * 10) / 10 : 0,
+        promotionRate: c.promotionRate ? Math.round(c.promotionRate * 100) : 0
       })),
       jobDescriptions: jdData.map(j => ({
         successRate: Math.round((j.successRate || 0) * 100),

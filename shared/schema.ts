@@ -32,6 +32,20 @@ export const companyLearning = pgTable("company_learning", {
   industries: text("industries").array().default(sql`ARRAY[]::text[]`), // Industries this sources into
   successfulPlacements: integer("successful_placements").default(0),
   searchCount: integer("search_count").default(0),
+  
+  // FEATURE 1: Compensation Intelligence
+  salaryBands: jsonb("salary_bands"), // {CFO: {min, max, median}, "VP Finance": {...}}
+  avgSalaryLift: real("avg_salary_lift"), // % salary increase when moving to new role
+  
+  // FEATURE 3: Talent Quality Metrics
+  talentQualityScore: real("talent_quality_score"), // 0-100
+  avgCandidateFitScore: real("avg_candidate_fit_score"), // 0-100
+  avgTenureMonths: integer("avg_tenure_months"),
+  successRate: real("success_rate"), // % of placements successful (0-100)
+  avgTimeToHireDay: integer("avg_time_to_hire_day"), // Days from contact to hire
+  departmentStrength: jsonb("department_strength"), // {Finance: 0.95, Operations: 0.72}
+  promotionRate: real("promotion_rate"), // % promoted before leaving
+  
   source: text("source").default("learned"), // seed, learned
   lastUpdated: timestamp("last_updated").defaultNow(),
   createdAt: timestamp("created_at").defaultNow()
@@ -49,6 +63,31 @@ export const industryLearning = pgTable("industry_learning", {
   commonSkills: text("common_skills").array().default(sql`ARRAY[]::text[]`), // M&A, FP&A, etc.
   typicalSeniority: text("typical_seniority").array().default(sql`ARRAY[]::text[]`), // C-Suite, VP, etc.
   averageCompensation: jsonb("average_compensation"), // {min, max, currency}
+  
+  // FEATURE 1: Compensation Intelligence - by role
+  salaryBenchmarks: jsonb("salary_benchmarks"), // {CFO: {p25, p50, p75}, "VP Sales": {...}}
+  typicalCertifications: text("typical_certifications").array(), // CPA, CFA, etc.
+  certificationRate: real("certification_rate"), // % with certifications
+  
+  // FEATURE 2: Career Path Tracking
+  careerPaths: jsonb("career_paths"), // [{path: [Analyst, Associate, VP], frequency: 0.42}]
+  avgTimeToPromotion: integer("avg_time_to_promotion"), // months
+  commonNextCompanies: text("common_next_companies").array(), // Where people move
+  commonPriorCompanies: text("common_prior_companies").array(), // Where they came from
+  
+  // FEATURE 4: Geographic/Seasonal Patterns
+  geographicHubs: jsonb("geographic_hubs"), // {NYC: 0.35, SF: 0.25, London: 0.18}
+  hiringPatterns: jsonb("hiring_patterns"), // {Q1: 0.15, Q2: 0.28, Q3: 0.25, Q4: 0.32}
+  hiringTrend: text("hiring_trend"), // accelerating, stable, declining
+  talentSupply: text("talent_supply"), // competitive, tight, abundant
+  
+  // FEATURE 5: Success Factor Learning
+  successFactors: jsonb("success_factors"), // [{factor: "Prior company tier", importance: 0.92}]
+  regulatoryBurden: text("regulatory_burden"), // high, medium, low
+  commonCompliance: text("common_compliance").array(), // SOX, GDPR, FINRA
+  techSkillRequirement: real("tech_skill_requirement"), // % needing tech
+  commonTools: text("common_tools").array(), // SAP, Salesforce, etc.
+  
   searchCount: integer("search_count").default(0),
   source: text("source").default("learned"),
   lastUpdated: timestamp("last_updated").defaultNow(),
@@ -71,6 +110,13 @@ export const candidateLearning = pgTable("candidate_learning", {
   keySkills: text("key_skills").array().default(sql`ARRAY[]::text[]`),
   targetIndustries: text("target_industries").array().default(sql`ARRAY[]::text[]`),
   frequencyObserved: integer("frequency_observed").default(0),
+  
+  // FEATURE 2: Career Path Tracking
+  careerProgression: text("career_progression").array(), // [Analyst, Associate, VP, MD]
+  typicalGraduationYear: integer("typical_graduation_year"),
+  avgYearsPerRole: real("avg_years_per_role"),
+  promotionRate: real("promotion_rate"), // % promoted
+  
   source: text("source").default("learned"),
   lastUpdated: timestamp("last_updated").defaultNow(),
   createdAt: timestamp("created_at").defaultNow()
