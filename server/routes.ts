@@ -23,6 +23,7 @@ import { recordIndustryPattern } from "./industry-learning";
 import { recordCandidatePattern } from "./candidate-learning";
 import { recordJobDescriptionPattern } from "./job-description-learning";
 import { getLearningIntelligence } from "./learning-api";
+import { onSourceRunComplete } from "./learning-hooks";
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
