@@ -53,6 +53,7 @@ import WarRoom from "@/pages/WarRoom";
 import SalaryBenchmark from "@/pages/SalaryBenchmark";
 import PredictiveScore from "@/pages/PredictiveScore";
 import Monitoring from "@/pages/Monitoring";
+import TenantAdminDashboard from "@/pages/TenantAdminDashboard";
 
 function AppRouter() {
   return (
@@ -124,6 +125,7 @@ function AppRouter() {
       <Route path="/admin/users" component={() => <AdminApp><AdminUserManagement /></AdminApp>} />
       <Route path="/admin/system" component={() => <AdminApp><AdminSystemSettings /></AdminApp>} />
       <Route path="/admin/monitoring" component={() => <AdminApp><Monitoring /></AdminApp>} />
+      <Route path="/admin/tenant/:tenantId" component={() => <AdminApp><TenantAdminDashboard /></AdminApp>} />
       
       {/* Standalone Routes */}
       <Route path="/client-portal" component={ClientPortal} />

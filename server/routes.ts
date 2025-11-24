@@ -211,8 +211,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create job posting endpoint
-  app.post("/api/jobs", async (req, res) => {
+  // Create job posting endpoint - PROTECTED
+  app.post("/api/jobs", requireAuth, async (req, res) => {
     try {
       const jobData = insertJobSchema.parse(req.body);
       
@@ -316,8 +316,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get job by ID with matches
-  app.get("/api/jobs/:id", async (req, res) => {
+  // Get job by ID with matches - PROTECTED
+  app.get("/api/jobs/:id", requireAuth, async (req, res) => {
     try {
       const jobId = parseInt(req.params.id);
       const job = await storage.getJob(jobId);
@@ -644,7 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create candidate endpoint
-  app.post("/api/candidates", async (req, res) => {
+  app.post("/api/candidates", requireAuth, async (req, res) => {
     try {
       const candidateData = insertCandidateSchema.parse(req.body);
       const candidate = await storage.createCandidate(candidateData);
@@ -656,7 +656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get candidates endpoint
-  app.get("/api/candidates", async (req, res) => {
+  app.get("/api/candidates", requireAuth, async (req, res) => {
     try {
       const { search } = req.query;
       let candidates;
@@ -737,7 +737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update candidate endpoint
-  app.patch("/api/candidates/:id", async (req, res) => {
+  app.patch("/api/candidates/:id", requireAuth, async (req, res) => {
     try {
       const candidateId = parseInt(req.params.id);
       const candidate = await storage.getCandidate(candidateId);
@@ -794,7 +794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add note to candidate's interaction history
-  app.post("/api/candidates/:id/notes", async (req, res) => {
+  app.post("/api/candidates/:id/notes", requireAuth, async (req, res) => {
     try {
       const candidateId = parseInt(req.params.id);
       const candidate = await storage.getCandidate(candidateId);
@@ -2050,7 +2050,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new conversation
-  app.post("/api/conversations", async (req, res) => {
+  app.post("/api/conversations", requireAuth, async (req, res) => {
     try {
       const { userId, companyId, portal } = req.body;
       // TODO: Get userId from req.user when authentication is implemented
@@ -2111,7 +2111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send a message in a conversation - CONSULTATIVE AI FLOW
-  app.post("/api/conversations/:id/messages", upload.single('file'), async (req, res) => {
+  app.post("/api/conversations/:id/messages", requireAuth, upload.single('file'), async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
       const message = req.body.content || req.body.message; // Support both field names
@@ -7909,7 +7909,7 @@ CRITICAL RULES - You MUST follow these strictly:
   // ============================================================
   
   // POST /api/war-rooms - Create hiring committee session
-  app.post("/api/war-rooms", async (req, res) => {
+  app.post("/api/war-rooms", requireAuth, async (req, res) => {
     try {
       const { jobId, companyId, name, description, members } = req.body;
       
@@ -7935,7 +7935,7 @@ CRITICAL RULES - You MUST follow these strictly:
   });
 
   // POST /api/war-rooms/:warRoomId/vote - Submit committee vote
-  app.post("/api/war-rooms/:warRoomId/vote", async (req, res) => {
+  app.post("/api/war-rooms/:warRoomId/vote", requireAuth, async (req, res) => {
     try {
       const { warRoomId } = req.params;
       const { candidateId, vote, reasoning, voterEmail } = req.body;
@@ -8080,7 +8080,7 @@ Provide brief analysis and recommendation.`;
   // ============================================================
   
   // POST /api/salary-benchmark - Get market salary data for a job
-  app.post("/api/salary-benchmark", async (req, res) => {
+  app.post("/api/salary-benchmark", requireAuth, async (req, res) => {
     try {
       const { jobTitle, location, experience, industry } = req.body;
       
