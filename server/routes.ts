@@ -153,6 +153,14 @@ const upload = multer({
   }
 });
 
+// Auth middleware - Require login for protected endpoints
+function requireAuth(req: Request, res: any, next: () => void) {
+  if (!req.session?.candidateId && !req.session?.companyId && !req.session?.userId) {
+    return res.status(401).json({ error: "Unauthorized - Please login" });
+  }
+  next();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Job posting and AI parsing endpoint
   app.post("/api/upload-jd", upload.single('file'), async (req: MulterRequest, res) => {
@@ -9563,6 +9571,54 @@ Provide brief analysis and recommendation.`;
       res.json({ user, tenant });
     } catch (error) {
       res.status(400).json({ error: "Failed to fetch candidate account" });
+    }
+  });
+
+  // ============ AUTH ENDPOINTS ============
+  // Check current session
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      if (req.session?.candidateId) {
+        const candidate = await storage.getCandidate(req.session.candidateId);
+        res.json({ 
+          userId: req.session.candidateId,
+          role: 'candidate',
+          ...candidate 
+        });
+      } else if (req.session?.companyId) {
+        const company = await storage.getCompany(req.session.companyId);
+        res.json({ 
+          userId: req.session.companyId,
+          role: 'company',
+          ...company 
+        });
+      } else if (req.session?.userId) {
+        const user = await storage.getUser(req.session.userId);
+        res.json({ 
+          userId: req.session.userId,
+          role: user?.role || 'user',
+          ...user 
+        });
+      } else {
+        res.status(401).json({ error: "Not authenticated" });
+      }
+    } catch (error) {
+      res.status(401).json({ error: "Session check failed" });
+    }
+  });
+
+  // Logout
+  app.post("/api/logout", (req, res) => {
+    try {
+      req.session?.destroy((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Failed to logout" });
+        }
+        res.clearCookie('connect.sid');
+        res.json({ message: "Logged out successfully" });
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Logout failed" });
     }
   });
 
