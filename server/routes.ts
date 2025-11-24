@@ -316,8 +316,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get job by ID with matches - PROTECTED
-  app.get("/api/jobs/:id", requireAuth, async (req, res) => {
+  // Get job by ID with matches
+  app.get("/api/jobs/:id", async (req, res) => {
     try {
       const jobId = parseInt(req.params.id);
       const job = await storage.getJob(jobId);
