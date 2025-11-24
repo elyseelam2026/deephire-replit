@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, TrendingUp, Building2, Users, FileText, Zap } from "lucide-react";
+import { Brain, TrendingUp, Building2, Users, FileText, Zap, Star } from "lucide-react";
 
 export default function LearningIntelligence() {
   const { data: intelligence, isLoading, error } = useQuery({
@@ -48,8 +48,8 @@ export default function LearningIntelligence() {
         </p>
       </div>
 
-      {/* Grid: 5 columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/* Grid: 6 columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
         {/* Position Keywords */}
         <Card>
           <CardHeader className="pb-3">
@@ -183,6 +183,40 @@ export default function LearningIntelligence() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Top Candidates */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Star className="w-4 h-4" />
+              Top Candidates
+            </CardTitle>
+            <CardDescription>Best fit matches</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data?.topCandidates?.length ? (
+              data?.topCandidates?.slice(0, 5).map((cand: any, i: number) => (
+                <div key={i} className="text-sm">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <div className="font-medium truncate">{cand.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{cand.title}</div>
+                      <div className="text-xs text-muted-foreground truncate">{cand.company}</div>
+                    </div>
+                    <Badge 
+                      variant={cand.fitScore >= 70 ? "default" : "secondary"}
+                      className="text-xs"
+                    >
+                      {cand.fitScore}%
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground">No candidates with fit scores yet</p>
+            )}
           </CardContent>
         </Card>
       </div>

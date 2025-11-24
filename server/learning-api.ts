@@ -4,7 +4,7 @@
  */
 
 import { db } from "./db";
-import { positionKeywords, companyLearning, industryLearning, candidateLearning, jobDescriptionLearning } from "@shared/schema";
+import { positionKeywords, companyLearning, industryLearning, candidateLearning, jobDescriptionLearning, candidates, jobCandidates } from "@shared/schema";
 import { desc, sql } from "drizzle-orm";
 
 export async function getLearningIntelligence() {
@@ -33,6 +33,23 @@ export async function getLearningIntelligence() {
       limit: 10,
       orderBy: [desc(sql`success_rate * times_used`)]
     }).catch(() => []);
+    
+    // Get top candidates by fit score
+    const topCandidatesData = await db
+      .select({
+        id: candidates.id,
+        firstName: candidates.firstName,
+        lastName: candidates.lastName,
+        currentTitle: candidates.currentTitle,
+        currentCompany: candidates.currentCompany,
+        fitScore: jobCandidates.fitScore,
+        status: jobCandidates.status
+      })
+      .from(jobCandidates)
+      .innerJoin(candidates, sql`${jobCandidates.candidateId} = ${candidates.id}`)
+      .orderBy(desc(jobCandidates.fitScore))
+      .limit(10)
+      .catch(() => []);
 
     return {
       positions: positionData.map(p => ({
@@ -68,6 +85,14 @@ export async function getLearningIntelligence() {
         timesUsed: j.timesUsed,
         roles: j.extractedRoles || [],
         skills: j.extractedSkills || []
+      })),
+      topCandidates: topCandidatesData.map(c => ({
+        id: c.id,
+        name: `${c.firstName} ${c.lastName}`,
+        title: c.currentTitle || 'Unknown',
+        company: c.currentCompany || 'Unknown',
+        fitScore: c.fitScore ? Math.round(c.fitScore) : 0,
+        status: c.status || 'sourced'
       }))
     };
   } catch (error) {
