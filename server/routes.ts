@@ -2050,7 +2050,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new conversation
-  app.post("/api/conversations", requireAuth, async (req, res) => {
+  app.post("/api/conversations", async (req, res) => {
     try {
       const { userId, companyId, portal } = req.body;
       // TODO: Get userId from req.user when authentication is implemented
@@ -2111,7 +2111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send a message in a conversation - CONSULTATIVE AI FLOW
-  app.post("/api/conversations/:id/messages", requireAuth, upload.single('file'), async (req, res) => {
+  app.post("/api/conversations/:id/messages", upload.single('file'), async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
       const message = req.body.content || req.body.message; // Support both field names
