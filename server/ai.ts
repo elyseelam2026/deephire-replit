@@ -524,29 +524,19 @@ ${isReferenceCandidateRequest ? `
     
     const napCompleteness = needScore + authorityScore + painScore + plusScore; // Max 100%
     
-    // PRIORITY 1: If user wants to skip questions and we have context → ready to search
-    if (userWantsToSkipQuestions && (hasJobContext || isReferenceCandidateRequest || mentionsHiring)) {
-      intent = napCompleteness >= 80 ? 'nap_complete' : 'ready_to_search'; // Enforce 80% threshold (Grok method)
-    }
-    // PRIORITY 2: If user provided a reference candidate → ready to search
-    else if (isReferenceCandidateRequest && (currentJobContext?.title || mentionsHiring)) {
-      intent = 'ready_to_search';
-    }
-    // PRIORITY 3: Regular greeting
-    else if (isGreeting && !mentionsHiring && !hasJobContext) {
+    // PRIORITY 1: Regular greeting
+    if (isGreeting && !mentionsHiring && !hasJobContext) {
       intent = 'greeting';
-    } 
-    // PRIORITY 4: Has hiring context - check NAP+ completeness (Grok threshold: 80%)
+    }
+    // PRIORITY 2: Has hiring context - start clarification phase to collect basic info
     else if (mentionsHiring || hasJobContext) {
-      if (napCompleteness >= 80) {
-        intent = 'nap_complete'; // NAP+ is complete (≥80%), ready for strategy generation
-      } else if (currentJobContext?.title) {
-        intent = 'clarification'; // Keep probing for NAP+ (smart probes only)
+      if (currentJobContext?.title) {
+        intent = 'clarification'; // Ask clarifying questions to fill NAP gaps
       } else {
         intent = 'job_inquiry'; // Need basic role info first
       }
     } 
-    // PRIORITY 5: Default to job inquiry
+    // PRIORITY 3: Default to job inquiry
     else {
       intent = 'job_inquiry';
     }

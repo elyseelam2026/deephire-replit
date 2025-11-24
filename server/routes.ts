@@ -2402,34 +2402,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}** ${knownContext.join(' ')}.\n\n`
           : `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n`;
         
-        // ENHANCED NAP: Ask ONE critical question at a time, prioritized by importance
-        // Priority order: Salary → Urgency → Success criteria → Growth preference → Remote work → Leadership style → Team dynamics
+        // 8 DEEP-INSIGHT NAP INTERVIEW QUESTIONS - Asked one at a time in order
+        // User MUST answer all 8 before search can proceed
         let nextQuestion = null;
         
         if (!updatedSearchContext.salary || updatedSearchContext.salary === 'unknown') {
-          nextQuestion = "What's the **salary range** for this role? (Please provide a range, not a single number)";
+          nextQuestion = "**Q1: Salary & Budget** - What's the **salary range** for this role? (e.g., USD 150K-200K)";
         } else if (!updatedSearchContext.urgency || updatedSearchContext.urgency === 'low' || updatedSearchContext.urgency === 'unknown') {
-          nextQuestion = "How **urgent** is this hire? Are we looking at a standard 30-60 day timeline, or is this a fast-track search?";
+          nextQuestion = "**Q2: Business Urgency** - How **urgent** is this hire? Strategic long-term or tactical ASAP need?";
         } else if (!updatedSearchContext.successCriteria) {
-          nextQuestion = "What does **success look like** for this person in the first 90 days? Specific metrics or milestones?";
+          nextQuestion = "**Q3: Success Criteria** - What does **success** look like in the first 90 days? Specific milestones?";
         } else if (!(updatedSearchContext as any).growthPreference) {
-          nextQuestion = "Is this candidate expected to **grow into leadership** (build & scale teams), or **go deep** (become a specialist)? This shapes the talent profile.";
+          nextQuestion = "**Q4: Growth Trajectory** - Should they **grow into leadership** (build teams) or **go deep** (specialist expert)?";
         } else if (!(updatedSearchContext as any).remotePolicy) {
-          nextQuestion = "What's your **remote work policy**? (Fully remote, hybrid, or on-site required?)";
+          nextQuestion = "**Q5: Remote Policy** - What's your **work policy**? Fully remote, hybrid, or on-site only?";
         } else if (!(updatedSearchContext as any).leadershipStyle) {
-          nextQuestion = "What **leadership style** will they report to? (E.g., hands-off executive, collaborative coach, directive manager?)";
+          nextQuestion = "**Q6: Leadership Style** - What **leadership style** will they report to? (Hands-off, collaborative, directive?)";
         } else if (!updatedSearchContext.teamDynamics) {
-          nextQuestion = "Tell me about the **team dynamics** and culture. What won't work in this environment?";
+          nextQuestion = "**Q7: Team Dynamics** - Describe the **team & culture**. What traits won't work here?";
         } else if (!(updatedSearchContext as any).competitorContext) {
-          nextQuestion = "Are there **competitor companies** where you'd like to source candidates from? (E.g., stealing talent from FAANG, competitors, adjacent industries?)";
+          nextQuestion = "**Q8: Competitor Sourcing** - Any **competitor companies** to target for talent? (e.g., FAANG, specific PE firms?)";
         }
 
         if (nextQuestion) {
           aiResponse = contextIntro + nextQuestion;
           newPhase = 'clarifying';
         } else {
-          // Have enough info - would create job order here
-          newPhase = 'ready_to_create_job';
+          // All 8 questions answered - ready to create job and generate search strategy
+          newPhase = 'nap_complete';
           const contextIntro = knownContext.length > 0
             ? `Perfect! Since you're ${knownContext.join(' ')}, I have everything I need.\n\n`
             : `Perfect! I have all the information I need.\n\n`;
@@ -2636,14 +2636,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           && (conversation.phase === 'ready_to_create_job' || newPhase === 'ready_to_create_job');
         const userWantsToSkipQuestionsAndSearch = skipQuestionsAndSearchPhrases.some(phrase => lowerMessage.includes(phrase));
         
-        // CRITICAL FIX: If NAP is complete, automatically trigger search (no need to wait for explicit "yes")
-        const napIsComplete = napComplete && updatedSearchContext.title;
+        // CRITICAL: Track if all 8 NAP interview questions have been answered
+        // This prevents auto-triggering search - user must explicitly agree after answering all questions
+        const allNAPQuestionsAnswered = 
+          updatedSearchContext.title &&
+          (updatedSearchContext as any).growthPreference &&
+          (updatedSearchContext as any).remotePolicy &&
+          (updatedSearchContext as any).leadershipStyle &&
+          (updatedSearchContext as any).competitorContext &&
+          updatedSearchContext.teamDynamics &&
+          updatedSearchContext.urgency &&
+          updatedSearchContext.successCriteria;
         
-        if (napIsComplete) {
-          console.log('🚀 [AUTO-TRIGGER] NAP complete + has title → Automatically triggering job creation');
-        }
+        console.log('📋 NAP Interview Tracking:', {
+          title: !!updatedSearchContext.title,
+          growthPreference: !!(updatedSearchContext as any).growthPreference,
+          remotePolicy: !!(updatedSearchContext as any).remotePolicy,
+          leadershipStyle: !!(updatedSearchContext as any).leadershipStyle,
+          competitorContext: !!(updatedSearchContext as any).competitorContext,
+          teamDynamics: !!updatedSearchContext.teamDynamics,
+          urgency: !!updatedSearchContext.urgency,
+          successCriteria: !!updatedSearchContext.successCriteria,
+          allAnswered: allNAPQuestionsAnswered
+        });
         
-        const userAgreedToSearch = hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch || napIsComplete;
+        // Only allow search if ALL questions answered + explicit user agreement (no auto-trigger)
+        const userAgreedToSearch = (hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch) && allNAPQuestionsAnswered;
         
         console.log(`📊 Search Trigger Check:`, {
           hasStrongAgreement,
@@ -2655,13 +2673,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobExists: !!conversation.jobId
         });
         
-        // CRITICAL FIX: If AI made a PROMISE and NAP is ≥80% complete → immediately trigger search
-        // This fixes the bug where AI says "Longlist ready in 20 mins" but nothing happens
+        // CRITICAL FIX: Only trigger search if AI made promise AND all NAP questions answered
+        // This prevents search before user answers all interview questions
         const aiMadePromise = detectedPromise !== undefined && detectedPromise !== null;
-        const promiseTriggeredSearch = aiMadePromise && napComplete && updatedSearchContext.title;
+        const promiseTriggeredSearch = aiMadePromise && allNAPQuestionsAnswered;
         
         if (promiseTriggeredSearch) {
-          console.log('🚀 [CRITICAL] AI made promise + NAP complete → Auto-triggering job creation + search');
+          console.log('🚀 [Promise Trigger] All NAP questions answered + AI made promise → Auto-triggering job creation + search');
         }
 
         // CRITICAL FIX: Handle promise-triggered search for BOTH new and existing job scenarios
