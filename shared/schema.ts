@@ -4,6 +4,25 @@ import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// POSITION KEYWORDS TABLE - Maps job titles to typical keywords for boolean search
+export const positionKeywords = pgTable("position_keywords", {
+  id: serial("id").primaryKey(),
+  position: text("position").notNull().unique(), // CFO, VP Sales, Associate, etc.
+  keywords: text("keywords").array().notNull(), // ["M&A", "ACCA", "CPA", "Financial Reporting"]
+  certifications: text("certifications").array(), // ["CPA", "ACCA", "CFA"]
+  skills: text("skills").array(), // ["FP&A", "Board Reporting", "Capital Raising"]
+  industries: text("industries").array(), // ["Finance", "PE", "Banking"]
+  seniority: text("seniority"), // C-Suite, VP, Director, etc.
+  source: text("source").default("seed"), // seed, learned_from_search
+  searchCount: integer("search_count").default(0), // How many times this position was searched
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertPositionKeywordsSchema = createInsertSchema(positionKeywords).omit({ id: true, createdAt: true, lastUpdated: true });
+export type InsertPositionKeywords = z.infer<typeof insertPositionKeywordsSchema>;
+export type SelectPositionKeywords = typeof positionKeywords.$inferSelect;
+
 // Companies table - comprehensive company profiles
 export const companies = pgTable("companies", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),

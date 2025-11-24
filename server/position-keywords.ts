@@ -1,0 +1,173 @@
+/**
+ * POSITION KEYWORDS INTELLIGENCE ENGINE
+ * 
+ * Maps job positions to typical keywords, certifications, skills
+ * Learns and grows as more searches are conducted
+ * Used to enhance boolean search queries
+ */
+
+// DEFAULT POSITION KEYWORDS SEED DATA
+export const DEFAULT_POSITION_KEYWORDS: Record<string, {
+  keywords: string[];
+  certifications: string[];
+  skills: string[];
+  industries: string[];
+  seniority: string;
+}> = {
+  CFO: {
+    keywords: ["CFO", "Chief Financial Officer", "VP Finance", "Finance Director", "Controller"],
+    certifications: ["CPA", "ACCA", "CA", "CFA", "ACA"],
+    skills: ["M&A", "FP&A", "Financial Strategy", "Treasury", "Tax Optimization", "Financial Reporting", "Board Reporting", "Capital Raising", "Cash Flow Management"],
+    industries: ["Finance", "Private Equity", "Banking", "Fintech", "Venture Capital"],
+    seniority: "C-Suite"
+  },
+  
+  "VP Sales": {
+    keywords: ["VP Sales", "Vice President Sales", "Sales Director", "Head of Sales", "Senior Sales Director"],
+    certifications: ["Certified Sales Professional"],
+    skills: ["Enterprise Sales", "Revenue Growth", "Team Building", "Pipeline Management", "Deal Closing", "Account Management", "Territory Management"],
+    industries: ["Technology", "SaaS", "Enterprise", "B2B"],
+    seniority: "VP"
+  },
+  
+  CTO: {
+    keywords: ["CTO", "Chief Technology Officer", "VP Engineering", "Engineering Director", "Head of Engineering"],
+    certifications: ["AWS Certified", "GCP Certified"],
+    skills: ["Technical Architecture", "Engineering Leadership", "Cloud Infrastructure", "Product Development", "Software Design", "DevOps"],
+    industries: ["Technology", "Software", "Fintech", "SaaS"],
+    seniority: "C-Suite"
+  },
+  
+  "VP Operations": {
+    keywords: ["VP Operations", "Vice President Operations", "Operations Director", "Head of Ops", "COO", "Chief Operating Officer"],
+    certifications: ["Six Sigma", "Lean Management"],
+    skills: ["Operational Excellence", "Supply Chain", "Process Optimization", "Scaling Operations", "Budget Management", "KPI Tracking"],
+    industries: ["Operations", "Manufacturing", "Logistics", "Technology"],
+    seniority: "VP"
+  },
+  
+  "Associate": {
+    keywords: ["Associate", "PE Associate", "IB Associate", "VC Associate", "Consultant"],
+    certifications: [],
+    skills: ["Financial Modeling", "Deal Sourcing", "Due Diligence", "M&A", "Valuation", "LBO Modeling", "Pitch Books", "Excel", "PowerPoint"],
+    industries: ["Private Equity", "Investment Banking", "Venture Capital", "Asset Management"],
+    seniority: "Associate"
+  },
+  
+  "Analyst": {
+    keywords: ["Analyst", "Junior Analyst", "Financial Analyst", "Data Analyst", "Research Analyst"],
+    certifications: [],
+    skills: ["Financial Analysis", "Excel Modeling", "PowerPoint", "Data Analysis", "Market Research", "Valuation", "Due Diligence"],
+    industries: ["Investment Banking", "Private Equity", "Consulting", "Venture Capital"],
+    seniority: "Analyst"
+  },
+  
+  "Manager": {
+    keywords: ["Manager", "Senior Manager", "Project Manager", "Product Manager", "Program Manager"],
+    certifications: ["PMP", "Agile Certified"],
+    skills: ["Team Leadership", "Project Management", "Stakeholder Management", "Budget Management", "Strategic Planning"],
+    industries: ["Technology", "Consulting", "Operations"],
+    seniority: "Manager"
+  }
+};
+
+/**
+ * Get keywords for a position
+ * Returns cached keywords or default seed data
+ */
+export async function getPositionKeywords(
+  position: string
+): Promise<{
+  keywords: string[];
+  certifications: string[];
+  skills: string[];
+  industries: string[];
+  seniority: string;
+}> {
+  // For now, return seed data - in production, this would query the database
+  const normalized = position.trim();
+  
+  // Exact match first
+  if (DEFAULT_POSITION_KEYWORDS[normalized]) {
+    return DEFAULT_POSITION_KEYWORDS[normalized];
+  }
+  
+  // Fuzzy match (e.g., "VP Finance" → "VP Sales" pattern)
+  for (const [key, value] of Object.entries(DEFAULT_POSITION_KEYWORDS)) {
+    if (normalized.toLowerCase().includes(key.toLowerCase()) || 
+        key.toLowerCase().includes(normalized.toLowerCase())) {
+      return value;
+    }
+  }
+  
+  // Default fallback for unknown positions
+  return {
+    keywords: [position],
+    certifications: [],
+    skills: [],
+    industries: [],
+    seniority: "Senior"
+  };
+}
+
+/**
+ * Learn from search: Update keyword intelligence after a search is executed
+ * In production, this would upsert the positionKeywords table
+ */
+export async function recordSearchForPosition(
+  position: string,
+  additionalKeywords?: string[]
+): Promise<void> {
+  console.log(`📚 [Learning] Recording search for position: ${position}`);
+  if (additionalKeywords?.length) {
+    console.log(`   New keywords discovered: ${additionalKeywords.join(', ')}`);
+  }
+  
+  // In production:
+  // 1. Query database for existing entry
+  // 2. If exists: increment searchCount, merge additionalKeywords
+  // 3. If not exists: create new entry with source="learned_from_search"
+  // 4. Update lastUpdated timestamp
+}
+
+/**
+ * Build enhanced boolean search query with position keywords
+ * Combines title variants + keywords + skills for comprehensive coverage
+ */
+export function buildKeywordEnrichedQuery(
+  position: string,
+  hardSkills: string[],
+  keywords: {
+    keywords: string[];
+    certifications: string[];
+    skills: string[];
+    industries: string[];
+  }
+): string {
+  // Start with title variants
+  const titleVariants = keywords.keywords.map(k => `"${k}"`).join(" OR ");
+  
+  // Add hard skills provided by user
+  const userSkills = hardSkills.map(s => `"${s}"` || s).join(" OR ");
+  
+  // Add typical position keywords
+  const positionKeywordsList = keywords.skills.slice(0, 3).map(s => `"${s}"`).join(" OR ");
+  
+  // Certifications as optional qualifiers (lower weight)
+  const certs = keywords.certifications.slice(0, 2).map(c => c).join(" OR ");
+  
+  // Build query: Title + (user skills OR position keywords) + location
+  let query = `(${titleVariants})`;
+  
+  if (userSkills) {
+    query += ` AND (${userSkills}`;
+    if (positionKeywordsList) query += ` OR ${positionKeywordsList}`;
+    query += `)`;
+  }
+  
+  if (certs) {
+    query += ` OR (${titleVariants} AND (${certs}))`;
+  }
+  
+  return query;
+}

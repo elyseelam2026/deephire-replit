@@ -67,6 +67,12 @@ export interface SearchStrategy {
 }
 
 /**
+ * ENHANCED QUERY GENERATION WITH POSITION KEYWORDS
+ * Each position has typical keywords that make searches more comprehensive
+ */
+import { getPositionKeywords, buildKeywordEnrichedQuery } from './position-keywords';
+
+/**
  * Pain-to-Keywords Mapping (Executive Search Best Practices)
  * Maps business pain → relevant experience keywords for Boolean searches
  */
@@ -245,15 +251,24 @@ export async function generateSearchStrategy(
   const painKeywords = extractPainKeywords(pain);
   const roleConfig = ROLE_EXPERIENCE_MAP[title] || {minYears: 5, industries: [], competencies: []};
   
-  // STEP 2: Build Boolean LinkedIn query (FALLBACK when competitor mapping not available)
-  // Example: "(CFO OR \"Chief Financial Officer\") AND (M&A OR scaling) AND (fintech OR tech) AND \"United States\""
+  // STEP 2: Build Boolean LinkedIn query with POSITION KEYWORDS (FALLBACK when competitor mapping not available)
+  // Enhanced: Uses typical position keywords (CFO → M&A, ACCA, Treasury, etc.) for more comprehensive search
   const titleVariants = getTitleVariants(title);
   const needKeywords = extractNeedKeywords(need, roleConfig.competencies);
   
+  // NEW: Get position-specific keywords to enhance query
+  const positionKeywordsData = await getPositionKeywords(title);
+  
+  // Build query with position keywords enrichment
+  const userHardSkills = needKeywords.length > 0 ? needKeywords : 
+                         (searchContext.skills && searchContext.skills.length > 0 ? searchContext.skills : []);
+  
+  const keywordEnrichedQuery = buildKeywordEnrichedQuery(title, userHardSkills, positionKeywordsData);
+  
+  // Fallback to original logic if enriched query didn't help
   const booleanQuery = [
-    `(${titleVariants.join(" OR ")})`,                    // Title variants
+    keywordEnrichedQuery,                                 // Position + keywords + skills
     painKeywords.length > 0 ? `AND (${painKeywords.join(" OR ")})` : "",  // Pain-specific experience
-    needKeywords.length > 0 ? `AND (${needKeywords.join(" OR ")})` : "",  // Need-specific competencies
     location ? `AND "${location}"` : ""                     // Location
   ].filter(Boolean).join(" ");
   

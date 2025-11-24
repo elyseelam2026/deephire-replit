@@ -6,7 +6,59 @@ DeepHire is an AI-powered enterprise B2B recruiting platform designed to revolut
 ## User Preferences
 Preferred communication style: Simple, everyday language. Focus on continuous AI accuracy improvements over infrastructure work.
 
-## Recent Accomplishments (Session: NAP Confirmation System)
+## Recent Accomplishments (Session: Position Keywords Intelligence System + Hard Skills Architecture)
+
+### ✅ Position Keywords Learning System - COMPLETE
+Implemented intelligent keyword mapping that learns and grows over time:
+
+**Database Structure:**
+- `positionKeywords` table maps positions (CFO, VP Sales) to:
+  - Keywords (M&A, ACCA, CPA, Financial Reporting)
+  - Certifications (CPA, ACCA, CFA)
+  - Skills (FP&A, Treasury, Board Reporting)
+  - Industries (Finance, PE, Banking)
+  - Seniority level (C-Suite, VP, Director)
+  - Search count (tracks how often position searched)
+  - Source (seed data vs. learned_from_search)
+
+**Intelligence Features:**
+- Default seed data for 7 common positions: CFO, VP Sales, CTO, VP Operations, Associate, Analyst, Manager
+- Position-specific keywords enhance boolean search queries (e.g., "CFO" automatically expands to include M&A, Treasury, ACCA)
+- Learning engine: `recordSearchForPosition()` captures new keywords discovered in searches
+- Fuzzy matching: Finds keywords for "VP Finance" even if only "VP Sales" entry exists
+
+**Boolean Search Enhancement:**
+- Before: `"CFO" AND (M&A OR Treasury) AND "Hong Kong"`
+- After: `("CFO" OR "Chief Financial Officer" OR "VP Finance") AND (M&A OR Treasury OR "Financial Reporting" OR "ACCA") AND "Hong Kong"`
+- Query auto-enriches with 7+ typical keywords from position database
+
+**Implementation Files:**
+- `server/position-keywords.ts` - Position keyword intelligence engine
+- Updated `server/nap-strategy.ts` - Integrates keywords into query generation
+- Database: `positionKeywords` table in schema
+
+### ✅ Hard Skills vs Soft Context Architecture - COMPLETE
+Fixed critical architectural issue separating hard skills (for sourcing NOW) from soft context (for post-sourcing scoring):
+
+**Hard Skills (LinkedIn-visible, trigger sourcing immediately):**
+- Title (CFO, VP Sales)
+- Hard skills (M&A, Treasury, FP&A)
+- Location (HK, SF)
+- Seniority level (inferred from title + progression, NOT explicit years)
+- Competitor companies
+
+**Soft Context (collected in parallel, used for quality gate):**
+- Salary (can't use in sourcing, used for negotiations)
+- Success criteria (evaluate after finding candidates)
+- Team dynamics (evaluate after)
+- Growth preference (evaluate after)
+- Remote policy (evaluate after)
+- Leadership style (evaluate after)
+- Urgency (affects quality gate threshold)
+
+**Key Change:** System now infers seniority from graduation year + job history, not explicit "years of experience" (which LinkedIn doesn't provide).
+
+## Recent Accomplishments (Previous Session: NAP Confirmation System)
 
 ### ✅ NAP Interview + Confirmation Layer - COMPLETE
 Implemented a sophisticated multi-phase NAP system that captures deep-insight signals and allows recruiters to confirm/refine the NAP before sourcing:
