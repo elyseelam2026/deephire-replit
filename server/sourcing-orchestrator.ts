@@ -9,6 +9,10 @@ import { sourcingRuns, candidates, jobCandidates, jobs, candidateClues } from '.
 import { eq, and, inArray } from 'drizzle-orm';
 import { batchCreateCandidates } from './candidate-ingestion';
 import { scoreCandidateFit } from './ai';
+import { recordCompanySource } from './company-learning';
+import { recordIndustryPattern } from './industry-learning';
+import { recordCandidatePattern } from './candidate-learning';
+import { recordJobDescriptionPattern } from './job-description-learning';
 
 export interface SourcingJobConfig {
   sourcingRunId: number;
@@ -400,6 +404,78 @@ export async function orchestrateProfileFetching(
         console.error(`❌ [Sourcing Orchestrator] Failed to link candidates to job:`, error);
         // Don't fail the whole operation if linking fails
       }
+    }
+    
+    // 📚 LEARNING SYSTEM: Record patterns from successful sourcing
+    try {
+      if (sourcingRun?.jobId && job) {
+        const jobData = job.parsedData as any;
+        
+        // Extract candidate titles and companies for learning
+        const candidateTitles = candidateRecords
+          .map(c => c.currentTitle)
+          .filter(Boolean) as string[];
+        const candidateCompanies = candidateRecords
+          .map(c => c.currentCompany)
+          .filter(Boolean) as string[];
+        const candidateSkills = candidateRecords
+          .flatMap(c => c.skills || [])
+          .filter(Boolean);
+        const candidateSeniorities = candidateRecords
+          .map(c => c.seniority)
+          .filter(Boolean) as string[];
+        
+        // Record company sources (where we found candidates)
+        if (candidateCompanies.length > 0 && job.companyId) {
+          recordCompanySource(
+            job.companyName || 'Unknown Company',
+            candidateTitles,
+            candidateSkills,
+            [jobData?.industry].filter(Boolean)
+          ).catch(e => console.warn('⚠️ Company learning failed:', e));
+        }
+        
+        // Record industry patterns
+        if (jobData?.industry) {
+          recordIndustryPattern(
+            jobData.industry,
+            candidateTitles,
+            candidateSkills,
+            candidateSeniorities
+          ).catch(e => console.warn('⚠️ Industry learning failed:', e));
+        }
+        
+        // Record job description pattern
+        if (job.jdText) {
+          recordJobDescriptionPattern(
+            job.jdText,
+            candidateTitles,
+            candidateSkills,
+            jobData?.educationLevel || '',
+            jobData?.seniorityLevel || '',
+            jobData?.yearsExperience || 0,
+            jobData?.certifications || []
+          ).catch(e => console.warn('⚠️ JD learning failed:', e));
+        }
+        
+        // Record candidate patterns (successful career trajectories)
+        for (const candidate of candidateRecords.slice(0, 5)) { // Top 5 to avoid overload
+          const candidatePattern = `${candidateCompanies[0] || 'Unknown'}-${candidate.currentTitle || 'Unknown'}`;
+          recordCandidatePattern(
+            candidatePattern,
+            [candidate.currentCompany || ''].filter(Boolean),
+            [candidate.currentTitle || ''].filter(Boolean),
+            candidate.skills || [],
+            [jobData?.industry].filter(Boolean),
+            0.7 // Default success rate (will be updated on actual placement)
+          ).catch(e => console.warn('⚠️ Candidate pattern learning failed:', e));
+        }
+        
+        console.log(`📚 [Learning] Recorded patterns from ${candidatesCreated} successful sourcing results`);
+      }
+    } catch (error) {
+      console.warn('⚠️ [Learning] Pattern recording encountered an error:', error);
+      // Non-blocking - continue with normal completion
     }
     
     // Update sourcing run with final results
