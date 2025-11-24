@@ -2639,14 +2639,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // CRITICAL: Track if all 8 NAP interview questions have been answered
         // This prevents auto-triggering search - user must explicitly agree after answering all questions
         const allNAPQuestionsAnswered = 
-          updatedSearchContext.title &&
-          (updatedSearchContext as any).growthPreference &&
-          (updatedSearchContext as any).remotePolicy &&
-          (updatedSearchContext as any).leadershipStyle &&
-          (updatedSearchContext as any).competitorContext &&
-          updatedSearchContext.teamDynamics &&
-          updatedSearchContext.urgency &&
-          updatedSearchContext.successCriteria;
+          !!updatedSearchContext.title &&
+          !!(updatedSearchContext as any).growthPreference &&
+          !!(updatedSearchContext as any).remotePolicy &&
+          !!(updatedSearchContext as any).leadershipStyle &&
+          !!(updatedSearchContext as any).competitorContext &&
+          !!updatedSearchContext.teamDynamics &&
+          !!updatedSearchContext.urgency &&
+          !!updatedSearchContext.successCriteria;
         
         console.log('📋 NAP Interview Tracking:', {
           title: !!updatedSearchContext.title,
