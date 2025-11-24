@@ -7,6 +7,7 @@
  */
 
 import { buildTargetedSearchStrategy, type CompetitorFirm } from './competitor-mapping';
+import { getSearchOptimizationContext, applyLearningOptimization, generateLearningOptimizedQueries } from './learning-search-optimizer';
 
 export interface NAP {
   need: string;       // Core role requirements (e.g., "Financial strategy & reporting")
