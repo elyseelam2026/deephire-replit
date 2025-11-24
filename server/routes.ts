@@ -2402,33 +2402,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}** ${knownContext.join(' ')}.\n\n`
           : `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n`;
         
-        // 8 DEEP-INSIGHT NAP INTERVIEW QUESTIONS - Asked one at a time in order
-        // User MUST answer all 8 before search can proceed
+        // ✨ DYNAMIC NAP INTERVIEW: Extract answers intelligently, only ask missing questions
+        // Import extraction engine
+        const { extractNAPAnswers, determineUnansweredQuestions, calculateQualityGateImpact } = await import('./nap-extraction');
+        
+        // Extract all available answers from user message
+        const extraction = await extractNAPAnswers(message, {
+          salary: updatedSearchContext.salary,
+          urgency: updatedSearchContext.urgency,
+          successCriteria: updatedSearchContext.successCriteria,
+          growthPreference: (updatedSearchContext as any).growthPreference,
+          remotePolicy: (updatedSearchContext as any).remotePolicy,
+          leadershipStyle: (updatedSearchContext as any).leadershipStyle,
+          teamDynamics: updatedSearchContext.teamDynamics,
+          competitorContext: (updatedSearchContext as any).competitorContext
+        });
+        
+        // Merge extracted answers into search context
+        if (extraction.extractedAnswers.salary) updatedSearchContext.salary = extraction.extractedAnswers.salary;
+        if (extraction.extractedAnswers.urgency) updatedSearchContext.urgency = extraction.extractedAnswers.urgency;
+        if (extraction.extractedAnswers.successCriteria) updatedSearchContext.successCriteria = extraction.extractedAnswers.successCriteria;
+        if (extraction.extractedAnswers.growthPreference) (updatedSearchContext as any).growthPreference = extraction.extractedAnswers.growthPreference;
+        if (extraction.extractedAnswers.remotePolicy) (updatedSearchContext as any).remotePolicy = extraction.extractedAnswers.remotePolicy;
+        if (extraction.extractedAnswers.leadershipStyle) (updatedSearchContext as any).leadershipStyle = extraction.extractedAnswers.leadershipStyle;
+        if (extraction.extractedAnswers.teamDynamics) updatedSearchContext.teamDynamics = extraction.extractedAnswers.teamDynamics;
+        if (extraction.extractedAnswers.competitorContext) (updatedSearchContext as any).competitorContext = extraction.extractedAnswers.competitorContext;
+        
+        // Track skipped questions
+        let skippedQuestions = conversation.metadata?.skippedQuestions || [];
+        if (extraction.skipRequests.length > 0) {
+          skippedQuestions = [...skippedQuestions, ...extraction.skipRequests];
+          console.log(`⏭️ [Skip Request] User skipped: ${extraction.skipRequests.join(', ')}`);
+          
+          // Calculate and show quality gate impact
+          const impact = calculateQualityGateImpact(skippedQuestions);
+          console.log(`📊 [Quality Gate Impact]`);
+          console.log(`   Base gate: ${impact.baseGate}% → Adjusted: ${impact.adjustedGate}%`);
+          console.log(`   Candidate reduction: ${impact.estimatedCandidateReduction}`);
+          impact.reasoning.forEach(r => console.log(`   ${r}`));
+          
+          // Update metadata
+          if (!conversation.metadata) conversation.metadata = {};
+          (conversation.metadata as any).skippedQuestions = skippedQuestions;
+          (conversation.metadata as any).qualityGateImpact = impact;
+        }
+        
+        // Determine which NAP questions are still unanswered
+        const unansweredQuestions = determineUnansweredQuestions(updatedSearchContext, skippedQuestions);
+        
         let nextQuestion = null;
         
-        if (!updatedSearchContext.salary || updatedSearchContext.salary === 'unknown') {
-          nextQuestion = "**Q1: Salary & Budget** - What's the **salary range** for this role? (e.g., USD 150K-200K)";
-        } else if (!updatedSearchContext.urgency || updatedSearchContext.urgency === 'low' || updatedSearchContext.urgency === 'unknown') {
-          nextQuestion = "**Q2: Business Urgency** - How **urgent** is this hire? Strategic long-term or tactical ASAP need?";
-        } else if (!updatedSearchContext.successCriteria) {
-          nextQuestion = "**Q3: Success Criteria** - What does **success** look like in the first 90 days? Specific milestones?";
-        } else if (!(updatedSearchContext as any).growthPreference) {
-          nextQuestion = "**Q4: Growth Trajectory** - Should they **grow into leadership** (build teams) or **go deep** (specialist expert)?";
-        } else if (!(updatedSearchContext as any).remotePolicy) {
-          nextQuestion = "**Q5: Remote Policy** - What's your **work policy**? Fully remote, hybrid, or on-site only?";
-        } else if (!(updatedSearchContext as any).leadershipStyle) {
-          nextQuestion = "**Q6: Leadership Style** - What **leadership style** will they report to? (Hands-off, collaborative, directive?)";
-        } else if (!updatedSearchContext.teamDynamics) {
-          nextQuestion = "**Q7: Team Dynamics** - Describe the **team & culture**. What traits won't work here?";
-        } else if (!(updatedSearchContext as any).competitorContext) {
-          nextQuestion = "**Q8: Competitor Sourcing** - Any **competitor companies** to target for talent? (e.g., FAANG, specific PE firms?)";
-        }
-
-        if (nextQuestion) {
-          aiResponse = contextIntro + nextQuestion;
+        if (unansweredQuestions.length > 0) {
+          // Ask the next unanswered question
+          const nextQ = unansweredQuestions[0];
+          
+          // Map question labels to prompts
+          const questionPrompts: Record<string, string> = {
+            'Q1: Salary & Budget': "**Q1: Salary & Budget** - What's the **salary range** for this role? (e.g., USD 150K-200K)",
+            'Q2: Business Urgency': "**Q2: Business Urgency** - How **urgent** is this hire? Strategic long-term or tactical ASAP need?",
+            'Q3: Success Criteria': "**Q3: Success Criteria** - What does **success** look like in the first 90 days? Specific milestones?",
+            'Q4: Growth Trajectory': "**Q4: Growth Trajectory** - Should they **grow into leadership** (build teams) or **go deep** (specialist expert)?",
+            'Q5: Remote Policy': "**Q5: Remote Policy** - What's your **work policy**? Fully remote, hybrid, or on-site only?",
+            'Q6: Leadership Style': "**Q6: Leadership Style** - What **leadership style** will they report to? (Hands-off, collaborative, directive?)",
+            'Q7: Team Dynamics': "**Q7: Team Dynamics** - Describe the **team & culture**. What traits won't work here?",
+            'Q8: Competitor Sourcing': "**Q8: Competitor Sourcing** - Any **competitor companies** to target for talent? (e.g., FAANG, specific PE firms?)"
+          };
+          
+          nextQuestion = questionPrompts[nextQ] || nextQ;
+          
+          // Add helpful skip option
+          const skipInfo = skippedQuestions.length > 0 
+            ? `\n\n*(You can skip questions by saying "skip this" or "not important". Skipped: ${skippedQuestions.length}/8)*`
+            : `\n\n*(You can skip questions by saying "skip this" or "not important" if they're not relevant)*`;
+          
+          const progress = `(${extraction.questionsAnswered.length + skippedQuestions.length}/8 answered or skipped)`;
+          aiResponse = contextIntro + nextQuestion + ` ${progress}` + skipInfo;
           newPhase = 'clarifying';
         } else {
-          // All 8 questions answered - ready to create job and generate search strategy
+          // All questions answered (or skipped) - ready to create job and generate search strategy
           newPhase = 'nap_complete';
           const contextIntro = knownContext.length > 0
             ? `Perfect! Since you're ${knownContext.join(' ')}, I have everything I need.\n\n`
