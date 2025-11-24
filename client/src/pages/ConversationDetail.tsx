@@ -53,6 +53,7 @@ export default function ConversationDetail() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const { data: conversation, isLoading } = useQuery<Conversation>({
     queryKey: ['/api/conversations', conversationId],
@@ -115,6 +116,51 @@ export default function ConversationDetail() {
         setLocation('/recruiting/conversations');
       }
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const confirmNAPMutation = useMutation({
+    mutationFn: async (data: {
+      dealBreakers: string[];
+      mustHaveSkills: string[];
+      niceToHaveSkills: string[];
+      seniorityLevel: string;
+      additionalNotes: string;
+    }) => {
+      if (!conversation?.job?.id) {
+        throw new Error('Job ID not found');
+      }
+
+      const response = await fetch(`/api/jobs/${conversation.job.id}/nap/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to confirm NAP');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "NAP confirmed! Starting intelligent candidate search...",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', conversation?.job?.id] });
+      setShowConfirmation(false);
+      // Navigate back after confirmation
+      setTimeout(() => handleBack(), 1000);
     },
     onError: (error: Error) => {
       toast({
@@ -229,21 +275,34 @@ export default function ConversationDetail() {
               <Sparkles className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle>AI Recruiting Assistant</CardTitle>
+              <CardTitle>
+                {conversation.phase === 'nap_complete' || showConfirmation ? 'Confirm NAP & Generate Search' : 'AI Recruiting Assistant'}
+              </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Continue your conversation or ask follow-up questions.
+                {conversation.phase === 'nap_complete' || showConfirmation 
+                  ? 'Review and confirm the Need Analysis Profile to proceed with candidate sourcing.'
+                  : 'Continue your conversation or ask follow-up questions.'}
               </p>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ChatInterface
-            conversationId={conversationId}
-            messages={conversation.messages || []}
-            matchedCandidates={conversation.matchedCandidates}
-            onSendMessage={handleSendMessage}
-            isLoading={sendMessageMutation.isPending}
-          />
+          {(conversation.phase === 'nap_complete' || showConfirmation) && conversation.job && conversation.searchContext ? (
+            <NAPConfirmationScreen
+              nap={conversation.searchContext}
+              jobId={conversation.job.id}
+              onConfirm={(data) => confirmNAPMutation.mutate(data)}
+              isLoading={confirmNAPMutation.isPending}
+            />
+          ) : (
+            <ChatInterface
+              conversationId={conversationId}
+              messages={conversation.messages || []}
+              matchedCandidates={conversation.matchedCandidates}
+              onSendMessage={handleSendMessage}
+              isLoading={sendMessageMutation.isPending}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
