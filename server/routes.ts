@@ -2402,98 +2402,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}** ${knownContext.join(' ')}.\n\n`
           : `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n`;
         
-        // ✨ DYNAMIC NAP INTERVIEW: Extract answers intelligently, only ask missing questions
-        // Import extraction engine
-        const { extractNAPAnswers, determineUnansweredQuestions, calculateQualityGateImpact } = await import('./nap-extraction');
+        // ✨ CRITICAL FIX: Separate HARD SKILLS (for sourcing NOW) from SOFT CONTEXT (for post-sourcing)
+        // Sourcing should trigger as soon as title + hard skills are ready
+        // Soft context is optional and collected in parallel for quality gate
+        const { extractNAPAnswers, calculateSoftContextImpact } = await import('./nap-extraction');
         
-        // Extract all available answers from user message
-        const extraction = await extractNAPAnswers(message, {
-          salary: updatedSearchContext.salary,
-          urgency: updatedSearchContext.urgency,
-          successCriteria: updatedSearchContext.successCriteria,
-          growthPreference: (updatedSearchContext as any).growthPreference,
-          remotePolicy: (updatedSearchContext as any).remotePolicy,
-          leadershipStyle: (updatedSearchContext as any).leadershipStyle,
-          teamDynamics: updatedSearchContext.teamDynamics,
-          competitorContext: (updatedSearchContext as any).competitorContext
-        });
+        const extraction = await extractNAPAnswers(message, 
+          {
+            title: updatedSearchContext.title,
+            hardSkills: updatedSearchContext.skills || [],
+            location: updatedSearchContext.location,
+            yearsExperience: updatedSearchContext.yearsExperience,
+            competitorCompanies: (updatedSearchContext as any).competitorContext ? [(updatedSearchContext as any).competitorContext] : [],
+            industry: updatedSearchContext.industry
+          },
+          {
+            salary: updatedSearchContext.salary,
+            urgency: updatedSearchContext.urgency,
+            successCriteria: updatedSearchContext.successCriteria,
+            growthPreference: (updatedSearchContext as any).growthPreference,
+            remotePolicy: (updatedSearchContext as any).remotePolicy,
+            leadershipStyle: (updatedSearchContext as any).leadershipStyle,
+            teamDynamics: updatedSearchContext.teamDynamics
+          }
+        );
         
-        // Merge extracted answers into search context
-        if (extraction.extractedAnswers.salary) updatedSearchContext.salary = extraction.extractedAnswers.salary;
-        if (extraction.extractedAnswers.urgency) updatedSearchContext.urgency = extraction.extractedAnswers.urgency;
-        if (extraction.extractedAnswers.successCriteria) updatedSearchContext.successCriteria = extraction.extractedAnswers.successCriteria;
-        if (extraction.extractedAnswers.growthPreference) (updatedSearchContext as any).growthPreference = extraction.extractedAnswers.growthPreference;
-        if (extraction.extractedAnswers.remotePolicy) (updatedSearchContext as any).remotePolicy = extraction.extractedAnswers.remotePolicy;
-        if (extraction.extractedAnswers.leadershipStyle) (updatedSearchContext as any).leadershipStyle = extraction.extractedAnswers.leadershipStyle;
-        if (extraction.extractedAnswers.teamDynamics) updatedSearchContext.teamDynamics = extraction.extractedAnswers.teamDynamics;
-        if (extraction.extractedAnswers.competitorContext) (updatedSearchContext as any).competitorContext = extraction.extractedAnswers.competitorContext;
+        // Update search context with extracted hard skills (for sourcing)
+        if (extraction.hardSkills.title) updatedSearchContext.title = extraction.hardSkills.title;
+        if (extraction.hardSkills.hardSkills?.length > 0) updatedSearchContext.skills = extraction.hardSkills.hardSkills;
+        if (extraction.hardSkills.location) updatedSearchContext.location = extraction.hardSkills.location;
+        if (extraction.hardSkills.yearsExperience) updatedSearchContext.yearsExperience = extraction.hardSkills.yearsExperience;
+        if (extraction.hardSkills.competitorCompanies?.length > 0) (updatedSearchContext as any).competitorContext = extraction.hardSkills.competitorCompanies[0];
+        if (extraction.hardSkills.industry) updatedSearchContext.industry = extraction.hardSkills.industry;
         
-        // Track skipped questions
-        let skippedQuestions = conversation.metadata?.skippedQuestions || [];
-        if (extraction.skipRequests.length > 0) {
-          skippedQuestions = [...skippedQuestions, ...extraction.skipRequests];
-          console.log(`⏭️ [Skip Request] User skipped: ${extraction.skipRequests.join(', ')}`);
-          
-          // Calculate and show quality gate impact
-          const impact = calculateQualityGateImpact(skippedQuestions);
-          console.log(`📊 [Quality Gate Impact]`);
-          console.log(`   Base gate: ${impact.baseGate}% → Adjusted: ${impact.adjustedGate}%`);
-          console.log(`   Candidate reduction: ${impact.estimatedCandidateReduction}`);
-          impact.reasoning.forEach(r => console.log(`   ${r}`));
-          
-          // Update metadata
-          if (!conversation.metadata) conversation.metadata = {};
-          (conversation.metadata as any).skippedQuestions = skippedQuestions;
-          (conversation.metadata as any).qualityGateImpact = impact;
-        }
+        // Update soft context (for quality scoring after sourcing)
+        if (extraction.softContext.salary) updatedSearchContext.salary = extraction.softContext.salary;
+        if (extraction.softContext.urgency) updatedSearchContext.urgency = extraction.softContext.urgency;
+        if (extraction.softContext.successCriteria) updatedSearchContext.successCriteria = extraction.softContext.successCriteria;
+        if (extraction.softContext.growthPreference) (updatedSearchContext as any).growthPreference = extraction.softContext.growthPreference;
+        if (extraction.softContext.remotePolicy) (updatedSearchContext as any).remotePolicy = extraction.softContext.remotePolicy;
+        if (extraction.softContext.leadershipStyle) (updatedSearchContext as any).leadershipStyle = extraction.softContext.leadershipStyle;
+        if (extraction.softContext.teamDynamics) updatedSearchContext.teamDynamics = extraction.softContext.teamDynamics;
         
-        // Determine which NAP questions are still unanswered
-        const unansweredQuestions = determineUnansweredQuestions(updatedSearchContext, skippedQuestions);
-        
-        let nextQuestion = null;
-        
-        if (unansweredQuestions.length > 0) {
-          // Ask the next unanswered question
-          const nextQ = unansweredQuestions[0];
-          
-          // Map question labels to prompts
-          const questionPrompts: Record<string, string> = {
-            'Q1: Salary & Budget': "**Q1: Salary & Budget** - What's the **salary range** for this role? (e.g., USD 150K-200K)",
-            'Q2: Business Urgency': "**Q2: Business Urgency** - How **urgent** is this hire? Strategic long-term or tactical ASAP need?",
-            'Q3: Success Criteria': "**Q3: Success Criteria** - What does **success** look like in the first 90 days? Specific milestones?",
-            'Q4: Growth Trajectory': "**Q4: Growth Trajectory** - Should they **grow into leadership** (build teams) or **go deep** (specialist expert)?",
-            'Q5: Remote Policy': "**Q5: Remote Policy** - What's your **work policy**? Fully remote, hybrid, or on-site only?",
-            'Q6: Leadership Style': "**Q6: Leadership Style** - What **leadership style** will they report to? (Hands-off, collaborative, directive?)",
-            'Q7: Team Dynamics': "**Q7: Team Dynamics** - Describe the **team & culture**. What traits won't work here?",
-            'Q8: Competitor Sourcing': "**Q8: Competitor Sourcing** - Any **competitor companies** to target for talent? (e.g., FAANG, specific PE firms?)"
-          };
-          
-          nextQuestion = questionPrompts[nextQ] || nextQ;
-          
-          // Add helpful skip option
-          const skipInfo = skippedQuestions.length > 0 
-            ? `\n\n*(You can skip questions by saying "skip this" or "not important". Skipped: ${skippedQuestions.length}/8)*`
-            : `\n\n*(You can skip questions by saying "skip this" or "not important" if they're not relevant)*`;
-          
-          const progress = `(${extraction.questionsAnswered.length + skippedQuestions.length}/8 answered or skipped)`;
-          aiResponse = contextIntro + nextQuestion + ` ${progress}` + skipInfo;
-          newPhase = 'clarifying';
-        } else {
-          // All questions answered (or skipped) - ready to create job and generate search strategy
+        // CRITICAL: Check if READY TO SOURCE (hard skills complete)
+        if (extraction.readyToSource) {
           newPhase = 'nap_complete';
-          const contextIntro = knownContext.length > 0
-            ? `Perfect! Since you're ${knownContext.join(' ')}, I have everything I need.\n\n`
-            : `Perfect! I have all the information I need.\n\n`;
+          console.log(`✅ [READY TO SOURCE] Hard skills complete. Ready to generate search strategy and trigger sourcing.`);
+          const softImpact = calculateSoftContextImpact(extraction.softContext);
+          console.log(`📊 [Soft Context] ${softImpact.coverage}% collected${softImpact.warning ? ` - ${softImpact.warning}` : ''}`);
           
+          aiResponse = contextIntro + 
+            `Perfect! I have enough to begin the search.\n\n` +
+            `**Ready to Search with:**\n` +
+            `- Role: ${extraction.hardSkills.title}\n` +
+            `- Hard Skills: ${extraction.hardSkills.hardSkills.join(', ')}\n` +
+            `- Location: ${extraction.hardSkills.location || 'Global'}\n` +
+            `- Years: ${extraction.hardSkills.yearsExperience || 'Any'}+\n\n` +
+            (softImpact.coverage < 100 ? 
+              `**Optional Context for Better Scoring:**\n` +
+              `Still collecting: ${100 - softImpact.coverage}% of optional context (salary, success criteria, team fit, etc.).\n` +
+              `You can provide this info now, or I can proceed with sourcing and collect it in parallel.\n\n` :
+              ``) +
+            `Ready to trigger the external search? This will take ~20 minutes to deliver the longlist.`;
+        } else {
+          // Not ready to source yet - ask for missing hard skills
+          newPhase = 'clarifying';
           aiResponse = contextIntro +
-            `**Position**: ${updatedSearchContext.title}\n` +
-            `**Industry**: ${updatedSearchContext.industry}\n` +
-            `**Location**: ${updatedSearchContext.location || 'Not specified'}\n` +
-            `**Skills**: ${updatedSearchContext.skills?.join(', ') || 'Not specified'}\n\n` +
-            `Would you like me to create a formal job order and begin the search? I can offer two search tiers:\n\n` +
-            `✓ **Internal Database Search** (~15 minutes, search our existing candidates)\n` +
-            `✓ **Extended External Search** (longer, search external sources - premium pricing)\n\n` +
-            `Which would you prefer?`;
+            `To begin searching on LinkedIn, I need:\n\n` +
+            extraction.missingForSourcing.map((m, i) => `${i+1}. **${m}**`).join('\n') +
+            `\n\n(Soft details like salary, success criteria, team culture can be added anytime for better candidate scoring, but aren't needed to start the search.)`;
         }
       } else {
         // Handle text message using Grok's conversational AI
