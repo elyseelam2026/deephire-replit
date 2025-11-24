@@ -1,5 +1,8 @@
-import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database, Search, Activity } from "lucide-react";
+import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database, Search, Activity, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -62,7 +65,9 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ portal }: AppSidebarProps) {
+  const [, setLocation] = useLocation();
   const [location] = useLocation();
+  const { toast } = useToast();
   
   // Use explicit portal prop, or fall back to URL detection
   const userRole = portal || (
@@ -78,6 +83,36 @@ export function AppSidebar({ portal }: AppSidebarProps) {
                 userRole === 'client' ? clientItems : 
                 userRole === 'candidate' ? candidateItems :
                 agencyItems;
+
+  // Logout mutation
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error("Logout failed");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out",
+      });
+      setLocation("/");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
 
   return (
     <Sidebar data-testid="sidebar-main">
@@ -103,6 +138,23 @@ export function AppSidebar({ portal }: AppSidebarProps) {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        
+        {/* Logout Button */}
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              disabled={logoutMutation.isPending}
+              className="w-full justify-start"
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              {logoutMutation.isPending ? "Logging out..." : "Logout"}
+            </Button>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

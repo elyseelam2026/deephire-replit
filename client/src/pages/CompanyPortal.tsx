@@ -85,20 +85,36 @@ export default function CompanyPortal() {
     enabled: !!companyId,
   });
 
-  const handleLogout = async () => {
-    try {
-      // Clear localStorage
+  // Logout mutation
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error("Logout failed");
+      return response.json();
+    },
+    onSuccess: () => {
       localStorage.removeItem("companyId");
       localStorage.removeItem("email");
-      // Redirect to home
-      setLocation("/");
-    } catch (error) {
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out",
+      });
+      setLocation("/company/login");
+    },
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to logout",
         variant: "destructive",
       });
-    }
+    },
+  });
+
+  const handleLogout = async () => {
+    logoutMutation.mutate();
   };
 
   const onSubmit = async (data: JobPostData) => {

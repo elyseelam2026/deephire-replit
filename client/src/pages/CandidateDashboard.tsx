@@ -31,7 +31,7 @@ export default function CandidateDashboard() {
   // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/candidate/logout", {
+      const response = await fetch("/api/logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });

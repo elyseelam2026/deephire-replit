@@ -7,12 +7,17 @@ interface ProtectedRouteProps {
   requiredRole?: 'candidate' | 'company' | 'admin';
 }
 
+interface SessionData {
+  userId?: number;
+  role?: string;
+}
+
 export function ProtectedRoute({ component: Component, requiredRole }: ProtectedRouteProps) {
   const [, setLocation] = useLocation();
   const [isReady, setIsReady] = useState(false);
 
   // Check if user is authenticated
-  const { data: session, isLoading } = useQuery({
+  const { data: session, isLoading } = useQuery<SessionData>({
     queryKey: ['/api/auth/me'],
     retry: 1,
   });
