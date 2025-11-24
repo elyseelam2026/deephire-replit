@@ -9,36 +9,30 @@ import { desc, sql } from "drizzle-orm";
 
 export async function getLearningIntelligence() {
   try {
-    const [positionData, companyData, industryData, candidateData, jdData] = await Promise.all([
-      // Get top position keywords by search count
-      db.query.positionKeywords.findMany({
-        limit: 10,
-        orderBy: [desc(positionKeywords.searchCount)]
-      }),
-      
-      // Get top company sources by search count
-      db.query.companyLearning.findMany({
-        limit: 10,
-        orderBy: [desc(companyLearning.searchCount)]
-      }),
-      
-      // Get all industry patterns
-      db.query.industryLearning.findMany({
-        orderBy: [desc(industryLearning.searchCount)]
-      }),
-      
-      // Get top candidate patterns by frequency
-      db.query.candidateLearning.findMany({
-        limit: 10,
-        orderBy: [desc(candidateLearning.frequencyObserved)]
-      }),
-      
-      // Get successful job description patterns
-      db.query.jobDescriptionLearning.findMany({
-        limit: 10,
-        orderBy: [desc(sql`success_rate * times_used`)]
-      })
-    ]);
+    // Safely fetch with graceful fallback for missing tables
+    const positionData = await db.query.positionKeywords.findMany({
+      limit: 10,
+      orderBy: [desc(positionKeywords.searchCount)]
+    }).catch(() => []);
+    
+    const companyData = await db.query.companyLearning.findMany({
+      limit: 10,
+      orderBy: [desc(companyLearning.searchCount)]
+    }).catch(() => []);
+    
+    const industryData = await db.query.industryLearning.findMany({
+      orderBy: [desc(industryLearning.searchCount)]
+    }).catch(() => []);
+    
+    const candidateData = await db.query.candidateLearning.findMany({
+      limit: 10,
+      orderBy: [desc(candidateLearning.frequencyObserved)]
+    }).catch(() => []);
+    
+    const jdData = await db.query.jobDescriptionLearning.findMany({
+      limit: 10,
+      orderBy: [desc(sql`success_rate * times_used`)]
+    }).catch(() => []);
 
     return {
       positions: positionData.map(p => ({
