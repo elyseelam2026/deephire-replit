@@ -6,6 +6,10 @@
  * Used to enhance boolean search queries
  */
 
+import { db } from "./db";
+import { positionKeywords } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
+
 // DEFAULT POSITION KEYWORDS SEED DATA
 export const DEFAULT_POSITION_KEYWORDS: Record<string, {
   keywords: string[];
@@ -73,7 +77,7 @@ export const DEFAULT_POSITION_KEYWORDS: Record<string, {
 
 /**
  * Get keywords for a position
- * Returns cached keywords or default seed data
+ * Queries database first, then falls back to seed data or fuzzy matching
  */
 export async function getPositionKeywords(
   position: string
@@ -84,23 +88,61 @@ export async function getPositionKeywords(
   industries: string[];
   seniority: string;
 }> {
-  // For now, return seed data - in production, this would query the database
   const normalized = position.trim();
   
-  // Exact match first
+  try {
+    // 1. Try exact match in database
+    const dbMatch = await db.query.positionKeywords.findFirst({
+      where: eq(positionKeywords.position, normalized)
+    });
+    
+    if (dbMatch) {
+      console.log(`📚 [Keywords] Found in database: ${normalized}`);
+      return {
+        keywords: dbMatch.keywords || [],
+        certifications: dbMatch.certifications || [],
+        skills: dbMatch.skills || [],
+        industries: dbMatch.industries || [],
+        seniority: dbMatch.seniority || "Senior"
+      };
+    }
+    
+    // 2. Try fuzzy match in database
+    const allPositions = await db.query.positionKeywords.findMany();
+    for (const dbPos of allPositions) {
+      if (normalized.toLowerCase().includes(dbPos.position.toLowerCase()) || 
+          dbPos.position.toLowerCase().includes(normalized.toLowerCase())) {
+        console.log(`📚 [Keywords] Fuzzy matched in database: ${normalized} → ${dbPos.position}`);
+        return {
+          keywords: dbPos.keywords || [],
+          certifications: dbPos.certifications || [],
+          skills: dbPos.skills || [],
+          industries: dbPos.industries || [],
+          seniority: dbPos.seniority || "Senior"
+        };
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️ Database query failed, falling back to seed data:`, error);
+  }
+  
+  // 3. Fall back to seed data
   if (DEFAULT_POSITION_KEYWORDS[normalized]) {
+    console.log(`📚 [Keywords] Using seed data: ${normalized}`);
     return DEFAULT_POSITION_KEYWORDS[normalized];
   }
   
-  // Fuzzy match (e.g., "VP Finance" → "VP Sales" pattern)
+  // 4. Fuzzy match in seed data
   for (const [key, value] of Object.entries(DEFAULT_POSITION_KEYWORDS)) {
     if (normalized.toLowerCase().includes(key.toLowerCase()) || 
         key.toLowerCase().includes(normalized.toLowerCase())) {
+      console.log(`📚 [Keywords] Fuzzy matched seed data: ${normalized} → ${key}`);
       return value;
     }
   }
   
-  // Default fallback for unknown positions
+  // 5. Default fallback for unknown positions
+  console.log(`📚 [Keywords] Unknown position, creating default: ${normalized}`);
   return {
     keywords: [position],
     certifications: [],
@@ -112,22 +154,58 @@ export async function getPositionKeywords(
 
 /**
  * Learn from search: Update keyword intelligence after a search is executed
- * In production, this would upsert the positionKeywords table
+ * Increments searchCount, merges new keywords from actual search results
  */
 export async function recordSearchForPosition(
   position: string,
   additionalKeywords?: string[]
 ): Promise<void> {
-  console.log(`📚 [Learning] Recording search for position: ${position}`);
+  const normalized = position.trim();
+  console.log(`📚 [Learning] Recording search for position: ${normalized}`);
   if (additionalKeywords?.length) {
     console.log(`   New keywords discovered: ${additionalKeywords.join(', ')}`);
   }
   
-  // In production:
-  // 1. Query database for existing entry
-  // 2. If exists: increment searchCount, merge additionalKeywords
-  // 3. If not exists: create new entry with source="learned_from_search"
-  // 4. Update lastUpdated timestamp
+  try {
+    // Find existing entry
+    const existing = await db.query.positionKeywords.findFirst({
+      where: eq(positionKeywords.position, normalized)
+    });
+    
+    if (existing) {
+      // UPDATE: Increment searchCount + merge keywords
+      const mergedSkills = Array.from(new Set([
+        ...(existing.skills || []),
+        ...(additionalKeywords || [])
+      ]));
+      
+      await db.update(positionKeywords)
+        .set({
+          searchCount: sql`${positionKeywords.searchCount} + 1`,
+          skills: mergedSkills,
+          lastUpdated: new Date()
+        })
+        .where(eq(positionKeywords.position, normalized));
+      
+      console.log(`✅ [Learning] Updated: ${normalized} (searchCount++, merged ${additionalKeywords?.length || 0} new skills)`);
+    } else {
+      // INSERT: New entry from learned search
+      await db.insert(positionKeywords).values({
+        position: normalized,
+        keywords: [position],
+        certifications: [],
+        skills: additionalKeywords || [],
+        industries: [],
+        seniority: "Unknown",
+        source: "learned_from_search",
+        searchCount: 1
+      });
+      
+      console.log(`✅ [Learning] Created new entry: ${normalized} (source: learned_from_search)`);
+    }
+  } catch (error) {
+    console.error(`❌ Failed to record search for position ${normalized}:`, error);
+  }
 }
 
 /**
