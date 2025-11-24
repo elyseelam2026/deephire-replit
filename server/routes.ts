@@ -2922,7 +2922,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `✓ External sources (LinkedIn, professional networks)\n` +
             `✓ AI-powered fit scoring against full NAP context\n` +
             `✓ Seniority filtering to ensure qualified candidates only\n\n` +
-            `🔗 **[Track Search Progress →](jobs/${createdJobId})**\n\n` +
             `_We do not return immediate or low-quality results. Quality takes time._\n\n` +
             `You will receive a full sourcing map via email when the search is complete with 7-12 highly relevant candidates.`;
 
