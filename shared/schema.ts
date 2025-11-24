@@ -23,6 +23,84 @@ export const insertPositionKeywordsSchema = createInsertSchema(positionKeywords)
 export type InsertPositionKeywords = z.infer<typeof insertPositionKeywordsSchema>;
 export type SelectPositionKeywords = typeof positionKeywords.$inferSelect;
 
+// COMPANY LEARNING TABLE - Learn which companies are talent sources
+export const companyLearning = pgTable("company_learning", {
+  id: serial("id").primaryKey(),
+  companyName: text("company_name").notNull().unique(),
+  skills: text("skills").array().default(sql`ARRAY[]::text[]`), // Skills commonly found here
+  titlePatterns: text("title_patterns").array().default(sql`ARRAY[]::text[]`), // Job titles seen
+  industries: text("industries").array().default(sql`ARRAY[]::text[]`), // Industries this sources into
+  successfulPlacements: integer("successful_placements").default(0),
+  searchCount: integer("search_count").default(0),
+  source: text("source").default("learned"), // seed, learned
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertCompanyLearningSchema = createInsertSchema(companyLearning).omit({ id: true, createdAt: true, lastUpdated: true });
+export type InsertCompanyLearning = z.infer<typeof insertCompanyLearningSchema>;
+export type SelectCompanyLearning = typeof companyLearning.$inferSelect;
+
+// INDUSTRY LEARNING TABLE - Learn typical roles and skills per industry
+export const industryLearning = pgTable("industry_learning", {
+  id: serial("id").primaryKey(),
+  industry: text("industry").notNull().unique(),
+  typicalRoles: text("typical_roles").array().default(sql`ARRAY[]::text[]`), // CFO, VP Sales, etc.
+  commonSkills: text("common_skills").array().default(sql`ARRAY[]::text[]`), // M&A, FP&A, etc.
+  typicalSeniority: text("typical_seniority").array().default(sql`ARRAY[]::text[]`), // C-Suite, VP, etc.
+  averageCompensation: jsonb("average_compensation"), // {min, max, currency}
+  searchCount: integer("search_count").default(0),
+  source: text("source").default("learned"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertIndustryLearningSchema = createInsertSchema(industryLearning).omit({ id: true, createdAt: true, lastUpdated: true });
+export type InsertIndustryLearning = z.infer<typeof insertIndustryLearningSchema>;
+export type SelectIndustryLearning = typeof industryLearning.$inferSelect;
+
+// CANDIDATE PATTERN LEARNING TABLE - Learn what makes successful candidates
+export const candidateLearning = pgTable("candidate_learning", {
+  id: serial("id").primaryKey(),
+  pattern: text("pattern").notNull().unique(), // e.g., "PE-IB-Background", "MBA-Finance-Career"
+  description: text("description"),
+  successRate: real("success_rate").default(0), // 0-100, how often this pattern leads to hire
+  averageTenureMonths: integer("average_tenure_months"),
+  typicalCompanies: text("typical_companies").array().default(sql`ARRAY[]::text[]`),
+  typicalTitles: text("typical_titles").array().default(sql`ARRAY[]::text[]`),
+  keySkills: text("key_skills").array().default(sql`ARRAY[]::text[]`),
+  targetIndustries: text("target_industries").array().default(sql`ARRAY[]::text[]`),
+  frequencyObserved: integer("frequency_observed").default(0),
+  source: text("source").default("learned"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertCandidateLearningSchema = createInsertSchema(candidateLearning).omit({ id: true, createdAt: true, lastUpdated: true });
+export type InsertCandidateLearning = z.infer<typeof insertCandidateLearningSchema>;
+export type SelectCandidateLearning = typeof candidateLearning.$inferSelect;
+
+// JOB DESCRIPTION LEARNING TABLE - Learn patterns from successful job descriptions
+export const jobDescriptionLearning = pgTable("job_description_learning", {
+  id: serial("id").primaryKey(),
+  descriptionPattern: text("description_pattern").notNull().unique(), // Hash of normalized JD
+  extractedRoles: text("extracted_roles").array().default(sql`ARRAY[]::text[]`),
+  extractedSkills: text("extracted_skills").array().default(sql`ARRAY[]::text[]`),
+  preferredEducation: text("preferred_education"),
+  preferredSeniority: text("preferred_seniority"),
+  requiredYearsExperience: integer("required_years_experience"),
+  requiredCertifications: text("required_certifications").array().default(sql`ARRAY[]::text[]`),
+  timesUsed: integer("times_used").default(0),
+  successRate: real("success_rate").default(0), // How many candidates from this JD pattern were hired
+  source: text("source").default("learned"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertJobDescriptionLearningSchema = createInsertSchema(jobDescriptionLearning).omit({ id: true, createdAt: true, lastUpdated: true });
+export type InsertJobDescriptionLearning = z.infer<typeof insertJobDescriptionLearningSchema>;
+export type SelectJobDescriptionLearning = typeof jobDescriptionLearning.$inferSelect;
+
 // Companies table - comprehensive company profiles
 export const companies = pgTable("companies", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
