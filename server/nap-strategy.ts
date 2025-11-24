@@ -344,13 +344,30 @@ export async function generateSearchStrategy(
   } else {
     let points = [];
     if (actualPain) {
-      points.push(`1. **Pain-Driven**: Targeting candidates who've solved "${actualPain}" challenges${painKeywords.length > 0 ? ` (keywords: ${painKeywords.slice(0,3).join(", ")})` : ''}`);
+      points.push(`1. **Business Challenge**: Target ${title}s who've managed "${actualPain}"${painKeywords.length > 0 ? ` (e.g., ${painKeywords.slice(0,2).join(", ")})` : ''}`);
+    } else {
+      points.push(`1. **Role Context**: Seeking ${title}-level talent for ${companyName || 'your organization'}`);
     }
-    points.push(`2. **Need Match**: Focusing on ${title}s with ${needKeywords.slice(0,2).join(" + ")} experience`);
-    points.push(`3. **Authority Fit**: ${actualSuccessCriteria}-level professionals${filters.seniorityLevel ? ` (${filters.seniorityLevel.join(", ")})` : ''}`);
-    points.push(`4. **Industry**: ${filters.industry.join(", ")} backgrounds most relevant to your context`);
+    
+    // Make Need Match distinct - focus on specific competencies, not just title
+    const coreCompetency = needKeywords.slice(0,1).join("");
+    const secondaryCompetency = needKeywords.slice(1,2).join("");
+    if (coreCompetency && secondaryCompetency) {
+      points.push(`2. **Must-Have Skills**: ${coreCompetency} + ${secondaryCompetency} expertise required`);
+    } else if (coreCompetency) {
+      points.push(`2. **Core Expertise**: Deep experience in ${coreCompetency}`);
+    } else {
+      points.push(`2. **Experience Profile**: Demonstrated success in similar roles`);
+    }
+    
+    // Make Authority Fit about decision-making context, not just repeating title
+    points.push(`3. **Decision Maker Fit**: Reports to ${actualSuccessCriteria || 'executive leadership'}${filters.seniorityLevel ? ` (${filters.seniorityLevel.join(", ")})` : ''}`);
+    
+    // Make Industry actionable - explain relevance, not just list
+    points.push(`4. **Industry Focus**: ${filters.industry.length === 1 ? `Specialized in ${filters.industry[0]}` : `Cross-industry: ${filters.industry.slice(0,3).join(", ")}`} environments`);
+    
     if (normalizedYears) {
-      points.push(`5. **Quality Bar**: ${normalizedYears}+ years experience minimum`);
+      points.push(`5. **Experience Floor**: Minimum ${normalizedYears} years${normalizedYears >= 5 ? ' (demonstrated seniority)' : ' (core competency proven)'}`);
     }
     
     searchRationale = `**Why this search strategy (Boolean Search):**\n\n` +
