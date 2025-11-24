@@ -2070,8 +2070,8 @@ export async function generateCandidateLonglist(
 }
 
 /**
- * Generate search strategy for a job order using AI
- * Returns a transparent "thinking process" like Manus AI
+ * ENHANCED: Generate intelligent search strategy with sophisticated boolean queries
+ * Maps NAP context to multi-signal LinkedIn search operators
  */
 export async function generateSearchStrategy(jobData: {
   title: string;
@@ -2083,6 +2083,11 @@ export async function generateSearchStrategy(jobData: {
   urgency?: string;
   successCriteria?: string;
   searchTier: string;
+  growthPreference?: string;    // 'leadership' or 'specialist'
+  remotePolicy?: string;        // 'remote', 'hybrid', 'onsite'
+  leadershipStyle?: string;     // leadership style context
+  competitorContext?: string;   // competitor company names
+  teamDynamics?: string;        // team/culture context
 }): Promise<{
   summary: string;
   steps: string[];
@@ -2091,43 +2096,70 @@ export async function generateSearchStrategy(jobData: {
     niceToHave: string[];
     dealBreakers?: string[];
   };
+  booleanQueries?: string[];    // Multi-layered LinkedIn boolean searches
   expectedSources: string[];
+  reasoning?: string;
 }> {
   try {
+    // Build richer context for xAI reasoning
+    const richContext = `
+**NAP-DRIVEN CONTEXT:**
+- Growth Trajectory: ${jobData.growthPreference || 'Not specified'} (shapes: building teams vs deep expertise)
+- Remote Work: ${jobData.remotePolicy || 'Not specified'} (determines talent pool geography)
+- Leadership Style: ${jobData.leadershipStyle || 'Not specified'} (filters cultural fit)
+- Competitor Sources: ${jobData.competitorContext || 'Not specified'} (poach from specific companies?)
+- Team Culture: ${jobData.teamDynamics || 'Not specified'} (avoid mismatches)`;
+
     const response = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [
         {
           role: "system",
-          content: "You are an AI search strategist for executive recruiting. Create transparent, detailed search strategies that explain your thinking process. Be specific and actionable."
+          content: "You are an elite executive recruiter strategist. Generate sophisticated, multi-layered LinkedIn boolean search strategies that combine skills, industry signals, competitor intelligence, and career trajectory patterns. Think like a headhunter."
         },
         {
           role: "user",
-          content: `Generate a search strategy for finding candidates for this role:
+          content: `Generate a sophisticated multi-signal search strategy for finding candidates:
 
-**Position**: ${jobData.title}
-**Skills**: ${jobData.skills?.join(', ') || 'Not specified'}
-**Industry**: ${jobData.industry || 'Any'}
-**Experience**: ${jobData.yearsExperience ? `${jobData.yearsExperience}+ years` : 'Not specified'}
-**Location**: ${jobData.location || 'Any'}
-**Salary**: ${jobData.salary || 'Not specified'}
-**Urgency**: ${jobData.urgency || 'Standard'}
-**Success Criteria**: ${jobData.successCriteria || 'Not specified'}
-**Search Tier**: ${jobData.searchTier === 'internal' ? 'Internal Database Only' : 'Extended External Search'}
+**CORE REQUIREMENTS:**
+- Position: ${jobData.title}
+- Skills (Critical): ${jobData.skills?.join(', ') || 'Not specified'}
+- Industry: ${jobData.industry || 'Any'}
+- Experience: ${jobData.yearsExperience ? `${jobData.yearsExperience}+ years` : 'Not specified'}
+- Location: ${jobData.location || 'Any'}
+- Salary Range: ${jobData.salary || 'Not specified'}
+- Timeline: ${jobData.urgency || 'Standard'}
 
-Return a JSON object with:
+${richContext}
+
+**TASK:**
+1. Identify 3-4 SOPHISTICATED boolean search queries that stack multiple signals
+   - Primary query: Core skills + experience level
+   - Secondary query: Competitor company + skill combo
+   - Tertiary query: Industry + Growth pattern
+   - Quarternary (optional): Adjacent talent + trajectory
+
+2. Extract must-haves vs nice-to-haves with REASONING
+3. Identify deal-breakers (culture/career mismatches)
+4. Suggest source strategy (LinkedIn, competitor networks, etc)
+
+Return JSON:
 {
-  "summary": "Brief 1-2 sentence strategy overview",
-  "steps": ["Step 1", "Step 2", ...], // 5-7 specific search execution steps
+  "summary": "<clear 1-2 sentence strategy>",
+  "reasoning": "<Why this approach? What signals matter most?>",
+  "booleanQueries": [
+    "(${jobData.skills?.[0] || 'skill'} OR ${jobData.skills?.[1] || 'skill2'}) AND (${jobData.yearsExperience}+ years) AND (${jobData.location})",
+    "(${jobData.competitorContext || 'Google OR Facebook'}) AND (${jobData.skills?.[0] || 'skill'})",
+    "<Additional query>"
+  ],
+  "steps": ["Step 1", "Step 2", ...],
   "searchCriteria": {
-    "mustHave": ["Critical requirement 1", ...],
-    "niceToHave": ["Preferred requirement 1", ...],
-    "dealBreakers": ["Disqualifying factor 1", ...] // optional
+    "mustHave": ["<Critical with reasoning>", ...],
+    "niceToHave": ["<Preferred>", ...],
+    "dealBreakers": ["<What to avoid>"]
   },
-  "expectedSources": ["Source 1", "Source 2", ...] // Where you'll search
-}
-
-Be specific and actionable. Show your thinking process.`
+  "expectedSources": ["LinkedIn", "Competitor networks", ...]
+}`
         }
       ],
       response_format: { type: "json_object" }
@@ -2139,41 +2171,51 @@ Be specific and actionable. Show your thinking process.`
     return {
       summary: strategy.summary || "Analyzing requirements and planning search...",
       steps: strategy.steps || [
-        "Analyze job requirements and identify key skills",
-        "Search internal database for matching profiles",
-        "Score candidates based on skill match and experience",
-        "Review top matches for cultural fit",
-        "Prepare candidate shortlist for review"
+        "Analyze NAP context and identify signal combinations",
+        "Generate multi-layered LinkedIn boolean queries",
+        "Prioritize competitor talent pools",
+        "Score candidates by career trajectory",
+        "Prepare shortlist with reasoning"
       ],
       searchCriteria: strategy.searchCriteria || {
         mustHave: jobData.skills || [],
         niceToHave: [],
         dealBreakers: []
       },
+      booleanQueries: strategy.booleanQueries || [],
+      reasoning: strategy.reasoning || "Multi-signal search strategy generated",
       expectedSources: strategy.expectedSources || jobData.searchTier === 'internal' 
         ? ["Internal Candidate Database"]
-        : ["Internal Database", "LinkedIn", "Industry Networks"]
+        : ["LinkedIn Boolean Search", "Competitor Intelligence", "Industry Networks"]
     };
   } catch (error) {
     console.error("Error generating search strategy:", error);
     
-    // Return fallback strategy
+    // Fallback: Generate basic boolean query manually
+    const primarySkill = jobData.skills?.[0] || jobData.title;
+    const secondarySkill = jobData.skills?.[1] || '';
+    const basicBoolean = secondarySkill 
+      ? `(${primarySkill} OR ${secondarySkill}) AND experience`
+      : `"${primarySkill}" AND ${jobData.yearsExperience || 5}+ years`;
+    
     return {
-      summary: `Searching for ${jobData.title} with ${jobData.skills?.length || 0} required skills in ${jobData.searchTier} database.`,
+      summary: `Searching for ${jobData.title} with ${jobData.skills?.length || 0} required skills`,
       steps: [
-        "Analyze job requirements and identify key skills",
-        "Search candidate database for matching profiles",
-        "Score candidates based on skill match and experience",
-        "Filter by location and availability",
-        "Rank candidates by overall fit"
+        "Identify critical skills and experience level",
+        "Search candidate database",
+        "Score by skill match and career trajectory",
+        "Filter by location and growth preference",
+        "Prepare final candidates"
       ],
       searchCriteria: {
         mustHave: jobData.skills || [],
         niceToHave: [],
+        dealBreakers: []
       },
+      booleanQueries: [basicBoolean],
       expectedSources: jobData.searchTier === 'internal' 
         ? ["Internal Candidate Database"]
-        : ["Internal Database", "LinkedIn", "Professional Networks"]
+        : ["LinkedIn", "Professional Networks"]
     };
   }
 }

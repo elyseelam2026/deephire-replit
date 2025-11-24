@@ -2402,20 +2402,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}** ${knownContext.join(' ')}.\n\n`
           : `Great! I've analyzed the job description for **${updatedSearchContext.title || 'this position'}**.\n\n`;
         
-        // NAP Priority: Ask ONE critical question at a time
-        // Priority order: Salary > Urgency > Success criteria > Cultural fit
+        // ENHANCED NAP: Ask ONE critical question at a time, prioritized by importance
+        // Priority order: Salary → Urgency → Success criteria → Growth preference → Remote work → Leadership style → Team dynamics
         let nextQuestion = null;
         
         if (!updatedSearchContext.salary || updatedSearchContext.salary === 'unknown') {
           nextQuestion = "What's the **salary range** for this role? (Please provide a range, not a single number)";
         } else if (!updatedSearchContext.urgency || updatedSearchContext.urgency === 'low' || updatedSearchContext.urgency === 'unknown') {
           nextQuestion = "How **urgent** is this hire? Are we looking at a standard 30-60 day timeline, or is this a fast-track search?";
-        } else if (!updatedSearchContext.companySize || updatedSearchContext.companySize === 'unknown') {
-          nextQuestion = "What's the **company size**? (e.g., startup, mid-market, enterprise with 500+ employees)";
         } else if (!updatedSearchContext.successCriteria) {
-          nextQuestion = "What does **success look like** for this person in the first 90 days? This helps me understand what you're really looking for.";
+          nextQuestion = "What does **success look like** for this person in the first 90 days? Specific metrics or milestones?";
+        } else if (!(updatedSearchContext as any).growthPreference) {
+          nextQuestion = "Is this candidate expected to **grow into leadership** (build & scale teams), or **go deep** (become a specialist)? This shapes the talent profile.";
+        } else if (!(updatedSearchContext as any).remotePolicy) {
+          nextQuestion = "What's your **remote work policy**? (Fully remote, hybrid, or on-site required?)";
+        } else if (!(updatedSearchContext as any).leadershipStyle) {
+          nextQuestion = "What **leadership style** will they report to? (E.g., hands-off executive, collaborative coach, directive manager?)";
         } else if (!updatedSearchContext.teamDynamics) {
-          nextQuestion = "Tell me about the **team dynamics** they'll be joining. What's the leadership style and culture like?";
+          nextQuestion = "Tell me about the **team dynamics** and culture. What won't work in this environment?";
+        } else if (!(updatedSearchContext as any).competitorContext) {
+          nextQuestion = "Are there **competitor companies** where you'd like to source candidates from? (E.g., stealing talent from FAANG, competitors, adjacent industries?)";
         }
 
         if (nextQuestion) {
@@ -2556,6 +2562,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         if (message.toLowerCase().includes('team') || message.toLowerCase().includes('culture') || message.toLowerCase().includes('dynamic')) {
           updatedSearchContext.teamDynamics = message;
+        }
+        // ENHANCED NAP: Capture deeper signals
+        if (message.toLowerCase().includes('leadership') || message.toLowerCase().includes('scale') || message.toLowerCase().includes('build')) {
+          (updatedSearchContext as any).growthPreference = 'leadership';
+        } else if (message.toLowerCase().includes('specialist') || message.toLowerCase().includes('deep') || message.toLowerCase().includes('expert')) {
+          (updatedSearchContext as any).growthPreference = 'specialist';
+        }
+        if (message.toLowerCase().includes('remote') || message.toLowerCase().includes('wfh')) {
+          (updatedSearchContext as any).remotePolicy = 'remote';
+        } else if (message.toLowerCase().includes('hybrid')) {
+          (updatedSearchContext as any).remotePolicy = 'hybrid';
+        } else if (message.toLowerCase().includes('on-site') || message.toLowerCase().includes('office')) {
+          (updatedSearchContext as any).remotePolicy = 'onsite';
+        }
+        if (message.toLowerCase().includes('hands-off') || message.toLowerCase().includes('executive') || message.toLowerCase().includes('coach')) {
+          (updatedSearchContext as any).leadershipStyle = message;
+        }
+        if (message.toLowerCase().includes('google') || message.toLowerCase().includes('facebook') || message.toLowerCase().includes('faang') || 
+            message.toLowerCase().includes('competitor') || message.toLowerCase().includes('steal')) {
+          (updatedSearchContext as any).competitorContext = message;
         }
         
         // Map Grok's intent to our phase system
