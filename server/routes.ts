@@ -2511,45 +2511,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         aiResponse = grokResponse.response;
         
-        // ✨ PROMISE DETECTION: Check if AI made a delivery commitment
-        const detectedPromise = detectPromise(aiResponse);
-        if (detectedPromise) {
-          // AI made a promise to deliver candidates!
-          console.log(`🎯 AI Promise detected: "${detectedPromise.promiseText}"`);
-          console.log(`   Deadline: ${detectedPromise.deadlineAt.toISOString()}`);
-          console.log(`   Conversation has job: ${conversation.jobId ? 'Yes (ID: ' + conversation.jobId + ')' : 'No'}`);
-          
-          try {
-            const promiseRecord = createPromiseFromConversation(
-              detectedPromise,
-              conversationId,
-              updatedSearchContext
-            );
-            
-            // Link to existing job if conversation already has one
-            if (conversation.jobId) {
-              promiseRecord.jobId = conversation.jobId;
-            }
-            
-            const created = await storage.createSearchPromise(promiseRecord);
-            
-            // CRITICAL FIX: Only execute immediately if job already exists
-            // If no job yet, let the job creation flow below handle search execution
-            if (conversation.jobId) {
-              console.log(`✅ Promise #${created.id} linked to existing job #${conversation.jobId} - executing immediately...`);
-              const { executeSearchPromise } = await import('./promise-worker');
-              executeSearchPromise(created.id).catch((error) => {
-                console.error(`❌ Failed to execute promise #${created.id}:`, error);
-              });
-            } else {
-              console.log(`✅ Promise #${created.id} created - will execute after job creation below`);
-            }
-          } catch (error) {
-            console.error('❌ Failed to create search promise:', error);
-            // Don't fail the whole request if promise creation fails
-          }
-        }
-        
         // Update search context with any new info from user's response
         if (message.toLowerCase().includes('salary') || message.toLowerCase().includes('compensation') || message.match(/\$|USD|EUR|GBP/i)) {
           updatedSearchContext.salary = parsedRequirements.salary || message;
@@ -2673,8 +2634,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobExists: !!conversation.jobId
         });
         
+        // ✨ PROMISE DETECTION: Only allow promises AFTER all 8 NAP questions are answered
+        // This prevents AI from making "20 min longlist" promises before NAP is complete
+        let detectedPromise = null;
+        if (allNAPQuestionsAnswered) {
+          detectedPromise = detectPromise(aiResponse);
+          if (detectedPromise) {
+            console.log(`🎯 AI Promise detected (NAP complete): "${detectedPromise.promiseText}"`);
+            console.log(`   Deadline: ${detectedPromise.deadlineAt.toISOString()}`);
+            
+            try {
+              const promiseRecord = createPromiseFromConversation(
+                detectedPromise,
+                conversationId,
+                updatedSearchContext
+              );
+              
+              if (conversation.jobId) {
+                promiseRecord.jobId = conversation.jobId;
+              }
+              
+              const created = await storage.createSearchPromise(promiseRecord);
+              console.log(`✅ Promise #${created.id} created - will execute when search starts`);
+            } catch (error) {
+              console.error('❌ Failed to create search promise:', error);
+            }
+          }
+        } else {
+          // NAP not complete - suppress any promise detection to prevent premature commitments
+          console.log(`⚠️ [Promise Suppression] NAP incomplete (${Object.values({title: !!updatedSearchContext.title, growthPreference: !!(updatedSearchContext as any).growthPreference, remotePolicy: !!(updatedSearchContext as any).remotePolicy, leadershipStyle: !!(updatedSearchContext as any).leadershipStyle, competitorContext: !!(updatedSearchContext as any).competitorContext, teamDynamics: !!updatedSearchContext.teamDynamics, urgency: !!updatedSearchContext.urgency, successCriteria: !!updatedSearchContext.successCriteria}).filter(Boolean).length}/8) - AI will not make search promises until all questions answered`);
+        }
+        
         // CRITICAL FIX: Only trigger search if AI made promise AND all NAP questions answered
-        // This prevents search before user answers all interview questions
         const aiMadePromise = detectedPromise !== undefined && detectedPromise !== null;
         const promiseTriggeredSearch = aiMadePromise && allNAPQuestionsAnswered;
         
