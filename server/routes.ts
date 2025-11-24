@@ -17,6 +17,7 @@ interface MulterRequest extends Request {
 import { storage } from "./storage";
 import { db } from "./db";
 import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse } from "./ai";
+import { recordSearchForPosition } from "./position-keywords";
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
@@ -2913,6 +2914,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           createdJobId = newJob.id;
           console.log(`✅ Job order created: #${createdJobId} - ${newJob.title}`);
+          
+          // 📚 LEARNING SYSTEM: Record this search to build position keyword intelligence
+          recordSearchForPosition(updatedSearchContext.title, allSkills).catch(error => {
+            console.error('⚠️ Failed to record search for position keywords:', error);
+            // Non-blocking - continue with search even if learning fails
+          });
           
           // ASYNC WORKFLOW: Trigger background search orchestrator
           console.log(`🚀 [ASYNC] Triggering background search orchestrator for job #${createdJobId}...`);
@@ -5844,6 +5851,12 @@ CRITICAL RULES - You MUST follow these strictly:
         companyName: undefined, // Will be fetched from companyId if needed
         hardSkillWeights
       };
+      
+      // 📚 LEARNING SYSTEM: Record this search to build position keyword intelligence
+      recordSearchForPosition(job.title, skills).catch(error => {
+        console.error('⚠️ Failed to record search for position keywords:', error);
+        // Non-blocking - continue with search even if learning fails
+      });
       
       // Start elite sourcing (fire and forget)
       orchestrateEliteSourcing({
