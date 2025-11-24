@@ -13,6 +13,7 @@ import { recordCompanySource } from './company-learning';
 import { recordIndustryPattern } from './industry-learning';
 import { recordCandidatePattern } from './candidate-learning';
 import { recordJobDescriptionPattern } from './job-description-learning';
+import { triggerLearningOnSourcingComplete } from './learning-trigger';
 
 export interface SourcingJobConfig {
   sourcingRunId: number;
@@ -503,6 +504,12 @@ export async function orchestrateProfileFetching(
     console.log(`   Profiles fetched: ${successCount}`);
     console.log(`   Candidates created: ${candidatesCreated}`);
     console.log(`   Duplicates skipped: ${candidatesDuplicate}`);
+    
+    // TRIGGER LEARNING: Collect intelligence from sourced candidates
+    const sourcing = await db.query.sourcingRuns.findFirst({ where: eq(sourcingRuns.id, sourcingRunId) });
+    if (sourcing?.jobId) {
+      triggerLearningOnSourcingComplete(sourcing.jobId).catch(err => console.log('[Learning] Async collection started'));
+    }
   } else {
     // No successful profiles - mark as completed with zero results
     await db
@@ -530,6 +537,12 @@ export async function orchestrateProfileFetching(
     console.log(`\n⚠️  [Sourcing Orchestrator] No candidates created`);
     console.log(`   Profiles found: ${profileUrls.length}`);
     console.log(`   Successful fetches: 0`);
+    
+    // TRIGGER LEARNING: Even zero results teach the system
+    const sourcing = await db.query.sourcingRuns.findFirst({ where: eq(sourcingRuns.id, sourcingRunId) });
+    if (sourcing?.jobId) {
+      triggerLearningOnSourcingComplete(sourcing.jobId).catch(err => console.log('[Learning] Async collection started'));
+    }
   }
   
   return results;
