@@ -66,7 +66,7 @@ export function NAPConfirmationScreen({
     });
   };
 
-  const allSkills = [...new Set([...mustHaveSkills, ...niceToHaveSkills])];
+  const allSkills = Array.from(new Set([...mustHaveSkills, ...niceToHaveSkills]));
 
   return (
     <div className="space-y-6" data-testid="nap-confirmation-screen">
