@@ -1,4 +1,4 @@
-import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database, Search, Activity, LogOut } from "lucide-react";
+import { Building2, Users, Briefcase, MessageSquare, Mail, BarChart3, Settings, Clock, Trash2, Upload, Shield, Database, Search, Activity, LogOut, Brain } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,7 @@ const agencyItems = [
   { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
   { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
   { title: "Messages", url: "/recruiting/conversations", icon: MessageSquare },
+  { title: "Learning Intelligence", url: "/recruiting/learning-intelligence", icon: Brain },
   { title: "Settings", url: "/recruiting/settings", icon: Settings },
 ];
 

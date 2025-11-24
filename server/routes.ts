@@ -22,6 +22,7 @@ import { recordCompanySource } from "./company-learning";
 import { recordIndustryPattern } from "./industry-learning";
 import { recordCandidatePattern } from "./candidate-learning";
 import { recordJobDescriptionPattern } from "./job-description-learning";
+import { getLearningIntelligence } from "./learning-api";
 import { generateEmbedding, generateQueryEmbedding, buildCandidateEmbeddingText } from "./embeddings";
 import { processBulkCompanyIntelligence } from "./background-jobs";
 import { startPromiseWorker } from "./promise-worker";
@@ -3675,6 +3676,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get pending duplicate detections for review
+  // Learning Intelligence API
+  app.get("/api/learning/intelligence", async (req, res) => {
+    try {
+      const intelligence = await getLearningIntelligence();
+      res.json(intelligence);
+    } catch (error) {
+      console.error("Error fetching learning intelligence:", error);
+      res.status(500).json({ error: "Failed to fetch learning intelligence" });
+    }
+  });
+
   app.get("/api/admin/duplicates", async (req, res) => {
     try {
       const { entity, status } = req.query;

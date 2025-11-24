@@ -59,6 +59,7 @@ const SalaryBenchmark = lazy(() => import("@/pages/SalaryBenchmark"));
 const PredictiveScore = lazy(() => import("@/pages/PredictiveScore"));
 const Monitoring = lazy(() => import("@/pages/Monitoring"));
 const TenantAdminDashboard = lazy(() => import("@/pages/TenantAdminDashboard"));
+const LearningIntelligence = lazy(() => import("@/pages/LearningIntelligence"));
 
 // Loading component for suspense
 const PageLoader = () => (
@@ -151,6 +152,7 @@ function AppRouter() {
       <Route path="/war-room" component={() => <ClientApp><WarRoom /></ClientApp>} />
       <Route path="/salary-benchmark" component={() => <ClientApp><SalaryBenchmark /></ClientApp>} />
       <Route path="/predictive-score" component={() => <ClientApp><PredictiveScore /></ClientApp>} />
+      <Route path="/recruiting/learning-intelligence" component={() => <RecruitingApp><LearningIntelligence /></RecruitingApp>} />
       
       {/* 404 */}
       <Route component={NotFound} />
