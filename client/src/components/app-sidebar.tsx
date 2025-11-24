@@ -29,7 +29,6 @@ const agencyItems = [
   { title: "Dashboard", url: "/recruiting", icon: BarChart3 },
   { title: "Jobs", url: "/recruiting/jobs", icon: Briefcase },
   { title: "Messages", url: "/recruiting/conversations", icon: MessageSquare },
-  { title: "Learning Intelligence", url: "/recruiting/learning-intelligence", icon: Brain },
   { title: "Settings", url: "/recruiting/settings", icon: Settings },
 ];
 
@@ -49,6 +48,7 @@ const researcherItems = [
   { title: "Research Management", url: "/researchers/research-management", icon: Search },
   { title: "Quality Management", url: "/researchers/quality-management", icon: Database },
   { title: "Data Ingestion", url: "/researchers/data-ingestion", icon: Upload },
+  { title: "Learning Intelligence", url: "/researchers/learning-intelligence", icon: Brain },
 ];
 
 // Admin - Pure system administration

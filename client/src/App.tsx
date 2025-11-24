@@ -152,7 +152,7 @@ function AppRouter() {
       <Route path="/war-room" component={() => <ClientApp><WarRoom /></ClientApp>} />
       <Route path="/salary-benchmark" component={() => <ClientApp><SalaryBenchmark /></ClientApp>} />
       <Route path="/predictive-score" component={() => <ClientApp><PredictiveScore /></ClientApp>} />
-      <Route path="/recruiting/learning-intelligence" component={() => <RecruitingApp><LearningIntelligence /></RecruitingApp>} />
+      <Route path="/researchers/learning-intelligence" component={() => <ResearchersApp><LearningIntelligence /></ResearchersApp>} />
       
       {/* 404 */}
       <Route component={NotFound} />
