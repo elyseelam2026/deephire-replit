@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
+import { lazy, Suspense } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,57 +8,72 @@ import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+
+// Static imports - loaded immediately
 import LandingHome from "@/pages/LandingHome";
 import Auth from "@/pages/Auth";
-import CandidateLogin from "@/pages/CandidateLogin";
-import CompanyRegister from "@/pages/CompanyRegister";
-import CompanyLogin from "@/pages/CompanyLogin";
-import CompanyPortal from "@/pages/CompanyPortal";
-import Landing from "@/pages/Landing";
-import Dashboard from "@/pages/Dashboard";
-import Admin from "@/pages/Admin";
-import ClientPortal from "@/pages/ClientPortal";
-import CandidatePortal from "@/pages/CandidatePortal";
-import CandidateDashboard from "@/pages/CandidateDashboard";
-import CandidateProfile from "@/pages/CandidateProfile";
-import CandidateJobsSearch from "@/pages/CandidateJobsSearch";
-import CandidateApplications from "@/pages/CandidateApplications";
-import PasswordReset from "@/pages/PasswordReset";
-import CompanyForgotPassword from "@/pages/CompanyForgotPassword";
-import CompanyPasswordReset from "@/pages/CompanyPasswordReset";
-import Companies from "@/pages/Companies";
-import Jobs from "@/pages/Jobs";
-import JobDetail from "@/pages/JobDetail";
-import Candidates from "@/pages/Candidates";
-import CandidateDetail from "@/pages/CandidateDetail";
-import CompanyDetail from "@/pages/CompanyDetail";
-import CandidateSourcing from "@/pages/CandidateSourcing";
-import RecyclingBin from "@/pages/RecyclingBin";
-import Staging from "@/pages/Staging";
-import Conversations from "@/pages/Conversations";
-import ConversationDetail from "@/pages/ConversationDetail";
-import Outreach from "@/pages/Outreach";
-import Settings from "@/pages/Settings";
-import DatabaseManagement from "@/pages/DatabaseManagement";
-import AdminBulkUpload from "@/pages/AdminBulkUpload";
-import AdminUserManagement from "@/pages/AdminUserManagement";
-import AdminSystemSettings from "@/pages/AdminSystemSettings";
-import AdminDashboard from "@/pages/AdminDashboard";
-import ResearchersDashboard from "@/pages/ResearchersDashboard";
-import ResearchManagement from "@/pages/ResearchManagement";
-import DataIngestion from "@/pages/DataIngestion";
-import VerifyEmail from "@/pages/VerifyEmail";
-import CompanyVerifyEmail from "@/pages/CompanyVerifyEmail";
 import NotFound from "@/pages/not-found";
-import WarRoom from "@/pages/WarRoom";
-import SalaryBenchmark from "@/pages/SalaryBenchmark";
-import PredictiveScore from "@/pages/PredictiveScore";
-import Monitoring from "@/pages/Monitoring";
-import TenantAdminDashboard from "@/pages/TenantAdminDashboard";
+
+// Lazy imports - code split (loaded on demand)
+const CandidateLogin = lazy(() => import("@/pages/CandidateLogin"));
+const CompanyRegister = lazy(() => import("@/pages/CompanyRegister"));
+const CompanyLogin = lazy(() => import("@/pages/CompanyLogin"));
+const CompanyPortal = lazy(() => import("@/pages/CompanyPortal"));
+const Landing = lazy(() => import("@/pages/Landing"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Admin = lazy(() => import("@/pages/Admin"));
+const ClientPortal = lazy(() => import("@/pages/ClientPortal"));
+const CandidatePortal = lazy(() => import("@/pages/CandidatePortal"));
+const CandidateDashboard = lazy(() => import("@/pages/CandidateDashboard"));
+const CandidateProfile = lazy(() => import("@/pages/CandidateProfile"));
+const CandidateJobsSearch = lazy(() => import("@/pages/CandidateJobsSearch"));
+const CandidateApplications = lazy(() => import("@/pages/CandidateApplications"));
+const PasswordReset = lazy(() => import("@/pages/PasswordReset"));
+const CompanyForgotPassword = lazy(() => import("@/pages/CompanyForgotPassword"));
+const CompanyPasswordReset = lazy(() => import("@/pages/CompanyPasswordReset"));
+const Companies = lazy(() => import("@/pages/Companies"));
+const Jobs = lazy(() => import("@/pages/Jobs"));
+const JobDetail = lazy(() => import("@/pages/JobDetail"));
+const Candidates = lazy(() => import("@/pages/Candidates"));
+const CandidateDetail = lazy(() => import("@/pages/CandidateDetail"));
+const CompanyDetail = lazy(() => import("@/pages/CompanyDetail"));
+const CandidateSourcing = lazy(() => import("@/pages/CandidateSourcing"));
+const RecyclingBin = lazy(() => import("@/pages/RecyclingBin"));
+const Staging = lazy(() => import("@/pages/Staging"));
+const Conversations = lazy(() => import("@/pages/Conversations"));
+const ConversationDetail = lazy(() => import("@/pages/ConversationDetail"));
+const Outreach = lazy(() => import("@/pages/Outreach"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const DatabaseManagement = lazy(() => import("@/pages/DatabaseManagement"));
+const AdminBulkUpload = lazy(() => import("@/pages/AdminBulkUpload"));
+const AdminUserManagement = lazy(() => import("@/pages/AdminUserManagement"));
+const AdminSystemSettings = lazy(() => import("@/pages/AdminSystemSettings"));
+const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const ResearchersDashboard = lazy(() => import("@/pages/ResearchersDashboard"));
+const ResearchManagement = lazy(() => import("@/pages/ResearchManagement"));
+const DataIngestion = lazy(() => import("@/pages/DataIngestion"));
+const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
+const CompanyVerifyEmail = lazy(() => import("@/pages/CompanyVerifyEmail"));
+const WarRoom = lazy(() => import("@/pages/WarRoom"));
+const SalaryBenchmark = lazy(() => import("@/pages/SalaryBenchmark"));
+const PredictiveScore = lazy(() => import("@/pages/PredictiveScore"));
+const Monitoring = lazy(() => import("@/pages/Monitoring"));
+const TenantAdminDashboard = lazy(() => import("@/pages/TenantAdminDashboard"));
+
+// Loading component for suspense
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Loading page...</p>
+    </div>
+  </div>
+);
 
 function AppRouter() {
   return (
-    <Switch>
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
       {/* Public Pages */}
       <Route path="/" component={LandingHome} />
       <Route path="/auth" component={Auth} />
@@ -139,6 +155,7 @@ function AppRouter() {
       {/* 404 */}
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

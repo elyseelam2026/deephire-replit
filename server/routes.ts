@@ -8243,7 +8243,7 @@ Provide brief analysis and recommendation.`;
   // ============================================================
   
   // POST /api/predictive-score - Calculate success probability for candidate-job pair
-  app.post("/api/predictive-score", async (req, res) => {
+  app.post("/api/predictive-score", requireAuth, async (req, res) => {
     try {
       const { jobId, candidateId } = req.body;
       
@@ -8373,7 +8373,7 @@ Provide brief analysis and recommendation.`;
   // ============================================================
   
   // POST /api/ats/greenhouse/connect - OAuth callback handler
-  app.post("/api/ats/greenhouse/connect", async (req, res) => {
+  app.post("/api/ats/greenhouse/connect", requireAuth, async (req, res) => {
     try {
       const { companyId, authCode } = req.body;
       
@@ -8408,7 +8408,7 @@ Provide brief analysis and recommendation.`;
   });
   
   // POST /api/ats/greenhouse/sync-jobs - Sync jobs from Greenhouse to DeepHire
-  app.post("/api/ats/greenhouse/sync-jobs", async (req, res) => {
+  app.post("/api/ats/greenhouse/sync-jobs", requireAuth, async (req, res) => {
     try {
       const { companyId } = req.body;
       
@@ -8484,7 +8484,7 @@ Provide brief analysis and recommendation.`;
   });
   
   // POST /api/ats/greenhouse/push-candidate - Push candidate application to Greenhouse
-  app.post("/api/ats/greenhouse/push-candidate", async (req, res) => {
+  app.post("/api/ats/greenhouse/push-candidate", requireAuth, async (req, res) => {
     try {
       const { companyId, candidateId, jobId } = req.body;
       
@@ -8697,7 +8697,7 @@ Provide brief analysis and recommendation.`;
   // ============================================================
   
   // POST /api/diversity-metrics - Record candidate demographics for DEI tracking
-  app.post("/api/diversity-metrics", async (req, res) => {
+  app.post("/api/diversity-metrics", requireAuth, async (req, res) => {
     try {
       const { jobId, companyId, candidateId, gender, ethnicity, age, status } = req.body;
       
@@ -8801,7 +8801,7 @@ Provide brief analysis and recommendation.`;
   });
   
   // POST /api/diversity-metrics/:jobId/alert - Create DEI compliance alert
-  app.post("/api/diversity-metrics/:jobId/alert", async (req, res) => {
+  app.post("/api/diversity-metrics/:jobId/alert", requireAuth, async (req, res) => {
     try {
       const { jobId } = req.params;
       const { alertType, message } = req.body;
@@ -8955,7 +8955,7 @@ Provide brief analysis and recommendation.`;
   // ============================================================
   
   // POST /api/passive-reengagement - Save candidate to talent pool
-  app.post("/api/passive-reengagement", async (req, res) => {
+  app.post("/api/passive-reengagement", requireAuth, async (req, res) => {
     try {
       const { candidateId, reason, reengagementScheduledFor } = req.body;
       
@@ -9026,7 +9026,7 @@ Provide brief analysis and recommendation.`;
   });
   
   // POST /api/passive-talent/:id/reengage - Mark candidate as reengaged
-  app.post("/api/passive-talent/:id/reengage", async (req, res) => {
+  app.post("/api/passive-talent/:id/reengage", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -9056,7 +9056,7 @@ Provide brief analysis and recommendation.`;
   // ============================================================
   
   // POST /api/integration/slack-connect - Connect Slack workspace
-  app.post("/api/integration/slack-connect", async (req, res) => {
+  app.post("/api/integration/slack-connect", requireAuth, async (req, res) => {
     try {
       const { companyId, slackWebhookUrl } = req.body;
       
@@ -9086,7 +9086,7 @@ Provide brief analysis and recommendation.`;
   });
   
   // POST /api/integration/slack-notify - Send notification to Slack
-  app.post("/api/integration/slack-notify", async (req, res) => {
+  app.post("/api/integration/slack-notify", requireAuth, async (req, res) => {
     try {
       const { companyId, eventType, message } = req.body;
       
