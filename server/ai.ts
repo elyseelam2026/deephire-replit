@@ -2085,6 +2085,76 @@ export async function generateCandidateLonglist(
 }
 
 /**
+ * Extract deal-breakers and categorize skills from NAP confirmation
+ * Uses Grok to understand what will disqualify candidates and organize skills
+ */
+export async function extractDealBreakersAndSkillCategories(
+  nap: any,
+  skillsInput: string
+): Promise<{
+  dealBreakers: string[];
+  mustHaveSkills: string[];
+  niceToHaveSkills: string[];
+  seniorityLevel?: string;
+}> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: `You are an elite recruiter analyzing deal-breakers and skill priorities.
+Extract what will DISQUALIFY candidates and organize skills by importance.`
+        },
+        {
+          role: "user",
+          content: `Given this NAP context and skills list, extract deal-breakers and categorize skills:
+
+**NAP Context:**
+- Position: ${nap?.position?.title || 'Not specified'}
+- Years Experience: ${nap?.position?.yearsExperience || 'Not specified'}
+- Location: ${nap?.position?.location || 'Not specified'}
+- Urgency: ${nap?.urgency || 'Not specified'}
+- Remote Policy: ${nap?.position?.remotePolicy || 'Not specified'}
+- Leadership Style: ${nap?.position?.leadershipStyle || 'Not specified'}
+- Growth Preference: ${nap?.position?.growthPreference || 'Not specified'}
+
+**Skills List:**
+${skillsInput}
+
+**TASK - Return JSON only:**
+{
+  "dealBreakers": ["What will make someone NOT work here? E.g., 'Cannot relocate to SF', 'Must have direct PE deal experience'"],
+  "mustHaveSkills": ["Critical technical/functional skills from the list above"],
+  "niceToHaveSkills": ["Preferred but not critical skills"],
+  "seniorityLevel": "E.g., 'VP-level', 'C-Suite', 'IC', etc based on years + title"
+}`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0].message.content || "{}";
+    const parsed = JSON.parse(stripMarkdownJson(content));
+
+    return {
+      dealBreakers: parsed.dealBreakers || [],
+      mustHaveSkills: parsed.mustHaveSkills || [],
+      niceToHaveSkills: parsed.niceToHaveSkills || [],
+      seniorityLevel: parsed.seniorityLevel
+    };
+  } catch (error) {
+    console.error("Error extracting deal-breakers:", error);
+    return {
+      dealBreakers: [],
+      mustHaveSkills: [],
+      niceToHaveSkills: [],
+      seniorityLevel: undefined
+    };
+  }
+}
+
+/**
  * ENHANCED: Generate intelligent search strategy with sophisticated boolean queries
  * Maps NAP context to multi-signal LinkedIn search operators
  */
