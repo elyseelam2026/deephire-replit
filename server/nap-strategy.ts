@@ -55,6 +55,15 @@ export interface SearchStrategy {
   competitorMap?: CompetitorFirm[];     // 15-20 peer firms
   targetedQueries?: string[];           // One query per competitor (e.g., "Hillhouse" "CFO" 2025)
   useCompetitorMapping?: boolean;       // If true, use targetedQueries instead of keywords
+  
+  // NEW: Query decomposition - maps each search query to NAP signal + seniority
+  queryDecomposition?: Array<{
+    query: string;                // Actual search query
+    signals: string[];            // NAP signals this query targets (e.g., "pain-driven", "competitor", "growth")
+    seniorityTarget: string;      // Target seniority level for this query (e.g., "VP", "C-Suite", "IC")
+    description: string;          // Human explanation of what this query finds
+    dealBreakerExclusions?: string[]; // Deal-breakers to exclude from this query
+  }>;
 }
 
 /**
