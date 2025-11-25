@@ -593,7 +593,17 @@ ${isReferenceCandidateRequest ? `
     if (isGreeting && !mentionsHiring && !hasJobContext) {
       intent = 'greeting';
     }
-    // PRIORITY 2: Has hiring context - start clarification phase to collect basic info
+    // PRIORITY 2: NAP complete (80%+) - TRIGGER RESEARCH PHASE
+    else if (napCompleteness >= 80 && currentJobContext?.title) {
+      intent = 'nap_complete';
+      // Research phase will trigger asynchronously:
+      // - Search company context (AUM, strategy, geography)
+      // - Analyze competitor hiring patterns
+      // - Identify target companies
+      // - Generate informed JD grounded in research
+      console.log(`[NAP COMPLETE] ${napCompleteness}% complete - triggering research phase for ${currentJobContext.title}`);
+    }
+    // PRIORITY 3: Has hiring context - start clarification phase to collect basic info
     else if (mentionsHiring || hasJobContext) {
       if (currentJobContext?.title) {
         intent = 'clarification'; // Ask clarifying questions to fill NAP gaps
@@ -601,7 +611,7 @@ ${isReferenceCandidateRequest ? `
         intent = 'job_inquiry'; // Need basic role info first
       }
     } 
-    // PRIORITY 3: Default to job inquiry
+    // PRIORITY 4: Default to job inquiry
     else {
       intent = 'job_inquiry';
     }
@@ -609,6 +619,7 @@ ${isReferenceCandidateRequest ? `
     return {
       response: aiResponse,
       intent,
+      napCompleteness, // Include for frontend alerts
       extractedInfo: undefined // Grok will handle extraction in its response
     };
   } catch (error) {

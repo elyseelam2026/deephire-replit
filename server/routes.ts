@@ -11,6 +11,7 @@ import {
   calculateLockoutExpiry, 
   generatePasswordResetToken 
 } from "./security";
+import researchRouter from "./research-routes";
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
@@ -9885,6 +9886,9 @@ Provide brief analysis and recommendation.`;
 
   // Mount 10-feature endpoints
   app.use(featuresRouter);
+
+  // Mount research phase endpoints
+  app.use(researchRouter);
 
   // Data Ingestion Endpoints
   app.post("/api/data-ingestion/quick-add", async (req, res) => {

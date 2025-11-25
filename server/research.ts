@@ -276,7 +276,7 @@ ${researchContext.marketIntelligence.skillRequirements.map(s => `- ${s}`).join('
 ## Target Sourcing Strategy
 
 We will source candidates from:
-${researchContext.targetCompanies.slice(0, 5).map(c => `- ${c}`).join('\n')}
+${researchContext.targetCompanies ? researchContext.targetCompanies.slice(0, 5).map(c => `- ${c}`).join('\n') : '- Top-tier investment firms in the region'}
 
 This is a professional JD grounded in market research, not just a summary of your needs.
   `;
