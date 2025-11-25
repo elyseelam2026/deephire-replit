@@ -6704,3 +6704,65 @@ export function calculateDataQualityScore(
     qualityNotes
   };
 }
+
+/**
+ * Generate professional JD from conversation dialogue using Grok
+ * Simple approach: copy dialogue to LLM, ask for JD
+ */
+export async function generateJDFromDialogue(
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  jobContext: {
+    companyName?: string;
+    title?: string;
+    location?: string;
+    skills?: string[];
+    yearsExperience?: number;
+    salary?: string;
+    teamDynamics?: string;
+    industry?: string;
+  }
+): Promise<string> {
+  try {
+    // Build conversation summary for Grok
+    const dialogueSummary = conversationHistory
+      .map(m => `${m.role === 'user' ? 'Client' : 'Assistant'}: ${m.content}`)
+      .join('\n\n');
+
+    const prompt = `Based on this recruiting conversation, generate a professional job description in markdown format.
+
+**CONVERSATION:**
+${dialogueSummary}
+
+**JOB CONTEXT EXTRACTED:**
+- Position: ${jobContext.title}
+- Company: ${jobContext.companyName}
+- Location: ${jobContext.location}
+- Skills: ${jobContext.skills?.join(', ')}
+- Years of Experience: ${jobContext.yearsExperience}
+- Salary: ${jobContext.salary}
+- Team Dynamics: ${jobContext.teamDynamics}
+- Industry: ${jobContext.industry}
+
+Generate a professional, market-ready job description that includes:
+1. Job title and summary
+2. Key responsibilities (based on what was discussed)
+3. Required skills and experience
+4. Compensation and details
+5. Sourcing strategy (where to find these candidates)
+
+Format it cleanly in markdown. Make it professional and actionable.`;
+
+    const response = await openai.messages.create({
+      model: "grok-beta",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 1500,
+    });
+
+    const jd = response.content[0].type === 'text' ? response.content[0].text : '';
+    console.log(`[JD Generation] Created professional JD for ${jobContext.title} at ${jobContext.companyName}`);
+    return jd;
+  } catch (error) {
+    console.error("Error generating JD from dialogue:", error);
+    return `## ${jobContext.title} at ${jobContext.companyName}\n\nLocation: ${jobContext.location}\n\nBased on conversation with client.`;
+  }
+}

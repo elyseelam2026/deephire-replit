@@ -18,7 +18,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse, generateJDFromDialogue } from "./ai";
 import { recordSearchForPosition } from "./position-keywords";
 import { recordCompanySource } from "./company-learning";
 import { recordIndustryPattern } from "./industry-learning";
@@ -2842,41 +2842,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (grokResponse.intent === 'clarification') {
           newPhase = 'clarifying';
         } else if (grokResponse.intent === 'nap_complete' || napCompleteness >= 80) {
-          // NAP complete AND company is known → Generate JD for approval
+          // NAP complete AND company is known → Generate JD from dialogue
           if (updatedSearchContext.companyName && napCompleteness >= 80) {
             newPhase = 'jd_generation';
-            console.log(`✅ NAP Complete (${napCompleteness}%) + Company known → Generating JD for approval`);
+            console.log(`✅ NAP Complete (${napCompleteness}%) + Company known → Generating JD from dialogue`);
             
-            // Generate professional JD summary
-            const jdSummary = `
-## Job Description Summary
-
-**Position:** ${updatedSearchContext.title || 'Executive Role'}
-**Company:** ${updatedSearchContext.companyName}
-**Location:** ${updatedSearchContext.location || 'Global/Flexible'}
-**Industry:** ${updatedSearchContext.industry || 'Not specified'}
-
-### Key Responsibilities
-${updatedSearchContext.responsibilities?.slice(0, 5).map(r => `• ${r}`).join('\n') || '• TBD based on role requirements'}
-
-### Required Skills & Experience
-${updatedSearchContext.skills?.slice(0, 8).map(s => `• ${s}`).join('\n') || '• TBD'}
-• ${updatedSearchContext.yearsExperience || '10'}+ years of experience
-
-### Compensation & Details
-• **Salary:** ${updatedSearchContext.salary || 'Competitive, market rate'}
-• **Urgency:** ${updatedSearchContext.urgency || 'Standard hiring timeline'}
-• **Team Dynamics:** ${updatedSearchContext.teamDynamics || 'TBD'}
-
----
-**Next Step:** Please review and confirm this JD, or suggest any changes before we begin sourcing.
-            `;
+            // Use Grok to generate professional JD from conversation
+            const jd = await generateJDFromDialogue(
+              conversationHistory.map(m => ({
+                role: m.role as 'user' | 'assistant',
+                content: m.content
+              })),
+              {
+                companyName: updatedSearchContext.companyName,
+                title: updatedSearchContext.title,
+                location: updatedSearchContext.location,
+                skills: updatedSearchContext.skills,
+                yearsExperience: updatedSearchContext.yearsExperience,
+                salary: updatedSearchContext.salary,
+                teamDynamics: updatedSearchContext.teamDynamics,
+                industry: updatedSearchContext.industry
+              }
+            );
             
-            aiResponse = `📋 **Professional JD Ready for Your Review**\n\n${jdSummary}\n\nDoes this look good? Say "confirm JD" or "approve" to proceed with sourcing, or make any adjustments.`;
+            aiResponse = `📋 **Professional JD Ready for Your Review**\n\n${jd}\n\n---\n\n✅ **Approve this JD?** Reply "yes" or "approve" to move forward.`;
           } else {
             // NAP complete but missing company
             newPhase = 'clarifying';
-            aiResponse = grokResponse.response + '\n\n⚠️ **Missing Critical Info:** Which company is this CFO position for?';
+            aiResponse = grokResponse.response + '\n\n⚠️ **Missing Critical Info:** Which company is this for?';
           }
         } else if (grokResponse.intent === 'ready_to_search') {
           newPhase = 'ready_to_create_job';
@@ -2886,16 +2879,28 @@ ${updatedSearchContext.skills?.slice(0, 8).map(s => `• ${s}`).join('\n') || '�
 
         // CRITICAL: Handle JD approval workflow
         const lowerMessage = message.toLowerCase().trim();
-        const jdApprovalKeywords = ['confirm jd', 'approve jd', 'yes jd', 'proceed with', 'start search', 'begin search', 'let\'s do it', 'go ahead'];
+        const jdApprovalKeywords = ['confirm jd', 'approve jd', 'yes', 'approve', 'proceed with', 'looks good', 'go ahead', 'ok', 'okay'];
         const jdApproved = jdApprovalKeywords.some(kw => lowerMessage.includes(kw));
 
-        // If in JD confirmation phase and user approves → move to searching
+        // If in JD confirmation phase and user approves → ask about posting vs passive search
         if (newPhase === 'jd_generation' && jdApproved) {
-          newPhase = 'jd_confirmation';
-          console.log('✅ JD Approved by user → Proceeding to search phase');
-        } else if (newPhase === 'jd_confirmation') {
-          newPhase = 'searching';
-          aiResponse = `✅ **Starting search now**\n\nI'm searching for candidates matching this profile. Longlist ready in 15-20 minutes.`;
+          newPhase = 'jd_approved';
+          console.log('✅ JD Approved by user → Asking about posting');
+          aiResponse = `🎯 **Next Step:**\n\nDo you want to **post this job** to active channels (LinkedIn, job boards)?\n\n• **YES** → Post to active channels (requires payment based on visibility tier)\n• **NO** → I'll search passive candidates from target companies (no cost)\n\nWhat would you prefer?`;
+        } else if (newPhase === 'jd_approved') {
+          // User answered the posting question
+          const wantsToPost = lowerMessage.includes('yes') || lowerMessage.includes('post') || lowerMessage.includes('active');
+          const wantsPassiveOnly = lowerMessage.includes('no') || lowerMessage.includes('passive') || lowerMessage.includes('search');
+          
+          if (wantsToPost) {
+            newPhase = 'job_posting';
+            console.log('✅ User wants to post job → Creating job and posting');
+            aiResponse = `📤 **Posting to Active Channels**\n\nI'll post this JD to:\n• LinkedIn Job Board\n• Our internal talent database\n• Premium partner job boards\n\nSearching passive candidates in parallel.\n\n✅ Sourcing candidates now. Longlist ready in 15-20 minutes.`;
+          } else if (wantsPassiveOnly) {
+            newPhase = 'passive_search';
+            console.log('✅ User wants passive search only');
+            aiResponse = `🔍 **Searching Passive Candidates**\n\nI'm searching for candidates matching this profile from target companies:\n• Top investment firms\n• Similar-stage companies\n• Competitor networks\n\n✅ Candidates arriving within 1-2 weeks. I'll keep you updated.`;
+          }
         }
 
         // CRITICAL: Define napComplete FIRST (before using it)
