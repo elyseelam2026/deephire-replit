@@ -249,6 +249,13 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         candidatesForMatching,
         jobSkills,
         jobText,
+        {
+          title: promise.searchParams.title || 'Position',
+          description: jobText,
+          yearsExperience: undefined,
+          industry: promise.searchParams.industry,
+          responsibilities: []
+        },
         20
       );
       
@@ -457,7 +464,7 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
                   <td style="padding: 12px; text-align: left;"><strong>${candidate?.firstName} ${candidate?.lastName || ''}</strong></td>
                   <td style="padding: 12px; text-align: left;">${candidate?.currentTitle || 'Not specified'}</td>
                   <td style="padding: 12px; text-align: center;"><strong style="color: #667eea;">N/A</strong></td>
-                  <td style="padding: 12px; text-align: left; color: #666;">${candidate?.current_company || 'Not specified'}</td>
+                  <td style="padding: 12px; text-align: left; color: #666;">${candidate?.currentCompany || 'Not specified'}</td>
                 </tr>
               `).join('');
               

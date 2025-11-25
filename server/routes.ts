@@ -2460,13 +2460,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const userEmail = emailMatch[0];
             console.log(`📧 [Email] Detected email in conversation: ${userEmail}`);
             
+            // Fetch full candidate details for email
+            const candidateDetails = await Promise.all(
+              scoredCandidates.slice(0, 10).map(scored => storage.getCandidate(scored.candidateId))
+            );
+            
             // Generate HTML report of candidates
-            const candidateRows = scoredCandidates.slice(0, 10).map(candidate => `
+            const candidateRows = candidateDetails.filter(c => c).map(candidate => `
               <tr style="border-bottom: 1px solid #e0e0e0;">
-                <td style="padding: 12px; text-align: left;"><strong>${candidate.name || 'Unknown'}</strong></td>
-                <td style="padding: 12px; text-align: left;">${candidate.title || 'Not specified'}</td>
-                <td style="padding: 12px; text-align: center;"><strong style="color: #667eea;">${Math.round(candidate.matchScore || 0)}/100</strong></td>
-                <td style="padding: 12px; text-align: left; color: #666;">${candidate.current_company || 'Not specified'}</td>
+                <td style="padding: 12px; text-align: left;"><strong>${candidate?.firstName} ${candidate?.lastName || ''}</strong></td>
+                <td style="padding: 12px; text-align: left;">${candidate?.currentTitle || 'Not specified'}</td>
+                <td style="padding: 12px; text-align: center;"><strong style="color: #667eea;">N/A</strong></td>
+                <td style="padding: 12px; text-align: left; color: #666;">${candidate?.currentCompany || 'Not specified'}</td>
               </tr>
             `).join('');
             
