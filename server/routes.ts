@@ -9940,6 +9940,89 @@ Provide brief analysis and recommendation.`;
     }
   });
 
+  // ============ COST MONITORING ENDPOINTS ============
+  // Get monthly cost summary by service
+  app.get("/api/costs/summary", async (req, res) => {
+    try {
+      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : req.session?.companyId;
+      if (!companyId) {
+        return res.status(401).json({ error: "Company ID required" });
+      }
+      
+      const summary = await storage.getMonthlyCostSummary(companyId);
+      res.json(summary);
+    } catch (error) {
+      console.error("Cost summary error:", error);
+      res.status(500).json({ error: "Failed to fetch cost summary" });
+    }
+  });
+
+  // Get API usage logs with filters
+  app.get("/api/usage-logs", async (req, res) => {
+    try {
+      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : req.session?.companyId;
+      if (!companyId) {
+        return res.status(401).json({ error: "Company ID required" });
+      }
+      
+      const daysBack = req.query.daysBack ? parseInt(req.query.daysBack as string) : 30;
+      const service = req.query.service as string | undefined;
+      
+      const logs = await storage.getApiUsage({
+        companyId,
+        service,
+        daysBack
+      });
+      res.json(logs);
+    } catch (error) {
+      console.error("Usage logs error:", error);
+      res.status(500).json({ error: "Failed to fetch usage logs" });
+    }
+  });
+
+  // Get and manage cost alerts
+  app.get("/api/cost-alerts", async (req, res) => {
+    try {
+      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : req.session?.companyId;
+      if (!companyId) {
+        return res.status(401).json({ error: "Company ID required" });
+      }
+      
+      const alerts = await storage.getCostAlerts(companyId);
+      res.json(alerts);
+    } catch (error) {
+      console.error("Cost alerts error:", error);
+      res.status(500).json({ error: "Failed to fetch cost alerts" });
+    }
+  });
+
+  // Create or update cost alert
+  app.post("/api/cost-alerts", async (req, res) => {
+    try {
+      const companyId = req.session?.companyId;
+      if (!companyId) {
+        return res.status(401).json({ error: "Company ID required" });
+      }
+      
+      const { service, monthlyBudgetUsd, alertThresholdPercent } = req.body;
+      if (!service || !monthlyBudgetUsd) {
+        return res.status(400).json({ error: "Service and budget required" });
+      }
+      
+      const alert = await storage.createCostAlert({
+        companyId,
+        service,
+        monthlyBudgetUsd,
+        alertThresholdPercent: alertThresholdPercent || 80
+      });
+      
+      res.json(alert);
+    } catch (error) {
+      console.error("Create alert error:", error);
+      res.status(500).json({ error: "Failed to create cost alert" });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Start the promise worker to execute AI commitments

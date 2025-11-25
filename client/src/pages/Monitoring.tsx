@@ -6,6 +6,9 @@ import {
   Line,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,7 +16,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Activity, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Activity, AlertCircle, CheckCircle, Clock, DollarSign, TrendingUp } from "lucide-react";
 
 interface MetricsData {
   timestamp: string;
@@ -31,6 +34,21 @@ interface HealthStatus {
   timestamp: string;
 }
 
+interface CostSummary {
+  service: string;
+  totalCost: number;
+  usageCount: number;
+}
+
+interface CostAlert {
+  id: number;
+  service: string;
+  monthlyBudgetUsd: number;
+  currentMonthSpend: number;
+  alertThresholdPercent: number;
+  alertSent: boolean;
+}
+
 export default function Monitoring() {
   // Fetch real-time metrics
   const { data: metrics = [] } = useQuery<MetricsData[]>({
@@ -42,6 +60,18 @@ export default function Monitoring() {
   const { data: health } = useQuery<HealthStatus>({
     queryKey: ["/api/admin/health"],
     refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  // Fetch cost summary
+  const { data: costSummary = [] } = useQuery<CostSummary[]>({
+    queryKey: ["/api/costs/summary"],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Fetch cost alerts
+  const { data: costAlerts = [] } = useQuery<CostAlert[]>({
+    queryKey: ["/api/cost-alerts"],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   const getStatusColor = (status: string) => {
@@ -57,12 +87,16 @@ export default function Monitoring() {
   };
 
   const chartData = metrics.slice(-30); // Last 30 data points
+  const COLORS = ["#3b82f6", "#ef4444", "#10b981"];
+  
+  const totalMonthlyCost = costSummary.reduce((sum, item) => sum + item.totalCost, 0);
+  const totalUsageCount = costSummary.reduce((sum, item) => sum + item.usageCount, 0);
 
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">System Monitoring</h1>
-        <p className="text-muted-foreground">Real-time platform health and performance metrics</p>
+        <h1 className="text-3xl font-bold">System & Cost Monitoring</h1>
+        <p className="text-muted-foreground">Real-time platform health, performance metrics, and API cost tracking</p>
       </div>
 
       {/* Health Status Cards */}
@@ -249,6 +283,139 @@ export default function Monitoring() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Cost Monitoring Section */}
+      <div>
+        <h2 className="text-2xl font-bold mb-4">API Cost Tracking</h2>
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          <Card className="hover-elevate">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center justify-between">
+                <span>Total Monthly Cost</span>
+                <DollarSign className="h-4 w-4 text-green-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${totalMonthlyCost.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground mt-1">{totalUsageCount} total API calls</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-elevate">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center justify-between">
+                <span>Budget Alerts</span>
+                <AlertCircle className="h-4 w-4 text-orange-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{costAlerts.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Active budget thresholds</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-elevate">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center justify-between">
+                <span>Services</span>
+                <TrendingUp className="h-4 w-4 text-blue-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{costSummary.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Integrated API services</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Cost Breakdown Chart */}
+        {costSummary.length > 0 && (
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cost Distribution by Service</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={costSummary}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={(entry) => `${entry.service}: $${entry.totalCost.toFixed(2)}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="totalCost"
+                    >
+                      {costSummary.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Usage by Service</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={costSummary}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="service" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="usageCount" fill="#3b82f6" name="API Calls" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Cost Alerts Summary */}
+        {costAlerts.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Budget Alerts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {costAlerts.map((alert) => {
+                  const percentage = (alert.currentMonthSpend / alert.monthlyBudgetUsd) * 100;
+                  const isWarning = percentage >= alert.alertThresholdPercent;
+                  
+                  return (
+                    <div key={alert.id} className="p-3 border rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{alert.service}</span>
+                        <Badge variant={isWarning ? "destructive" : "default"}>
+                          {percentage.toFixed(0)}% of budget
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        ${alert.currentMonthSpend.toFixed(2)} / ${alert.monthlyBudgetUsd.toFixed(2)}
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 mt-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            isWarning ? "bg-red-500" : "bg-green-500"
+                          }`}
+                          style={{ width: `${Math.min(percentage, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Last Updated */}
       <div className="text-xs text-muted-foreground text-center">
