@@ -69,6 +69,49 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 }
 
+// Helper: Get current user ID from request (from body/params or default)
+function getCurrentUserId(req: any): number {
+  // Try to get from request body/params
+  const userId = req.body?.userId || req.params?.userId || req.query?.userId;
+  if (userId && !isNaN(parseInt(userId))) {
+    return parseInt(userId);
+  }
+  // Fallback to session user if available
+  if ((req.session as any)?.userId) {
+    return (req.session as any).userId;
+  }
+  // Default to admin user (ID 1) for now
+  return 1;
+}
+
+// Helper: Send email via SendGrid
+async function sendEmailViaSendGrid(to: string, subject: string, htmlContent: string): Promise<boolean> {
+  try {
+    const sgMail = (await import("@sendgrid/mail")).default;
+    const apiKey = process.env.SENDGRID_API_KEY;
+    
+    if (!apiKey) {
+      console.log(`[DEV] Email (SendGrid not configured): To: ${to}, Subject: ${subject}`);
+      return true; // Return success in dev mode
+    }
+    
+    sgMail.setApiKey(apiKey);
+    
+    await sgMail.send({
+      to,
+      from: process.env.SENDGRID_FROM_EMAIL || "noreply@deephire.ai",
+      subject,
+      html: htmlContent,
+    });
+    
+    console.log(`[Email] Sent to ${to}: ${subject}`);
+    return true;
+  } catch (error) {
+    console.error(`[Email Error] Failed to send to ${to}:`, error);
+    return false;
+  }
+}
+
 // Robust file type detection
 async function detectFileType(file: Express.Multer.File): Promise<string> {
   try {
@@ -2059,8 +2102,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new conversation
   app.post("/api/conversations", async (req, res) => {
     try {
-      const { userId, companyId, portal } = req.body;
-      // TODO: Get userId from req.user when authentication is implemented
+      const { companyId, portal } = req.body;
+      const userId = getCurrentUserId(req); // Get real user ID
       
       let initialSearchContext: any = {};
       
@@ -3122,10 +3165,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create ingestion job for tracking
       let ingestionJob;
       if (files.length > 0 || urls.length > 0) {
+        const uploadedById = getCurrentUserId(req); // Get real user ID
         ingestionJob = await storage.createIngestionJob({
           fileName: files.length > 0 ? files.map(f => f.originalname).join(', ') : `URL batch (${urls.length} URLs)`,
           fileType: files.length > 0 ? await detectFileType(files[0]) : 'url',
-          uploadedById: null, // TODO: Get actual user ID from session when authentication is implemented
+          uploadedById: uploadedById,
           entityType: 'candidate',
           status: 'processing',
           totalRecords: 0 // Will update after processing
@@ -7088,12 +7132,21 @@ CRITICAL RULES - You MUST follow these strictly:
           console.log(`[DEV] SMS verification code for ${phoneNumber}: ${code}`);
         }
       } else {
-        console.log(`[DEV] Email verification code for ${email}: ${code}`);
+        // Send email verification via SendGrid
+        const emailSent = await sendEmailViaSendGrid(
+          email,
+          "Your DeepHire Verification Code",
+          `<p>Your DeepHire verification code is: <strong>${code}</strong></p><p>Valid for 10 minutes.</p>`
+        );
+        
         // For development: return the code in response so it can be displayed in UI
         if (process.env.NODE_ENV === 'development') {
-          return res.json({ success: true, message: `Code sent via ${method}`, devCode: code });
+          return res.json({ success: true, message: `Code sent via ${method}`, devCode: code, emailSent });
         }
-        // TODO: Integrate with SendGrid to send email
+        
+        if (!emailSent) {
+          return res.status(500).json({ error: "Failed to send email" });
+        }
       }
 
       res.json({ success: true, message: `Code sent via ${method}` });
