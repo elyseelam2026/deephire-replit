@@ -2230,6 +2230,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Conversation not found" });
       }
 
+      // **NEW**: Check if registered user + get their company
+      const userId = getCurrentUserId(req);
+      let registeredUserCompany: any = null;
+      if (userId) {
+        try {
+          const user = await storage.getUser(userId);
+          if (user?.companyId) {
+            registeredUserCompany = await storage.getCompany(user.companyId);
+          }
+        } catch (e) {
+          console.error('[Company Auto-Load] Failed to fetch user company:', e);
+        }
+      }
+
       // Add user message to conversation
       const userMessage = {
         role: 'user' as const,
@@ -2734,6 +2748,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           teamDynamics: updatedSearchContext.teamDynamics,
         };
 
+        // **SMART COMPANY LOGIC**: If registered user with company, confirm it instead of asking
+        const companyConfirmationIntro = registeredUserCompany && !updatedSearchContext.companyName
+          ? `I see you're from ${registeredUserCompany.name}. Is this position for ${registeredUserCompany.name}, or a different company?\n\n`
+          : '';
+
         // Let Grok handle the conversation with NAP guidance
         const grokResponse = await generateConversationalResponse(
           message,
@@ -2742,7 +2761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentJobContext
         );
 
-        aiResponse = grokResponse.response;
+        aiResponse = companyConfirmationIntro + grokResponse.response;
         
         // Update search context with any new info from user's response
         if (message.toLowerCase().includes('salary') || message.toLowerCase().includes('compensation') || message.match(/\$|USD|EUR|GBP/i)) {
@@ -2759,16 +2778,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         // ENHANCED NAP: Capture company name first
         if (!updatedSearchContext.companyName) {
-          // Extract company name if mentioned
-          const companyMatches = message.match(/(?:for\s+|at\s+|for\s+our\s+)([\w\s&.,-]+?)(?:\s+(?:in|based|located|we|they|the|or|and|$))/i);
-          if (companyMatches) {
-            updatedSearchContext.companyName = companyMatches[1].trim();
-          }
-          // Also check for "company is X" pattern
-          if (!updatedSearchContext.companyName && message.toLowerCase().includes('company')) {
-            const companyPattern = message.match(/company\s+(?:is|called|named|:)?\s+([A-Z][^,.]*)/);
-            if (companyPattern) {
-              updatedSearchContext.companyName = companyPattern[1].trim();
+          // **SMART**: If registered user confirmed their company, use it
+          if (registeredUserCompany && (message.toLowerCase().includes('yes') || message.toLowerCase().includes('for') || message.toLowerCase().includes('current'))) {
+            updatedSearchContext.companyName = registeredUserCompany.name;
+            if (!updatedSearchContext.industry && registeredUserCompany.industry) {
+              updatedSearchContext.industry = registeredUserCompany.industry;
+            }
+            if (!updatedSearchContext.companySize && registeredUserCompany.employeeSizeRange) {
+              updatedSearchContext.companySize = registeredUserCompany.employeeSizeRange;
+            }
+          } else {
+            // Extract company name if mentioned by new client
+            const companyMatches = message.match(/(?:for\s+|at\s+|for\s+our\s+)([\w\s&.,-]+?)(?:\s+(?:in|based|located|we|they|the|or|and|$))/i);
+            if (companyMatches) {
+              updatedSearchContext.companyName = companyMatches[1].trim();
+            }
+            // Also check for "company is X" pattern
+            if (!updatedSearchContext.companyName && message.toLowerCase().includes('company')) {
+              const companyPattern = message.match(/company\s+(?:is|called|named|:)?\s+([A-Z][^,.]*)/);
+              if (companyPattern) {
+                updatedSearchContext.companyName = companyPattern[1].trim();
+              }
             }
           }
         }

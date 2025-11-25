@@ -454,11 +454,18 @@ Quality recruiting = Pain-driven sourcing, not keyword spam.
   selling_points: {unique_opportunity, growth_plan, competitors}
 }
 
-**⚠️ COMPANY CONTEXT IS CRITICAL** - A professional search consultant MUST understand which company before beginning. Ask early:
-- Company name (if not provided)
-- Industry 
-- Company size/stage
-- What's the business context? (e.g., "upcoming IPO", "market expansion", "post-acquisition")
+**⚠️ COMPANY CONTEXT IS CRITICAL** - A professional search consultant MUST understand which company before beginning.
+
+**REGISTERED CLIENT WORKFLOW:**
+If client is registered (company auto-loaded from their profile):
+- DON'T ask "which company?" - they've already told us!
+- Instead: "Is this for [Company Name], or a different company?"
+- This is professional and shows you know them.
+
+**NEW CLIENT WORKFLOW:**
+If no company in context yet:
+- Ask: "Which company is this CFO for?" or "Tell me the company name and industry"
+- This is normal for new leads.
 
 ${companyContext ? `**Company context you already know:**
 - Company: ${companyContext.companyName}
