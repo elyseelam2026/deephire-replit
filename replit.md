@@ -1,12 +1,58 @@
 # DeepHire - AI-Powered Talent Acquisition Platform
 
 ## Overview
-DeepHire is an AI-powered enterprise B2B recruiting platform with intelligent candidate sourcing and matching. The platform uses xAI Grok for dynamic NAP interviews, multi-layered boolean search strategies, and a **5-feature learning system** that gets smarter with every search and placement.
+DeepHire is an AI-powered enterprise B2B recruiting platform with intelligent candidate sourcing and matching. The platform uses xAI Grok for dynamic NAP interviews, multi-layered boolean search strategies, **Grok-powered role-fit matching** to understand job requirements, and a **5-feature learning system** that gets smarter with every search and placement.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language. Focus on continuous AI accuracy improvements over infrastructure work.
 
-## Recent Accomplishments (Session: 5-Feature Learning System Architecture)
+## Recent Accomplishments (Session: Grok-Powered Role-Fit Matching + Quality Threshold)
+
+### ✅ COMPLETE: Intelligent Role-Fit Candidate Matching
+
+**CRITICAL IMPROVEMENT: Replaced keyword-matching with Grok-powered role understanding**
+
+**Problem Solved:**
+- Old system: Simple keyword overlap (if 60% of keywords matched → score 60)
+- Old result: High-quality candidates but unsuitable for role (e.g., junior staff for "Head of" positions)
+- Issue: Wasted API credits on misfits
+
+**New Solution: Grok-Powered Role-Fit Scoring**
+
+**`scoreRoleFit()` Function** (`server/ai.ts`):
+- Evaluates if candidate truly fits specific role (not just keyword overlap)
+- Understands seniority levels: "Head of" requires executive-level candidates
+- Scores on: Seniority Match (30%), Skill Alignment (35%), Experience Relevance (20%), Career Trajectory (15%)
+- Critical Rules:
+  - Junior candidate for executive role → max 40 points even if skilled
+  - Great skills but wrong seniority → max 55 points
+  - Only scores 70+ if genuinely suitable, 85+ if excellent fit
+- Uses Grok prompt: "Be critical and accurate - scores should reflect true suitability, not keyword overlap"
+
+**Updated `generateCandidateLonglist()` Function** (`server/ai.ts`):
+- Now accepts job context parameter (title, responsibilities, industry, etc.)
+- Scores each candidate individually with `scoreRoleFit()`
+- Maintains 60-point quality threshold to prevent API credit waste
+- Falls back to keyword matching if no job context provided
+- Logs screening results: "X candidates evaluated, Y met threshold (60+)"
+
+**Integration Points** (Updated in `server/routes.ts`):
+1. `/api/upload-jd` - Job description upload now passes full job context
+2. `/api/jobs` - Job creation now uses role-fit matching
+3. Reference candidate matching - Auto-execution now uses Grok evaluation
+
+**Example Behavior:**
+- "Head of Technical Implementation & Delivery" search:
+  - BEFORE: Charlie S. (40 score) - skills matched but no executive experience
+  - AFTER: Only returns candidates with Head/Director/VP titles and delivery management background
+
+### ✅ COMPLETE: Quality Threshold Filter (Cost Control)
+
+**MINIMUM_QUALITY_THRESHOLD = 60** (`server/candidate-ranking.ts`):
+- Constant exported for system-wide use
+- All candidate rankings check: `score >= MINIMUM_QUALITY_THRESHOLD`
+- Prevents low-quality candidates from wasting Grok and Bright Data credits
+- System logs how many candidates pass/fail threshold
 
 ### ✅ COMPLETE: 5-Feature Learning Intelligence System
 
@@ -116,11 +162,21 @@ Enterprise-first, professional interface utilizing deep navy primary color with 
 - **Frontend**: React 18, TypeScript, Radix UI, shadcn/ui, Tailwind CSS, TanStack Query, Wouter routing
 - **Backend**: Node.js, Express.js, TypeScript
 - **Database**: PostgreSQL (Neon serverless) with Drizzle ORM and Zod schemas
-- **AI**: xAI Grok for NAP interviews & scoring, Voyage AI for semantic search
+- **AI**: xAI Grok for NAP interviews, role-fit scoring, and intelligent matching; Voyage AI for semantic search
 - **Learning**: Active collection engines that populate 5 learning features automatically
+- **Candidate Quality**: Grok-powered role-fit evaluation + 60-point quality threshold
 
-### API Endpoints - Learning Intelligence
+### API Endpoints - Candidate Matching
+- `POST /api/upload-jd` - Uses Grok role-fit scoring with job context
+- `POST /api/jobs` - Intelligent candidate matching with seniority evaluation
 - `GET /api/learning/intelligence` - Returns all 5 learning features with current data
+
+### Candidate Matching Flow
+1. Job context provided (title, responsibilities, industry, yearsExperience)
+2. `scoreRoleFit()` evaluates each candidate against specific role (not just keywords)
+3. Candidates scoring 60+ are returned (quality threshold)
+4. Results sorted by fit score (best matches first)
+5. Grok understands seniority levels and career trajectory fit
 
 ### Workflow Integration Points
 Learning is triggered at:
@@ -131,15 +187,29 @@ Learning is triggered at:
 5. Daily aggregation syncs (industry averages)
 
 ## What's Next
-The 5-feature learning system is production-ready. Next priorities:
-1. Wire remaining hook calls into sourcing orchestrator (final integration)
-2. Test end-to-end: sourcing → learning collection → dashboard updates
-3. Implement periodic daily sync for industry aggregation
-4. Build admin panel to view learning activity logs
-5. Scale learning to handle high-volume sourcing operations
+1. Test: Verify "Head of Technical" role returns only executive-level candidates
+2. Monitor: Track API cost reduction from quality threshold filter
+3. Scale: Handle high-volume sourcing with Grok evaluations
+4. Learn: Build admin panel to view role-fit scoring logic for transparency
+5. Optimize: Cache frequently-scored candidates to reduce Grok calls
 
 ## External Dependencies
-- **AI**: xAI Grok (NAP, scoring, learning triggers), Voyage AI (semantic search)
+- **AI**: xAI Grok (NAP, role-fit scoring, intelligent matching), Voyage AI (semantic search)
 - **Search & Scraping**: SerpAPI (LinkedIn), Bright Data (profile scraping)
 - **Communication**: SendGrid (email), Twilio (SMS)
 - **Database**: Neon (serverless PostgreSQL)
+
+## Implementation Notes
+
+### Why Grok-Powered Matching Matters
+- Old system scored "Head of Technical" candidate with 40/100 even if they had matching technical skills but no leadership experience
+- New system automatically rejects them before they waste API credits
+- Grok understands role context: executive roles need executive candidates, not junior staff with matching keywords
+- Result: Only genuinely suitable candidates are returned
+
+### Quality Threshold Economics
+- MINIMUM_QUALITY_THRESHOLD = 60 points
+- Prevents candidates with 20-40 scores from wasting xAI Grok credits ($0.005-0.02 per call)
+- Prevents profile scraping costs from Bright Data ($0.02-0.05 per profile)
+- Reduces false positives: fewer unsuitable candidates = faster hiring cycles
+- System logs all filtering: transparency on what's being rejected and why
