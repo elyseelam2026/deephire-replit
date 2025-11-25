@@ -382,9 +382,7 @@ export async function generateConversationalResponse(
 ${roleTemplate.title}
 - Typical Skills: ${roleTemplate.typicalSkills.join(', ')}
 - Typical Years Experience: ${roleTemplate.typicalYearsExp}+
-- Key Dimensions: Growth (${roleTemplate.deepDimensions.growthPreference[0]}), 
-  Location (${roleTemplate.deepDimensions.remotePolicy[0]}), 
-  Style (${roleTemplate.deepDimensions.leadershipStyle[0]})
+- Target Companies: ${roleTemplate.deepDimensions.preferredCompanies?.join(', ') || 'Open to any'}
 `;
       }
     }
