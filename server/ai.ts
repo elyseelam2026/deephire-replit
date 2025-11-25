@@ -335,17 +335,17 @@ export async function generateConversationalResponse(
     title?: string;
     skills?: string[];
     location?: string;
+    baseLocation?: string;
     industry?: string;
     yearsExperience?: number;
     salary?: string;
     urgency?: string;
     companySize?: string;
     successCriteria?: string;
-    teamDynamics?: string;
     growthPreference?: string;
-    remotePolicy?: string;
-    leadershipStyle?: string;
-    competitorContext?: string;
+    preferredCompanies?: string;
+    teamSize?: string;
+    complianceRequirements?: string;
   }
 ): Promise<{
   response: string;
@@ -354,17 +354,17 @@ export async function generateConversationalResponse(
     title?: string;
     skills?: string[];
     location?: string;
+    baseLocation?: string;
     industry?: string;
     yearsExperience?: number;
     salary?: string;
     urgency?: string;
     companySize?: string;
     successCriteria?: string;
-    teamDynamics?: string;
     growthPreference?: string;
-    remotePolicy?: string;
-    leadershipStyle?: string;
-    competitorContext?: string;
+    preferredCompanies?: string;
+    teamSize?: string;
+    complianceRequirements?: string;
   };
 }> {
   try {
@@ -484,20 +484,13 @@ ${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '
 ${currentJobContext.urgency ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: missing'}
 
 **SOURCING-CRITICAL DIMENSIONS (Only Ask These):**
-${currentJobContext.growthPreference ? `✓ Growth Path: ${currentJobContext.growthPreference}` : '✗ Growth Path: (For non-C-suite roles) Ask "Building teams or going deep as specialist?"'}
-${currentJobContext.preferredCompanies ? `✓ Preferred Companies: ${currentJobContext.preferredCompanies}` : '✗ Preferred Companies: Ask "Any preferred companies to target?"'}
+${currentJobContext.baseLocation ? `✓ Base Location: ${currentJobContext.baseLocation}` : '✗ Base Location: Ask "Should they be based in Singapore HQ or another Asia hub?"'}
+${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '✗ Compensation: Ask "What's the ballpark for total comp?"'}
+${currentJobContext.teamSize ? `✓ Team Scope: ${currentJobContext.teamSize}` : '✗ Team Scope: Ask "Are they building/managing Asia finance, or part of global?"'}
+${currentJobContext.preferredCompanies ? `✓ Preferred Companies: ${currentJobContext.preferredCompanies}` : '✗ Preferred Companies: Ask "Any specific PE/VC/multi-strategy background preference?"'}
+${currentJobContext.complianceRequirements ? `✓ Compliance: ${currentJobContext.complianceRequirements}` : '✗ Compliance: Ask "Any regulatory/SFC/ASIC/SEC requirements?"'}
 
 **Current NAP Completeness: ${calculateApproxCompleteness(currentJobContext)}%**
-
-**NOTE ON DEEP DIMENSIONS:**
-- **Remote Policy**: Already captured in location data (Phase 3), skip this
-- **Leadership Style**: Relevant for interview stage, not sourcing. Skip at NAP phase
-- **Team Dynamics**: Relevant for interview stage, not sourcing. Skip at NAP phase
-- **Competitor Context**: AUTO-INFER from hiring company's industry/market. Ask only for "any preferred companies?" if needed
-
-**INSTRUCTION**: For C-Suite roles (CEO/CFO/COO/CIO/CHRO/CMO), they obviously lead teams. Ask ONLY about:
-1. Growth Preference (if roles aren't C-suite)
-2. Preferred Companies (if they want to poach from specific firms)
 
 **LEARNING SYSTEM BRAINSTORMING MODE:**
 If user hasn't provided a detailed JD (no skills, no success criteria), you should:
@@ -2076,7 +2069,7 @@ export async function parseJobDescription(jdText: string): Promise<{
   } catch (error) {
     console.error("Error parsing job description:", error);
     return {
-      title: undefined,
+      title: "Unknown Position",
       department: "General", 
       skills: [],
       urgency: "medium",
@@ -2239,22 +2232,9 @@ export async function generateCandidateLonglist(
     return sorted.slice(0, limit);
   }
   
-  // Fallback: Basic keyword matching if no job context provided
-  console.log(`[Candidate Longlist] No job context - using fallback keyword matching`);
-  const matches = candidates.map(candidate => ({
-    candidateId: candidate.id,
-    matchScore: calculateCandidateMatchScore(
-      jobSkills,
-      candidate.skills || [],
-      jobText,
-      candidate.cvText || `${candidate.firstName} ${candidate.lastName} - ${candidate.currentTitle}`
-    )
-  }));
-  
-  const qualityMatches = matches.filter(m => m.matchScore >= QUALITY_THRESHOLD);
-  const sortedMatches = qualityMatches.sort((a, b) => b.matchScore - a.matchScore);
-  
-  return sortedMatches.slice(0, limit);
+  // Fallback: No job context provided, return empty
+  console.log(`[Candidate Longlist] No job context - cannot perform candidate matching without role requirements`);
+  return [];
 }
 
 /**
