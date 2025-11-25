@@ -350,6 +350,7 @@ export async function generateConversationalResponse(
 ): Promise<{
   response: string;
   intent: 'greeting' | 'job_inquiry' | 'clarification' | 'nap_complete' | 'ready_to_search';
+  napCompleteness?: number;
   extractedInfo?: {
     title?: string;
     skills?: string[];
@@ -539,6 +540,12 @@ ${isReferenceCandidateRequest ? `
 - Extract criteria from their profile
 - Don't ask additional questions
 - Say: "Based on [Name]'s background, I'll find similar candidates. Proceeding now."
+` : ''}
+
+**DOMAIN-AWARE QUESTIONING (Show Expertise, Not Generics):**
+${currentJobContext?.title ? `
+For a **${currentJobContext.title}** role:
+${getDomainAwareQuestions(currentJobContext.title, companyContext?.industry)}
 ` : ''}`;
 
     const response = await openai.chat.completions.create({
@@ -6706,6 +6713,61 @@ export function calculateDataQualityScore(
 }
 
 /**
+ * Get domain-aware NAP questions based on role title
+ * Shows expertise instead of asking generic questions
+ */
+function getDomainAwareQuestions(title: string, industry?: string): string {
+  const roleLower = title.toLowerCase();
+  
+  // Head of HR for TMT/Tech companies
+  if (roleLower.includes('head of hr') || roleLower.includes('chief people') || roleLower.includes('vp hr')) {
+    return `- Are you prioritizing talent density in tech hubs, or building regional HR capabilities?
+- Should they have M&A integration experience (post-acquisition people operations)?
+- Is this about scaling a flat startup culture or professionalizing HR function?`;
+  }
+  
+  // CFO / Finance leadership
+  if (roleLower.includes('cfo') || roleLower.includes('chief financial') || roleLower.includes('head of finance')) {
+    return `- Are they stepping into a build/scale situation, or optimizing an existing function?
+- Should they have audit committee / board-level reporting experience?
+- Do you need multi-jurisdictional tax/compliance expertise (Asia operations)?`;
+  }
+  
+  // VP Sales / Head of Sales
+  if (roleLower.includes('vp sales') || roleLower.includes('head of sales') || roleLower.includes('sales director')) {
+    return `- Are you building a sales team from scratch or optimizing existing structure?
+- Should they specialize in enterprise, mid-market, or SMB segments?
+- Do you need someone with experience in your specific vertical/motion (land & expand, enterprise deals)?`;
+  }
+  
+  // Product Leadership
+  if (roleLower.includes('head of product') || roleLower.includes('chief product') || roleLower.includes('vp product')) {
+    return `- Are they owning discovery + strategy, or execution + delivery?
+- B2B, B2C, or B2B2C background? Does it matter for your business model?
+- Should they have fundraising/investor communication experience?`;
+  }
+  
+  // Engineering Leadership
+  if (roleLower.includes('head of engineering') || roleLower.includes('vp engineering') || roleLower.includes('chief technology')) {
+    return `- Are they hiring/team-building focused, or deep technical architecture?
+- Should they have infrastructure/cloud/security depth specific to your stack?
+- Do you need someone who's scaled teams through hypergrowth (100→500→1000 engineers)?`;
+  }
+  
+  // Investment roles (PE/VC)
+  if (roleLower.includes('investment associate') || roleLower.includes('analyst') && industry?.toLowerCase().includes('private equity')) {
+    return `- Are they sourcing deal flow, evaluating targets, or post-investment operations?
+- Specific sector focus needed (healthcare, tech, real estate)?
+- Should they have modeling experience (LBO, cap table, exit scenarios)?`;
+  }
+  
+  // Generic fallback for unknown roles
+  return `- What's the primary challenge this person solves for you?
+- Should they be a builder (creating function from scratch) or optimizer (scaling existing)?
+- What success looks like in year 1?`;
+}
+
+/**
  * Generate professional JD from conversation dialogue using Grok
  * Simple approach: copy dialogue to LLM, ask for JD
  */
@@ -6752,13 +6814,13 @@ Generate a professional, market-ready job description that includes:
 
 Format it cleanly in markdown. Make it professional and actionable.`;
 
-    const response = await openai.messages.create({
-      model: "grok-beta",
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 1500,
     });
 
-    const jd = response.content[0].type === 'text' ? response.content[0].text : '';
+    const jd = response.choices[0].message.content || '';
     console.log(`[JD Generation] Created professional JD for ${jobContext.title} at ${jobContext.companyName}`);
     return jd;
   } catch (error) {
