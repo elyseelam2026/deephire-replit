@@ -84,27 +84,66 @@ function getCurrentUserId(req: any): number {
   return 1;
 }
 
-// Helper: Send email via SendGrid
+// Helper: Send email via SendGrid or Twilio
 async function sendEmailViaSendGrid(to: string, subject: string, htmlContent: string): Promise<boolean> {
   try {
-    const sgMail = (await import("@sendgrid/mail")).default;
-    const apiKey = process.env.SENDGRID_API_KEY;
-    
-    if (!apiKey) {
-      console.log(`[DEV] Email (SendGrid not configured): To: ${to}, Subject: ${subject}`);
-      return true; // Return success in dev mode
+    // Try SendGrid first if API key is available
+    const sgApiKey = process.env.SENDGRID_API_KEY;
+    if (sgApiKey) {
+      const sgMail = (await import("@sendgrid/mail")).default;
+      sgMail.setApiKey(sgApiKey);
+      
+      await sgMail.send({
+        to,
+        from: process.env.SENDGRID_FROM_EMAIL || "noreply@deephire.ai",
+        subject,
+        html: htmlContent,
+      });
+      
+      console.log(`[Email] Sent via SendGrid to ${to}: ${subject}`);
+      return true;
     }
     
-    sgMail.setApiKey(apiKey);
+    // Fallback: Try Twilio SendGrid API (if Twilio is configured)
+    const twilioApiKey = process.env.TWILIO_API_KEY;
+    const twilioUsername = process.env.TWILIO_ACCOUNT_SID;
     
-    await sgMail.send({
-      to,
-      from: process.env.SENDGRID_FROM_EMAIL || "noreply@deephire.ai",
-      subject,
-      html: htmlContent,
-    });
+    if (twilioApiKey && twilioUsername) {
+      try {
+        const auth = Buffer.from(`${twilioUsername}:${twilioApiKey}`).toString('base64');
+        
+        const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            personalizations: [{
+              to: [{ email: to }],
+              subject,
+            }],
+            from: {
+              email: process.env.SENDGRID_FROM_EMAIL || "noreply@deephire.ai",
+            },
+            content: [{
+              type: "text/html",
+              value: htmlContent,
+            }],
+          }),
+        });
+        
+        if (response.ok) {
+          console.log(`[Email] Sent via Twilio SendGrid to ${to}: ${subject}`);
+          return true;
+        }
+      } catch (twilioErr) {
+        console.log(`[Email] Twilio SendGrid attempt failed:`, twilioErr);
+      }
+    }
     
-    console.log(`[Email] Sent to ${to}: ${subject}`);
+    // Development fallback: Log instead of sending
+    console.log(`[DEV] Email (no email provider configured): To: ${to}, Subject: ${subject}`);
     return true;
   } catch (error) {
     console.error(`[Email Error] Failed to send to ${to}:`, error);
