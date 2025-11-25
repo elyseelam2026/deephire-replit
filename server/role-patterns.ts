@@ -48,9 +48,7 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
   typicalResponsibilities: string[];
   deepDimensions: {
     growthPreference: string[];
-    remotePolicy: string[];
-    leadershipStyle: string[];
-    competitorContext: string[];
+    preferredCompanies: string[];
   };
   // Which NAP dimensions are ALREADY KNOWN for this role (skip asking about them)
   knownDimensions?: string[];
@@ -67,10 +65,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       "Culture and talent development"
     ],
     deepDimensions: {
-      growthPreference: ["team builders", "scaling organizations", "enterprise leadership"],
-      remotePolicy: ["hybrid", "headquarter-based", "flexible"],
-      leadershipStyle: ["visionary", "decisive", "collaborative"],
-      competitorContext: ["FAANG", "Fortune 500", "funded startups"]
+      growthPreference: [],
+      preferredCompanies: ["FAANG", "Fortune 500", "funded startups"]
     },
     knownDimensions: ["growthPreference"] // CEOs always lead teams
   },
@@ -87,10 +83,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       "Board reporting"
     ],
     deepDimensions: {
-      growthPreference: ["deep financial expertise", "regulatory mastery", "capital markets"],
-      remotePolicy: ["hybrid", "on-site"],
-      leadershipStyle: ["analytical", "detail-oriented", "collaborative"],
-      competitorContext: ["Big 4", "Goldman Sachs", "McKinsey", "PE firms"]
+      growthPreference: [],
+      preferredCompanies: ["Big 4", "Goldman Sachs", "McKinsey", "PE firms"]
     },
     knownDimensions: ["growthPreference"] // CFOs always manage teams
   },
@@ -107,10 +101,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       "Cost management"
     ],
     deepDimensions: {
-      growthPreference: ["operational excellence", "scaling systems", "team building"],
-      remotePolicy: ["on-site", "hybrid"],
-      leadershipStyle: ["hands-on", "data-driven", "decisive"],
-      competitorContext: ["Fortune 500", "logistics companies", "manufacturing"]
+      growthPreference: [],
+      preferredCompanies: ["Fortune 500", "logistics companies", "manufacturing"]
     },
     knownDimensions: ["growthPreference"] // COOs always build operational teams
   },
@@ -127,10 +119,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       "IT team leadership"
     ],
     deepDimensions: {
-      growthPreference: ["digital transformation", "innovation", "technical depth"],
-      remotePolicy: ["hybrid", "remote-friendly"],
-      leadershipStyle: ["strategic", "collaborative", "innovative"],
-      competitorContext: ["tech companies", "consulting firms", "product companies"]
+      growthPreference: [],
+      preferredCompanies: ["tech companies", "consulting firms", "product companies"]
     },
     knownDimensions: ["growthPreference"] // CIOs always lead IT teams
   },
@@ -147,10 +137,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       "Organizational design"
     ],
     deepDimensions: {
-      growthPreference: ["team building", "culture leadership", "talent development"],
-      remotePolicy: ["hybrid", "flexible"],
-      leadershipStyle: ["empathetic", "collaborative", "strategic"],
-      competitorContext: ["high-growth startups", "enterprise", "tech"]
+      growthPreference: [],
+      preferredCompanies: ["high-growth startups", "enterprise", "tech"]
     },
     knownDimensions: ["growthPreference"] // CHROs always build talent strategies
   },
@@ -167,10 +155,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       "Budget management"
     ],
     deepDimensions: {
-      growthPreference: ["brand building", "scaling marketing", "innovation"],
-      remotePolicy: ["hybrid", "flexible"],
-      leadershipStyle: ["creative", "data-driven", "collaborative"],
-      competitorContext: ["SaaS", "tech", "consumer brands"]
+      growthPreference: [],
+      preferredCompanies: ["SaaS", "tech", "consumer brands"]
     },
     knownDimensions: ["growthPreference"] // CMOs always lead marketing teams
   }
@@ -202,10 +188,7 @@ export function formatRolePatternsForAI(roleTitle: string, patterns: any) {
 **ROLE INTELLIGENCE (Based on Learning System):**
 ${patterns.summary}
 
-When asking about this role, prioritize these dimensions:
-- Growth Path: ${patterns.deepDimensions?.growthPreference?.join(' vs ') || 'Flexible'}
-- Work Arrangement: ${patterns.deepDimensions?.remotePolicy?.join(' or ') || 'Flexible'}
-- Leadership Type: ${patterns.deepDimensions?.leadershipStyle?.join(' or ') || 'Varies'}
-- Talent Pool: ${patterns.deepDimensions?.competitorContext?.join(', ') || 'Any'}
+When sourcing for this role, focus on:
+- Target Companies: ${patterns.deepDimensions?.preferredCompanies?.join(', ') || 'Open to any'}
 `;
 }

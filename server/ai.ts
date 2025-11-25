@@ -485,28 +485,21 @@ ${currentJobContext.yearsExperience ? `✓ Experience: ${currentJobContext.years
 ${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '✗ Compensation: missing'}
 ${currentJobContext.urgency ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: missing'}
 
-**DEEP DIMENSIONS (5 Critical for Quality Matching):**
-${currentJobContext.growthPreference ? `✓ Growth Path: ${currentJobContext.growthPreference} (leadership builder or deep specialist)` : '✗ Growth Path: Ask "Are they building/leading teams or going deep as specialist?"'}
-${currentJobContext.remotePolicy ? `✓ Work Location: ${currentJobContext.remotePolicy}` : '✗ Work Location: Ask "Remote, hybrid, or on-site?"'}
-${currentJobContext.leadershipStyle ? `✓ Leadership Style: ${currentJobContext.leadershipStyle}` : '✗ Leadership Style: Ask "Hands-on coach or hands-off executive?"'}
-${currentJobContext.competitorContext ? `✓ Talent Pool: ${currentJobContext.competitorContext}` : '✗ Talent Pool: Ask "Any specific companies to poach from?"'}
-${currentJobContext.teamDynamics ? `✓ Team Fit: ${currentJobContext.teamDynamics}` : '✗ Team Fit: Ask "Tell me about the team they\'ll lead/join"'}
+**SOURCING-CRITICAL DIMENSIONS (Only Ask These):**
+${currentJobContext.growthPreference ? `✓ Growth Path: ${currentJobContext.growthPreference}` : '✗ Growth Path: (For non-C-suite roles) Ask "Building teams or going deep as specialist?"'}
+${currentJobContext.preferredCompanies ? `✓ Preferred Companies: ${currentJobContext.preferredCompanies}` : '✗ Preferred Companies: Ask "Any preferred companies to target?"'}
 
 **Current NAP Completeness: ${calculateApproxCompleteness(currentJobContext)}%**
-**Missing Dimensions: ${[
-  !currentJobContext.growthPreference ? '1 (Growth)' : '',
-  !currentJobContext.remotePolicy ? '1 (Location)' : '',
-  !currentJobContext.leadershipStyle ? '1 (Leadership)' : '',
-  !currentJobContext.competitorContext ? '1 (Talent Pool)' : '',
-  !currentJobContext.teamDynamics ? '1 (Team)' : ''
-].filter(Boolean).length} of 5**
 
-**⚠️ CRITICAL INSTRUCTION**: If 2+ deep dimensions missing, you MUST ask about them now. Don't move forward without drilling down on these 5 axes. Ask ONE natural follow-up about the TOP missing dimension. This is what separates quality recruiting from keyword spam.
+**NOTE ON DEEP DIMENSIONS:**
+- **Remote Policy**: Already captured in location data (Phase 3), skip this
+- **Leadership Style**: Relevant for interview stage, not sourcing. Skip at NAP phase
+- **Team Dynamics**: Relevant for interview stage, not sourcing. Skip at NAP phase
+- **Competitor Context**: AUTO-INFER from hiring company's industry/market. Ask only for "any preferred companies?" if needed
 
-**IMPORTANT**: Skip asking about dimensions that are ALREADY KNOWN for this role:
-- CFO/COO/CIO/CHRO/CMO = Always lead teams, so DON'T ask "leadership vs specialist"
-- Instead, ask ONLY about: remote policy, leadership style, competitor context, team dynamics
-- This is professional. Don't waste the client's time with obvious questions.
+**INSTRUCTION**: For C-Suite roles (CEO/CFO/COO/CIO/CHRO/CMO), they obviously lead teams. Ask ONLY about:
+1. Growth Preference (if roles aren't C-suite)
+2. Preferred Companies (if they want to poach from specific firms)
 
 **LEARNING SYSTEM BRAINSTORMING MODE:**
 If user hasn't provided a detailed JD (no skills, no success criteria), you should:
