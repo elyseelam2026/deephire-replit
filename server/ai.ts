@@ -3,6 +3,11 @@ import * as XLSX from 'xlsx';
 import csvToJson from 'csvtojson';
 import * as cheerio from 'cheerio';
 import { chromium } from 'playwright';
+import { scraper } from './web-scraper';
+import { discoverTeamMembersEnhanced, type TeamMemberEnhanced } from './team-discovery-enhanced';
+
+// Re-export for use in routes
+export { discoverTeamMembersEnhanced, type TeamMemberEnhanced };
 
 if (!process.env.XAI_API_KEY) {
   throw new Error("XAI_API_KEY must be set");
