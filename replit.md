@@ -1,157 +1,67 @@
 # DeepHire - AI-Powered Talent Acquisition Platform
 
 ## Overview
-DeepHire is an AI-powered enterprise B2B recruiting platform with intelligent candidate sourcing and matching. The platform uses xAI Grok for dynamic NAP interviews, multi-layered boolean search strategies, **Grok-powered role-fit matching** to understand job requirements, and a **5-feature learning system** that gets smarter with every search and placement.
+DeepHire is an AI-powered enterprise B2B recruiting platform with intelligent candidate sourcing and matching. The platform uses xAI Grok for dynamic NAP interviews, **thoughtful research phases** before proposing solutions, and a **dual-track sourcing model** (active job posting + passive candidate hunting).
+
+## Core Philosophy: Quality Over Speed
+**DO NOT RUSH.** After collecting NAP information:
+1. Research the company, industry, and hiring patterns
+2. Think deeply about what candidates they actually need
+3. Generate informed, professional JDs grounded in research
+4. Ask permission to post JD to active channels while passive sourcing runs
+5. Alert user when each phase completes
+
+This mirrors how manual recruiters work (Spencer Stuart, Korn Ferry) - they research before proposing, then work both channels simultaneously.
 
 ## User Preferences
-Preferred communication style: Simple, everyday language. Focus on continuous AI accuracy improvements over infrastructure work.
+- Preferred communication: Simple, everyday language. Focus on continuous AI accuracy improvements over infrastructure work.
+- **CRITICAL:** No showing off shallow work. Take time to research, think, and propose informed solutions.
+- Platform should feel like a thoughtful partner, not a rushed bot chasing metrics.
 
-## Recent Accomplishments (Session: Grok-Powered Role-Fit Matching + Quality Threshold)
+## Recent Accomplishments
 
-### ✅ COMPLETE: Intelligent Role-Fit Candidate Matching
+### ✅ Session: NAP Collection + Research Phase Architecture
 
-**CRITICAL IMPROVEMENT: Replaced keyword-matching with Grok-powered role understanding**
+**Problem Identified:**
+- System was rushing to generate JDs immediately after NAP collection
+- No research phase = shallow, generic JDs
+- User expected: PAG research (AUM, strategy, geography) → Informed JD → Dual-track sourcing
 
-**Problem Solved:**
-- Old system: Simple keyword overlap (if 60% of keywords matched → score 60)
-- Old result: High-quality candidates but unsuitable for role (e.g., junior staff for "Head of" positions)
-- Issue: Wasted API credits on misfits
+**New Workflow (In Development):**
 
-**New Solution: Grok-Powered Role-Fit Scoring**
+**Phase 1: NAP Collection** (Existing)
+- Questions: Location, Team Scope, Background/Industry, Compliance Requirements, Compensation
+- Duration: 5-10 min conversation
+- Output: Job context object
 
-**`scoreRoleFit()` Function** (`server/ai.ts`):
-- Evaluates if candidate truly fits specific role (not just keyword overlap)
-- Understands seniority levels: "Head of" requires executive-level candidates
-- Scores on: Seniority Match (30%), Skill Alignment (35%), Experience Relevance (20%), Career Trajectory (15%)
-- Critical Rules:
-  - Junior candidate for executive role → max 40 points even if skilled
-  - Great skills but wrong seniority → max 55 points
-  - Only scores 70+ if genuinely suitable, 85+ if excellent fit
-- Uses Grok prompt: "Be critical and accurate - scores should reflect true suitability, not keyword overlap"
+**Phase 2: Research Phase** (NEW - No user interaction needed)
+- Web search PAG: AUM, investment strategy, geography, recent hires
+- Search competitor CFO patterns: What profiles do similar firms hire?
+- Identify target companies: PE firms, multi-strategy shops producing caliber candidates
+- Build market intelligence: Comp ranges, skill requirements, talent density
+- Duration: 2-3 minutes of background research
+- Alert: "Research complete. Preparing JD for review..."
 
-**Updated `generateCandidateLonglist()` Function** (`server/ai.ts`):
-- Now accepts job context parameter (title, responsibilities, industry, etc.)
-- Scores each candidate individually with `scoreRoleFit()`
-- Maintains 60-point quality threshold to prevent API credit waste
-- Falls back to keyword matching if no job context provided
-- Logs screening results: "X candidates evaluated, Y met threshold (60+)"
+**Phase 3: Informed JD Generation** (NEW)
+- Use Grok to generate professional JD grounded in research findings
+- Include: Target company sourcing strategy, market comp context, candidate profile
+- Output: Polished JD ready for user review
+- Alert: "Your professional JD is ready. Review and approve below."
 
-**Integration Points** (Updated in `server/routes.ts`):
-1. `/api/upload-jd` - Job description upload now passes full job context
-2. `/api/jobs` - Job creation now uses role-fit matching
-3. Reference candidate matching - Auto-execution now uses Grok evaluation
+**Phase 4: Approval + Dual-Track Setup** (NEW)
+- User reviews JD and confirms
+- System offers: "Can I help you post this to active channels while I search passive candidates?"
+- If approved: POST to job boards (LinkedIn, internal portals) + SEARCH target companies in parallel
+- Rationale: 15% of talent is actively job hunting, 85% passive. Serve both simultaneously.
 
-**Example Behavior:**
-- "Head of Technical Implementation & Delivery" search:
-  - BEFORE: Charlie S. (40 score) - skills matched but no executive experience
-  - AFTER: Only returns candidates with Head/Director/VP titles and delivery management background
+**Phase 5: Sourcing Execution** (Existing)
+- Parallel execution: Active posting + Passive sourcing from target companies
+- Alerts: "Posted to 5 channels ✓", "Searching 40 target companies ✓", "Candidates arriving..."
 
-### ✅ COMPLETE: Quality Threshold Filter (Cost Control)
-
-**MINIMUM_QUALITY_THRESHOLD = 60** (`server/candidate-ranking.ts`):
-- Constant exported for system-wide use
-- All candidate rankings check: `score >= MINIMUM_QUALITY_THRESHOLD`
-- Prevents low-quality candidates from wasting Grok and Bright Data credits
-- System logs how many candidates pass/fail threshold
-
-### ✅ COMPLETE: 5-Feature Learning Intelligence System
-
-**FEATURE 1: Compensation Intelligence**
-- Tracks salary bands by role and company
-- Calculates average salary lift when moving between roles
-- Learns market rates from placements
-- Database: `companyLearning.salaryBands`, `industryLearning.salaryBenchmarks`
-- Engine: `updateCompensationIntelligence()` in `learning-collection.ts`
-
-**FEATURE 2: Career Path Tracking**
-- Learns typical career progressions (Analyst → Associate → VP → MD)
-- Tracks average years per role
-- Calculates promotion rates
-- Learns where people move next and come from
-- Database: `candidateLearning.careerProgression`, `industryLearning.careerPaths`
-- Engine: `updateCareerPathsFromCandidate()` in `learning-collection.ts`
-
-**FEATURE 3: Talent Quality Metrics**
-- Tracks success rates, tenure, promotion rates from actual placements
-- Calculates fit scores per company
-- Department-specific talent strength (Finance 95%, Operations 72%)
-- Database: `companyLearning.talentQualityScore`, `avgTenureMonths`, `promotionRate`
-- Engine: `updateTalentQualityMetrics()` in `learning-collection.ts`
-
-**FEATURE 4: Geographic/Seasonal Patterns**
-- Learns where best talent comes from (NYC 35%, SF 25%, London 18%)
-- Maps hiring seasonality (Q1 15%, Q2 28%, Q3 25%, Q4 32%)
-- Tracks talent supply (competitive, tight, abundant)
-- Database: `industryLearning.geographicHubs`, `hiringPatterns`, `talentSupply`
-- Engine: `updateGeographicPatterns()` in `learning-collection.ts`
-
-**FEATURE 5: Success Factor Learning**
-- Learns what predicts successful hires (Prior company tier: 92% importance)
-- Tracks regulatory burden (high/medium/low) and compliance requirements
-- Calculates tech skill requirements per industry
-- Maps common tools used in each industry
-- Database: `industryLearning.successFactors`, `regulatoryBurden`, `techSkillRequirement`
-- Engine: `updateSuccessFactors()` in `learning-collection.ts`
-
-### Learning System Architecture
-
-**Collection Engines** (`server/learning-collection.ts`):
-- `updateCompensationIntelligence()` - Salary band updates
-- `updateCareerPathsFromCandidate()` - Career trajectory learning
-- `updateTalentQualityMetrics()` - Placement quality tracking
-- `updateGeographicPatterns()` - Location/season learning
-- `updateSuccessFactors()` - Predictive factor tracking
-- `collectLearningFromSourcedCandidates()` - Batch collection after sourcing
-- `syncIndustryAverages()` - Daily aggregation
-
-**Integration Hooks** (`server/learning-hooks.ts`):
-- `onSourceRunComplete()` - Triggered after sourcing finishes
-- `onCandidateHired()` - Tracks successful placements
-- `onJobSearchExecuted()` - Captures search patterns
-- `onHiringDecision()` - Records success factors
-- `periodicIndustrySync()` - Daily aggregation
-
-**Trigger Wrapper** (`server/learning-trigger.ts`):
-- Single integration point for easy wiring
-- `triggerLearningOnSourcingComplete()` - Non-blocking learning collection
-
-**API Endpoint** (`server/learning-api.ts`):
-- `/api/learning/intelligence` - Returns all 5 learning features with current data
-
-**Dashboard** (`client/src/pages/LearningIntelligence.tsx`):
-- Located at `/researchers/learning-intelligence`
-- Displays 6 cards: Position Keywords, Talent Sources, Industry Patterns, Candidate Patterns, JD Patterns, Top Candidates
-- Real-time updates every 30 seconds
-- Shows 5-feature learning status indicators
-
-### Database Schema Extensions
-
-**companyLearning table additions:**
-- `salaryBands` (JSONB) - {CFO: {min, max, median}, "VP Finance": {...}}
-- `avgSalaryLift` (real) - % salary increase when moving to new role
-- `talentQualityScore` (real) - 0-100 talent quality from this company
-- `avgCandidateFitScore` (real) - 0-100 average fit from placements
-- `avgTenureMonths` (integer) - Average months candidates stay
-- `successRate` (real) - % of placements successful
-- `avgTimeToHireDay` (integer) - Days from sourcing to hire
-- `departmentStrength` (JSONB) - {Finance: 0.95, Operations: 0.72}
-- `promotionRate` (real) - % promoted before leaving
-
-**industryLearning table additions:**
-- `salaryBenchmarks` (JSONB) - {CFO: {p25, p50, p75}, "VP Sales": {...}}
-- `careerPaths` (JSONB) - [{path: [Analyst, Associate, VP], frequency: 0.42}]
-- `avgTimeToPromotion` (integer) - Average months to promotion
-- `geographicHubs` (JSONB) - {NYC: 0.35, SF: 0.25, London: 0.18}
-- `hiringPatterns` (JSONB) - {Q1: 0.15, Q2: 0.28, Q3: 0.25, Q4: 0.32}
-- `talentSupply` (text) - competitive, tight, abundant
-- `successFactors` (JSONB) - [{factor: "Prior company tier", importance: 0.92}]
-- `regulatoryBurden` (text) - high, medium, low
-- `techSkillRequirement` (real) - % requiring tech skills
-
-**candidateLearning table additions:**
-- `careerProgression` (text array) - [Analyst, Associate, VP, MD]
-- `avgYearsPerRole` (real) - Average tenure per role
-- `promotionRate` (real) - % promoted
+### Why Manus.ai Did This Well
+- They understood: Information gathering → Thinking time → Informed proposal
+- Not instant gratification, but thoughtful partnership
+- User got value from research insights, not just speed
 
 ## System Architecture
 
@@ -162,54 +72,120 @@ Enterprise-first, professional interface utilizing deep navy primary color with 
 - **Frontend**: React 18, TypeScript, Radix UI, shadcn/ui, Tailwind CSS, TanStack Query, Wouter routing
 - **Backend**: Node.js, Express.js, TypeScript
 - **Database**: PostgreSQL (Neon serverless) with Drizzle ORM and Zod schemas
-- **AI**: xAI Grok for NAP interviews, role-fit scoring, and intelligent matching; Voyage AI for semantic search
+- **AI**: xAI Grok for NAP interviews, research analysis, JD generation, role-fit scoring
+- **Web Search**: SerpAPI for company research, competitor analysis
 - **Learning**: Active collection engines that populate 5 learning features automatically
 - **Candidate Quality**: Grok-powered role-fit evaluation + 60-point quality threshold
 
-### API Endpoints - Candidate Matching
-- `POST /api/upload-jd` - Uses Grok role-fit scoring with job context
-- `POST /api/jobs` - Intelligent candidate matching with seniority evaluation
-- `GET /api/learning/intelligence` - Returns all 5 learning features with current data
+### New API Endpoints (To Implement)
 
-### Candidate Matching Flow
+**Research Phase:**
+- `POST /api/research/company` - Research client company context (AUM, strategy, geography)
+- `POST /api/research/competitor-patterns` - Research similar firms' hiring patterns
+- `POST /api/research/target-companies` - Identify companies producing ideal candidate profiles
+
+**JD Generation:**
+- `POST /api/jd/generate` - Generate professional JD from research + NAP context
+- `POST /api/jd/approve` - User approves JD, triggers dual-track sourcing
+
+**Dual-Track Sourcing:**
+- `POST /api/sourcing/active-posting` - Post JD to active channels (job boards, internal)
+- `POST /api/sourcing/passive-search` - Search passive candidates from target companies
+
+### New Workflow: From NAP to Dual-Track Sourcing
+
+```
+NAP Collection (5-10 min)
+    ↓
+Research Phase (2-3 min, background)
+    ├─ Search company context (PAG AUM, strategy, geography)
+    ├─ Research competitor CFO hiring patterns
+    ├─ Identify target companies (PE firms, multi-strategy shops)
+    └─ Build market intelligence (comp, skills, talent density)
+    ↓ [Alert: "Research complete. Preparing JD..."]
+    ↓
+Informed JD Generation
+    ├─ Grounded in research findings
+    ├─ Include target sourcing strategy
+    └─ Professional, recruiter-ready format
+    ↓ [Alert: "JD ready for review"]
+    ↓
+User Reviews & Approves JD
+    ├─ Offers: "Help you post to active channels?"
+    ├─ User confirms
+    ↓ [Alert: "Setting up dual-track..."]
+    ↓
+Dual-Track Sourcing Launches (Parallel)
+    ├─ ACTIVE: Post to job boards, LinkedIn, internal channels
+    │  └─ Captures 15% of population actively job hunting
+    └─ PASSIVE: Search target companies for ideal candidates
+       └─ Captures 85% of passive talent
+    ↓
+Results Flow In
+    ├─ Active responders arrive first (days)
+    └─ Passive candidates sourced (week)
+```
+
+### 5-Feature Learning System (Existing)
+
+**FEATURE 1: Compensation Intelligence**
+- Tracks salary bands by role and company
+- Learns market rates from placements
+- Database: `companyLearning.salaryBands`, `industryLearning.salaryBenchmarks`
+
+**FEATURE 2: Career Path Tracking**
+- Learns typical career progressions (Analyst → Associate → VP → MD)
+- Learns where people move next and come from
+
+**FEATURE 3: Talent Quality Metrics**
+- Tracks success rates, tenure from placements
+- Department-specific talent strength (Finance 95%, Operations 72%)
+
+**FEATURE 4: Geographic/Seasonal Patterns**
+- Learns where best talent comes from
+- Maps hiring seasonality
+
+**FEATURE 5: Success Factor Learning**
+- Learns what predicts successful hires
+- Tracks regulatory requirements per industry
+
+## Candidate Matching Flow (Existing)
 1. Job context provided (title, responsibilities, industry, yearsExperience)
-2. `scoreRoleFit()` evaluates each candidate against specific role (not just keywords)
+2. `scoreRoleFit()` evaluates each candidate against specific role
 3. Candidates scoring 60+ are returned (quality threshold)
 4. Results sorted by fit score (best matches first)
-5. Grok understands seniority levels and career trajectory fit
 
-### Workflow Integration Points
-Learning is triggered at:
-1. After sourcing run completes (Elite 4-Phase sourcing)
-2. When candidates are hired (salary + placement data)
-3. When job searches execute (geographic patterns)
-4. When hiring decisions are made (success factors)
-5. Daily aggregation syncs (industry averages)
+## What's Next (Priority Order)
 
-## What's Next
-1. Test: Verify "Head of Technical" role returns only executive-level candidates
-2. Monitor: Track API cost reduction from quality threshold filter
-3. Scale: Handle high-volume sourcing with Grok evaluations
-4. Learn: Build admin panel to view role-fit scoring logic for transparency
-5. Optimize: Cache frequently-scored candidates to reduce Grok calls
+1. **IMPLEMENT Research Phase** - Web search PAG context, competitor analysis, target company identification
+2. **IMPLEMENT Informed JD Generation** - Use research findings to generate professional JD
+3. **IMPLEMENT Dual-Track Sourcing** - Offer active posting + passive candidate sourcing
+4. **Test PAG Workflow** - Verify entire flow from NAP → Research → JD → Dual-track
+5. **Optimize Alert System** - Clear notifications for each phase completion
+6. **Monitor:** Track time spent in research phase vs quality of candidates sourced
 
 ## External Dependencies
-- **AI**: xAI Grok (NAP, role-fit scoring, intelligent matching), Voyage AI (semantic search)
-- **Search & Scraping**: SerpAPI (LinkedIn), Bright Data (profile scraping)
+- **AI**: xAI Grok (NAP, research analysis, JD generation, role-fit scoring)
+- **Web Search**: SerpAPI (company research, competitor analysis, target company identification)
+- **Candidate Search & Scraping**: Bright Data (profile scraping, target company research)
+- **Job Posting**: LinkedIn, job boards integration (TBD)
 - **Communication**: SendGrid (email), Twilio (SMS)
 - **Database**: Neon (serverless PostgreSQL)
 
 ## Implementation Notes
 
-### Why Grok-Powered Matching Matters
-- Old system scored "Head of Technical" candidate with 40/100 even if they had matching technical skills but no leadership experience
-- New system automatically rejects them before they waste API credits
-- Grok understands role context: executive roles need executive candidates, not junior staff with matching keywords
-- Result: Only genuinely suitable candidates are returned
+### Why Research Phase Matters
+- Bad: "I'll search for CFOs now" (generic, wastes API credits)
+- Good: "PAG has $70B AUM, multi-strategy focus, Asia-HQ. They typically hire CFOs from Apollo, KKR, Citadel. Let me search those 3 firms + similar multi-strategy shops + top PE firms in Asia."
+- Result: Targeted sourcing, higher-quality candidates, lower API spend
 
-### Quality Threshold Economics
-- MINIMUM_QUALITY_THRESHOLD = 60 points
-- Prevents candidates with 20-40 scores from wasting xAI Grok credits ($0.005-0.02 per call)
-- Prevents profile scraping costs from Bright Data ($0.02-0.05 per profile)
-- Reduces false positives: fewer unsuitable candidates = faster hiring cycles
-- System logs all filtering: transparency on what's being rejected and why
+### Why Dual-Track Matters
+- Passive-only: Slow (weeks to source), misses fast movers
+- Active-only: Fast (days to hire), but self-selected lower-tier candidates
+- Dual-track: Both streams simultaneously = best of both worlds
+
+### Compensation Question Addition
+- Current 4 questions: Location, Team Scope, Background, Compliance
+- MISSING: Compensation range (needed for candidate filtering)
+- Future: Add "Ballpark total comp range?" to NAP questions
+
