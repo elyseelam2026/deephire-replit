@@ -271,10 +271,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: c.lastName,
           currentTitle: c.currentTitle || "",
           skills: c.skills || [],
-          cvText: c.cvText || undefined
+          cvText: c.cvText || undefined,
+          experience: c.biography,
+          currentCompany: c.currentCompany
         })),
         parsedData.skills,
-        jdText
+        jdText,
+        {
+          title: parsedData.title || "Unknown Position",
+          description: parsedData.description,
+          yearsExperience: parsedData.yearsExperience,
+          industry: parsedData.industry,
+          responsibilities: parsedData.responsibilities
+        }
       );
 
       // Get top candidates with full details
@@ -366,10 +375,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             lastName: c.lastName,
             currentTitle: c.currentTitle || "",
             skills: c.skills || [],
-            cvText: c.cvText || undefined
+            cvText: c.cvText || undefined,
+            experience: c.biography,
+            currentCompany: c.currentCompany
           })),
           job.skills,
-          job.jdText
+          job.jdText,
+          {
+            title: job.title || "Unknown Position",
+            description: job.jdText,
+            yearsExperience: (jobData.parsedData as any)?.yearsExperience,
+            industry: (jobData.parsedData as any)?.industry,
+            responsibilities: (jobData.parsedData as any)?.responsibilities
+          }
         );
 
         // Create job candidates for top matches (Salesforce-style pipeline)
@@ -2331,10 +2349,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               lastName: c.lastName || '',
               currentTitle: c.currentTitle || '',
               skills: c.skills || [],
-              cvText: c.biography || c.cvText || undefined
+              cvText: c.biography || c.cvText || undefined,
+              experience: c.biography,
+              currentCompany: c.currentCompany
             })),
             jobSkills,
             jobText,
+            {
+              title: finalCriteria.title || profileData.position || "Unknown Position",
+              description: jobText,
+              yearsExperience: finalCriteria.yearsExperience,
+              industry: updatedSearchContext.industry,
+              responsibilities: (finalCriteria as any).responsibilities
+            },
             20 // Top 20 candidates
           );
           
