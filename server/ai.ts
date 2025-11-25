@@ -341,6 +341,10 @@ export async function generateConversationalResponse(
     companySize?: string;
     successCriteria?: string;
     teamDynamics?: string;
+    growthPreference?: string;
+    remotePolicy?: string;
+    leadershipStyle?: string;
+    competitorContext?: string;
   }
 ): Promise<{
   response: string;
@@ -356,6 +360,10 @@ export async function generateConversationalResponse(
     companySize?: string;
     successCriteria?: string;
     teamDynamics?: string;
+    growthPreference?: string;
+    remotePolicy?: string;
+    leadershipStyle?: string;
+    competitorContext?: string;
   };
 }> {
   try {
@@ -439,7 +447,23 @@ ${currentJobContext.yearsExperience ? `✓ Experience: ${currentJobContext.years
 ${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '✗ Compensation: missing'}
 ${currentJobContext.urgency ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: missing'}
 
+**DEEP DIMENSIONS (5 Critical for Quality Matching):**
+${currentJobContext.growthPreference ? `✓ Growth Path: ${currentJobContext.growthPreference} (leadership builder or deep specialist)` : '✗ Growth Path: Ask "Are they building/leading teams or going deep as specialist?"'}
+${currentJobContext.remotePolicy ? `✓ Work Location: ${currentJobContext.remotePolicy}` : '✗ Work Location: Ask "Remote, hybrid, or on-site?"'}
+${currentJobContext.leadershipStyle ? `✓ Leadership Style: ${currentJobContext.leadershipStyle}` : '✗ Leadership Style: Ask "Hands-on coach or hands-off executive?"'}
+${currentJobContext.competitorContext ? `✓ Talent Pool: ${currentJobContext.competitorContext}` : '✗ Talent Pool: Ask "Any specific companies to poach from?"'}
+${currentJobContext.teamDynamics ? `✓ Team Fit: ${currentJobContext.teamDynamics}` : '✗ Team Fit: Ask "Tell me about the team they\'ll lead/join"'}
+
 **Current NAP Completeness: ${calculateApproxCompleteness(currentJobContext)}%**
+**Missing Dimensions: ${[
+  !currentJobContext.growthPreference ? '1 (Growth)' : '',
+  !currentJobContext.remotePolicy ? '1 (Location)' : '',
+  !currentJobContext.leadershipStyle ? '1 (Leadership)' : '',
+  !currentJobContext.competitorContext ? '1 (Talent Pool)' : '',
+  !currentJobContext.teamDynamics ? '1 (Team)' : ''
+].filter(Boolean).length} of 5**
+
+**⚠️ CRITICAL INSTRUCTION**: If 2+ deep dimensions missing, you MUST ask about them now. Don't move forward without drilling down on these 5 axes. Ask ONE natural follow-up about the TOP missing dimension. This is what separates quality recruiting from keyword spam.
 ` : '**Current NAP Completeness: 0%**'}
 
 **COOPERATION RADAR (run after every user message):**
