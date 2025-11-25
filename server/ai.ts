@@ -569,8 +569,8 @@ ${isReferenceCandidateRequest ? `
     const hasNeedDetailed = currentJobContext?.skills?.length || currentJobContext?.yearsExperience || currentJobContext?.industry; // +20%
     const needScore = (hasNeedBasic ? 20 : 0) + (hasNeedDetailed ? 20 : 0);
     
-    // AUTHORITY (20%): Reporting line OR team dynamics
-    const hasAuthority = currentJobContext?.successCriteria || currentJobContext?.teamDynamics || 
+    // AUTHORITY (20%): Reporting line OR success criteria
+    const hasAuthority = currentJobContext?.successCriteria || currentJobContext?.teamSize ||
                         lowerMessage.includes('reports to') || lowerMessage.includes('partner') || lowerMessage.includes('team');
     const authorityScore = hasAuthority ? 20 : 0;
     
