@@ -4,18 +4,7 @@ import { createRequire } from "module";
 import multer from "multer";
 import bcrypt from "bcryptjs";
 import twilio from "twilio";
-
-// Extend express-session to include custom properties
-declare global {
-  namespace Express {
-    interface Session {
-      userId?: number;
-      candidateId?: number;
-      companyId?: number;
-      userRole?: 'candidate' | 'company' | 'admin' | 'researcher' | 'agency';
-    }
-  }
-}
+import "./types";
 import { 
   validatePasswordStrength, 
   isAccountLocked, 
