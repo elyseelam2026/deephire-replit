@@ -22,8 +22,8 @@ export default function LandingHome() {
             <Button variant="ghost" size="sm" onClick={() => setLocation("/researchers")} data-testid="nav-researchers-portal">
               Researchers
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/recruiting")} data-testid="nav-recruiting-portal-header">
-              Recruiting
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")} data-testid="nav-admin-portal">
+              Admin
             </Button>
             <Button variant="outline" onClick={() => setLocation("/auth")} data-testid="nav-sign-in">
               Sign In
