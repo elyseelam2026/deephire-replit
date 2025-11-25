@@ -60,7 +60,7 @@ export async function startResearchPhase(jobContext: any): Promise<ResearchConte
       context.marketIntelligence = marketData;
     }
 
-    console.log(`[RESEARCH] Phase complete. Found ${context.targetCompanies.length} target companies.`);
+    console.log(`[RESEARCH] Phase complete. Found ${context.targetCompanies?.length || 0} target companies.`);
     return context;
 
   } catch (error) {
@@ -71,17 +71,61 @@ export async function startResearchPhase(jobContext: any): Promise<ResearchConte
 
 async function searchCompanyContext(companyName: string): Promise<Partial<ResearchContext>> {
   try {
-    // Simulate web search for company context (would use SerpAPI in production)
-    // For now, return structured placeholder
-    return {
-      aum: `$${Math.floor(Math.random() * 100)}B+`,
-      strategy: 'Multi-strategy investment firm',
-      geography: 'APAC focus, global operations'
+    const apiKey = process.env.SERPAPI_API_KEY;
+    if (!apiKey) {
+      console.warn('[RESEARCH] SerpAPI key not found, using placeholder data');
+      return {
+        aum: `$${Math.floor(Math.random() * 100)}B+`,
+        strategy: 'Multi-strategy investment firm',
+        geography: 'APAC focus, global operations'
+      };
+    }
+
+    // Real web search via SerpAPI
+    const searchUrl = new URL('https://serpapi.com/search');
+    searchUrl.searchParams.set('q', `${companyName} AUM assets under management strategy headquarters`);
+    searchUrl.searchParams.set('api_key', apiKey);
+
+    const response = await axios.get(searchUrl.toString());
+    const results = response.data.organic_results || [];
+
+    // Extract intelligence from search results
+    const snippets = results.slice(0, 3).map((r: any) => r.snippet).join(' ');
+    
+    const context: Partial<ResearchContext> = {
+      aum: extractAUM(snippets) || 'Not found',
+      strategy: extractStrategy(snippets) || 'Investment firm',
+      geography: extractGeography(snippets) || 'Global'
     };
+
+    console.log(`[RESEARCH] Found context: ${context.aum} AUM, ${context.strategy}, ${context.geography}`);
+    return context;
+
   } catch (error) {
     console.error(`Failed to search ${companyName} context:`, error);
     return {};
   }
+}
+
+function extractAUM(text: string): string | undefined {
+  const aumMatch = text.match(/\$([0-9,.]+)\s*(billion|B|trillion|T)/i);
+  return aumMatch ? `$${aumMatch[1]}${aumMatch[2]}` : undefined;
+}
+
+function extractStrategy(text: string): string | undefined {
+  if (text.match(/multi-strategy/i)) return 'Multi-strategy investment firm';
+  if (text.match(/private equity|PE/i)) return 'Private equity firm';
+  if (text.match(/venture capital|VC/i)) return 'Venture capital firm';
+  if (text.match(/hedge fund/i)) return 'Hedge fund';
+  return undefined;
+}
+
+function extractGeography(text: string): string | undefined {
+  const regions = [];
+  if (text.match(/asia|apac|hong kong|singapore|tokyo|shanghai/i)) regions.push('APAC');
+  if (text.match(/united states|us|america|nyc|new york/i)) regions.push('North America');
+  if (text.match(/europe|london|paris|frankfurt/i)) regions.push('Europe');
+  return regions.length > 0 ? `${regions.join(', ')} focus` : undefined;
 }
 
 async function searchCompetitorPatterns(title: string, industry: string): Promise<string[]> {
@@ -102,36 +146,61 @@ async function searchCompetitorPatterns(title: string, industry: string): Promis
 
 async function identifyTargetCompanies(industry: string, strategy: string, geography?: string): Promise<string[]> {
   try {
-    // Identify companies that produce similar caliber candidates
-    // These are the passive sourcing targets
-    const baseTargets = [
-      'Apollo Global Management',
-      'Carlyle Group',
-      'KKR',
-      'Blackstone',
-      'TPG',
-      'Partners Group',
-      'Citadel',
-      'Millennium Management'
-    ];
-
-    // Filter for geography if provided
-    if (geography?.toLowerCase().includes('asia') || geography?.toLowerCase().includes('apac')) {
-      const asiaTargets = [
-        'China Evergrande Group (Finance team)',
-        'BDO Unibank (Philippines operations)',
-        'Ascendas Reit',
-        'CapLand Integrated Commercial Trust',
-        'Singapore sovereign wealth funds'
-      ];
-      return baseTargets.slice(0, 4).concat(asiaTargets.slice(0, 3));
+    const apiKey = process.env.SERPAPI_API_KEY;
+    if (!apiKey) {
+      console.warn('[RESEARCH] SerpAPI key not found, using default target companies');
+      return getDefaultTargetCompanies(geography);
     }
 
-    return baseTargets.slice(0, 8);
+    // Web search for similar firms in same industry/geography
+    const query = `top ${industry} firms similar to "${strategy}" ${geography || ''}`;
+    const searchUrl = new URL('https://serpapi.com/search');
+    searchUrl.searchParams.set('q', query);
+    searchUrl.searchParams.set('api_key', apiKey);
+
+    const response = await axios.get(searchUrl.toString());
+    const results = response.data.organic_results || [];
+
+    // Extract company names from results
+    const companies = results
+      .slice(0, 5)
+      .map((r: any) => r.title)
+      .filter((t: string) => t && t.length > 0)
+      .concat(getDefaultTargetCompanies(geography))
+      .slice(0, 8);
+
+    console.log(`[RESEARCH] Identified ${companies.length} target companies for passive sourcing`);
+    return companies;
+
   } catch (error) {
     console.error('Failed to identify target companies:', error);
-    return [];
+    return getDefaultTargetCompanies(geography);
   }
+}
+
+function getDefaultTargetCompanies(geography?: string): string[] {
+  const baseTargets = [
+    'Apollo Global Management',
+    'Carlyle Group',
+    'KKR',
+    'Blackstone',
+    'TPG',
+    'Partners Group',
+    'Citadel',
+    'Millennium Management'
+  ];
+
+  if (geography?.toLowerCase().includes('asia') || geography?.toLowerCase().includes('apac')) {
+    return baseTargets.slice(0, 4).concat([
+      'China Evergrande Group',
+      'BDO Unibank',
+      'Ascendas Reit',
+      'CapLand Integrated Commercial Trust',
+      'Singapore sovereign wealth funds'
+    ]).slice(0, 8);
+  }
+
+  return baseTargets;
 }
 
 async function buildMarketIntelligence(title: string, location: string): Promise<{
@@ -188,7 +257,7 @@ The ideal candidate will combine technical expertise in taxation, FX, and hedgin
 
 ## Key Requirements
 
-${researchContext.competitorPatterns.length > 0 ? `
+${researchContext.competitorPatterns && researchContext.competitorPatterns.length > 0 ? `
 - Proven experience as a ${jobContext.title} or senior finance executive in ${researchContext.strategy || 'alternative investment'} firms
 ${researchContext.competitorPatterns.map(p => `- ${p}`).join('\n')}
 ` : ''}

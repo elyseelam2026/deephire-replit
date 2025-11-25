@@ -109,7 +109,7 @@ router.post('/research/approve-jd', async (req, res) => {
         passiveSearching: {
           text: 'Search passive candidates from target companies?',
           description: 'Captures 85% of passive talent - they\'ll arrive within 1-2 weeks',
-          targetCompanies: researchContext?.targetCompanies?.slice(0, 5) || []
+          targetCompanies: researchContext?.targetCompanies ? researchContext.targetCompanies.slice(0, 5) : []
         }
       },
       recommendation: 'Run both simultaneously for maximum coverage'
