@@ -14,6 +14,32 @@ import { searchLinkedInPeople } from "./serpapi";
 import { orchestrateProfileFetching } from "./sourcing-orchestrator";
 import { computeJobPricing } from "@shared/pricing";
 
+// Email sending helper
+async function sendEmailViaSendGrid(to: string, subject: string, htmlContent: string): Promise<boolean> {
+  try {
+    const sgApiKey = process.env.SENDGRID_API_KEY;
+    if (sgApiKey) {
+      const sgMail = (await import("@sendgrid/mail")).default;
+      sgMail.setApiKey(sgApiKey);
+      
+      await sgMail.send({
+        to,
+        from: process.env.SENDGRID_FROM_EMAIL || "noreply@deephire.ai",
+        subject,
+        html: htmlContent,
+      });
+      
+      console.log(`[Email] Sent via SendGrid to ${to}: ${subject}`);
+      return true;
+    }
+    console.log(`[DEV] Email (no SendGrid): To: ${to}, Subject: ${subject}`);
+    return true;
+  } catch (error) {
+    console.error(`[Email Error] Failed to send to ${to}:`, error);
+    return false;
+  }
+}
+
 /**
  * Execute a single search promise
  * - Runs the candidate search based on stored parameters
@@ -399,6 +425,114 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         });
         
         console.log(`[Promise Worker] 📧 Sent results to conversation #${promise.conversationId}`);
+        
+        // EMAIL DELIVERY: Extract email from conversation messages and send results
+        if (candidateIds.length > 0) {
+          try {
+            const emailRegex = /[\w\.-]+@[\w\.-]+\.\w+/;
+            let userEmail: string | null = null;
+            
+            // Search through recent messages for email address
+            for (let i = conversation.messages.length - 1; i >= Math.max(0, conversation.messages.length - 10); i--) {
+              const msg = conversation.messages[i];
+              if (msg.role === 'user') {
+                const emailMatch = msg.content.match(emailRegex);
+                if (emailMatch) {
+                  userEmail = emailMatch[0];
+                  break;
+                }
+              }
+            }
+            
+            if (userEmail) {
+              console.log(`[Promise Worker] 📧 Found email in conversation: ${userEmail}`);
+              
+              // Fetch full candidate details for email report
+              const candidates = await Promise.all(
+                candidateIds.slice(0, 10).map(id => storage.getCandidate(id))
+              );
+              
+              const candidateRows = candidates.filter(c => c).map(candidate => `
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                  <td style="padding: 12px; text-align: left;"><strong>${candidate?.firstName} ${candidate?.lastName || ''}</strong></td>
+                  <td style="padding: 12px; text-align: left;">${candidate?.currentTitle || 'Not specified'}</td>
+                  <td style="padding: 12px; text-align: center;"><strong style="color: #667eea;">N/A</strong></td>
+                  <td style="padding: 12px; text-align: left; color: #666;">${candidate?.current_company || 'Not specified'}</td>
+                </tr>
+              `).join('');
+              
+              const htmlContent = `
+                <!DOCTYPE html>
+                <html style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                <head>
+                  <style>
+                    body { background-color: #f5f5f5; padding: 20px; }
+                    .container { max-width: 900px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px; }
+                    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+                    .header h1 { margin: 0; font-size: 28px; }
+                    .header p { margin: 10px 0 0 0; opacity: 0.9; }
+                    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                    th { background-color: #f0f0f0; padding: 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0; }
+                    .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; color: #999; font-size: 12px; }
+                    .button { display: inline-block; background-color: #667eea; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin: 20px 0; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <div class="header">
+                      <h1>✅ Candidate Search Complete</h1>
+                      <p>Found: <strong>${candidateIds.length} qualified candidates</strong></p>
+                    </div>
+                    
+                    <p>Dear Hiring Manager,</p>
+                    <p>Your search for <strong>${promise.searchParams.title || 'candidates'}</strong> is complete. I found <strong>${candidateIds.length} qualified candidates</strong> that match your criteria.</p>
+                    
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Candidate Name</th>
+                          <th>Current Title</th>
+                          <th>Score</th>
+                          <th>Company</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${candidateRows}
+                      </tbody>
+                    </table>
+                    
+                    <p><a href="https://deephire.ai/jobs/${jobId}" class="button">View Complete Pipeline</a></p>
+                    
+                    <p>All candidates have been staged in your pipeline for review and outreach.</p>
+                    
+                    <div class="footer">
+                      <p>DeepHire AI-Powered Talent Acquisition | © 2025</p>
+                    </div>
+                  </div>
+                </body>
+                </html>
+              `;
+              
+              // Send email
+              const emailSent = await sendEmailViaSendGrid(
+                userEmail,
+                `✅ ${candidateIds.length} Candidates Found - ${promise.searchParams.title || 'Your Search'}`,
+                htmlContent
+              );
+              
+              if (emailSent) {
+                console.log(`✅ [Promise Worker] Email successfully sent to ${userEmail}`);
+              } else {
+                console.warn(`⚠️ [Promise Worker] Failed to send email to ${userEmail}`);
+              }
+            } else {
+              console.log(`[Promise Worker] No email found in recent conversation messages - cannot send email delivery`);
+            }
+          } catch (emailError) {
+            console.error(`[Promise Worker] Error during email delivery:`, emailError);
+            // Don't fail the whole promise if email fails
+          }
+        }
       }
     } catch (notificationError) {
       console.error(`[Promise Worker] Failed to send notification to conversation:`, notificationError);
