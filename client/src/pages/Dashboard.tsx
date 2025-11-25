@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { TrendingUp, Users, Briefcase, CheckCircle, Clock, AlertCircle } from "lucide-react";
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   // Sample metrics - these will come from API in production
   const metrics = {
     totalJobs: 24,
@@ -90,20 +91,30 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-3">
               {recentJobs.map((job) => (
-                <Link key={job.id} href={`/recruiting/jobs/${job.id}`}>
-                  <div className="p-3 border rounded-lg hover-elevate cursor-pointer" data-testid={`card-job-${job.id}`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{job.title}</p>
-                        <p className="text-xs text-muted-foreground">{job.team}</p>
-                      </div>
-                      <Badge variant={job.status === "Active" ? "default" : "secondary"}>
-                        {job.status}
-                      </Badge>
+                <div
+                  key={job.id}
+                  className="p-3 border rounded-lg hover-elevate cursor-pointer"
+                  data-testid={`card-job-${job.id}`}
+                  onClick={() => setLocation(`/recruiting/jobs/${job.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      setLocation(`/recruiting/jobs/${job.id}`);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{job.title}</p>
+                      <p className="text-xs text-muted-foreground">{job.team}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">{job.applications} applications</p>
+                    <Badge variant={job.status === "Active" ? "default" : "secondary"}>
+                      {job.status}
+                    </Badge>
                   </div>
-                </Link>
+                  <p className="text-xs text-muted-foreground mt-2">{job.applications} applications</p>
+                </div>
               ))}
             </div>
             <Button variant="outline" className="w-full mt-4" asChild data-testid="button-view-all-jobs">
