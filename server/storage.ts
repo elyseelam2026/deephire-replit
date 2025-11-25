@@ -198,7 +198,7 @@ export interface IStorage {
   updateDuplicateDetection(id: number, updates: Partial<InsertDuplicateDetection>): Promise<DuplicateDetection | undefined>;
   getCandidateDuplicates(status?: string): Promise<DuplicateDetection[]>;
   getCompanyDuplicates(status?: string): Promise<DuplicateDetection[]>;
-  resolveDuplicateDetection(id: number, action: 'merge' | 'create_new' | 'skip', selectedId?: number): Promise<void>;
+  resolveDuplicateDetection(id: number, action: 'merge' | 'create_new' | 'skip', selectedId?: number, resolvedById?: number): Promise<void>;
   
   // Data review queue management
   createReviewTask(task: InsertDataReviewQueue): Promise<DataReviewQueue>;
@@ -1471,7 +1471,8 @@ export class DatabaseStorage implements IStorage {
   async resolveDuplicateDetection(
     id: number, 
     action: 'merge' | 'create_new' | 'skip', 
-    selectedId?: number
+    selectedId?: number,
+    resolvedById: number = 1
   ): Promise<void> {
     const duplicateDetection = await this.getDuplicateDetection(id);
     if (!duplicateDetection) {
@@ -1483,7 +1484,7 @@ export class DatabaseStorage implements IStorage {
       .set({
         status: 'resolved',
         resolution: action,
-        resolvedById: null, // TODO: Set actual user ID when authentication is implemented
+        resolvedById: resolvedById,
         resolvedAt: sql`now()`
       })
       .where(eq(duplicateDetections.id, id));

@@ -3769,8 +3769,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const { action: resolveAction, selectedId: mergeWithId } = resolveSchema.parse({ action, selectedId });
+      const userId = getCurrentUserId(req); // Get real user ID
       
-      await storage.resolveDuplicateDetection(parseInt(id), resolveAction, mergeWithId);
+      await storage.resolveDuplicateDetection(parseInt(id), resolveAction, mergeWithId, userId);
       
       res.json({ success: true, message: `Duplicate ${resolveAction === 'merge' ? 'merged' : resolveAction === 'create_new' ? 'created as new record' : 'skipped'}` });
     } catch (error) {
@@ -3795,10 +3796,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let successCount = 0;
       const errors: string[] = [];
       
+      const userId = getCurrentUserId(req); // Get real user ID
       for (let i = 0; i < ids.length; i++) {
         try {
           const mergeWithId = mergeWithIds?.[i];
-          await storage.resolveDuplicateDetection(ids[i], resolveAction, mergeWithId);
+          await storage.resolveDuplicateDetection(ids[i], resolveAction, mergeWithId, userId);
           successCount++;
         } catch (error) {
           errors.push(`Failed to resolve duplicate ${ids[i]}: ${error}`);
