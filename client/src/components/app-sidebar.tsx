@@ -55,7 +55,6 @@ const researcherItems = [
 const adminItems = [
   { title: "Dashboard", url: "/admin", icon: BarChart3 },
   { title: "User Management", url: "/admin/users", icon: Users },
-  { title: "Monitoring", url: "/admin/monitoring", icon: Activity },
   { title: "System Settings", url: "/admin/system", icon: Shield },
 ];
 
