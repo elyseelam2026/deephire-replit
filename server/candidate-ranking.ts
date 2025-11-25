@@ -11,10 +11,14 @@ import {
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+// QUALITY THRESHOLD - Candidates below this score won't be returned to save API credits
+export const MINIMUM_QUALITY_THRESHOLD = 60; // 0-100 scale
+
 export interface RankedCandidate {
   candidateId: number;
   finalScore: number; // 0-100
   confidenceScore: number; // 0-100 (how much we trust this score)
+  meetsQualityThreshold: boolean; // True if score >= MINIMUM_QUALITY_THRESHOLD
   breakdown: {
     priorCompanyTierScore: number; // 40% weight
     careerPathScore: number; // 25% weight
@@ -142,6 +146,7 @@ export async function rankCandidate(
       candidateId,
       finalScore: Math.min(finalScore, 100),
       confidenceScore: finalConfidence,
+      meetsQualityThreshold: finalScore >= MINIMUM_QUALITY_THRESHOLD,
       breakdown: {
         priorCompanyTierScore,
         careerPathScore,
@@ -370,6 +375,7 @@ function createNullRanking(
     candidateId,
     finalScore: 50, // Neutral
     confidenceScore: 10, // Very low confidence
+    meetsQualityThreshold: false, // Errors don't meet threshold
     breakdown: {
       priorCompanyTierScore: 50,
       careerPathScore: 50,
@@ -382,7 +388,7 @@ function createNullRanking(
 }
 
 /**
- * Bulk rank candidates for a job
+ * Bulk rank candidates for a job - FILTERS OUT LOW QUALITY CANDIDATES
  */
 export async function rankCandidatesForJob(
   jobId: number,
@@ -401,6 +407,10 @@ export async function rankCandidatesForJob(
     )
   );
 
-  // Sort by final score descending
-  return rankings.sort((a, b) => b.finalScore - a.finalScore);
+  // Filter to only quality candidates (>= threshold) and sort by final score descending
+  const qualityCandidates = rankings.filter(r => r.meetsQualityThreshold);
+  
+  console.log(`[Candidate Ranking] Screened ${rankings.length} candidates, ${qualityCandidates.length} meet quality threshold (${MINIMUM_QUALITY_THRESHOLD}+)`);
+  
+  return qualityCandidates.sort((a, b) => b.finalScore - a.finalScore);
 }

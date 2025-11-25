@@ -2063,6 +2063,9 @@ export async function generateCandidateLonglist(
   jobText: string,
   limit: number = 20
 ): Promise<Array<{ candidateId: number; matchScore: number }>> {
+  // QUALITY THRESHOLD: Only return candidates with score >= 60 to prevent API credit waste
+  const QUALITY_THRESHOLD = 60;
+  
   const matches = candidates.map(candidate => ({
     candidateId: candidate.id,
     matchScore: calculateCandidateMatchScore(
@@ -2073,10 +2076,15 @@ export async function generateCandidateLonglist(
     )
   }));
   
-  // Sort by match score descending and limit results
-  return matches
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, limit);
+  // CRITICAL: Filter out low-quality candidates before returning to save API credits
+  const qualityMatches = matches.filter(m => m.matchScore >= QUALITY_THRESHOLD);
+  
+  const sortedMatches = qualityMatches.sort((a, b) => b.matchScore - a.matchScore);
+  const limited = sortedMatches.slice(0, limit);
+  
+  console.log(`[Candidate Longlist] Screened ${matches.length} candidates, ${qualityMatches.length} passed quality threshold (${QUALITY_THRESHOLD}+), returning ${limited.length}`);
+  
+  return limited;
 }
 
 /**
