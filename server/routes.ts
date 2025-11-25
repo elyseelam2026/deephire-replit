@@ -2893,17 +2893,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.error('❌ Failed to create search promise:', error);
             }
           }
-        } else {
-          // NAP not complete - suppress any promise detection to prevent premature commitments
-          console.log(`⚠️ [Promise Suppression] NAP incomplete (${Object.values({title: !!updatedSearchContext.title, growthPreference: !!(updatedSearchContext as any).growthPreference, remotePolicy: !!(updatedSearchContext as any).remotePolicy, leadershipStyle: !!(updatedSearchContext as any).leadershipStyle, competitorContext: !!(updatedSearchContext as any).competitorContext, teamDynamics: !!updatedSearchContext.teamDynamics, urgency: !!updatedSearchContext.urgency, successCriteria: !!updatedSearchContext.successCriteria}).filter(Boolean).length}/8) - AI will not make search promises until all questions answered`);
         }
         
-        // CRITICAL FIX: Only trigger search if AI made promise AND all NAP questions answered
+        // CRITICAL FIX: Trigger search if AI made promise - DO NOT WAIT FOR NAP COMPLETION
+        // When AI commits to a deadline, we must deliver on that promise immediately
         const aiMadePromise = detectedPromise !== undefined && detectedPromise !== null;
-        const promiseTriggeredSearch = aiMadePromise && allNAPQuestionsAnswered;
+        const promiseTriggeredSearch = aiMadePromise;  // Allow searches on promise even if NAP is incomplete
         
         if (promiseTriggeredSearch) {
-          console.log('🚀 [Promise Trigger] All NAP questions answered + AI made promise → Auto-triggering job creation + search');
+          console.log('🚀 [Promise Trigger] AI made time-bound promise → EXECUTING search NOW (not waiting for NAP completion)');
         }
 
         // CRITICAL FIX: Handle promise-triggered search for BOTH new and existing job scenarios
