@@ -8116,9 +8116,10 @@ CRITICAL RULES - You MUST follow these strictly:
       }
 
       // Log the import job
+      const importedById = getCurrentUserId(req); // Get real user ID
       await db.insert(schema.bulkUserImportJobs).values({
         fileName,
-        uploadedById: 1, // TODO: get from auth
+        uploadedById: importedById,
         team,
         status: "completed",
         totalRecords: lines.length - 1,
