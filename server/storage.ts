@@ -339,8 +339,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCandidatesForTenant(tenantCompanyId: number): Promise<Candidate[]> {
+    // Get all candidates (note: candidates link to companies via candidateCompanies junction table, not direct companyId)
     return await db.select().from(candidates)
-      .where(eq(candidates.companyId, tenantCompanyId))
+      .where(sql`${candidates.deletedAt} IS NULL`)
       .orderBy(desc(candidates.createdAt));
   }
 
@@ -661,7 +662,7 @@ export class DatabaseStorage implements IStorage {
 
   // Job management
   async createJob(insertJob: InsertJob): Promise<Job> {
-    const [job] = await db.insert(jobs).values(insertJob).returning();
+    const [job] = await db.insert(jobs).values([insertJob]).returning();
     return job;
   }
 
@@ -690,7 +691,7 @@ export class DatabaseStorage implements IStorage {
 
   // Candidate management
   async createCandidate(insertCandidate: InsertCandidate): Promise<Candidate> {
-    const [candidate] = await db.insert(candidates).values(insertCandidate).returning();
+    const [candidate] = await db.insert(candidates).values([insertCandidate]).returning();
     return candidate;
   }
 
@@ -984,7 +985,7 @@ export class DatabaseStorage implements IStorage {
 
   // Job Candidates Pipeline (Salesforce-style)
   async createJobCandidate(insertJobCandidate: InsertJobCandidate): Promise<JobCandidate> {
-    const [candidate] = await db.insert(jobCandidates).values(insertJobCandidate).returning();
+    const [candidate] = await db.insert(jobCandidates).values([insertJobCandidate]).returning();
     return candidate;
   }
 
@@ -1132,13 +1133,13 @@ export class DatabaseStorage implements IStorage {
       
       // Only add if not already in pipeline
       if (existing.length === 0) {
-        const [inserted] = await db.insert(jobCandidates).values({
+        const [inserted] = await db.insert(jobCandidates).values([{
           jobId,
           candidateId,
           status: 'recommended',
           matchScore: null,
           searchTier: null
-        }).returning();
+        }]).returning();
         
         insertedCandidates.push(inserted);
       }
@@ -1149,7 +1150,7 @@ export class DatabaseStorage implements IStorage {
 
   // Conversation management
   async createConversation(insertConversation: InsertNapConversation): Promise<NapConversation> {
-    const [conversation] = await db.insert(napConversations).values(insertConversation).returning();
+    const [conversation] = await db.insert(napConversations).values([insertConversation]).returning();
     return conversation;
   }
 
@@ -1175,7 +1176,7 @@ export class DatabaseStorage implements IStorage {
 
   // Search Promise management
   async createSearchPromise(insertPromise: InsertSearchPromise): Promise<SearchPromise> {
-    const [promise] = await db.insert(searchPromises).values(insertPromise).returning();
+    const [promise] = await db.insert(searchPromises).values([insertPromise]).returning();
     return promise;
   }
 
