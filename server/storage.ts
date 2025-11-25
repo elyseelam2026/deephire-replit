@@ -4,7 +4,7 @@ import {
   organizationChart, companyTags, companyHiringPatterns, industryCampaigns, companyResearchResults,
   companyStaging, candidateCompanies, customFieldSections, customFieldDefinitions, searchPromises,
   sourcingRuns, candidateActivities, candidateFiles, candidateInterviews,
-  tenants, tenantMembers, tenantInvitations,
+  tenants, tenantMembers, tenantInvitations, apiUsageLog, costAlert,
   type Company, type Job, type Candidate, type JobMatch, type JobCandidate, type User,
   type InsertCompany, type InsertJob, type InsertCandidate, type InsertJobMatch, type InsertJobCandidate, type InsertUser,
   type NapConversation, type InsertNapConversation, type EmailOutreach, type InsertEmailOutreach,
@@ -18,7 +18,8 @@ import {
   type SourcingRun, type InsertSourcingRun,
   type CandidateActivity, type InsertCandidateActivity, type CandidateFile, type InsertCandidateFile,
   type CandidateInterview, type InsertCandidateInterview,
-  type Tenant, type InsertTenant, type TenantMember, type InsertTenantMember, type TenantInvitation, type InsertTenantInvitation
+  type Tenant, type InsertTenant, type TenantMember, type InsertTenantMember, type TenantInvitation, type InsertTenantInvitation,
+  type ApiUsageLog, type InsertApiUsageLog, type CostAlert, type InsertCostAlert
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
@@ -2066,6 +2067,71 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updated;
+  }
+
+  // API Usage & Cost Tracking
+  async logApiUsage(usage: InsertApiUsageLog): Promise<ApiUsageLog> {
+    const [created] = await db.insert(apiUsageLog).values([usage]).returning();
+    return created;
+  }
+
+  async getApiUsage(filters?: { companyId?: number; service?: string; daysBack?: number }): Promise<ApiUsageLog[]> {
+    let query = db.select().from(apiUsageLog);
+    
+    const conditions = [];
+    if (filters?.companyId) {
+      conditions.push(eq(apiUsageLog.companyId, filters.companyId));
+    }
+    if (filters?.service) {
+      conditions.push(eq(apiUsageLog.service, filters.service));
+    }
+    if (filters?.daysBack) {
+      const daysAgo = new Date(Date.now() - filters.daysBack * 24 * 60 * 60 * 1000);
+      conditions.push(sql`${apiUsageLog.createdAt} > ${daysAgo}`);
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query.orderBy(desc(apiUsageLog.createdAt));
+  }
+
+  async createCostAlert(alert: InsertCostAlert): Promise<CostAlert> {
+    const [created] = await db.insert(costAlert).values([alert]).returning();
+    return created;
+  }
+
+  async getCostAlerts(companyId: number): Promise<CostAlert[]> {
+    return await db.select().from(costAlert).where(eq(costAlert.companyId, companyId));
+  }
+
+  async updateCostAlert(id: number, updates: Partial<InsertCostAlert>): Promise<CostAlert | undefined> {
+    const [updated] = await db.update(costAlert)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(costAlert.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getMonthlyCostSummary(companyId: number): Promise<{ service: string; totalCost: number; usageCount: number }[]> {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    
+    const results = await db.select({
+      service: apiUsageLog.service,
+      totalCost: sql<number>`COALESCE(SUM(${apiUsageLog.estimatedCost}), 0)`,
+      usageCount: sql<number>`COUNT(*)`,
+    })
+    .from(apiUsageLog)
+    .where(
+      and(
+        eq(apiUsageLog.companyId, companyId),
+        sql`${apiUsageLog.createdAt} > ${thirtyDaysAgo}`
+      )
+    )
+    .groupBy(apiUsageLog.service) as any;
+    
+    return results;
   }
 }
 
