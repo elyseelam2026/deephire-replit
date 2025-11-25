@@ -63,13 +63,33 @@ export function NAPQuestionOptions({ question, onSelect, isLoading }: NAPQuestio
 // Standard NAP questions for generic role discovery
 export const STANDARD_NAP_QUESTIONS: Record<string, NAPQuestion> = {
   growthPreference: {
+
+/**
+ * Filter NAP questions based on role - skip questions that are already known
+ * For example: CFOs always lead teams, so skip "leadership vs specialist" question
+ */
+export function getNAPQuestionsForRole(roleTitle?: string): NAPQuestion[] {
+  // C-suite roles always lead teams - skip growthPreference question
+  const skipGrowthPreference = roleTitle && 
+    /\b(ceo|cfo|coo|cio|chro|cmo|chief)\b/i.test(roleTitle);
+
+  const allQuestions = Object.values(STANDARD_NAP_QUESTIONS);
+  
+  if (skipGrowthPreference) {
+    return allQuestions.filter(q => q.dimension !== 'growthPreference');
+  }
+  
+  return allQuestions;
+}
     dimension: 'growthPreference',
     question: 'Are they building/leading teams or going deep as a specialist?',
     options: [
       { label: 'Leadership Builder', value: 'leadership', description: 'Team scaling' },
       { label: 'Deep Specialist', value: 'specialist', description: 'Expertise' },
       { label: 'Flexible', value: 'flexible' }
-    ]
+    ],
+    // NOTE: This question is SKIPPED for C-suite roles (CEO, CFO, COO, CIO, CHRO, CMO)
+    // because they inherently lead teams
   },
   remotePolicy: {
     dimension: 'remotePolicy',

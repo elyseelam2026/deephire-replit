@@ -488,6 +488,11 @@ ${currentJobContext.teamDynamics ? `✓ Team Fit: ${currentJobContext.teamDynami
 
 **⚠️ CRITICAL INSTRUCTION**: If 2+ deep dimensions missing, you MUST ask about them now. Don't move forward without drilling down on these 5 axes. Ask ONE natural follow-up about the TOP missing dimension. This is what separates quality recruiting from keyword spam.
 
+**IMPORTANT**: Skip asking about dimensions that are ALREADY KNOWN for this role:
+- CFO/COO/CIO/CHRO/CMO = Always lead teams, so DON'T ask "leadership vs specialist"
+- Instead, ask ONLY about: remote policy, leadership style, competitor context, team dynamics
+- This is professional. Don't waste the client's time with obvious questions.
+
 **LEARNING SYSTEM BRAINSTORMING MODE:**
 If user hasn't provided a detailed JD (no skills, no success criteria), you should:
 1. Reference what we've learned about similar roles ("We've hired 47 CFOs...")

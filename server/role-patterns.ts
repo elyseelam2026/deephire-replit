@@ -52,6 +52,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
     leadershipStyle: string[];
     competitorContext: string[];
   };
+  // Which NAP dimensions are ALREADY KNOWN for this role (skip asking about them)
+  knownDimensions?: string[];
 }> = {
   ceo: {
     title: "Chief Executive Officer",
@@ -69,7 +71,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       remotePolicy: ["hybrid", "headquarter-based", "flexible"],
       leadershipStyle: ["visionary", "decisive", "collaborative"],
       competitorContext: ["FAANG", "Fortune 500", "funded startups"]
-    }
+    },
+    knownDimensions: ["growthPreference"] // CEOs always lead teams
   },
   cfo: {
     title: "Chief Financial Officer",
@@ -88,7 +91,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       remotePolicy: ["hybrid", "on-site"],
       leadershipStyle: ["analytical", "detail-oriented", "collaborative"],
       competitorContext: ["Big 4", "Goldman Sachs", "McKinsey", "PE firms"]
-    }
+    },
+    knownDimensions: ["growthPreference"] // CFOs always manage teams
   },
   coo: {
     title: "Chief Operating Officer",
@@ -107,7 +111,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       remotePolicy: ["on-site", "hybrid"],
       leadershipStyle: ["hands-on", "data-driven", "decisive"],
       competitorContext: ["Fortune 500", "logistics companies", "manufacturing"]
-    }
+    },
+    knownDimensions: ["growthPreference"] // COOs always build operational teams
   },
   cio: {
     title: "Chief Information Officer",
@@ -126,7 +131,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       remotePolicy: ["hybrid", "remote-friendly"],
       leadershipStyle: ["strategic", "collaborative", "innovative"],
       competitorContext: ["tech companies", "consulting firms", "product companies"]
-    }
+    },
+    knownDimensions: ["growthPreference"] // CIOs always lead IT teams
   },
   chro: {
     title: "Chief Human Resources Officer",
@@ -145,7 +151,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       remotePolicy: ["hybrid", "flexible"],
       leadershipStyle: ["empathetic", "collaborative", "strategic"],
       competitorContext: ["high-growth startups", "enterprise", "tech"]
-    }
+    },
+    knownDimensions: ["growthPreference"] // CHROs always build talent strategies
   },
   cmo: {
     title: "Chief Marketing Officer",
@@ -164,7 +171,8 @@ export const GENERIC_ROLE_TEMPLATES: Record<string, {
       remotePolicy: ["hybrid", "flexible"],
       leadershipStyle: ["creative", "data-driven", "collaborative"],
       competitorContext: ["SaaS", "tech", "consumer brands"]
-    }
+    },
+    knownDimensions: ["growthPreference"] // CMOs always lead marketing teams
   }
 };
 
