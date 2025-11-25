@@ -506,9 +506,13 @@ export async function orchestrateProfileFetching(
     console.log(`   Duplicates skipped: ${candidatesDuplicate}`);
     
     // TRIGGER LEARNING: Collect intelligence from sourced candidates
-    const sourcing = await db.query.sourcingRuns.findFirst({ where: eq(sourcingRuns.id, sourcingRunId) });
-    if (sourcing?.jobId) {
-      triggerLearningOnSourcingComplete(sourcing.jobId).catch(err => console.log('[Learning] Async collection started'));
+    try {
+      const sourcing = await db.query.sourcingRuns.findFirst({ where: eq(sourcingRuns.id, sourcingRunId) });
+      if (sourcing?.jobId) {
+        triggerLearningOnSourcingComplete(sourcing.jobId).catch(err => console.log('[Learning] Async collection started'));
+      }
+    } catch (e) {
+      console.log('[Learning] Sourcing lookup skipped');
     }
   } else {
     // No successful profiles - mark as completed with zero results
@@ -539,9 +543,13 @@ export async function orchestrateProfileFetching(
     console.log(`   Successful fetches: 0`);
     
     // TRIGGER LEARNING: Even zero results teach the system
-    const sourcing = await db.query.sourcingRuns.findFirst({ where: eq(sourcingRuns.id, sourcingRunId) });
-    if (sourcing?.jobId) {
-      triggerLearningOnSourcingComplete(sourcing.jobId).catch(err => console.log('[Learning] Async collection started'));
+    try {
+      const sourcing = await db.query.sourcingRuns.findFirst({ where: eq(sourcingRuns.id, sourcingRunId) });
+      if (sourcing?.jobId) {
+        triggerLearningOnSourcingComplete(sourcing.jobId).catch(err => console.log('[Learning] Async collection started'));
+      }
+    } catch (e) {
+      console.log('[Learning] Sourcing lookup skipped');
     }
   }
   
