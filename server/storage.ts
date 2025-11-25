@@ -260,6 +260,14 @@ export interface IStorage {
   getSourcingRuns(filters?: { jobId?: number; status?: string }): Promise<SourcingRun[]>;
   updateSourcingRun(id: number, updates: Partial<InsertSourcingRun>): Promise<SourcingRun | undefined>;
   getSourcingRunCandidates(sourcingRunId: number): Promise<Candidate[]>;
+  
+  // API Usage & Cost Tracking
+  logApiUsage(usage: InsertApiUsageLog): Promise<ApiUsageLog>;
+  getApiUsage(filters?: { companyId?: number; service?: string; daysBack?: number }): Promise<ApiUsageLog[]>;
+  createCostAlert(alert: InsertCostAlert): Promise<CostAlert>;
+  getCostAlerts(companyId: number): Promise<CostAlert[]>;
+  updateCostAlert(id: number, updates: Partial<InsertCostAlert>): Promise<CostAlert | undefined>;
+  getMonthlyCostSummary(companyId: number): Promise<{ service: string; totalCost: number; usageCount: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {

@@ -3001,3 +3001,50 @@ export const insertTenantInvitationsSchema = createInsertSchema(tenantInvitation
 });
 export type InsertTenantInvitation = z.infer<typeof insertTenantInvitationsSchema>;
 export type TenantInvitation = typeof tenantInvitations.$inferSelect;
+
+// ============ API USAGE & COST TRACKING ============
+export const apiUsageLog = pgTable("api_usage_log", {
+  id: serial("id").primaryKey(),
+  service: text("service").notNull(), // grok, brightdata, serpapi
+  operation: text("operation").notNull(), // interview, profile_scrape, search_query
+  tokensUsed: integer("tokens_used"), // for Grok
+  profilesScraped: integer("profiles_scraped"), // for Bright Data
+  queriesExecuted: integer("queries_executed"), // for SerpAPI
+  estimatedCost: real("estimated_cost").notNull(), // USD
+  companyId: integer("company_id"), // which company triggered this
+  userId: integer("user_id"), // which user triggered this
+  status: text("status").default("success"), // success, failed, pending
+  errorMessage: text("error_message"), // if failed
+  createdAt: timestamp("created_at").default(sql`now()`)
+}, (table) => {
+  return {
+    serviceIdx: index("idx_api_usage_service").on(table.service),
+    companyIdx: index("idx_api_usage_company").on(table.companyId),
+    createdAtIdx: index("idx_api_usage_created_at").on(table.createdAt),
+  };
+});
+
+export const costAlert = pgTable("cost_alert", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  service: text("service").notNull(), // grok, brightdata, serpapi, all
+  monthlyBudgetUsd: real("monthly_budget_usd").notNull(),
+  currentMonthSpend: real("current_month_spend").default(0),
+  alertThresholdPercent: integer("alert_threshold_percent").default(80), // Alert at 80% of budget
+  alertSent: boolean("alert_sent").default(false),
+  lastAlertAt: timestamp("last_alert_at"),
+  createdAt: timestamp("created_at").default(sql`now()`),
+  updatedAt: timestamp("updated_at").default(sql`now()`)
+}, (table) => {
+  return {
+    companyServiceIdx: index("idx_cost_alert_company_service").on(table.companyId, table.service),
+  };
+});
+
+export const insertApiUsageLogSchema = createInsertSchema(apiUsageLog).omit({ id: true, createdAt: true });
+export type InsertApiUsageLog = z.infer<typeof insertApiUsageLogSchema>;
+export type ApiUsageLog = typeof apiUsageLog.$inferSelect;
+
+export const insertCostAlertSchema = createInsertSchema(costAlert).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCostAlert = z.infer<typeof insertCostAlertSchema>;
+export type CostAlert = typeof costAlert.$inferSelect;
