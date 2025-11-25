@@ -2757,6 +2757,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (message.toLowerCase().includes('team') || message.toLowerCase().includes('culture') || message.toLowerCase().includes('dynamic')) {
           updatedSearchContext.teamDynamics = message;
         }
+        // ENHANCED NAP: Capture company name first
+        if (!updatedSearchContext.companyName) {
+          // Extract company name if mentioned
+          const companyMatches = message.match(/(?:for\s+|at\s+|for\s+our\s+)([\w\s&.,-]+?)(?:\s+(?:in|based|located|we|they|the|or|and|$))/i);
+          if (companyMatches) {
+            updatedSearchContext.companyName = companyMatches[1].trim();
+          }
+          // Also check for "company is X" pattern
+          if (!updatedSearchContext.companyName && message.toLowerCase().includes('company')) {
+            const companyPattern = message.match(/company\s+(?:is|called|named|:)?\s+([A-Z][^,.]*)/);
+            if (companyPattern) {
+              updatedSearchContext.companyName = companyPattern[1].trim();
+            }
+          }
+        }
+
         // ENHANCED NAP: Capture deeper signals
         if (message.toLowerCase().includes('leadership') || message.toLowerCase().includes('scale') || message.toLowerCase().includes('build')) {
           (updatedSearchContext as any).growthPreference = 'leadership';
@@ -2778,26 +2794,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (updatedSearchContext as any).competitorContext = message;
         }
         
-        // Map Grok's intent to our phase system
+        // Calculate NAP completeness
+        const napFields = [
+          updatedSearchContext.title,
+          updatedSearchContext.skills?.length > 0,
+          updatedSearchContext.location,
+          updatedSearchContext.urgency,
+          updatedSearchContext.teamDynamics,
+          updatedSearchContext.companyName,
+        ];
+        const napCompleteness = Math.round((napFields.filter(Boolean).length / napFields.length) * 100);
+
+        // Map Grok's intent to our phase system with JD generation workflow
         if (grokResponse.intent === 'greeting') {
           newPhase = 'initial';
         } else if (grokResponse.intent === 'clarification') {
           newPhase = 'clarifying';
-        } else if (grokResponse.intent === 'nap_complete') {
-          // NAP (Need/Authority/Pain) complete - ready to generate strategy
-          newPhase = 'nap_complete';
-          console.log('✅ NAP Complete - Need/Authority/Pain collected, ready for strategy generation');
+        } else if (grokResponse.intent === 'nap_complete' || napCompleteness >= 80) {
+          // NAP complete AND company is known → Generate JD for approval
+          if (updatedSearchContext.companyName && napCompleteness >= 80) {
+            newPhase = 'jd_generation';
+            console.log(`✅ NAP Complete (${napCompleteness}%) + Company known → Generating JD for approval`);
+            
+            // Generate professional JD summary
+            const jdSummary = `
+## Job Description Summary
+
+**Position:** ${updatedSearchContext.title || 'Executive Role'}
+**Company:** ${updatedSearchContext.companyName}
+**Location:** ${updatedSearchContext.location || 'Global/Flexible'}
+**Industry:** ${updatedSearchContext.industry || 'Not specified'}
+
+### Key Responsibilities
+${updatedSearchContext.responsibilities?.slice(0, 5).map(r => `• ${r}`).join('\n') || '• TBD based on role requirements'}
+
+### Required Skills & Experience
+${updatedSearchContext.skills?.slice(0, 8).map(s => `• ${s}`).join('\n') || '• TBD'}
+• ${updatedSearchContext.yearsExperience || '10'}+ years of experience
+
+### Compensation & Details
+• **Salary:** ${updatedSearchContext.salary || 'Competitive, market rate'}
+• **Urgency:** ${updatedSearchContext.urgency || 'Standard hiring timeline'}
+• **Team Dynamics:** ${updatedSearchContext.teamDynamics || 'TBD'}
+
+---
+**Next Step:** Please review and confirm this JD, or suggest any changes before we begin sourcing.
+            `;
+            
+            aiResponse = `📋 **Professional JD Ready for Your Review**\n\n${jdSummary}\n\nDoes this look good? Say "confirm JD" or "approve" to proceed with sourcing, or make any adjustments.`;
+          } else {
+            // NAP complete but missing company
+            newPhase = 'clarifying';
+            aiResponse = grokResponse.response + '\n\n⚠️ **Missing Critical Info:** Which company is this CFO position for?';
+          }
         } else if (grokResponse.intent === 'ready_to_search') {
           newPhase = 'ready_to_create_job';
         } else {
           newPhase = 'initial';
         }
 
+        // CRITICAL: Handle JD approval workflow
+        const lowerMessage = message.toLowerCase().trim();
+        const jdApprovalKeywords = ['confirm jd', 'approve jd', 'yes jd', 'proceed with', 'start search', 'begin search', 'let\'s do it', 'go ahead'];
+        const jdApproved = jdApprovalKeywords.some(kw => lowerMessage.includes(kw));
+
+        // If in JD confirmation phase and user approves → move to searching
+        if (newPhase === 'jd_generation' && jdApproved) {
+          newPhase = 'jd_confirmation';
+          console.log('✅ JD Approved by user → Proceeding to search phase');
+        } else if (newPhase === 'jd_confirmation') {
+          newPhase = 'searching';
+          aiResponse = `✅ **Starting search now**\n\nI'm searching for candidates matching this profile. Longlist ready in 15-20 minutes.`;
+        }
+
         // CRITICAL: Define napComplete FIRST (before using it)
-        const napComplete = newPhase === 'nap_complete';
+        const napComplete = newPhase === 'nap_complete' || newPhase === 'jd_generation';
 
         // CRITICAL: Detect explicit user agreement to start the search
-        const lowerMessage = message.toLowerCase().trim();
         const searchAgreementKeywords = [
           'internal search', 'external search', 'start search', 'start internal', 'start external',
           'yes internal', 'yes external', 'proceed', 'go ahead', 'create job', 'begin search', 'let\'s do it'
