@@ -408,6 +408,31 @@ ${roleTemplate.title}
     const mentionsSimilarTo = lowerMessage.includes('similar to') || lowerMessage.includes('like him') || lowerMessage.includes('like her');
     const isReferenceCandidateRequest = hasLinkedInUrl || mentionsSimilarTo;
 
+    // Build NAP tracking section separately to avoid nested template literal issues
+    const napTrackingSection = currentJobContext && Object.keys(currentJobContext).length > 0 
+      ? `**NAP Data collected so far:**
+${currentJobContext.title ? `✓ Position: ${currentJobContext.title}` : '✗ Position: missing'}
+${currentJobContext.skills?.length ? `✓ Skills: ${currentJobContext.skills.join(', ')}` : '✗ Skills: missing'}
+${currentJobContext.location ? `✓ Location: ${currentJobContext.location}` : '✗ Location: missing'}
+${currentJobContext.yearsExperience ? `✓ Experience: ${currentJobContext.yearsExperience} years` : '✗ Experience: missing'}
+${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '✗ Compensation: missing'}
+${currentJobContext.urgency ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: missing'}
+
+**SOURCING-CRITICAL DIMENSIONS (Only Ask These):**
+${currentJobContext.baseLocation ? `✓ Base Location: ${currentJobContext.baseLocation}` : '✗ Base Location: Ask "Should they be based in Singapore HQ or another Asia hub?"'}
+${currentJobContext.teamSize ? `✓ Team Scope: ${currentJobContext.teamSize}` : '✗ Team Scope: Ask "Are they building/managing Asia finance, or part of global?"'}
+${currentJobContext.preferredCompanies ? `✓ Preferred Companies: ${currentJobContext.preferredCompanies}` : '✗ Preferred Companies: Ask "Any specific PE/VC/multi-strategy background preference?"'}
+${currentJobContext.complianceRequirements ? `✓ Compliance: ${currentJobContext.complianceRequirements}` : '✗ Compliance: Ask "Any regulatory/SFC/ASIC/SEC requirements?"'}
+
+**Current NAP Completeness: ${calculateApproxCompleteness(currentJobContext)}%**
+
+**LEARNING SYSTEM BRAINSTORMING MODE:**
+If user hasn't provided a detailed JD (no skills, no success criteria), you should:
+1. Reference what we've learned about similar roles ("We've hired 47 CFOs...")
+2. Ask about deviations: "Are you looking for someone who typically does X in this role, or something different?"
+3. Help user DISCOVER requirements through conversation, not just extract them`
+      : '**Current NAP Completeness: 0%**';
+
     const systemPrompt = `You are DeepHire AI — a senior executive search partner (think Spencer Stuart level).
 
 **MANDATORY NAP+ FRAMEWORK (Grok-Enhanced):**
@@ -475,29 +500,7 @@ Use this to inform your conversation - don't ask for info you already have!` : '
 
 ${rolePatternContext}
 
-${currentJobContext && Object.keys(currentJobContext).length > 0 ? `**NAP Data collected so far:**
-${currentJobContext.title ? `✓ Position: ${currentJobContext.title}` : '✗ Position: missing'}
-${currentJobContext.skills?.length ? `✓ Skills: ${currentJobContext.skills.join(', ')}` : '✗ Skills: missing'}
-${currentJobContext.location ? `✓ Location: ${currentJobContext.location}` : '✗ Location: missing'}
-${currentJobContext.yearsExperience ? `✓ Experience: ${currentJobContext.yearsExperience} years` : '✗ Experience: missing'}
-${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '✗ Compensation: missing'}
-${currentJobContext.urgency ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: missing'}
-
-**SOURCING-CRITICAL DIMENSIONS (Only Ask These):**
-${currentJobContext.baseLocation ? `✓ Base Location: ${currentJobContext.baseLocation}` : '✗ Base Location: Ask "Should they be based in Singapore HQ or another Asia hub?"'}
-${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '✗ Compensation: Ask "What's the ballpark for total comp?"'}
-${currentJobContext.teamSize ? `✓ Team Scope: ${currentJobContext.teamSize}` : '✗ Team Scope: Ask "Are they building/managing Asia finance, or part of global?"'}
-${currentJobContext.preferredCompanies ? `✓ Preferred Companies: ${currentJobContext.preferredCompanies}` : '✗ Preferred Companies: Ask "Any specific PE/VC/multi-strategy background preference?"'}
-${currentJobContext.complianceRequirements ? `✓ Compliance: ${currentJobContext.complianceRequirements}` : '✗ Compliance: Ask "Any regulatory/SFC/ASIC/SEC requirements?"'}
-
-**Current NAP Completeness: ${calculateApproxCompleteness(currentJobContext)}%**
-
-**LEARNING SYSTEM BRAINSTORMING MODE:**
-If user hasn't provided a detailed JD (no skills, no success criteria), you should:
-1. Reference what we've learned about similar roles ("We've hired 47 CFOs...")
-2. Ask about deviations: "Are you looking for someone who typically does X in this role, or something different?"
-3. Help user DISCOVER requirements through conversation, not just extract them
-` : '**Current NAP Completeness: 0%**'}
+${napTrackingSection}
 
 **COOPERATION RADAR (run after every user message):**
 1. Word count < 4 → SIGNAL 1 (short reply)
