@@ -2022,32 +2022,93 @@ export async function parseJobDescription(jdText: string): Promise<{
   }
 }
 
-export function calculateCandidateMatchScore(
-  jobSkills: string[],
-  candidateSkills: string[],
-  jobText: string,
-  candidateText: string
-): number {
-  if (!jobSkills?.length || !candidateSkills?.length) return 0;
-  
-  // Simple skill matching algorithm
-  const jobSkillsLower = jobSkills.map(s => s.toLowerCase());
-  const candidateSkillsLower = candidateSkills.map(s => s.toLowerCase());
-  
-  let matches = 0;
-  for (const skill of jobSkillsLower) {
-    if (candidateSkillsLower.some(cs => cs.includes(skill) || skill.includes(cs))) {
-      matches++;
-    }
+/**
+ * GROK-POWERED ROLE-FIT SCORING (replaces keyword matching)
+ * Uses xAI Grok to evaluate if candidate truly fits the specific role
+ * Understands seniority levels, leadership, and role-specific context
+ */
+export async function scoreRoleFit(
+  candidate: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    currentTitle: string;
+    currentCompany?: string;
+    skills: string[];
+    cvText?: string;
+    experience?: string;
+  },
+  jobContext: {
+    title: string;
+    skills: string[];
+    description?: string;
+    yearsExperience?: number;
+    industry?: string;
+    responsibilities?: string[];
   }
-  
-  // Calculate base score from skill overlap
-  const skillScore = Math.min((matches / jobSkillsLower.length) * 100, 100);
-  
-  // Add some randomness for demo purposes (in real app, this would use vector similarity)
-  const variation = Math.random() * 20 - 10; // ±10 points
-  
-  return Math.max(0, Math.min(100, Math.round(skillScore + variation)));
+): Promise<number> {
+  try {
+    // Extract seniority level from job title to guide Grok evaluation
+    const seniority = jobContext.title.match(/(head|chief|vp|vice president|director|senior|lead|manager)/i) 
+      ? "executive/leadership" 
+      : jobContext.title.match(/(analyst|coordinator|specialist|assistant)/i)
+      ? "junior/individual contributor"
+      : "mid-level professional";
+
+    const prompt = `You are an elite executive recruiter evaluating candidate-to-role fit. Be rigorous - a high score means the candidate is GENUINELY suitable for this specific role.
+
+**ROLE REQUIREMENTS:**
+- Title: ${jobContext.title}
+- Seniority Level: ${seniority}
+- Industry: ${jobContext.industry || "Any"}
+- Years Experience: ${jobContext.yearsExperience || "Not specified"}
+- Key Skills: ${jobContext.skills.join(", ") || "Not specified"}
+- Responsibilities: ${jobContext.responsibilities?.join(", ") || "Not specified"}
+- Job Description: ${jobContext.description?.slice(0, 500) || "Not provided"}
+
+**CANDIDATE PROFILE:**
+- Name: ${candidate.firstName} ${candidate.lastName}
+- Current Title: ${candidate.currentTitle}
+- Current Company: ${candidate.currentCompany || "Unknown"}
+- Skills: ${candidate.skills.join(", ") || "None listed"}
+- Background: ${candidate.experience?.slice(0, 300) || candidate.cvText?.slice(0, 300) || "Not provided"}
+
+**EVALUATION CRITERIA (score 0-100):**
+1. **Seniority Match** (30 points): Is their title level appropriate? "Head of" needs someone at executive level, not junior
+2. **Skill Alignment** (35 points): Do they have the required skills? Not just keyword match - genuine capability
+3. **Experience Relevance** (20 points): Have they done similar work? Industry/role background matters
+4. **Career Trajectory** (15 points): Does their path logically lead to this role? Or is it a huge jump?
+
+**CRITICAL RULE:** If the role requires "Head/Director/VP" level but candidate is junior/coordinator → score max 40. If great skills but wrong seniority → score max 55. Only score 70+ if genuinely suitable, 85+ if excellent fit.
+
+Respond in JSON: {"score": <0-100>, "reasoning": "<brief explanation>"}`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert recruiter evaluating role-fit. Be critical and accurate - scores should reflect true suitability, not keyword overlap."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 300
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || "{}");
+    const score = Math.max(0, Math.min(100, result.score || 0));
+    
+    console.log(`[Role Fit] ${candidate.firstName} ${candidate.lastName} (${candidate.currentTitle}) → ${jobContext.title}: ${score}/100`);
+    
+    return score;
+  } catch (error) {
+    console.error(`[Role Fit] Error scoring candidate:`, error);
+    return 0; // Fail closed - don't return candidates we can't evaluate
+  }
 }
 
 export async function generateCandidateLonglist(
@@ -2058,14 +2119,64 @@ export async function generateCandidateLonglist(
     currentTitle: string;
     skills: string[];
     cvText?: string;
+    experience?: string;
+    currentCompany?: string;
   }>,
   jobSkills: string[],
   jobText: string,
+  jobContext?: {
+    title: string;
+    description?: string;
+    yearsExperience?: number;
+    industry?: string;
+    responsibilities?: string[];
+  },
   limit: number = 20
 ): Promise<Array<{ candidateId: number; matchScore: number }>> {
   // QUALITY THRESHOLD: Only return candidates with score >= 60 to prevent API credit waste
   const QUALITY_THRESHOLD = 60;
   
+  // Use Grok-powered role-fit scoring if job context provided, otherwise fall back to keyword matching
+  if (jobContext?.title) {
+    console.log(`[Candidate Longlist] Using Grok-powered role-fit scoring for "${jobContext.title}"`);
+    
+    const roleScores: Array<{ candidateId: number; matchScore: number }> = [];
+    
+    // Score each candidate against the specific role
+    for (const candidate of candidates) {
+      const score = await scoreRoleFit(
+        {
+          id: candidate.id,
+          firstName: candidate.firstName,
+          lastName: candidate.lastName,
+          currentTitle: candidate.currentTitle,
+          currentCompany: candidate.currentCompany,
+          skills: candidate.skills || [],
+          cvText: candidate.cvText,
+          experience: candidate.experience
+        },
+        {
+          title: jobContext.title,
+          skills: jobSkills,
+          description: jobContext.description || jobText,
+          yearsExperience: jobContext.yearsExperience,
+          industry: jobContext.industry,
+          responsibilities: jobContext.responsibilities
+        }
+      );
+      
+      if (score >= QUALITY_THRESHOLD) {
+        roleScores.push({ candidateId: candidate.id, matchScore: score });
+      }
+    }
+    
+    const sorted = roleScores.sort((a, b) => b.matchScore - a.matchScore);
+    console.log(`[Candidate Longlist] Grok evaluation: ${candidates.length} candidates evaluated, ${sorted.length} met quality threshold (${QUALITY_THRESHOLD}+), returning ${Math.min(sorted.length, limit)}`);
+    return sorted.slice(0, limit);
+  }
+  
+  // Fallback: Basic keyword matching if no job context provided
+  console.log(`[Candidate Longlist] No job context - using fallback keyword matching`);
   const matches = candidates.map(candidate => ({
     candidateId: candidate.id,
     matchScore: calculateCandidateMatchScore(
@@ -2076,15 +2187,10 @@ export async function generateCandidateLonglist(
     )
   }));
   
-  // CRITICAL: Filter out low-quality candidates before returning to save API credits
   const qualityMatches = matches.filter(m => m.matchScore >= QUALITY_THRESHOLD);
-  
   const sortedMatches = qualityMatches.sort((a, b) => b.matchScore - a.matchScore);
-  const limited = sortedMatches.slice(0, limit);
   
-  console.log(`[Candidate Longlist] Screened ${matches.length} candidates, ${qualityMatches.length} passed quality threshold (${QUALITY_THRESHOLD}+), returning ${limited.length}`);
-  
-  return limited;
+  return sortedMatches.slice(0, limit);
 }
 
 /**
