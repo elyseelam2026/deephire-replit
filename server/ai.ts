@@ -5,6 +5,7 @@ import * as cheerio from 'cheerio';
 import { chromium } from 'playwright';
 import { scraper } from './web-scraper';
 import { discoverTeamMembersEnhanced, type TeamMemberEnhanced } from './team-discovery-enhanced';
+import { getRolePatterns, getRoleTemplate, formatRolePatternsForAI } from './role-patterns';
 
 // Re-export for use in routes
 export { discoverTeamMembersEnhanced, type TeamMemberEnhanced };
@@ -367,6 +368,26 @@ export async function generateConversationalResponse(
   };
 }> {
   try {
+    // Extract role patterns from Learning System if user mentioned a role
+    let rolePatternContext = "";
+    if (currentJobContext?.title) {
+      const learnedPatterns = await getRolePatterns(currentJobContext.title);
+      const roleTemplate = getRoleTemplate(currentJobContext.title);
+      
+      if (learnedPatterns) {
+        rolePatternContext = formatRolePatternsForAI(currentJobContext.title, learnedPatterns);
+      } else if (roleTemplate) {
+        rolePatternContext = `
+**ROLE TEMPLATE (Generic Role - Based on Learning System):**
+${roleTemplate.title}
+- Typical Skills: ${roleTemplate.typicalSkills.join(', ')}
+- Typical Years Experience: ${roleTemplate.typicalYearsExp}+
+- Key Dimensions: Growth (${roleTemplate.deepDimensions.growthPreference[0]}), 
+  Location (${roleTemplate.deepDimensions.remotePolicy[0]}), 
+  Style (${roleTemplate.deepDimensions.leadershipStyle[0]})
+`;
+      }
+    }
     // Detect if user is requesting immediate search (wants to skip questions)
     const lowerMessage = userMessage.toLowerCase();
     const skipQuestionsSignals = [
@@ -439,6 +460,8 @@ ${companyContext ? `**Company context you already know:**
 
 Use this to inform your conversation - don't ask for info you already have!` : ''}
 
+${rolePatternContext}
+
 ${currentJobContext && Object.keys(currentJobContext).length > 0 ? `**NAP Data collected so far:**
 ${currentJobContext.title ? `✓ Position: ${currentJobContext.title}` : '✗ Position: missing'}
 ${currentJobContext.skills?.length ? `✓ Skills: ${currentJobContext.skills.join(', ')}` : '✗ Skills: missing'}
@@ -464,6 +487,12 @@ ${currentJobContext.teamDynamics ? `✓ Team Fit: ${currentJobContext.teamDynami
 ].filter(Boolean).length} of 5**
 
 **⚠️ CRITICAL INSTRUCTION**: If 2+ deep dimensions missing, you MUST ask about them now. Don't move forward without drilling down on these 5 axes. Ask ONE natural follow-up about the TOP missing dimension. This is what separates quality recruiting from keyword spam.
+
+**LEARNING SYSTEM BRAINSTORMING MODE:**
+If user hasn't provided a detailed JD (no skills, no success criteria), you should:
+1. Reference what we've learned about similar roles ("We've hired 47 CFOs...")
+2. Ask about deviations: "Are you looking for someone who typically does X in this role, or something different?"
+3. Help user DISCOVER requirements through conversation, not just extract them
 ` : '**Current NAP Completeness: 0%**'}
 
 **COOPERATION RADAR (run after every user message):**
