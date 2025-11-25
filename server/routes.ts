@@ -2766,8 +2766,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           allAnswered: allNAPQuestionsAnswered
         });
         
-        // Only allow search if ALL questions answered + explicit user agreement (no auto-trigger)
-        const userAgreedToSearch = (hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch) && allNAPQuestionsAnswered;
+        // Allow search if user explicitly agrees - NAP can be incomplete if user provided job title + deadline
+        const userAgreedToSearch = (hasStrongAgreement || hasWeakAgreement || userWantsToSkipQuestionsAndSearch) && !!updatedSearchContext.title;
         
         console.log(`📊 Search Trigger Check:`, {
           hasStrongAgreement,
@@ -2779,10 +2779,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobExists: !!conversation.jobId
         });
         
-        // ✨ PROMISE DETECTION: Only allow promises AFTER all 8 NAP questions are answered
-        // This prevents AI from making "20 min longlist" promises before NAP is complete
+        // ✨ PROMISE DETECTION: Allow promises when user explicitly agrees + job title provided
+        // User agreement with job title is sufficient to make search promises
         let detectedPromise = null;
-        if (allNAPQuestionsAnswered) {
+        if (userAgreedToSearch) {
           detectedPromise = detectPromise(aiResponse);
           if (detectedPromise) {
             console.log(`🎯 AI Promise detected (NAP complete): "${detectedPromise.promiseText}"`);
