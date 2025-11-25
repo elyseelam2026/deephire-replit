@@ -400,3 +400,56 @@ export class DuplicateDetectionService {
 }
 
 export const duplicateDetectionService = new DuplicateDetectionService();
+
+/**
+ * HASH-BASED DEDUPLICATION (Fast path for LinkedIn + email)
+ * For high-volume deduplication
+ */
+import crypto from "crypto";
+
+export function generateCandidateHash(
+  linkedinUrl?: string | null,
+  email?: string | null
+): string | null {
+  if (!linkedinUrl && !email) return null;
+  
+  const combined = [
+    linkedinUrl?.toLowerCase().trim() || "",
+    email?.toLowerCase().trim() || ""
+  ]
+    .filter(Boolean)
+    .join("|");
+
+  return crypto.createHash("sha256").update(combined).digest("hex");
+}
+
+export async function autoDeduplicate(): Promise<{ mergedCount: number; duplicatesFound: number }> {
+  let mergedCount = 0;
+  let duplicatesFound = 0;
+
+  const allCandidates = await storage.getCandidates();
+  const seen = new Map<string, number>();
+
+  for (const candidate of allCandidates) {
+    const hash = generateCandidateHash(candidate.linkedinUrl, candidate.email);
+
+    if (hash) {
+      if (seen.has(hash)) {
+        duplicatesFound++;
+        const primaryId = seen.get(hash)!;
+        try {
+          // Merge duplicate into primary
+          await storage.resolveDuplicateDetection(candidate.id, "merge", primaryId);
+          mergedCount++;
+        } catch (error) {
+          console.error(`[Dedup] Failed to merge candidate ${candidate.id} into ${primaryId}:`, error);
+        }
+      } else {
+        seen.set(hash, candidate.id);
+      }
+    }
+  }
+
+  console.log(`[Deduplication] Found ${duplicatesFound} duplicates, merged ${mergedCount}`);
+  return { mergedCount, duplicatesFound };
+}
