@@ -131,3 +131,119 @@ export async function getLearningIntelligence() {
     throw error;
   }
 }
+
+/**
+ * SEARCH QUALITY METRICS
+ * Tracks improvements from learning system
+ */
+export interface SearchQualityMetrics {
+  overallQualityScore: number; // 0-100
+  learningImpactPercentage: number; // % improvement from learning
+  companyQualityAverage: number; // Avg company talent quality
+  industryQualityAverage: number; // Avg industry talent quality
+  averageCandidateRankingScore: number; // Avg ranking score
+  improvementTrend: 'accelerating' | 'stable' | 'declining';
+  lastCalculatedAt: Date;
+}
+
+export async function calculateSearchQualityMetrics(): Promise<SearchQualityMetrics> {
+  try {
+    // Get all company learning data
+    const companies = await db.query.companyLearning.findMany();
+    const industries = await db.query.industryLearning.findMany();
+    
+    // Calculate company quality average
+    const companyQualities = companies
+      .map(c => c.successRate || 0)
+      .filter(q => q > 0);
+    const companyQualityAverage = companyQualities.length > 0
+      ? Math.round(companyQualities.reduce((a, b) => a + b, 0) / companyQualities.length)
+      : 50;
+    
+    // Calculate industry quality average
+    const industryQualities = industries
+      .map(i => (i.hiringPatterns as any)?.quality || (i.successFactors as any)?.[0]?.importance || 0)
+      .filter(q => q > 0);
+    const industryQualityAverage = industryQualities.length > 0
+      ? Math.round(industryQualities.reduce((a, b) => a + b, 0) / industryQualities.length)
+      : 50;
+    
+    // Calculate average ranking score from recent candidates
+    const recentCandidates = await db.query.jobCandidates.findMany({
+      limit: 100,
+      orderBy: [desc(jobCandidates.addedAt)]
+    }).catch(() => []);
+    
+    const rankingScores = recentCandidates
+      .map(c => c.fitScore || 0)
+      .filter(s => s > 0);
+    const averageCandidateRankingScore = rankingScores.length > 0
+      ? Math.round(rankingScores.reduce((a, b) => a + b, 0) / rankingScores.length)
+      : 50;
+    
+    // Calculate overall quality score
+    const overallQualityScore = Math.round(
+      (companyQualityAverage * 0.35 +
+       industryQualityAverage * 0.35 +
+       averageCandidateRankingScore * 0.30)
+    );
+    
+    // Calculate learning impact (improvement from seed data)
+    const learnedCompanies = companies.filter(c => c.source === 'learned');
+    const learningImpactPercentage = learnedCompanies.length > 0
+      ? Math.round((learnedCompanies.length / Math.max(companies.length, 1)) * 100)
+      : 0;
+    
+    // Determine trend based on recent vs older data
+    const recentCompanies = companies.filter(c => {
+      const diff = new Date().getTime() - (c.lastUpdated?.getTime() || 0);
+      return diff < 7 * 24 * 60 * 60 * 1000; // Last 7 days
+    });
+    const recentQuality = recentCompanies.length > 0
+      ? recentCompanies.map(c => c.successRate || 0).reduce((a, b) => a + b) / recentCompanies.length
+      : companyQualityAverage;
+    
+    let improvementTrend: 'accelerating' | 'stable' | 'declining' = 'stable';
+    if (recentQuality > companyQualityAverage * 1.1) {
+      improvementTrend = 'accelerating';
+    } else if (recentQuality < companyQualityAverage * 0.9) {
+      improvementTrend = 'declining';
+    }
+    
+    return {
+      overallQualityScore,
+      learningImpactPercentage,
+      companyQualityAverage,
+      industryQualityAverage,
+      averageCandidateRankingScore,
+      improvementTrend,
+      lastCalculatedAt: new Date()
+    };
+  } catch (error) {
+    console.error('[Metrics] Error calculating search quality:', error);
+    return {
+      overallQualityScore: 50,
+      learningImpactPercentage: 0,
+      companyQualityAverage: 50,
+      industryQualityAverage: 50,
+      averageCandidateRankingScore: 50,
+      improvementTrend: 'stable',
+      lastCalculatedAt: new Date()
+    };
+  }
+}
+
+/**
+ * Extended Intelligence API - Includes quality metrics
+ */
+export async function getLearningIntelligenceWithMetrics() {
+  const [intelligence, metrics] = await Promise.all([
+    getLearningIntelligence(),
+    calculateSearchQualityMetrics()
+  ]);
+
+  return {
+    ...intelligence,
+    qualityMetrics: metrics
+  };
+}

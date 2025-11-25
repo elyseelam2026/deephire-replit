@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, serial, timestamp, real, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, serial, timestamp, real, boolean, jsonb, index } from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -49,6 +49,11 @@ export const companyLearning = pgTable("company_learning", {
   source: text("source").default("learned"), // seed, learned
   lastUpdated: timestamp("last_updated").defaultNow(),
   createdAt: timestamp("created_at").defaultNow()
+}, (table) => {
+  return {
+    companyNameIdx: index("idx_company_learning_name").on(table.companyName),
+    successRateIdx: index("idx_company_success_rate").on(table.successRate),
+  };
 });
 
 export const insertCompanyLearningSchema = createInsertSchema(companyLearning).omit({ id: true, createdAt: true, lastUpdated: true });
@@ -92,6 +97,11 @@ export const industryLearning = pgTable("industry_learning", {
   source: text("source").default("learned"),
   lastUpdated: timestamp("last_updated").defaultNow(),
   createdAt: timestamp("created_at").defaultNow()
+}, (table) => {
+  return {
+    industryIdx: index("idx_industry_learning_industry").on(table.industry),
+    searchCountIdx: index("idx_industry_search_count").on(table.searchCount),
+  };
 });
 
 export const insertIndustryLearningSchema = createInsertSchema(industryLearning).omit({ id: true, createdAt: true, lastUpdated: true });
@@ -651,6 +661,13 @@ export const candidates = pgTable("candidates", {
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
   deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
+}, (table) => {
+  return {
+    emailIdx: index("idx_candidates_email").on(table.email),
+    linkedinUrlIdx: index("idx_candidates_linkedin_url").on(table.linkedinUrl),
+    linkedinEmailIdx: index("idx_candidates_linkedin_email").on(table.linkedinUrl, table.email),
+    sourceTypeIdx: index("idx_candidates_source_type").on(table.sourceType),
+  };
 });
 
 // Sourcing Runs - External candidate sourcing operations
