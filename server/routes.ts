@@ -2454,6 +2454,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;
           
+          // SEND EMAIL: Extract email from conversation if mentioned
+          const emailMatch = message.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+          if (emailMatch) {
+            const userEmail = emailMatch[0];
+            console.log(`📧 [Email] Detected email in conversation: ${userEmail}`);
+            
+            // Generate HTML report of candidates
+            const candidateRows = scoredCandidates.slice(0, 10).map(candidate => `
+              <tr style="border-bottom: 1px solid #e0e0e0;">
+                <td style="padding: 12px; text-align: left;"><strong>${candidate.name || 'Unknown'}</strong></td>
+                <td style="padding: 12px; text-align: left;">${candidate.title || 'Not specified'}</td>
+                <td style="padding: 12px; text-align: center;"><strong style="color: #667eea;">${Math.round(candidate.matchScore || 0)}/100</strong></td>
+                <td style="padding: 12px; text-align: left; color: #666;">${candidate.current_company || 'Not specified'}</td>
+              </tr>
+            `).join('');
+            
+            const htmlContent = `
+              <!DOCTYPE html>
+              <html style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+              <head>
+                <style>
+                  body { background-color: #f5f5f5; padding: 20px; }
+                  .container { max-width: 900px; margin: 0 auto; background-color: white; border-radius: 8px; padding: 30px; }
+                  .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+                  .header h1 { margin: 0; font-size: 28px; }
+                  .header p { margin: 10px 0 0 0; opacity: 0.9; }
+                  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                  th { background-color: #f0f0f0; padding: 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0; }
+                  .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; color: #999; font-size: 12px; }
+                  .button { display: inline-block; background-color: #667eea; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin: 20px 0; }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <div class="header">
+                    <h1>✅ Candidate Longlist Ready</h1>
+                    <p>Top matches for: <strong>${updatedSearchContext.title || 'Your search'}</strong></p>
+                  </div>
+                  
+                  <p>Dear Hiring Manager,</p>
+                  <p>We found <strong>${scoredCandidates.length} qualified candidates</strong> matching your search criteria. Below are the top 10 candidates ranked by fit score.</p>
+                  
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Candidate Name</th>
+                        <th>Current Title</th>
+                        <th>Fit Score</th>
+                        <th>Company</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${candidateRows}
+                    </tbody>
+                  </table>
+                  
+                  <p><a href="https://deephire.ai/jobs/${job.id}" class="button">View Full Pipeline</a></p>
+                  
+                  <p>All candidates have been staged in your pipeline for detailed review, scoring, and outreach.</p>
+                  
+                  <div class="footer">
+                    <p>DeepHire AI-Powered Talent Acquisition | © 2025</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `;
+            
+            // Send email
+            const emailSent = await sendEmailViaSendGrid(
+              userEmail,
+              `${scoredCandidates.length} Candidates Found for ${updatedSearchContext.title || 'Your Search'}`,
+              htmlContent
+            );
+            
+            if (emailSent) {
+              console.log(`✅ [Email] Longlist successfully sent to ${userEmail}`);
+              aiResponse += `\n\n📧 **Email sent** to ${userEmail} with the candidate list.`;
+            } else {
+              console.warn(`⚠️ [Email] Failed to send to ${userEmail}`);
+            }
+          }
+          
           newPhase = 'completed';
           
         } catch (error) {
@@ -2821,6 +2904,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // CRITICAL FIX: Handle promise-triggered search for BOTH new and existing job scenarios
         // The promise execution happens via executeSearchPromise() above (lines 2189-2192)
         // But we also need to create job if it doesn't exist yet
+        
+        // Extract email from message for email delivery
+        const conversationEmailMatch = message.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+        const conversationEmail = conversationEmailMatch ? conversationEmailMatch[0] : null;
+        if (conversationEmail) {
+          console.log(`📧 [Conversation] Email detected: ${conversationEmail}`);
+        }
         
         const shouldTriggerSearch = userAgreedToSearch || promiseTriggeredSearch;
         const hasTitle = updatedSearchContext.title;
