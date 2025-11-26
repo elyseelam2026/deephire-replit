@@ -155,14 +155,80 @@ Results Flow In
 3. Candidates scoring 60+ are returned (quality threshold)
 4. Results sorted by fit score (best matches first)
 
-## What's Next (Priority Order)
+## Building 360° Executive Search Consultant (Sequenced Rollout)
 
-1. **IMPLEMENT Research Phase** - Web search PAG context, competitor analysis, target company identification
-2. **IMPLEMENT Informed JD Generation** - Use research findings to generate professional JD
-3. **IMPLEMENT Dual-Track Sourcing** - Offer active posting + passive candidate sourcing
-4. **Test PAG Workflow** - Verify entire flow from NAP → Research → JD → Dual-track
-5. **Optimize Alert System** - Clear notifications for each phase completion
-6. **Monitor:** Track time spent in research phase vs quality of candidates sourced
+### Phase 1: SOURCING EXCELLENCE (Current Focus)
+**Goal**: Nail NAP → Sourcing Strategy → Candidate Finding
+
+1. **Responsive NAP Collection** - Understand hiring pain, not ask templates ✅ (in progress)
+2. **Sourcing Strategy Generation** - When NAP complete, generate smart search strategy (WHO to target, WHERE to find them, HOW to reach them)
+3. **Candidate Sourcing Execution** - Parallelize active (job boards) + passive (target company research) 
+4. **Quality Filtering** - Return 10-15 best-fit candidates (not 100 mediocre ones)
+5. **Longlist Generation** - Professional candidate summaries with fit rationale
+
+### Phase 2: INTERVIEW EXCELLENCE (Atlas-Like Features)
+**Goal**: Capture and memorize every conversation
+
+1. Interview capture + auto-transcription (recording permission-based)
+2. Searchable candidate memory ("Show me all CFOs from Apollo we've talked to")
+3. AI-powered interview notes + takeaways
+4. Auto-generate placement reports from interview transcripts
+5. Interview search: "What did they say about team scaling?"
+
+### Phase 3: LEARNING & INTELLIGENCE
+**Goal**: System improves over time from placement data
+
+1. Placement dashboards (success rate by role, avg comp, time-to-fill)
+2. Role pattern learning (what predicts successful hires in each role)
+3. Geographic/industry talent density insights
+4. Algorithmic improvement tracking
+
+### Phase 4: ORCHESTRATION & OUTREACH
+**Goal**: Seamless candidate engagement
+
+1. Multi-channel outreach (email + LinkedIn + SMS coordinated)
+2. Warm-touch campaigns (personalized, not template)
+3. Client presentation automation
+4. Offer management & transition support tracking
+
+## Full Executive Search Workflow (Target State)
+
+```
+BD & CLIENT ACQUISITION
+↓
+GET MANDATE (NAP collection via consultative dialogue)
+↓
+SOURCING STRATEGY RESEARCH
+├─ Company context: Understand client industry/business
+├─ Competitive analysis: What profiles do peer firms hire?
+├─ Target list: Which companies produce ideal candidates?
+└─ Strategy: Boolean strings, LinkedIn filters, outreach angles
+↓
+CANDIDATE SOURCING (Parallel Execution)
+├─ ACTIVE: Post to job boards, LinkedIn, internal networks
+└─ PASSIVE: Search target companies for profiles matching strategy
+↓
+LONGLIST (10-15 candidates)
+├─ Candidate research & enrichment
+├─ Professional candidate summaries
+└─ Fit scoring against role requirements
+↓
+CLIENT INTERVIEWS (Shortlist)
+├─ Schedule interviews with client
+├─ Record + transcribe interviews
+├─ Generate interview notes + insights
+└─ Track candidate feedback
+↓
+OFFERS & PLACEMENT
+├─ Facilitate offers & negotiation
+├─ Track acceptance/decline reasons
+├─ Onboarding & transition support
+↓
+LEARNING & FEEDBACK
+├─ Placement success metrics
+├─ Learn what patterns predicted success
+└─ Improve algorithm for next search
+```
 
 ## External Dependencies
 - **AI**: xAI Grok (NAP, research analysis, JD generation, role-fit scoring)
