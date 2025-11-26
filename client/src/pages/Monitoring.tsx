@@ -329,7 +329,7 @@ export default function Monitoring() {
         </div>
 
         {/* Cost Breakdown Chart */}
-        {costSummary.length > 0 && (
+        {costSummary.length > 0 ? (
           <div className="grid md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -375,6 +375,16 @@ export default function Monitoring() {
               </CardContent>
             </Card>
           </div>
+        ) : (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center">
+                <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                <p className="text-muted-foreground">No API usage recorded yet</p>
+                <p className="text-sm text-muted-foreground mt-1">API costs will appear here as you use the platform</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Cost Alerts Summary */}
