@@ -3408,6 +3408,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a conversation
+  app.delete("/api/conversations/:id", async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      
+      // Delete the conversation
+      await storage.deleteConversation(conversationId);
+      
+      res.json({ success: true, message: "Conversation deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      res.status(500).json({ error: "Failed to delete conversation" });
+    }
+  });
+
   // Search Promise endpoints - Track AI commitments
   app.get("/api/search-promises", async (req, res) => {
     try {
