@@ -63,6 +63,24 @@ This mirrors how manual recruiters work (Spencer Stuart, Korn Ferry) - they rese
 - Not instant gratification, but thoughtful partnership
 - User got value from research insights, not just speed
 
+### ✅ Session: AI Conversation Quality & Industry Expertise
+
+**Problems Discovered (KKR CFO Conversation):**
+1. **AI wasn't tracking previously answered questions** - Asked "Are they building/managing Asia finance, or part of global?" after user already said "HK-based". This breaks continuity.
+2. **Industry expertise gaps kill credibility** - User said "It seems you have little knowledge in PE world" when AI asked if role could be global. Real recruiters know: KKR is US-based → HK role = automatically Asia-focused, never global.
+3. **Question inventory feels like admin work** - Listing "remaining questions" (Base Location, Team Scope, etc.) doesn't feel like recruiting, feels like a form.
+4. **Context infers answers** - If user says "HK-based CFO at KKR (US firm)" → AI should know this is Asia-scoped, not ask follow-ups that assume global possibility.
+
+**Fixes Implemented:**
+1. ✅ Made questions open-ended instead of binary ("Where should they be based?" not "Singapore or another hub?")
+2. ✅ Added industry expertise signals to system prompt (explicitly reject generic questions)
+3. ✅ Timeline urgency now triggers accelerated mode (user accepted 20-min option vs. 12-hour)
+
+**Still Need:**
+- Track Q&A history to prevent re-asking answered questions
+- Infer context from role + company combo (e.g., US PE firm in HK = Asia-only focus)
+- Stop listing "remaining questions" - just ask the next smart one in context
+
 ## System Architecture
 
 ### UI/UX Design
