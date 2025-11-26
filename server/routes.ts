@@ -9889,6 +9889,54 @@ Provide brief analysis and recommendation.`;
     }
   });
 
+  // GET /api/admin/costs/summary - Aggregate costs by service from apiUsageLog
+  app.get("/api/admin/costs/summary", async (req, res) => {
+    try {
+      const results = await db
+        .select({
+          service: schema.apiUsageLog.service,
+          totalCost: sql<number>`COALESCE(SUM(${schema.apiUsageLog.estimatedCost}), 0)`,
+          usageCount: sql<number>`COUNT(*)`,
+        })
+        .from(schema.apiUsageLog)
+        .where(
+          // Only get logs from current month
+          sql`DATE_TRUNC('month', ${schema.apiUsageLog.createdAt}) = DATE_TRUNC('month', NOW())`
+        )
+        .groupBy(schema.apiUsageLog.service);
+
+      const summary = results.map((row) => ({
+        service: row.service === "grok" ? "xAI Grok" : 
+                 row.service === "brightdata" ? "Bright Data" :
+                 row.service === "serpapi" ? "SerpAPI" : row.service,
+        totalCost: Math.round(row.totalCost * 100) / 100,
+        usageCount: row.usageCount,
+      }));
+
+      res.json(summary);
+    } catch (error) {
+      console.error("Failed to fetch cost summary:", error);
+      res.status(500).json({ error: "Failed to fetch cost summary" });
+    }
+  });
+
+  // GET /api/admin/cost-alerts - Get cost alerts (requires companyId or returns user's company alerts)
+  app.get("/api/admin/cost-alerts", async (req, res) => {
+    try {
+      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : 1;
+
+      const alerts = await db
+        .select()
+        .from(schema.costAlert)
+        .where(eq(schema.costAlert.companyId, companyId));
+
+      res.json(alerts);
+    } catch (error) {
+      console.error("Failed to fetch cost alerts:", error);
+      res.status(500).json({ error: "Failed to fetch cost alerts" });
+    }
+  });
+
   // Mount 10-feature endpoints
   app.use(featuresRouter);
 
