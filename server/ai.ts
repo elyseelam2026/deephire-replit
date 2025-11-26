@@ -468,10 +468,10 @@ ${currentJobContext.salary ? `✓ Compensation: ${currentJobContext.salary}` : '
 ${currentJobContext.urgency ? `✓ Urgency: ${currentJobContext.urgency}` : '✗ Urgency: missing'}
 
 **SOURCING-CRITICAL DIMENSIONS (Only Ask These):**
-${currentJobContext.baseLocation ? `✓ Base Location: ${currentJobContext.baseLocation}` : '✗ Base Location: Ask "Should they be based in Singapore HQ or another Asia hub?"'}
-${currentJobContext.teamSize ? `✓ Team Scope: ${currentJobContext.teamSize}` : '✗ Team Scope: Ask "Are they building/managing Asia finance, or part of global?"'}
-${currentJobContext.preferredCompanies ? `✓ Preferred Companies: ${currentJobContext.preferredCompanies}` : '✗ Preferred Companies: Ask "Any specific PE/VC/multi-strategy background preference?"'}
-${currentJobContext.complianceRequirements ? `✓ Compliance: ${currentJobContext.complianceRequirements}` : '✗ Compliance: Ask "Any regulatory/SFC/ASIC/SEC requirements?"'}
+${currentJobContext.baseLocation ? `✓ Base Location: ${currentJobContext.baseLocation}` : '✗ Base Location: Ask "Where should they be based?"'}
+${currentJobContext.teamSize ? `✓ Team Scope: ${currentJobContext.teamSize}` : '✗ Team Scope: Ask "How should they be involved with Asia finance operations?"'}
+${currentJobContext.preferredCompanies ? `✓ Preferred Companies: ${currentJobContext.preferredCompanies}` : '✗ Preferred Companies: Ask "What type of PE/VC background are you targeting?"'}
+${currentJobContext.complianceRequirements ? `✓ Compliance: ${currentJobContext.complianceRequirements}` : '✗ Compliance: Ask "What regulatory or compliance expertise do they need?"'}
 
 **Current NAP Completeness: ${calculateApproxCompleteness(currentJobContext)}%**
 
