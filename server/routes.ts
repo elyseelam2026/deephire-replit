@@ -2238,11 +2238,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const conversationId = parseInt(req.params.id);
       const message = req.body.content || req.body.message; // Support both field names
+      const llmProvider = req.body.llmProvider || 'grok'; // Get selected LLM from request
       const file = req.file;
 
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
+      }
+      
+      // Update conversation with selected LLM if provided
+      if (llmProvider && llmProvider !== conversation.llmProvider) {
+        await storage.updateConversation(conversationId, {
+          llmProvider: llmProvider as any
+        });
       }
 
       // **NEW**: Check if registered user + get their company
@@ -2786,13 +2794,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `I see you're from ${registeredUserCompany.name}. Is this position for ${registeredUserCompany.name}, or a different company?\n\n`
           : '';
 
-        // Let Grok handle the conversation with NAP guidance
-        const grokResponse = await generateConversationalResponse(
-          message,
-          conversationHistory,
-          companyContext,
-          currentJobContext
+        // Use selected LLM (default to Grok if not specified)
+        const llmProvider = conversation.llmProvider || 'grok';
+        const systemPrompt = `You are an elite executive search consultant. Conduct a consultative NAP (Name-a-Person) interview to understand hiring needs deeply.
+
+**Current Job Context:**
+- Title: ${currentJobContext.title || 'Not specified'}
+- Skills: ${Array.isArray(currentJobContext.skills) ? currentJobContext.skills.join(', ') : 'Not specified'}
+- Location: ${currentJobContext.location || 'Not specified'}
+- Experience: ${currentJobContext.yearsExperience || 'Any level'}
+- Urgency: ${currentJobContext.urgency || 'Standard'}
+- Salary: ${currentJobContext.salary || 'Not specified'}
+- Team Dynamics: ${currentJobContext.teamDynamics || 'Not specified'}
+
+**Company Context:**
+${companyContext ? `- Company: ${companyContext.companyName}
+- Industry: ${companyContext.industry || 'Not specified'}
+- Size: ${companyContext.companySize || 'Not specified'}` : '- Company information not yet provided'}
+
+**Your role:** Ask ONE clarifying question at a time. Listen deeply. Extract NAP signals: urgency, success criteria, team dynamics. Build rapport. NEVER generate fake candidate names or data. When you have 90%+ of NAP information, indicate "READY TO SEARCH" in your response.
+
+Be conversational, not robotic. Reference what they've told you. Show you understand their specific hiring challenge.`;
+
+        const userPrompt = `User message: "${message}"
+
+Previous conversation:
+${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')}`;
+
+        const llmResponse = await callLLM(
+          llmProvider,
+          systemPrompt,
+          userPrompt,
+          { temperature: 0.7, maxTokens: 1000 }
         );
+
+        // Parse intent from response
+        const grokResponse = {
+          intent: 'clarification',
+          response: llmResponse
+        };
+
+        if (llmResponse.includes('READY TO SEARCH') || llmResponse.includes('ready to search')) {
+          grokResponse.intent = 'ready_to_search';
+        } else if (conversationHistory.length < 2) {
+          grokResponse.intent = 'greeting';
+        }
 
         aiResponse = companyConfirmationIntro + grokResponse.response;
         

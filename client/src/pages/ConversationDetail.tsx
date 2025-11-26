@@ -54,11 +54,26 @@ export default function ConversationDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [selectedLlm, setSelectedLlm] = useState<'grok' | 'openai' | 'claude'>('grok');
+  const [llmProviders, setLlmProviders] = useState<Array<{ provider: string; available: boolean; model: string }>>([]);
 
   const { data: conversation, isLoading } = useQuery<Conversation>({
     queryKey: ['/api/conversations', conversationId],
     enabled: !!conversationId,
   });
+
+  // Load available LLM providers on mount
+  useEffect(() => {
+    fetch('/api/llm-providers')
+      .then(res => res.json())
+      .then(data => {
+        setLlmProviders(data);
+        if (data.length > 0) {
+          setSelectedLlm(data[0].provider);
+        }
+      })
+      .catch(err => console.error('Failed to load LLM providers:', err));
+  }, []);
 
   const sendMessageMutation = useMutation({
     mutationFn: async ({ message, file }: { message: string; file?: File }) => {
@@ -67,6 +82,7 @@ export default function ConversationDetail() {
       if (file) {
         formData.append('file', file);
       }
+      formData.append('llmProvider', selectedLlm);
 
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
@@ -235,6 +251,27 @@ export default function ConversationDetail() {
               </p>
             )}
           </div>
+          {conversation.messages && conversation.messages.length === 0 && (
+            <div className="ml-auto flex items-center gap-2">
+              <label className="text-sm font-medium text-muted-foreground">AI Model:</label>
+              <select
+                value={selectedLlm}
+                onChange={(e) => setSelectedLlm(e.target.value as 'grok' | 'openai' | 'claude')}
+                className="px-3 py-1 rounded-md border border-input bg-background text-sm"
+                data-testid="select-llm-provider"
+              >
+                {llmProviders.map(provider => (
+                  <option
+                    key={provider.provider}
+                    value={provider.provider}
+                    disabled={!provider.available}
+                  >
+                    {provider.model} {!provider.available ? '(unavailable)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
