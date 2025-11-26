@@ -69,15 +69,15 @@ export default function Monitoring() {
   };
 
   const dummyCostSummary: CostSummary[] = [
-    { service: "OpenAI API", totalCost: 245.50, usageCount: 15234 },
-    { service: "SerpAPI", totalCost: 67.20, usageCount: 8956 },
+    { service: "SerpAPI", totalCost: 142.80, usageCount: 18920 },
+    { service: "Bright Data", totalCost: 276.45, usageCount: 23456 },
     { service: "xAI Grok", totalCost: 189.75, usageCount: 12450 },
     { service: "Database", totalCost: 34.00, usageCount: 1 },
   ];
 
   const dummyCostAlerts: CostAlert[] = [
-    { id: 1, service: "OpenAI API", monthlyBudgetUsd: 500, currentMonthSpend: 245.50, alertThresholdPercent: 75, alertSent: false },
-    { id: 2, service: "SerpAPI", monthlyBudgetUsd: 150, currentMonthSpend: 67.20, alertThresholdPercent: 75, alertSent: false },
+    { id: 1, service: "Bright Data", monthlyBudgetUsd: 400, currentMonthSpend: 276.45, alertThresholdPercent: 75, alertSent: false },
+    { id: 2, service: "xAI Grok", monthlyBudgetUsd: 300, currentMonthSpend: 189.75, alertThresholdPercent: 75, alertSent: false },
   ];
 
   // Fetch real-time metrics with fallback to dummy data
