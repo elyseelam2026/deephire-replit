@@ -10434,70 +10434,12 @@ async function executeSourcingPhase(
     console.log(`[SOURCING] Location: ${searchContext.location}`);
     console.log(`[SOURCING] Seniority: ${searchContext.seniorityLevel}`);
     
-    // Create mock candidates from target companies (represents discovered profiles)
-    const mockCandidates: Array<{
-      id: number;
-      firstName: string;
-      lastName: string;
-      currentTitle: string;
-      currentCompany: string;
-      skills: string[];
-      experience: string;
-    }> = [];
+    // REAL SOURCING: Use actual API calls to find candidates
+    console.log(`[SOURCING] ⚠️ NOTE: Mock candidate generation removed. Use real API calls via /api/sourcing/search endpoint instead.`);
+    console.log(`[SOURCING] To source real candidates, ensure SerpAPI + Bright Data credentials are configured.`);
     
-    // Simulate finding candidates from each target company
-    targetCompanies.forEach((company, idx) => {
-      // Generate ~2-3 candidate names per company (represents LinkedIn/SerpAPI discovery)
-      const sampleCandidates = [
-        { first: 'Alex', last: 'Chen', title: `Senior ${searchContext.title.replace('Head of ', '')}` },
-        { first: 'Jordan', last: 'Smith', title: `Director of ${searchContext.title.replace('Head of ', '')}` },
-        { first: 'Morgan', last: 'Johnson', title: searchContext.title }
-      ];
-      
-      sampleCandidates.forEach((sample, jdx) => {
-        mockCandidates.push({
-          id: idx * 10 + jdx,
-          firstName: sample.first,
-          lastName: sample.last,
-          currentTitle: sample.title,
-          currentCompany: company,
-          skills: jobContext.skills.slice(0, 3),
-          experience: `${Math.floor(Math.random() * 15) + 3} years in finance/operations at top firms`
-        });
-      });
-    });
-    
-    console.log(`[SOURCING] Discovered ${mockCandidates.length} candidate profiles from target companies`);
-    
-    // Score candidates with Grok-powered role-fit evaluation (60+ threshold)
-    const qualityCandidates: Array<{ candidateId: number; matchScore: number; firstName: string; lastName: string; company: string }> = [];
-    
-    for (const candidate of mockCandidates.slice(0, 10)) {
-      try {
-        const score = await scoreRoleFit(candidate, jobContext);
-        
-        if (score >= 60) {
-          qualityCandidates.push({
-            candidateId: candidate.id,
-            matchScore: score,
-            firstName: candidate.firstName,
-            lastName: candidate.lastName,
-            company: candidate.currentCompany
-          });
-        }
-      } catch (err) {
-        console.warn(`[SOURCING] Failed to score ${candidate.firstName} ${candidate.lastName}:`, err);
-      }
-    }
-    
-    // Sort by score descending
-    const sorted = qualityCandidates.sort((a, b) => b.matchScore - a.matchScore);
-    
-    console.log(`[SOURCING] ✅ Quality filtered: ${mockCandidates.length} discovered → ${sorted.length} met 60+ threshold`);
-    console.log(`[SOURCING] Top matches: ${sorted.slice(0, 3).map(c => `${c.firstName} ${c.lastName} (${c.matchScore}/100, ${c.company})`).join('; ')}`);
-    
-    // Log sourcing completion
-    console.log(`[SOURCING] 🎯 Sourcing phase complete. Longlist ready with ${Math.min(sorted.length, 10)} candidates.`);
+    // Log no results found from real sourcing
+    console.log(`[SOURCING] ❌ No candidates found with current search configuration.`);
     
   } catch (error) {
     console.error('[SOURCING] Error executing sourcing phase:', error);
