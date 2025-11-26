@@ -75,7 +75,7 @@ export default function Landing() {
             </h1>
           </div>
           <h2 className="text-4xl font-bold text-foreground mb-4">
-            Research-Driven Talent Sourcing for Every Industry
+            Find Top Talent Instantly Across Every Industry
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
             From startups to enterprises. Finance to engineering. Healthcare to tech. DeepHire finds 
