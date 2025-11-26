@@ -150,6 +150,7 @@ export interface IStorage {
   getConversations(): Promise<NapConversation[]>;
   getConversation(id: number): Promise<NapConversation | undefined>;
   updateConversation(id: number, updates: Partial<InsertNapConversation>): Promise<NapConversation | undefined>;
+  deleteConversation(id: number): Promise<void>;
   
   // Search Promise management
   createSearchPromise(promise: InsertSearchPromise): Promise<SearchPromise>;
@@ -1181,6 +1182,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(napConversations.id, id))
       .returning();
     return conversation || undefined;
+  }
+
+  async deleteConversation(id: number): Promise<void> {
+    await db.delete(napConversations).where(eq(napConversations.id, id));
   }
 
   // Search Promise management
