@@ -35,9 +35,9 @@ export default function LandingHome() {
       {/* Hero */}
       <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4">The Future of Talent Acquisition</h1>
+          <h1 className="text-5xl font-bold mb-4">Exceptional Talent. Every Industry. Now.</h1>
           <p className="text-2xl text-muted-foreground mb-8">
-            AI-powered recruiting for Private Equity. Find perfect candidates in minutes, not months.
+            AI-powered talent sourcing for every company, every role, every industry. Find exceptional candidates in minutes, not months.
           </p>
           <Button size="lg" onClick={() => setLocation("/auth")} className="gap-2">
             Get Started <ArrowRight className="h-5 w-5" />
@@ -165,7 +165,7 @@ export default function LandingHome() {
 
       {/* Footer */}
       <footer className="border-t mt-20 py-8 px-6 text-center text-muted-foreground">
-        <p>© 2025 DeepHire. Reimagining talent acquisition for Private Equity.</p>
+        <p>© 2025 DeepHire. Intelligent talent sourcing for every industry.</p>
       </footer>
     </div>
   );
