@@ -389,7 +389,15 @@ ${roleTemplate.title}
     }
     // Detect if user is requesting immediate search (wants to skip questions)
     const lowerMessage = userMessage.toLowerCase();
+    
+    // SKIP QUESTIONS SIGNALS - User wants to move to action
     const skipQuestionsSignals = [
+      'search now',
+      'stop asking',
+      'no more questions',
+      'please search',
+      'start searching',
+      'search immediately',
       'no need to ask',
       'don\'t ask',
       'skip the questions',
@@ -400,9 +408,42 @@ ${roleTemplate.title}
       'go ahead',
       'proceed',
       'find someone similar to',
-      'find another'
+      'find another',
+      'search for candidates now'
     ];
+    
+    // FRUSTRATION SIGNALS - User is impatient or dismissive
+    const frustrationSignals = [
+      'won\'t help with sourcing',
+      'won\'t help you',
+      'dump question',
+      'silly question',
+      'stop wasting',
+      'stop with',
+      'i\'m looking for a',
+      'just get me candidates',
+      'i need in',
+      'minutes',
+      'asap'
+    ];
+    
+    // URGENCY SIGNALS - User is time-constrained
+    const urgencySignals = [
+      'i need in',
+      'minutes',
+      'come back at',
+      'by then',
+      'asap',
+      'urgent',
+      'immediate',
+      'right now',
+      'today'
+    ];
+    
     const userWantsToSkipQuestions = skipQuestionsSignals.some(signal => lowerMessage.includes(signal));
+    const userIsfrustrated = frustrationSignals.some(signal => lowerMessage.includes(signal));
+    const userIsUrgent = urgencySignals.some(signal => lowerMessage.includes(signal));
+    const userGaveClearFeedback = userWantsToSkipQuestions || userIsfrustrated || userIsUrgent;
     
     // Detect if user provided a reference candidate profile
     const hasLinkedInUrl = userMessage.includes('linkedin.com/in/');
@@ -630,8 +671,15 @@ ${getDomainAwareQuestions(currentJobContext.title, companyContext?.industry)}
     
     const napCompleteness = needScore + authorityScore + painScore + plusScore; // Max 100%
     
+    // *** PRIORITY 0: USER FEEDBACK OVERRIDE ***
+    // When user gives clear feedback (frustrated, urgent, says "search now"), RESPECT IT
+    // Don't keep asking questions - move to search immediately
+    if ((userGaveClearFeedback || userWantsToSkipQuestions) && currentJobContext?.title) {
+      intent = 'ready_to_search';
+      console.log(`[INTELLIGENT LISTENING] User feedback detected - triggering search immediately. (Frustration: ${userIsfrustrated}, Urgent: ${userIsUrgent}, Skip: ${userWantsToSkipQuestions})`);
+    }
     // PRIORITY 1: Regular greeting
-    if (isGreeting && !mentionsHiring && !hasJobContext) {
+    else if (isGreeting && !mentionsHiring && !hasJobContext) {
       intent = 'greeting';
     }
     // PRIORITY 2: NAP complete (90%+ with EXPLICIT data) - TRIGGER RESEARCH PHASE
