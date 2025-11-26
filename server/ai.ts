@@ -610,29 +610,23 @@ ${getDomainAwareQuestions(currentJobContext.title, companyContext?.industry)}
 
     let intent: 'greeting' | 'job_inquiry' | 'clarification' | 'nap_complete' | 'ready_to_search';
     
-    // NAP+ GATED INTENT LOGIC (Grok Enhanced: Need 40%, Authority 20%, Pain 20%, Plus 20%)
-    // NEED (40%): Core duties/skills + experience level
+    // NAP+ GATED INTENT LOGIC (STRICT: Require explicit data, not keyword matching)
+    // NEED (40%): Core duties/skills + experience level - EXPLICIT DATA ONLY
     const hasNeedBasic = currentJobContext?.title && currentJobContext?.location; // 20%
-    const hasNeedDetailed = currentJobContext?.skills?.length || currentJobContext?.yearsExperience || currentJobContext?.industry; // +20%
+    const hasNeedDetailed = (currentJobContext?.skills?.length || 0) > 0 || currentJobContext?.yearsExperience || currentJobContext?.industry; // +20%
     const needScore = (hasNeedBasic ? 20 : 0) + (hasNeedDetailed ? 20 : 0);
     
-    // AUTHORITY (20%): Reporting line OR success criteria
-    const hasAuthority = currentJobContext?.successCriteria || currentJobContext?.teamSize ||
-                        lowerMessage.includes('reports to') || lowerMessage.includes('partner') || lowerMessage.includes('team');
+    // AUTHORITY (20%): Reporting line OR team size - EXPLICIT DATA ONLY (not keyword)
+    const hasAuthority = currentJobContext?.successCriteria || currentJobContext?.teamSize;
     const authorityScore = hasAuthority ? 20 : 0;
     
-    // PAIN (20%): Why NOW? Business urgency/challenge
-    const hasPain = currentJobContext?.urgency || 
-                   lowerMessage.includes('urgent') || lowerMessage.includes('asap') ||
-                   lowerMessage.includes('challenge') || lowerMessage.includes('risk') ||
-                   lowerMessage.includes('pain') || lowerMessage.includes('need');
-    const painScore = hasPain ? 20 : 0;
+    // PAIN (20%): Why NOW? Business urgency/challenge - EXPLICIT DATA ONLY (not keyword)
+    const hasPain = currentJobContext?.urgency ? 20 : 0;
+    const painScore = hasPain;
     
-    // PLUS (20%): Success metrics OR "high-potential" definition OR budget/comp
-    const hasPlus = currentJobContext?.salary || 
-                   lowerMessage.includes('high potential') || lowerMessage.includes('fast track') ||
-                   lowerMessage.includes('top university') || lowerMessage.includes('graduate');
-    const plusScore = hasPlus ? 20 : 0;
+    // PLUS (20%): Success metrics OR budget/comp - EXPLICIT DATA ONLY (not keyword)
+    const hasPlus = currentJobContext?.salary ? 20 : 0;
+    const plusScore = hasPlus;
     
     const napCompleteness = needScore + authorityScore + painScore + plusScore; // Max 100%
     
@@ -640,8 +634,9 @@ ${getDomainAwareQuestions(currentJobContext.title, companyContext?.industry)}
     if (isGreeting && !mentionsHiring && !hasJobContext) {
       intent = 'greeting';
     }
-    // PRIORITY 2: NAP complete (80%+) - TRIGGER RESEARCH PHASE
-    else if (napCompleteness >= 80 && currentJobContext?.title) {
+    // PRIORITY 2: NAP complete (90%+ with EXPLICIT data) - TRIGGER RESEARCH PHASE
+    // This ensures we've asked clarification questions and gotten responses before offering post/search
+    else if (napCompleteness >= 90 && currentJobContext?.title && currentJobContext?.urgency && currentJobContext?.salary) {
       intent = 'nap_complete';
       // Research phase will trigger asynchronously:
       // - Search company context (AUM, strategy, geography)
