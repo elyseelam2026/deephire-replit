@@ -42,6 +42,7 @@ import { queueBulkUrlJob, pauseJob, resumeJob, stopJob, getJobProcessingStatus, 
 import { scrapeLinkedInProfile, generateBiographyFromLinkedInData } from "./brightdata";
 import { transliterateName, inferEmail } from "./transliteration";
 import { searchLinkedInPeople } from "./serpapi";
+import { callLLM, getAvailableProviders, getDefaultProvider, type LLMProvider } from "./llm-router";
 import { orchestrateProfileFetching, orchestrateEliteSourcing } from "./sourcing-orchestrator";
 import { sourcingRuns } from "@shared/schema";
 import { z } from "zod";
