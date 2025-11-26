@@ -1030,6 +1030,7 @@ export const candidateInterviews = pgTable("candidate_interviews", {
 
 // NAP (Name-a-Person) conversations - AI chat sessions (ChatGPT-style recruiting assistant)
 export const napConversations = pgTable("nap_conversations", {
+  llmProvider: text("llm_provider").default('grok'), // grok, openai, claude
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   
   // Optional job reference (created after JD upload or clarification complete)

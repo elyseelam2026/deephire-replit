@@ -2160,10 +2160,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get available LLM providers
+  app.get("/api/llm-providers", async (req, res) => {
+    try {
+      const providers = getAvailableProviders();
+      res.json(providers);
+    } catch (error) {
+      console.error("Error fetching LLM providers:", error);
+      res.status(500).json({ error: "Failed to fetch LLM providers" });
+    }
+  });
+
   // Create a new conversation
   app.post("/api/conversations", async (req, res) => {
     try {
-      const { companyId, portal } = req.body;
+      const { companyId, portal, llmProvider } = req.body;
       const userId = getCurrentUserId(req); // Get real user ID
       
       let initialSearchContext: any = {};
@@ -2213,6 +2224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phase: 'initial',
         searchContext: Object.keys(initialSearchContext).length > 0 ? initialSearchContext : undefined,
         portal: portal || 'client', // Store which portal created this conversation
+        llmProvider: llmProvider || getDefaultProvider(), // Store selected LLM
       });
       res.json(conversation);
     } catch (error) {
