@@ -2975,6 +2975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           newPhase = 'initial';
         }
+        } // Close the else block for userAbandoningConversation
 
         // CRITICAL: Handle JD approval workflow
         const lowerMessage = message.toLowerCase().trim();
