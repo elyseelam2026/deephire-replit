@@ -2722,11 +2722,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           companySize: hasValue(parsedRequirements.companySize) ? parsedRequirements.companySize : updatedSearchContext.companySize,
         };
 
-        // Build conversation history for Grok
-        const conversationHistory = messages.slice(0, -1).map(msg => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content
-        }));
+        // **CRITICAL FIX**: Detect conversation abandonment before continuing
+        const abandonmentSignals = [
+          'find another headhunter',
+          'go to find another',
+          'better for me to go',
+          'not senior enough',
+          'not experienced enough',
+          'i\'ll find',
+          'better for me to',
+          'not good enough'
+        ];
+        const userAbandoningConversation = abandonmentSignals.some(signal => message.toLowerCase().includes(signal));
+        
+        if (userAbandoningConversation) {
+          console.log('🚨 [CONVERSATION ABANDONED] User has decided to leave');
+          aiResponse = `I understand. Thank you for the opportunity, and I'm sorry we didn't meet your expectations. Best of luck with your search, and please don't hesitate to reach out if circumstances change.`;
+          newPhase = 'abandoned';
+        } else {
+          // Build conversation history for Grok
+          const conversationHistory = messages.slice(0, -1).map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content
+          }));
 
         // Prepare company context
         const companyContext = updatedSearchContext.companyName ? {

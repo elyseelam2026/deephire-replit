@@ -431,7 +431,12 @@ ${roleTemplate.title}
       'this kind of question',
       'these kind of questions',
       'this is so called',
-      'what do you think'
+      'what do you think',
+      'not senior enough',
+      'not experienced enough',
+      'find another headhunter',
+      'go to find another',
+      'better for me to go'
     ];
     
     // URGENCY SIGNALS - User is time-constrained
