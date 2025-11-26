@@ -48,9 +48,10 @@ export interface NAPExtractionResult {
   softContext: SoftContextForScoring;
   
   // Status
-  readyToSource: boolean;              // true if hardSkills are complete
+  readyToSource: boolean;              // true if 90% NAP + hard skills complete
   missingForSourcing: string[];        // What's still needed to trigger search
   softContextProgress: number;         // % of optional soft context collected (0-100)
+  napCompletionPercentage?: number;    // Overall NAP completion (0-100)
 }
 
 /**
@@ -153,13 +154,33 @@ Respond in JSON:
       softContextProgress: 0
     };
     
-    // Check if ready to source (hard skills complete)
+    // Calculate NAP completion percentage (90% threshold)
+    const requiredFields = [
+      merged.hardSkills.title,
+      merged.hardSkills.hardSkills?.length ? true : false,
+      merged.hardSkills.location,
+      merged.hardSkills.seniorityLevel,
+      merged.hardSkills.competitorCompanies?.length ? true : false,
+      merged.softContext.urgency,
+      merged.softContext.salary,
+      merged.softContext.successCriteria
+    ];
+    
+    const completedFields = requiredFields.filter(f => !!f).length;
+    const completionPercentage = Math.round((completedFields / requiredFields.length) * 100);
+    
+    // Check if ready to source (hard skills + research ready)
     const missing: string[] = [];
     if (!merged.hardSkills.title) missing.push("Job title (CFO, VP Sales, etc.)");
     if (!merged.hardSkills.hardSkills || merged.hardSkills.hardSkills.length === 0) missing.push("Hard skills (M&A, Treasury, etc.)");
+    if (!merged.hardSkills.competitorCompanies || merged.hardSkills.competitorCompanies.length === 0) missing.push("Target companies (Goldman, KKR, etc.)");
     
-    merged.readyToSource = missing.length === 0;
+    // Ready to trigger research phase at 90% completion
+    merged.readyToSource = completionPercentage >= 90 && missing.length === 0;
     merged.missingForSourcing = missing;
+    
+    // Store completion percentage for UI progress
+    (merged as any).napCompletionPercentage = completionPercentage;
     
     // Soft context progress (just for visibility, not blocking)
     const softAnswered = [
@@ -176,12 +197,26 @@ Respond in JSON:
     return merged;
   } catch (error) {
     console.error('NAP extraction error:', error);
+    const requiredFields = [
+      currentHardSkills.title,
+      currentHardSkills.hardSkills?.length ? true : false,
+      currentHardSkills.location,
+      currentHardSkills.seniorityLevel,
+      currentHardSkills.competitorCompanies?.length ? true : false,
+      currentSoftContext.urgency,
+      currentSoftContext.salary,
+      currentSoftContext.successCriteria
+    ];
+    const completedFields = requiredFields.filter(f => !!f).length;
+    const completionPercentage = Math.round((completedFields / requiredFields.length) * 100);
+    
     return {
       hardSkills: currentHardSkills,
       softContext: currentSoftContext,
       readyToSource: false,
-      missingForSourcing: ['Job title', 'Hard skills'],
-      softContextProgress: 0
+      missingForSourcing: ['Job title', 'Hard skills', 'Target companies'],
+      softContextProgress: 0,
+      napCompletionPercentage: completionPercentage
     };
   }
 }
