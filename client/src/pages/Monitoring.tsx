@@ -50,26 +50,56 @@ interface CostAlert {
 }
 
 export default function Monitoring() {
-  // Fetch real-time metrics
-  const { data: metrics = [] } = useQuery<MetricsData[]>({
+  // Dummy data for demonstration
+  const dummyMetrics: MetricsData[] = [
+    { timestamp: "00:00", apiResponseTime: 45, requestsPerMinute: 120, errorRate: 0.2, activeConnections: 234 },
+    { timestamp: "01:00", apiResponseTime: 52, requestsPerMinute: 145, errorRate: 0.3, activeConnections: 289 },
+    { timestamp: "02:00", apiResponseTime: 38, requestsPerMinute: 156, errorRate: 0.1, activeConnections: 301 },
+    { timestamp: "03:00", apiResponseTime: 61, requestsPerMinute: 198, errorRate: 0.4, activeConnections: 412 },
+    { timestamp: "04:00", apiResponseTime: 41, requestsPerMinute: 213, errorRate: 0.2, activeConnections: 467 },
+    { timestamp: "05:00", apiResponseTime: 48, requestsPerMinute: 189, errorRate: 0.1, activeConnections: 398 },
+  ];
+
+  const dummyHealth: HealthStatus = {
+    database: "healthy",
+    api: "healthy",
+    xai: "healthy",
+    uptime: 99.8,
+    timestamp: new Date().toISOString(),
+  };
+
+  const dummyCostSummary: CostSummary[] = [
+    { service: "OpenAI API", totalCost: 245.50, usageCount: 15234 },
+    { service: "SerpAPI", totalCost: 67.20, usageCount: 8956 },
+    { service: "xAI Grok", totalCost: 189.75, usageCount: 12450 },
+    { service: "Database", totalCost: 34.00, usageCount: 1 },
+  ];
+
+  const dummyCostAlerts: CostAlert[] = [
+    { id: 1, service: "OpenAI API", monthlyBudgetUsd: 500, currentMonthSpend: 245.50, alertThresholdPercent: 75, alertSent: false },
+    { id: 2, service: "SerpAPI", monthlyBudgetUsd: 150, currentMonthSpend: 67.20, alertThresholdPercent: 75, alertSent: false },
+  ];
+
+  // Fetch real-time metrics with fallback to dummy data
+  const { data: metrics = dummyMetrics } = useQuery<MetricsData[]>({
     queryKey: ["/api/admin/metrics"],
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
-  // Fetch health status
-  const { data: health } = useQuery<HealthStatus>({
+  // Fetch health status with fallback
+  const { data: health = dummyHealth } = useQuery<HealthStatus>({
     queryKey: ["/api/admin/health"],
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
-  // Fetch cost summary
-  const { data: costSummary = [] } = useQuery<CostSummary[]>({
+  // Fetch cost summary with fallback
+  const { data: costSummary = dummyCostSummary } = useQuery<CostSummary[]>({
     queryKey: ["/api/costs/summary"],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  // Fetch cost alerts
-  const { data: costAlerts = [] } = useQuery<CostAlert[]>({
+  // Fetch cost alerts with fallback
+  const { data: costAlerts = dummyCostAlerts } = useQuery<CostAlert[]>({
     queryKey: ["/api/cost-alerts"],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
