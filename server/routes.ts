@@ -2919,7 +2919,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
             aiResponse = grokResponse.response;
           }
         } else if (grokResponse.intent === 'ready_to_search') {
-          newPhase = 'ready_to_create_job';
+          // URGENT SEARCH: Trigger real API search with actual search criteria
+          newPhase = 'sourcing_started';
+          console.log(`🚀 [URGENT SEARCH] Triggering real sourcing with title: ${updatedSearchContext.title}`);
+          
+          try {
+            // Build search criteria from context
+            const searchCriteria = {
+              title: updatedSearchContext.title,
+              skills: updatedSearchContext.skills || [],
+              location: updatedSearchContext.location,
+              yearsExperience: updatedSearchContext.yearsExperience,
+              seniorityLevel: (updatedSearchContext as any).seniorityLevel,
+              industry: updatedSearchContext.industry
+            };
+            
+            console.log(`[URGENT SEARCH] Criteria:`, searchCriteria);
+            
+            // Execute search immediately (fire and forget async)
+            const { searchLinkedInPeople } = await import('./brightdata');
+            
+            (async () => {
+              try {
+                const results = await searchLinkedInPeople(searchCriteria);
+                console.log(`[URGENT SEARCH] Found ${results?.profiles?.length || 0} LinkedIn profiles`);
+              } catch (err) {
+                console.error(`[URGENT SEARCH] Search error:`, err);
+              }
+            })();
+            
+            aiResponse = `🚀 **Urgent Search Activated!**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ')}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + ' years' : 'Any level'}\n\n⏱️ This will take 3-5 minutes. I'll start with real LinkedIn profiles and deliver results as they come in.\n\nSearching now...`;
+          } catch (error) {
+            console.error('[URGENT SEARCH] Error:', error);
+            aiResponse = `❌ Search error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`;
+            newPhase = 'clarifying';
+          }
         } else {
           newPhase = 'initial';
         }
