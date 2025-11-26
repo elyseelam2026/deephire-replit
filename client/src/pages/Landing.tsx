@@ -10,9 +10,9 @@ export default function Landing() {
     {
       id: "corporate",
       title: "Corporate Client",
-      description: "Companies looking to hire top talent for their teams",
+      description: "Any company, any size, any industry—find the talent you need",
       icon: Building2,
-      features: ["Post job openings", "Review candidate matches", "Track hiring pipeline", "Manage interviews"],
+      features: ["Smart candidate sourcing", "Review intelligent matches", "Track hiring progress", "Manage seamlessly"],
       buttonText: "Access Corporate Portal",
       route: "/client",
       color: "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800",
@@ -21,9 +21,9 @@ export default function Landing() {
     {
       id: "recruitment",
       title: "Recruitment Agency",
-      description: "Executive search firms and recruitment professionals",
+      description: "Search professionals serving any industry—close faster with intelligent sourcing",
       icon: Search,
-      features: ["AI-powered candidate matching", "Manage multiple clients", "Outreach campaigns", "Conversation tracking"],
+      features: ["AI-powered intelligent matching", "Source across industries", "Smart outreach tools", "Candidate memory"],
       buttonText: "Access Agency Portal",
       route: "/recruiting",
       color: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800",
@@ -74,12 +74,13 @@ export default function Landing() {
               DeepHire
             </h1>
           </div>
-          <h2 className="text-3xl font-bold text-foreground mb-4">
-            AI-Powered Talent Acquisition Platform
+          <h2 className="text-4xl font-bold text-foreground mb-4">
+            Intelligent Talent Sourcing for Every Company, Every Industry
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Revolutionizing recruitment with intelligent candidate matching, automated outreach, 
-            and streamlined hiring workflows for modern organizations.
+            From startups to enterprises. Finance to engineering. Healthcare to tech. DeepHire finds 
+            your ideal candidates using AI-powered research and intelligent matching—no matter your 
+            industry or company size.
           </p>
         </div>
 
@@ -180,7 +181,7 @@ export default function Landing() {
         {/* Footer */}
         <div className="text-center mt-16 pt-8 border-t border-border">
           <p className="text-muted-foreground text-sm">
-            © 2025 DeepHire. Powered by AI technology for intelligent talent acquisition.
+            © 2025 DeepHire. AI-powered talent sourcing built for every company, every role, every industry.
           </p>
         </div>
       </div>
