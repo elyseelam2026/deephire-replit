@@ -2653,7 +2653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (extraction.hardSkills.hardSkills?.length > 0) updatedSearchContext.skills = extraction.hardSkills.hardSkills;
         if (extraction.hardSkills.location) updatedSearchContext.location = extraction.hardSkills.location;
         if (extraction.hardSkills.seniorityLevel) (updatedSearchContext as any).seniorityLevel = extraction.hardSkills.seniorityLevel;
-        if (extraction.hardSkills.competitorCompanies?.length > 0) (updatedSearchContext as any).competitorContext = extraction.hardSkills.competitorCompanies[0];
+        if ((extraction.hardSkills.competitorCompanies as any)?.length > 0) (updatedSearchContext as any).competitorContext = (extraction.hardSkills.competitorCompanies as any)?.[0];
         if (extraction.hardSkills.industry) updatedSearchContext.industry = extraction.hardSkills.industry;
         
         // Update soft context (for quality scoring after sourcing)
@@ -2885,7 +2885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`✅ Research complete: Found ${researchContext.targetCompanies?.length || 0} target companies`);
               
               // Store research context for JD generation
-              (conversation as any).researchContext = researchContext;
+              (conversation as any).searchContext = researchContext;
               
               // Generate informed JD with research findings
               const informedJD = await generateInformedJD(jobContext, researchContext);
@@ -2897,7 +2897,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Save updated conversation
               await storage.updateConversation(conversation.id, {
                 ...conversation,
-                researchContext,
+                searchContext: researchContext,
                 generatedJD: informedJD,
                 phase: 'jd_ready'
               });
@@ -2954,13 +2954,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             console.log(`[URGENT SEARCH] Criteria:`, searchCriteria);
             
-            // Execute search immediately (fire and forget async)
-            const { searchLinkedInPeople } = await import('./brightdata');
-            
+            // Execute search immediately (fire and forget async) - use API endpoint instead
             (async () => {
               try {
-                const results = await searchLinkedInPeople(searchCriteria);
-                console.log(`[URGENT SEARCH] Found ${results?.profiles?.length || 0} LinkedIn profiles`);
+                const res = await fetch('http://localhost:5000/api/sourcing/search', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ searchCriteria })
+                });
+                const results = await res.json();
+                console.log(`[URGENT SEARCH] Started sourcing run:`, results.runId);
               } catch (err) {
                 console.error(`[URGENT SEARCH] Search error:`, err);
               }
@@ -3006,7 +3009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Trigger sourcing execution
             executeSourcingPhase(
-              conversation.id,
+              conversationId.toString(),
               updatedSearchContext,
               researchContext || {},
               researchJD || 'JD Ready for Posting'
@@ -3019,7 +3022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Trigger passive-only sourcing
             executeSourcingPhase(
-              conversation.id,
+              conversationId.toString(),
               updatedSearchContext,
               researchContext || {},
               researchJD || 'JD Ready for Sourcing',
