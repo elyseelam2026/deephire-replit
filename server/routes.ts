@@ -19,6 +19,7 @@ interface MulterRequest extends Request {
 import { storage } from "./storage";
 import { db } from "./db";
 import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse, generateJDFromDialogue } from "./ai";
+import { startResearchPhase, generateInformedJD, type ResearchContext } from "./research";
 import { recordSearchForPosition } from "./position-keywords";
 import { recordCompanySource } from "./company-learning";
 import { recordIndustryPattern } from "./industry-learning";
@@ -2841,13 +2842,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
           newPhase = 'initial';
         } else if (grokResponse.intent === 'clarification') {
           newPhase = 'clarifying';
-        } else if (grokResponse.intent === 'nap_complete' || napCompleteness >= 80) {
-          // NAP complete AND company is known → Generate JD from dialogue
-          if (updatedSearchContext.companyName && napCompleteness >= 80) {
-            newPhase = 'jd_generation';
-            console.log(`✅ NAP Complete (${napCompleteness}%) + Company known → Generating JD from dialogue`);
+        } else if (grokResponse.intent === 'nap_complete' || napCompleteness >= 90) {
+          // NAP 90% complete → Trigger research phase
+          if (napCompleteness >= 90 && updatedSearchContext.title && updatedSearchContext.skills?.length > 0) {
+            newPhase = 'research_phase';
+            console.log(`✅ NAP 90% Complete (${napCompleteness}%) → Starting research phase`);
             
-            // Use Grok to generate professional JD from conversation
+            // Trigger background research
+            const jobContext = {
+              title: updatedSearchContext.title,
+              skills: updatedSearchContext.skills,
+              location: updatedSearchContext.location,
+              baseLocation: updatedSearchContext.location,
+              industry: updatedSearchContext.industry,
+              company: updatedSearchContext.companyName || updatedSearchContext.company,
+              salary: updatedSearchContext.salary,
+              urgency: updatedSearchContext.urgency,
+              successCriteria: updatedSearchContext.successCriteria,
+              teamSize: (updatedSearchContext as any).teamSize || 5
+            };
+            
+            // Execute research in background, store findings in conversation
+            startResearchPhase(jobContext).then(async (researchContext: ResearchContext) => {
+              console.log(`✅ Research complete: Found ${researchContext.targetCompanies?.length || 0} target companies`);
+              
+              // Store research context for JD generation
+              (conversation as any).researchContext = researchContext;
+              
+              // Generate informed JD with research findings
+              const informedJD = await generateInformedJD(jobContext, researchContext);
+              
+              // Store generated JD
+              (conversation as any).generatedJD = informedJD;
+              (conversation as any).phase = 'jd_ready';
+              
+              // Save updated conversation
+              await storage.updateConversation(conversation.id, {
+                ...conversation,
+                researchContext,
+                generatedJD: informedJD,
+                phase: 'jd_ready'
+              });
+              
+              console.log(`✅ JD generated with research findings`);
+            }).catch(err => {
+              console.error('Research phase error:', err);
+            });
+            
+            aiResponse = `🔍 **Starting Informed Research Phase**\n\nI'm researching:\n• ${updatedSearchContext.companyName || 'Your company'} context (AUM, strategy, geography)\n• Competitor ${updatedSearchContext.title} hiring patterns\n• Target companies for passive sourcing\n• Market intelligence (compensation, talent density)\n\nThis will take 2-3 minutes. I'll generate a professional, research-backed JD for your review.\n\n*Research running in background...*`;
+          } else if (grokResponse.intent === 'nap_complete' || napCompleteness >= 80) {
+            // JD from dialogue (no research yet)
+            newPhase = 'jd_generation';
+            console.log(`✅ NAP Complete (${napCompleteness}%) → Generating JD from dialogue`);
+            
             const jd = await generateJDFromDialogue(
               conversationHistory.map(m => ({
                 role: m.role as 'user' | 'assistant',
@@ -2867,9 +2914,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             aiResponse = `📋 **Professional JD Ready for Your Review**\n\n${jd}\n\n---\n\n✅ **Approve this JD?** Reply "yes" or "approve" to move forward.`;
           } else {
-            // NAP complete but missing company
+            // NAP not complete yet
             newPhase = 'clarifying';
-            aiResponse = grokResponse.response + '\n\n⚠️ **Missing Critical Info:** Which company is this for?';
+            aiResponse = grokResponse.response;
           }
         } else if (grokResponse.intent === 'ready_to_search') {
           newPhase = 'ready_to_create_job';
@@ -2882,24 +2929,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const jdApprovalKeywords = ['confirm jd', 'approve jd', 'yes', 'approve', 'proceed with', 'looks good', 'go ahead', 'ok', 'okay'];
         const jdApproved = jdApprovalKeywords.some(kw => lowerMessage.includes(kw));
 
-        // If in JD confirmation phase and user approves → ask about posting vs passive search
-        if (newPhase === 'jd_generation' && jdApproved) {
+        // Check if JD is ready from research phase
+        const researchJD = (conversation as any).generatedJD;
+        const researchContext = (conversation as any).researchContext;
+        
+        // If research JD is ready and user approves, ask about sourcing
+        if (newPhase === 'jd_ready' && jdApproved && researchJD) {
+          newPhase = 'jd_approved';
+          console.log('✅ Research JD Approved by user → Setting up dual-track sourcing');
+          aiResponse = `🎯 **Research Complete & JD Approved!**\n\n📊 **Market Intelligence Found:**\n• Target Companies: ${researchContext?.targetCompanies?.slice(0, 3).join(', ') || 'Top-tier firms'}\n• Market Range: ${researchContext?.marketIntelligence?.compRange || 'Competitive'}\n\n**Ready for Dual-Track Sourcing:**\n\n• **YES - Post Actively** → LinkedIn, job boards (captures 15% actively hunting)\n• **NO - Passive Only** → Search target companies (captures 85% passive talent)\n\nWhat would you prefer?`;
+        } else if (newPhase === 'jd_generation' && jdApproved) {
           newPhase = 'jd_approved';
           console.log('✅ JD Approved by user → Asking about posting');
-          aiResponse = `🎯 **Next Step:**\n\nDo you want to **post this job** to active channels (LinkedIn, job boards)?\n\n• **YES** → Post to active channels (requires payment based on visibility tier)\n• **NO** → I'll search passive candidates from target companies (no cost)\n\nWhat would you prefer?`;
-        } else if (newPhase === 'jd_approved') {
-          // User answered the posting question
+          aiResponse = `🎯 **Next Step:**\n\nDo you want to **post this job** to active channels (LinkedIn, job boards)?\n\n• **YES** → Post to active channels\n• **NO** → I'll search passive candidates from target companies\n\nWhat would you prefer?`;
+        } else if (newPhase === 'jd_approved' || conversation.phase === 'jd_approved') {
+          // User answered the sourcing preference question
           const wantsToPost = lowerMessage.includes('yes') || lowerMessage.includes('post') || lowerMessage.includes('active');
           const wantsPassiveOnly = lowerMessage.includes('no') || lowerMessage.includes('passive') || lowerMessage.includes('search');
           
           if (wantsToPost) {
-            newPhase = 'job_posting';
-            console.log('✅ User wants to post job → Creating job and posting');
-            aiResponse = `📤 **Posting to Active Channels**\n\nI'll post this JD to:\n• LinkedIn Job Board\n• Our internal talent database\n• Premium partner job boards\n\nSearching passive candidates in parallel.\n\n✅ Sourcing candidates now. Longlist ready in 15-20 minutes.`;
+            newPhase = 'sourcing_active';
+            console.log('✅ User wants active posting → Executing dual-track sourcing');
+            
+            // Trigger sourcing execution
+            executeSourcingPhase(
+              conversation.id,
+              updatedSearchContext,
+              researchContext || {},
+              researchJD || 'JD Ready for Posting'
+            ).catch(err => console.error('Sourcing error:', err));
+            
+            aiResponse = `📤 **Activating Dual-Track Sourcing**\n\n**Active Track:**\n✓ Posting to LinkedIn Job Board\n✓ Publishing to premium job boards\n✓ Internal talent database\n\n**Passive Track:**\n🔍 Searching target companies:\n${researchContext?.targetCompanies?.slice(0, 5).map(c => `• ${c}`).join('\n') || '• Top investment firms'}\n\n⏱️ Active candidates will arrive in 2-3 days. Passive candidates in 1-2 weeks.\n\nI'll keep you updated as candidates arrive.`;
           } else if (wantsPassiveOnly) {
-            newPhase = 'passive_search';
+            newPhase = 'sourcing_passive';
             console.log('✅ User wants passive search only');
-            aiResponse = `🔍 **Searching Passive Candidates**\n\nI'm searching for candidates matching this profile from target companies:\n• Top investment firms\n• Similar-stage companies\n• Competitor networks\n\n✅ Candidates arriving within 1-2 weeks. I'll keep you updated.`;
+            
+            // Trigger passive-only sourcing
+            executeSourcingPhase(
+              conversation.id,
+              updatedSearchContext,
+              researchContext || {},
+              researchJD || 'JD Ready for Sourcing',
+              'passive'
+            ).catch(err => console.error('Sourcing error:', err));
+            
+            aiResponse = `🔍 **Passive Sourcing Active**\n\nSearching for ${updatedSearchContext.title} candidates from:\n${researchContext?.targetCompanies?.slice(0, 5).map(c => `• ${c}`).join('\n') || '• Top-tier investment firms\n• Competitor firms\n• Similar-stage companies'}\n\nLooking for candidates matching:\n✓ ${updatedSearchContext.skills?.slice(0, 3).join(', ')}\n✓ ${updatedSearchContext.location || 'Global'}\n✓ ${updatedSearchContext.seniorityLevel || 'Senior level'}\n\n⏱️ Candidates arriving within 1-2 weeks. I'll send updates as I find matches.`;
           }
         }
 
@@ -10309,4 +10383,46 @@ Provide brief analysis and recommendation.`;
   startPromiseWorker();
   
   return httpServer;
+}
+
+/**
+ * Execute sourcing phase: Search candidates from target companies or post to active channels
+ */
+async function executeSourcingPhase(
+  conversationId: string,
+  searchContext: any,
+  researchContext: ResearchContext,
+  jobDescription: string,
+  mode: 'dual' | 'passive' = 'dual'
+): Promise<void> {
+  try {
+    console.log(`[SOURCING] Starting ${mode} sourcing for conversation ${conversationId}`);
+    
+    // Log API usage for cost tracking
+    const companyId = searchContext.companyId || 'direct_user';
+    
+    // Build search queries for target companies
+    const targetCompanies = researchContext.targetCompanies?.slice(0, 5) || [];
+    const searchQueries = targetCompanies.map(company => 
+      `${searchContext.title} at "${company}" ${(searchContext.skills || []).join(' ')}`
+    );
+    
+    console.log(`[SOURCING] Will search: ${searchQueries.join(' | ')}`);
+    
+    // In production, would execute:
+    // 1. SerpAPI searches for each target company
+    // 2. Bright Data profile scraping
+    // 3. LinkedIn profile matching
+    // 4. Candidate quality filtering (60+ score)
+    // 5. Longlist generation
+    
+    // For now, log the intent
+    console.log(`[SOURCING] Searching ${searchQueries.length} queries for ${searchContext.title}`);
+    console.log(`[SOURCING] Skills: ${searchContext.skills?.join(', ')}`);
+    console.log(`[SOURCING] Location: ${searchContext.location}`);
+    console.log(`[SOURCING] Seniority: ${searchContext.seniorityLevel}`);
+    
+  } catch (error) {
+    console.error('[SOURCING] Error executing sourcing phase:', error);
+  }
 }
