@@ -1,170 +1,217 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Briefcase, Users, ArrowRight, CheckCircle } from "lucide-react";
+import { Briefcase, Users, ArrowRight, CheckCircle, Zap, TrendingUp, Layers } from "lucide-react";
 
 export default function LandingHome() {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 border-b">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      {/* Navigation - Premium */}
+      <nav className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/40 dark:bg-slate-950/40 border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold text-primary">DeepHire</div>
-          <div className="flex gap-2 items-center">
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/client")} data-testid="nav-client-portal">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+              <Zap className="h-6 w-6 text-white" />
+            </div>
+            <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">DeepHire</div>
+          </div>
+          <div className="flex gap-3 items-center">
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/client")} data-testid="nav-client-portal" className="text-slate-300 hover:text-white">
               Clients
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/recruiting")} data-testid="nav-recruiting-portal">
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/recruiting")} data-testid="nav-recruiting-portal" className="text-slate-300 hover:text-white">
               Recruiters
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/researchers")} data-testid="nav-researchers-portal">
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/researchers")} data-testid="nav-researchers-portal" className="text-slate-300 hover:text-white">
               Researchers
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")} data-testid="nav-admin-portal">
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")} data-testid="nav-admin-portal" className="text-slate-300 hover:text-white">
               Admin
             </Button>
-            <Button variant="outline" onClick={() => setLocation("/auth")} data-testid="nav-sign-in">
+            <Button onClick={() => setLocation("/auth")} data-testid="nav-sign-in" className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0">
               Sign In
             </Button>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4">Exceptional Talent. Every Industry. Now.</h1>
-          <p className="text-2xl text-muted-foreground mb-8">
-            AI-powered talent sourcing for every company, every role, every industry. Find exceptional candidates in minutes, not months.
+      {/* Hero - High Tech */}
+      <section className="max-w-7xl mx-auto px-6 py-32">
+        <div className="text-center mb-20">
+          {/* Accent line */}
+          <div className="inline-block mb-6 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-600/20 border border-blue-400/30">
+            <span className="text-sm font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">AI-Powered Talent Intelligence</span>
+          </div>
+          
+          <h1 className="text-6xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent leading-tight">
+            Exceptional Talent.<br />Every Industry.<br />Now.
+          </h1>
+          <p className="text-xl text-slate-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+            Advanced AI-powered talent sourcing platform designed for enterprise teams. Discover exceptional candidates in minutes using research-driven intelligence and precision matching across every industry.
           </p>
-          <Button size="lg" onClick={() => setLocation("/auth")} className="gap-2">
-            Get Started <ArrowRight className="h-5 w-5" />
-          </Button>
+          <div className="flex gap-4 justify-center">
+            <Button size="lg" onClick={() => setLocation("/auth")} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 text-lg px-8 gap-2">
+              Get Started <ArrowRight className="h-5 w-5" />
+            </Button>
+            <Button size="lg" variant="outline" onClick={() => setLocation("/auth?role=company")} className="border-slate-600 text-slate-100 hover:bg-slate-900">
+              Request Demo
+            </Button>
+          </div>
         </div>
 
-        {/* Three-Sided Marketplace */}
-        <div className="grid md:grid-cols-3 gap-8 mt-16">
+        {/* Marketplace - Modern Cards */}
+        <div className="grid md:grid-cols-3 gap-6 mt-24">
           {/* Candidates */}
-          <Card className="hover-elevate">
-            <CardContent className="pt-8">
-              <Users className="h-12 w-12 text-blue-600 mb-4" />
-              <h3 className="text-2xl font-bold mb-3">For Candidates</h3>
-              <p className="text-muted-foreground mb-6">
-                Let AI find your perfect next role. We search across top companies and match opportunities tailored to your skills.
+          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 p-8 hover-elevate">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="relative">
+              <div className="p-3 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-lg inline-block mb-6 group-hover:from-blue-500/40 group-hover:to-blue-600/40 transition-colors">
+                <Users className="h-8 w-8 text-blue-400" />
+              </div>
+              <h3 className="text-2xl font-bold mb-3 text-white">For Candidates</h3>
+              <p className="text-slate-300 mb-6">
+                AI discovers your ideal next role. We search globally and match opportunities perfectly aligned with your expertise.
               </p>
-              <ul className="space-y-2 mb-6">
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>AI-powered job matching</span>
+              <ul className="space-y-3 mb-8">
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Precision AI job matching</span>
                 </li>
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>Access to exclusive roles</span>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Exclusive opportunities</span>
                 </li>
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>Direct company connections</span>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Direct company access</span>
                 </li>
               </ul>
               <Button 
-                className="w-full" 
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0" 
                 onClick={() => setLocation("/auth?role=candidate")}
                 data-testid="button-candidate-signup"
               >
-                Join as Candidate
+                Join Now
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Companies */}
-          <Card className="hover-elevate">
-            <CardContent className="pt-8">
-              <Briefcase className="h-12 w-12 text-green-600 mb-4" />
-              <h3 className="text-2xl font-bold mb-3">For Companies</h3>
-              <p className="text-muted-foreground mb-6">
-                Access pre-vetted talent and use AI to discover the exact candidates you need. From self-serve to executive search.
+          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 hover:border-purple-500/50 transition-all duration-300 p-8 hover-elevate md:scale-105">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="relative">
+              <div className="p-3 bg-gradient-to-br from-purple-500/20 to-pink-600/20 rounded-lg inline-block mb-6 group-hover:from-purple-500/40 group-hover:to-pink-600/40 transition-colors">
+                <Briefcase className="h-8 w-8 text-purple-400" />
+              </div>
+              <div className="inline-block px-3 py-1 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-600/20 border border-purple-400/30 mb-4">
+                <span className="text-xs font-semibold text-purple-300">FEATURED</span>
+              </div>
+              <h3 className="text-2xl font-bold mb-3 text-white">For Companies</h3>
+              <p className="text-slate-300 mb-6">
+                Access pre-vetted talent pools and leverage AI to identify perfect-fit candidates. From startups to enterprises.
               </p>
-              <ul className="space-y-2 mb-6">
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>Pre-vetted candidate pool</span>
+              <ul className="space-y-3 mb-8">
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Verified candidate database</span>
                 </li>
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>AI-assisted search</span>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Advanced search AI</span>
                 </li>
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>Talent intelligence reports</span>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Talent intelligence</span>
                 </li>
               </ul>
               <Button 
-                className="w-full" 
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white border-0" 
                 onClick={() => setLocation("/auth?role=company")}
                 data-testid="button-company-signup"
               >
-                Sign Up Company
+                Start Hiring
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Recruiters */}
-          <Card className="hover-elevate">
-            <CardContent className="pt-8">
-              <Users className="h-12 w-12 text-purple-600 mb-4" />
-              <h3 className="text-2xl font-bold mb-3">For Recruiters</h3>
-              <p className="text-muted-foreground mb-6">
-                Manage candidate pipelines, run AI-powered searches, and access the full recruiting platform with comprehensive tooling.
+          <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 hover:border-cyan-500/50 transition-all duration-300 p-8 hover-elevate">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-teal-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="relative">
+              <div className="p-3 bg-gradient-to-br from-cyan-500/20 to-teal-600/20 rounded-lg inline-block mb-6 group-hover:from-cyan-500/40 group-hover:to-teal-600/40 transition-colors">
+                <Layers className="h-8 w-8 text-cyan-400" />
+              </div>
+              <h3 className="text-2xl font-bold mb-3 text-white">For Recruiters</h3>
+              <p className="text-slate-300 mb-6">
+                Professional platform for managing searches, pipelines, and teams. Built for executive search firms and agencies.
               </p>
-              <ul className="space-y-2 mb-6">
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>Full candidate management</span>
+              <ul className="space-y-3 mb-8">
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Full case management</span>
                 </li>
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>AI-powered search engine</span>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Research tools</span>
                 </li>
-                <li className="flex gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                  <span>Team collaboration tools</span>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-5 w-5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-slate-300">Team collaboration</span>
                 </li>
               </ul>
               <Button 
-                className="w-full"
+                className="w-full bg-gradient-to-r from-cyan-500 to-teal-600 hover:from-cyan-600 hover:to-teal-700 text-white border-0"
                 onClick={() => setLocation("/recruiting")}
                 data-testid="button-recruiter-access"
               >
-                Access Recruiting Portal
+                Access Portal
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
-        {/* Value Prop */}
-        <div className="mt-20 bg-white dark:bg-slate-800 rounded-lg p-12">
-          <h2 className="text-3xl font-bold mb-8 text-center">Why DeepHire?</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div>
-              <div className="text-4xl font-bold text-primary mb-2">10x</div>
-              <p className="text-muted-foreground">Faster candidate discovery with AI</p>
+        {/* Stats - Premium */}
+        <div className="mt-32 grid md:grid-cols-3 gap-8">
+          <div className="relative rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 p-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-lg">
+                <TrendingUp className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <div className="text-4xl font-bold text-white">10x</div>
+                <p className="text-slate-400 text-sm">Faster discovery</p>
+              </div>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-primary mb-2">92%</div>
-              <p className="text-muted-foreground">Quality match accuracy from data science</p>
+          </div>
+          <div className="relative rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 p-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-purple-500/20 to-pink-600/20 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-purple-400" />
+              </div>
+              <div>
+                <div className="text-4xl font-bold text-white">92%</div>
+                <p className="text-slate-400 text-sm">Match accuracy</p>
+              </div>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-primary mb-2">$0</div>
-              <p className="text-muted-foreground">Cost for perfect-fit recommendations</p>
+          </div>
+          <div className="relative rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 p-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-cyan-500/20 to-teal-600/20 rounded-lg">
+                <Zap className="h-6 w-6 text-cyan-400" />
+              </div>
+              <div>
+                <div className="text-4xl font-bold text-white">Instant</div>
+                <p className="text-slate-400 text-sm">AI results</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t mt-20 py-8 px-6 text-center text-muted-foreground">
+      {/* Footer - Premium */}
+      <footer className="border-t border-slate-800/50 mt-32 py-12 px-6 text-center text-slate-400">
         <p>© 2025 DeepHire. Intelligent talent sourcing for every industry.</p>
       </footer>
     </div>
