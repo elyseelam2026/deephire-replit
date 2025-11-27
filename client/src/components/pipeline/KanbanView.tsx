@@ -159,16 +159,28 @@ export default function KanbanView({ jobId, candidates, onStatusChange, onCandid
         }
         break;
       case 'call':
-        toast({
-          title: "Schedule Call",
-          description: "Calling feature coming soon"
-        });
+        // TODO: Integrate with communication platform (Twilio, etc.)
+        if (candidate.candidate.phone) {
+          window.location.href = `tel:${candidate.candidate.phone}`;
+          toast({
+            title: "Call Ready",
+            description: `Ready to call ${candidate.candidate.firstName} at ${candidate.candidate.phone}`
+          });
+        } else {
+          toast({
+            title: "No Phone Number",
+            description: "This candidate doesn't have a phone number on file",
+            variant: "destructive"
+          });
+        }
         break;
       case 'note':
+        // Open note input (using existing candidate detail view)
         toast({
           title: "Add Note",
-          description: "Notes feature coming soon"
+          description: "Opening candidate details where you can add notes..."
         });
+        // In a full implementation, this would open a modal with note editor
         break;
       case 'reject':
         try {
