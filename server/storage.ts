@@ -1185,6 +1185,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteConversation(id: number): Promise<void> {
+    // Delete related records first (cascade delete)
+    // 1. Delete sourcing runs for this conversation
+    await db.delete(sourcingRuns)
+      .where(eq(sourcingRuns.conversationId, id))
+      .catch(() => {}); // Ignore if no runs exist
+    
+    // 2. Delete search promises for this conversation
+    await db.delete(searchPromises)
+      .where(eq(searchPromises.conversationId, id))
+      .catch(() => {}); // Ignore if no promises exist
+    
+    // 3. Finally, delete the conversation
     await db.delete(napConversations).where(eq(napConversations.id, id));
   }
 
