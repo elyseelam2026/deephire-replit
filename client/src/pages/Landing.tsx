@@ -55,7 +55,11 @@ export default function Landing() {
 
   const handlePortalAccess = (route: string, comingSoon?: boolean) => {
     if (comingSoon) {
-      // TODO: Add coming soon notification
+      toast({
+        title: "Coming Soon",
+        description: "This portal will be available soon. Check back later!",
+        variant: "default"
+      });
       return;
     }
     setLocation(route);

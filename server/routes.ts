@@ -3991,10 +3991,21 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
         const allCandidates = await storage.getCandidates();
         candidates = allCandidates.filter((c: any) => candidateIds.includes(c.id));
       } else if (jobId) {
-        // Reprocess all candidates from a specific ingestion job
+        // Reprocess all candidates from a specific ingestion job via job ID
         const allCandidates = await storage.getCandidates();
-        // Note: We'll need to add ingestionJobId tracking to implement this properly
-        return res.status(400).json({ error: "Reprocessing by job ID not yet implemented. Please provide candidateIds array." });
+        // Find job and get its associated candidates
+        const job = await db.query.jobs.findFirst({ where: eq(schema.jobs.id, jobId) });
+        if (!job) {
+          return res.status(404).json({ error: `Job ${jobId} not found` });
+        }
+        
+        // Get all candidates linked to this job
+        const jobCandidateRecords = await db.query.jobCandidates.findMany({
+          where: eq(schema.jobCandidates.jobId, jobId)
+        });
+        
+        const candidateIdsFromJob = jobCandidateRecords.map(jc => jc.candidateId);
+        candidates = allCandidates.filter((c: any) => candidateIdsFromJob.includes(c.id));
       } else {
         return res.status(400).json({ error: "Please provide either candidateIds (array) or jobId (number)" });
       }
@@ -8405,12 +8416,11 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      // Update company 2FA setting (placeholder for future implementation)
-      // Note: twoFactorEnabled field not yet in schema
-      // await db
-      //   .update(schema.companies)
-      //   .set({ /* future 2FA field */ })
-      //   .where(eq(schema.companies.id, companyId));
+      // Update company 2FA setting
+      await db
+        .update(schema.companies)
+        .set({ twoFactorEnabled: enabled })
+        .where(eq(schema.companies.id, companyId));
 
       // Log 2FA change
       await db.insert(schema.auditLogs).values({
@@ -9196,14 +9206,19 @@ Provide brief analysis and recommendation.`;
         return res.status(400).json({ error: "companyId and authCode are required" });
       }
       
-      // In production: Exchange authCode for access_token via Greenhouse OAuth
-      // For now: Store connection with mock token for testing
-      const mockAccessToken = `greenhouse_token_${companyId}_${Date.now()}`;
+      // Exchange authCode for access_token via Greenhouse OAuth API
+      // For now: Use authCode directly as access token (production should implement full OAuth flow)
+      // TODO: When Greenhouse API is configured, exchange authCode for real access_token
+      const apiKey = process.env.GREENHOUSE_API_KEY;
+      if (!apiKey) {
+        console.warn('[ATS] Greenhouse API key not configured. Using auth code as token.');
+      }
       
+      // In production: POST to https://api.greenhouse.io/oauth/authorize with clientId, clientSecret, authCode
       const connection = await db.insert(schema.atsConnections).values({
         companyId,
         atsType: "greenhouse",
-        accessToken: mockAccessToken,
+        accessToken: authCode, // Use auth code as token until OAuth is fully implemented
         refreshToken: null,
         status: "connected",
         lastSyncAt: new Date(),

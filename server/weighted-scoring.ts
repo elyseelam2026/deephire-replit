@@ -81,17 +81,17 @@ export function calculateWeightedScore(
   totalHardSkillScore = Math.min(totalHardSkillScore, 70);
   
   // ───────────────────────────────────────────────────────────────────────────
-  // SOFT SKILL SCORING (30 points) - NOT IMPLEMENTED YET
+  // SOFT SKILL SCORING (30 points) - HUMAN EVALUATION REQUIRED
   // ───────────────────────────────────────────────────────────────────────────
   
   const softSkillBreakdown: Record<string, number> = {};
-  const totalSoftSkillScore = 0; // Always 0 for now (requires human evaluation)
-  
-  // Future: Will be populated by human consultant interviews
-  // Example soft skills:
-  // - Leadership style: 10 points
-  // - Cultural fit: 10 points
-  // - Communication skills: 10 points
+  // Note: Soft skills must be evaluated by human consultants during interviews
+  // Cannot be automated without detailed interview data
+  // These will be populated from interview feedback and recruiter assessment:
+  // - Leadership presence: up to 10 points
+  // - Communication skills: up to 10 points
+  // - Cultural fit & team alignment: up to 10 points
+  const totalSoftSkillScore = 0; // Currently 0 - requires human consultant evaluation during interview phase
   
   // ───────────────────────────────────────────────────────────────────────────
   // FINAL SCORE CALCULATION

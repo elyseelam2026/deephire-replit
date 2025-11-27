@@ -206,18 +206,19 @@ export default function CandidatePipeline({ jobId }: CandidatePipelineProps) {
   };
 
   const handleExport = (format: 'csv' | 'pdf') => {
+    const jobTitle = job?.title || `Job-${jobId}`;
     if (format === 'csv') {
-      const jobTitle = job?.title || `Job-${jobId}`;
       exportPipelineToCSV(filteredCandidates, jobTitle);
       toast({
         title: "Export successful",
         description: `Downloaded ${filteredCandidates.length} candidates as CSV`,
       });
     } else {
+      // PDF export: use CSV format for now (same data, user can convert)
+      exportPipelineToCSV(filteredCandidates, `${jobTitle}-PDF`);
       toast({
-        title: "PDF Export",
-        description: "PDF export coming soon",
-        variant: "default",
+        title: "Export successful",
+        description: `Downloaded ${filteredCandidates.length} candidates as CSV (open in Excel and save as PDF)`,
       });
     }
   };

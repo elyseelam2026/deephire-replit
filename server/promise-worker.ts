@@ -276,24 +276,23 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         if (companies.length > 0) {
           companyId = companies[0].parent.id;
         } else {
-          // Create placeholder company for this search
-          const placeholderCompany = await storage.createCompany({
-            name: conversation.searchContext.companyName || 'AI Search Client',
+          // Validate before creating - require at least a company name
+          if (!conversation.searchContext.companyName) {
+            throw new Error('Cannot create job without company name in search context');
+          }
+          // Create company with validated data
+          const newCompany = await storage.createCompany({
+            name: conversation.searchContext.companyName,
             industry: conversation.searchContext.industry || 'General',
             location: conversation.searchContext.location || 'Global'
           });
-          companyId = placeholderCompany.id;
-          console.log(`📝 Created placeholder company #${companyId} for promise`);
+          companyId = newCompany.id;
+          console.log(`✓ Created company #${companyId}: ${conversation.searchContext.companyName}`);
         }
       } else {
-        // No company name in context - create a generic placeholder
-        const placeholderCompany = await storage.createCompany({
-          name: 'AI Search Client',
-          industry: promise.searchParams.industry || 'General',
-          location: promise.searchParams.location || 'Global'
-        });
-        companyId = placeholderCompany.id;
-        console.log(`📝 Created generic placeholder company #${companyId} for promise`);
+        // No company name in context - log error instead of creating placeholder
+        console.error('[Promise Worker] No company name found in conversation context. Cannot create job without company identification.');
+        throw new Error('Missing company identification in search context');
       }
       
       // Calculate job pricing

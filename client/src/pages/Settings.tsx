@@ -652,7 +652,7 @@ export default function Settings() {
                   <Badge variant="secondary">Default</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Additional languages coming soon
+                  English is currently available. Multi-language support will be added based on user demand.
                 </p>
               </div>
             </CardContent>
