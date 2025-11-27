@@ -2987,9 +2987,8 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
               await storage.updateConversation(conversation.id, {
                 ...conversation,
                 searchContext: researchContext as any,
-                generatedJD: informedJD,
                 phase: 'jd_ready'
-              });
+              } as any);
               
               console.log(`✅ JD generated with research findings`);
             }).catch(err => {
@@ -8406,39 +8405,6 @@ CRITICAL RULES - You MUST follow these strictly:
     }
   });
 
-  // COMPANY PORTAL: Update 2FA setting
-  app.post("/api/company/update-2fa", async (req, res) => {
-    try {
-      const { enabled } = req.body;
-      const companyId = (req.session as any)?.companyId || req.body?.companyId;
-
-      if (!companyId) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-
-      // Update company 2FA setting
-      await db
-        .update(schema.companies)
-        .set({ twoFactorEnabled: enabled })
-        .where(eq(schema.companies.id, companyId));
-
-      // Log 2FA change
-      await db.insert(schema.auditLogs).values({
-        companyId,
-        eventType: "2fa_updated",
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-        details: { enabled },
-      });
-
-      console.log(`[DEV] 2FA ${enabled ? 'enabled' : 'disabled'} for company ${companyId}`);
-      res.json({ success: true, message: `Two-factor authentication ${enabled ? 'enabled' : 'disabled'}` });
-    } catch (error: any) {
-      console.error("Error updating 2FA:", error);
-      res.status(500).json({ error: "Failed to update 2FA" });
-    }
-  });
-
   // SEED JOB LISTINGS (for demo)
   app.post("/api/seed-jobs", async (req, res) => {
     try {
@@ -10269,8 +10235,7 @@ Provide brief analysis and recommendation.`;
       const fileType = await detectFileType(req.file);
 
       if (fileType === "csv") {
-        const csvText = req.file.buffer.toString("utf-8");
-        data = await parseCsvStructuredData(csvText, "candidate");
+        data = await parseCsvStructuredData(req.file.buffer as any, "candidate");
       } else if (fileType === "excel") {
         data = await parseExcelData(req.file.buffer, "candidate");
       }
@@ -10307,8 +10272,7 @@ Provide brief analysis and recommendation.`;
       const fileType = await detectFileType(req.file);
 
       if (fileType === "csv") {
-        const csvText = req.file.buffer.toString("utf-8");
-        data = await parseCsvStructuredData(csvText, "company");
+        data = await parseCsvStructuredData(req.file.buffer as any, "company");
       } else if (fileType === "excel") {
         data = await parseExcelData(req.file.buffer, "company");
       }

@@ -304,8 +304,6 @@ export const companies = pgTable("companies", {
   failedLoginAttempts: integer("failed_login_attempts").default(0),
   accountLockedUntil: timestamp("account_locked_until"),
   lastLoginAt: timestamp("last_login_at"),
-  twoFactorEnabled: boolean("two_factor_enabled").default(false), // 2FA toggle
-  twoFactorSecret: text("two_factor_secret"), // TOTP secret (encrypted)
   
   // System fields (existing)
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
