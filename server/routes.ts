@@ -3026,7 +3026,7 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             aiResponse = grokResponse.response;
           }
         } else if (grokResponse.intent === 'ready_to_search') {
-          // URGENT SEARCH: Trigger real API search with actual search criteria
+          // URGENT SEARCH: Trigger real API search with actual search criteria AND WAIT FOR RESULTS
           newPhase = 'sourcing_started';
           console.log(`🚀 [URGENT SEARCH] Triggering real sourcing with title: ${updatedSearchContext.title}`);
           
@@ -3043,22 +3043,51 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             
             console.log(`[URGENT SEARCH] Criteria:`, searchCriteria);
             
-            // Execute search immediately (fire and forget async) - use API endpoint instead
-            (async () => {
-              try {
-                const res = await fetch('http://localhost:5000/api/sourcing/search', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ searchCriteria })
-                });
-                const results = await res.json();
-                console.log(`[URGENT SEARCH] Started sourcing run:`, results.runId);
-              } catch (err) {
-                console.error(`[URGENT SEARCH] Search error:`, err);
-              }
-            })();
+            // EXECUTE SEARCH SYNCHRONOUSLY - WAIT FOR RESULTS
+            const searchRes = await fetch('http://localhost:5000/api/sourcing/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ searchCriteria })
+            });
+            const searchResult = await searchRes.json();
+            const runId = searchResult.runId;
+            console.log(`[URGENT SEARCH] Sourcing run started:`, runId);
             
-            aiResponse = `🚀 **Urgent Search Activated!**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ')}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + ' years' : 'Any level'}\n\n⏱️ This will take 3-5 minutes. I'll start with real LinkedIn profiles and deliver results as they come in.\n\nSearching now...`;
+            // WAIT FOR CANDIDATES TO BE FOUND (poll for up to 10 seconds)
+            let foundCandidates: any[] = [];
+            let pollAttempts = 0;
+            const maxPolls = 20; // 20 attempts * 500ms = 10 seconds
+            
+            while (pollAttempts < maxPolls) {
+              await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms between polls
+              
+              const statusRes = await fetch(`http://localhost:5000/api/sourcing/${runId}/candidates`);
+              const statusData = await statusRes.json();
+              foundCandidates = statusData.candidates || [];
+              
+              console.log(`[URGENT SEARCH] Poll ${pollAttempts}: Found ${foundCandidates.length} candidates`);
+              
+              // If we found candidates, stop polling
+              if (foundCandidates.length > 0) {
+                console.log(`[URGENT SEARCH] ✅ Found ${foundCandidates.length} candidates!`);
+                break;
+              }
+              
+              pollAttempts++;
+            }
+            
+            // BUILD RESPONSE WITH ACTUAL CANDIDATES OR MESSAGE
+            if (foundCandidates.length > 0) {
+              // Show real candidates
+              const candidateList = foundCandidates.slice(0, 10).map((c: any, i: number) => 
+                `${i + 1}. **${c.firstName || 'Candidate'} ${c.lastName || ''}** - ${c.currentTitle || 'Professional'}\n   LinkedIn: ${c.profileUrl || 'N/A'}`
+              ).join('\n\n');
+              
+              aiResponse = `✅ **Search Complete!**\n\nFound **${foundCandidates.length} candidates** matching your criteria:\n\n${candidateList}\n\n---\n\n💼 These are real LinkedIn profiles of ${updatedSearchContext.title} professionals. Review the profiles and reach out directly. I can help with messaging if needed.`;
+            } else {
+              // No candidates found yet but search is running
+              aiResponse = `🔍 **Search Initiated**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + '+' : 'Any'} years\n\n⏱️ Real LinkedIn search in progress. Candidates will be found and I'll update you shortly.\n\nSearch run ID: ${runId}`;
+            }
           } catch (error) {
             console.error('[URGENT SEARCH] Error:', error);
             aiResponse = `❌ Search error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`;
