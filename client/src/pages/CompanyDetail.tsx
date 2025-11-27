@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   Building2, MapPin, Globe, Users, Briefcase, TrendingUp,
   Calendar, ArrowLeft, ExternalLink, Mail, Phone, Edit, Save, X, DollarSign,
-  Target, Heart
+  Target, Heart, Network, Home, Zap, Search
 } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
@@ -78,11 +78,22 @@ type Candidate = {
   yearsExperience?: number;
 };
 
+type TeamMember = {
+  name: string;
+  title?: string;
+  profileUrl?: string;
+  company?: string;
+  location?: string;
+  bio?: string;
+};
+
 export default function CompanyDetail() {
   const [, params] = useRoute("/recruiting/companies/:id");
   const companyId = params?.id ? parseInt(params.id) : null;
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Company>>({});
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [discoveryInProgress, setDiscoveryInProgress] = useState(false);
   const { toast } = useToast();
 
   const { data: company, isLoading: loadingCompany } = useQuery<Company>({
@@ -203,6 +214,53 @@ export default function CompanyDetail() {
       return response.json();
     },
     enabled: !!companyId,
+  });
+
+  // Discover Team Mutation
+  const discoverTeamMutation = useMutation({
+    mutationFn: async () => {
+      setDiscoveryInProgress(true);
+      const response = await apiRequest('POST', `/api/companies/${companyId}/discover-team`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setTeamMembers(data.teamMembers || []);
+      setDiscoveryInProgress(false);
+      toast({
+        title: "Team Discovery Complete",
+        description: `Found ${data.teamMembers?.length || 0} team members`,
+      });
+    },
+    onError: (error: any) => {
+      setDiscoveryInProgress(false);
+      toast({
+        title: "Discovery Failed",
+        description: error.message || "Failed to discover team members",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Convert to Hierarchy Mutation
+  const convertHierarchyMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/companies/${companyId}/convert-to-hierarchy`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Subsidiaries Created",
+        description: `Created ${data.subsidiariesCreated || 0} subsidiary companies from locations`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/companies', companyId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Conversion Failed",
+        description: error.message || "Failed to create subsidiaries",
+        variant: "destructive",
+      });
+    },
   });
 
   if (loadingCompany || !company) {
@@ -366,12 +424,21 @@ export default function CompanyDetail() {
           {/* Right Panel - Tabs */}
           <div className="col-span-8">
             <Tabs defaultValue="jobs" className="h-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="jobs" data-testid="tab-jobs">
                   Jobs ({jobs.length})
                 </TabsTrigger>
                 <TabsTrigger value="candidates" data-testid="tab-candidates">
                   Candidates ({candidates.length})
+                </TabsTrigger>
+                <TabsTrigger value="team" data-testid="tab-team">
+                  Team Discovery
+                </TabsTrigger>
+                <TabsTrigger value="locations" data-testid="tab-locations">
+                  Locations
+                </TabsTrigger>
+                <TabsTrigger value="contacts" data-testid="tab-contacts">
+                  Contacts
                 </TabsTrigger>
               </TabsList>
 
@@ -468,6 +535,193 @@ export default function CompanyDetail() {
                     })}
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Team Discovery Tab */}
+              <TabsContent value="team" className="space-y-4 mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Network className="h-4 w-4" />
+                      Team Members
+                    </h3>
+                    <p className="text-sm text-muted-foreground">Discover team members from company website</p>
+                  </div>
+                  <Button 
+                    onClick={() => discoverTeamMutation.mutate()}
+                    disabled={discoveryInProgress}
+                    data-testid="button-discover-team"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    {discoveryInProgress ? "Discovering..." : "Discover Team"}
+                  </Button>
+                </div>
+
+                {discoveryInProgress ? (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                      <p className="text-muted-foreground">Searching company website for team members...</p>
+                    </CardContent>
+                  </Card>
+                ) : teamMembers.length === 0 ? (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <Network className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground">No team members discovered yet</p>
+                      <p className="text-xs text-muted-foreground mt-2">Click "Discover Team" to search</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {teamMembers.map((member, idx) => (
+                      <Card key={idx} data-testid={`team-member-card-${idx}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-base">{member.name}</CardTitle>
+                              <CardDescription>
+                                {member.title || 'No title'}
+                                {member.location && ` · ${member.location}`}
+                              </CardDescription>
+                            </div>
+                          </div>
+                          {member.profileUrl && (
+                            <a 
+                              href={member.profileUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary flex items-center gap-1 mt-2"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View Profile
+                            </a>
+                          )}
+                          {member.bio && (
+                            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{member.bio}</p>
+                          )}
+                        </CardHeader>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Locations & Subsidiaries Tab */}
+              <TabsContent value="locations" className="space-y-4 mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Locations & Subsidiaries
+                    </h3>
+                    <p className="text-sm text-muted-foreground">View locations and create subsidiary companies</p>
+                  </div>
+                  <Button 
+                    onClick={() => convertHierarchyMutation.mutate()}
+                    disabled={convertHierarchyMutation.isPending}
+                    variant="outline"
+                    data-testid="button-create-subsidiaries"
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    {convertHierarchyMutation.isPending ? "Creating..." : "Create Subsidiaries"}
+                  </Button>
+                </div>
+
+                {company?.location ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Primary Location</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span>{company.location}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground">No location information</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              {/* Contacts Tab */}
+              <TabsContent value="contacts" className="space-y-4 mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Contact Information
+                    </h3>
+                    <p className="text-sm text-muted-foreground">Company contact details</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {company?.primaryEmail && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex-1">
+                            <p className="text-xs text-muted-foreground">Primary Email</p>
+                            <p className="font-medium">{company.primaryEmail}</p>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  )}
+
+                  {company?.primaryPhone && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex-1">
+                            <p className="text-xs text-muted-foreground">Primary Phone</p>
+                            <p className="font-medium">{company.primaryPhone}</p>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  )}
+
+                  {company?.website && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex-1">
+                            <p className="text-xs text-muted-foreground">Website</p>
+                            <a 
+                              href={company.website.startsWith('http') ? company.website : `https://${company.website}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary flex items-center gap-1"
+                            >
+                              {company.website}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  )}
+
+                  {!company?.primaryEmail && !company?.primaryPhone && !company?.website && (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-12">
+                        <Mail className="h-12 w-12 text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">No contact information available</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           </div>
