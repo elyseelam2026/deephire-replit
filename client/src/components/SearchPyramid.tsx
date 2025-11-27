@@ -7,10 +7,15 @@ interface SearchPyramidProps {
   candidates: Array<{
     hardSkillScore?: number | null;
     fitScore?: number | null;
-    firstName?: string;
-    lastName?: string;
-    currentTitle?: string;
-    currentCompany?: string;
+    candidate?: {
+      firstName?: string;
+      lastName?: string;
+      currentTitle?: string;
+      currentCompany?: string;
+    };
+    currentCompany?: {
+      name?: string;
+    } | null;
   }>;
 }
 
@@ -83,13 +88,17 @@ export function SearchPyramid({ candidates }: SearchPyramidProps) {
 
               {isExpanded && count > 0 && (
                 <div className="mb-4 ml-4 space-y-2 max-h-40 overflow-y-auto text-xs">
-                  {tierCandidates.map((c, idx) => (
-                    <div key={idx} className="text-muted-foreground border-l border-muted pl-3 py-1">
-                      <div className="font-medium">{c.firstName} {c.lastName}</div>
-                      <div className="text-xs">{c.currentTitle} at {c.currentCompany}</div>
-                      <div className="text-xs font-semibold text-primary">Fit: {Math.round(getScore(c))}/100</div>
-                    </div>
-                  ))}
+                  {tierCandidates.map((c, idx) => {
+                    const cand = c.candidate;
+                    const companyName = c.currentCompany?.name || cand?.currentCompany || 'Unknown';
+                    return (
+                      <div key={idx} className="text-muted-foreground border-l border-muted pl-3 py-1">
+                        <div className="font-medium">{cand?.firstName} {cand?.lastName}</div>
+                        <div className="text-xs">{cand?.currentTitle} at {companyName}</div>
+                        <div className="text-xs font-semibold text-primary">Fit: {Math.round(getScore(c))}/100</div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
