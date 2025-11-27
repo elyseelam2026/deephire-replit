@@ -268,15 +268,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all candidates for matching
       const allCandidates = await storage.getCandidates();
       const longlistMatches = await generateCandidateLonglist(
-        allCandidates.map(c => ({
+        allCandidates.map((c: any) => ({
           id: c.id,
           firstName: c.firstName,
           lastName: c.lastName,
           currentTitle: c.currentTitle || "",
           skills: c.skills || [],
           cvText: c.cvText || undefined,
-          experience: c.biography,
-          currentCompany: c.currentCompany
+          experience: c.biography || undefined,
+          currentCompany: c.currentCompany || undefined
         })),
         parsedData.skills,
         jdText,
@@ -372,15 +372,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (job.skills && job.skills.length > 0) {
         const allCandidates = await storage.getCandidates();
         const matches = await generateCandidateLonglist(
-          allCandidates.map(c => ({
+          allCandidates.map((c: any) => ({
             id: c.id,
             firstName: c.firstName,
             lastName: c.lastName,
             currentTitle: c.currentTitle || "",
             skills: c.skills || [],
             cvText: c.cvText || undefined,
-            experience: c.biography,
-            currentCompany: c.currentCompany
+            experience: c.biography || undefined,
+            currentCompany: c.currentCompany || undefined
           })),
           job.skills,
           job.jdText,
@@ -2380,15 +2380,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const jobSkills = finalCriteria.requiredSkills || [];
           const jobText = `${finalCriteria.title || ''} ${(finalCriteria as any).responsibilities || ''} ${(finalCriteria as any).qualifications || ''}`;
           const scoredCandidates = await generateCandidateLonglist(
-            allCandidates.map(c => ({
+            allCandidates.map((c: any) => ({
               id: c.id,
               firstName: c.firstName || '',
               lastName: c.lastName || '',
               currentTitle: c.currentTitle || '',
               skills: c.skills || [],
               cvText: c.biography || c.cvText || undefined,
-              experience: c.biography,
-              currentCompany: c.currentCompany
+              experience: c.biography || undefined,
+              currentCompany: c.currentCompany || undefined
             })),
             jobSkills,
             jobText,
@@ -2847,7 +2847,7 @@ Previous conversation:
 ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')}`;
 
         const llmResponse = await callLLM(
-          llmProvider,
+          llmProvider as LLMProvider,
           systemPrompt,
           userPrompt,
           { temperature: 0.7, maxTokens: 1000 }
@@ -2986,7 +2986,7 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
               // Save updated conversation
               await storage.updateConversation(conversation.id, {
                 ...conversation,
-                searchContext: researchContext,
+                searchContext: researchContext as any,
                 generatedJD: informedJD,
                 phase: 'jd_ready'
               });
@@ -3129,11 +3129,11 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             executeSourcingPhase(
               conversationId.toString(),
               updatedSearchContext,
-              researchContext || {},
+              researchContext as any || {},
               researchJD || 'JD Ready for Posting'
             ).catch(err => console.error('Sourcing error:', err));
             
-            aiResponse = `📤 **Activating Dual-Track Sourcing**\n\n**Active Track:**\n✓ Posting to LinkedIn Job Board\n✓ Publishing to premium job boards\n✓ Internal talent database\n\n**Passive Track:**\n🔍 Searching target companies:\n${researchContext?.targetCompanies?.slice(0, 5).map(c => `• ${c}`).join('\n') || '• Top investment firms'}\n\n⏱️ Active candidates will arrive in 2-3 days. Passive candidates in 1-2 weeks.\n\nI'll keep you updated as candidates arrive.`;
+            aiResponse = `📤 **Activating Dual-Track Sourcing**\n\n**Active Track:**\n✓ Posting to LinkedIn Job Board\n✓ Publishing to premium job boards\n✓ Internal talent database\n\n**Passive Track:**\n🔍 Searching target companies:\n${(researchContext?.targetCompanies as any)?.slice(0, 5).map((c: any) => `• ${c}`).join('\n') || '• Top investment firms'}\n\n⏱️ Active candidates will arrive in 2-3 days. Passive candidates in 1-2 weeks.\n\nI'll keep you updated as candidates arrive.`;
           } else if (wantsPassiveOnly) {
             newPhase = 'sourcing_passive';
             console.log('✅ User wants passive search only');
@@ -3142,12 +3142,12 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             executeSourcingPhase(
               conversationId.toString(),
               updatedSearchContext,
-              researchContext || {},
+              researchContext as any || {},
               researchJD || 'JD Ready for Sourcing',
               'passive'
             ).catch(err => console.error('Sourcing error:', err));
             
-            aiResponse = `🔍 **Passive Sourcing Active**\n\nSearching for ${updatedSearchContext.title} candidates from:\n${researchContext?.targetCompanies?.slice(0, 5).map(c => `• ${c}`).join('\n') || '• Top-tier investment firms\n• Competitor firms\n• Similar-stage companies'}\n\nLooking for candidates matching:\n✓ ${updatedSearchContext.skills?.slice(0, 3).join(', ')}\n✓ ${updatedSearchContext.location || 'Global'}\n✓ ${updatedSearchContext.seniorityLevel || 'Senior level'}\n\n⏱️ Candidates arriving within 1-2 weeks. I'll send updates as I find matches.`;
+            aiResponse = `🔍 **Passive Sourcing Active**\n\nSearching for ${updatedSearchContext.title} candidates from:\n${(researchContext?.targetCompanies as any)?.slice(0, 5).map((c: any) => `• ${c}`).join('\n') || '• Top-tier investment firms\n• Competitor firms\n• Similar-stage companies'}\n\nLooking for candidates matching:\n✓ ${updatedSearchContext.skills?.slice(0, 3).join(', ')}\n✓ ${updatedSearchContext.location || 'Global'}\n✓ ${updatedSearchContext.seniorityLevel || 'Senior level'}\n\n⏱️ Candidates arriving within 1-2 weeks. I'll send updates as I find matches.`;
           }
         }
 
@@ -7537,7 +7537,7 @@ CRITICAL RULES - You MUST follow these strictly:
             industry: (job.parsedData as any)?.industry,
             yearsExperience: confirmedNAP.yearsExperience,
             painPoints: confirmedNAP.pain,
-            urgency: job.urgency,
+            urgency: job.urgency || undefined,
             successCriteria: confirmedNAP.successCriteria,
             mustHaveSignals: mustHaveSkills,
             decisionMakerProfile: confirmedNAP.authority
@@ -9097,9 +9097,9 @@ Provide brief analysis and recommendation.`;
       const criticalSkills = ((job.parsedData as any)?.criticalSkills || []).map((s: string) => s.toLowerCase());
       
       if (jobSkills.length > 0) {
-        const matchedCritical = criticalSkills.filter(cs => candidateSkills.some(c => c.includes(cs))).length;
+        const matchedCritical = criticalSkills.filter((cs: string) => candidateSkills.some((c: string) => c.includes(cs))).length;
         const criticalCoverage = criticalSkills.length > 0 ? matchedCritical / criticalSkills.length : 0.7;
-        const allMatched = jobSkills.filter(js => candidateSkills.some(c => c.includes(js))).length;
+        const allMatched = jobSkills.filter((js: string) => candidateSkills.some((c: string) => c.includes(js))).length;
         const overallCoverage = allMatched / jobSkills.length;
         // 60% weight on critical skills, 40% on overall
         scores.skillsMatch = (criticalCoverage * 0.6) + (overallCoverage * 0.4);
@@ -9108,18 +9108,18 @@ Provide brief analysis and recommendation.`;
       }
       
       // 3. Career Stability: Analyze job tenure patterns
-      const avgTenure = candidateExp > 0 ? 12 / ((candidate.jobChanges || 1) || 1) : 12;
+      const avgTenure = candidateExp > 0 ? 12 / (((candidate as any).jobChanges || 1) || 1) : 12;
       const isStable = avgTenure > 18; // 18+ months per role = stable
       scores.careerStability = isStable ? 0.85 : (avgTenure > 12 ? 0.65 : 0.45);
       
       // 4. Culture Fit: Industry + company size alignment
-      const industryMatch = candidate.currentIndustry?.toLowerCase() === job.industry?.toLowerCase();
-      const sizeMatch = (candidate.companySize || 0) >= 50; // Assume growth to larger companies positive
+      const industryMatch = (candidate as any).currentIndustry?.toLowerCase() === ((job.parsedData as any)?.industry || '').toLowerCase();
+      const sizeMatch = ((candidate as any).companySize || 0) >= 50; // Assume growth to larger companies positive
       scores.cultureFit = (industryMatch ? 0.7 : 0.5) + (sizeMatch ? 0.15 : 0.05);
       scores.cultureFit = Math.min(1.0, scores.cultureFit);
       
       // 5. Growth Potential: Age + trajectory + education
-      const hasAdvancedDegree = (candidate.education || "").includes("Master") || (candidate.education || "").includes("PhD");
+      const hasAdvancedDegree = ((candidate as any).education || "").includes?.("Master") || ((candidate as any).education || "").includes?.("PhD");
       const isEarlyCareer = candidateExp < 5;
       scores.growthPotential = 0.5 + (hasAdvancedDegree ? 0.2 : 0.1) + (isEarlyCareer ? 0.2 : 0.1);
       scores.growthPotential = Math.min(1.0, scores.growthPotential);
@@ -10270,9 +10270,9 @@ Provide brief analysis and recommendation.`;
 
       if (fileType === "csv") {
         const csvText = req.file.buffer.toString("utf-8");
-        data = await parseCsvStructuredData(csvText);
+        data = await parseCsvStructuredData(csvText, "candidate");
       } else if (fileType === "excel") {
-        data = await parseExcelData(req.file.buffer);
+        data = await parseExcelData(req.file.buffer, "candidate");
       }
 
       let count = 0;
@@ -10308,9 +10308,9 @@ Provide brief analysis and recommendation.`;
 
       if (fileType === "csv") {
         const csvText = req.file.buffer.toString("utf-8");
-        data = await parseCsvStructuredData(csvText);
+        data = await parseCsvStructuredData(csvText, "company");
       } else if (fileType === "excel") {
-        data = await parseExcelData(req.file.buffer);
+        data = await parseExcelData(req.file.buffer, "company");
       }
 
       let count = 0;
