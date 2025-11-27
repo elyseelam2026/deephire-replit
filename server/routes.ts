@@ -3314,7 +3314,8 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
         const hasTitle = updatedSearchContext.title;
         const jobExists = conversation.jobId;
         
-        // Case 1: Need to CREATE job first (new conversation)
+        // CRITICAL FIX: Always create job if search is about to trigger and job doesn't exist
+        // This ensures executeAsyncSearch has a valid jobId
         const shouldCreateNewJob = shouldTriggerSearch && hasTitle && !jobExists;
         
         // Case 2: Job exists, just run search (promise worker handles this via lines 2189-2192)
@@ -3323,6 +3324,13 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
         if (shouldRunSearchOnExistingJob) {
           console.log(`🚀 [Promise Trigger] Job #${conversation.jobId} exists - search executing via promise worker`);
           // Promise worker already triggered above (lines 2189-2192), no additional action needed
+        }
+        
+        // CRITICAL: Also handle case where promise triggered but job doesn't exist yet
+        // This can happen if search executes before job creation code is reached
+        if (promiseTriggeredSearch && hasTitle && !jobExists) {
+          console.log(`⚠️ [Promise Trigger] Job doesn't exist yet but search was promised - creating job first`);
+          // Fall through to shouldCreateNewJob block below
         }
         
         if (shouldCreateNewJob) {
