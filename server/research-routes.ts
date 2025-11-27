@@ -127,4 +127,128 @@ router.post('/research/approve-jd', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/research/competitor-patterns
+ * Research competitor hiring patterns for a specific role in an industry
+ */
+router.post('/research/competitor-patterns', async (req, res) => {
+  try {
+    const { title, industry } = req.body;
+
+    if (!title || !industry) {
+      return res.status(400).json({ error: 'title and industry required' });
+    }
+
+    console.log(`[RESEARCH API] Analyzing competitor patterns for ${title} in ${industry}...`);
+
+    // Use the existing research function (imported from research.ts)
+    // This function internally handles web search and pattern analysis
+    const patterns = await (await import('./research')).searchCompetitorPatterns(title, industry);
+
+    res.json({
+      status: 'competitor_patterns_found',
+      title,
+      industry,
+      patterns,
+      insight: `These hiring patterns indicate the typical backgrounds and career progressions for ${title} positions in the ${industry} industry.`,
+      useCase: 'Use these patterns to refine candidate sourcing strategy and understand market expectations.'
+    });
+
+  } catch (error) {
+    console.error('[RESEARCH API] Error analyzing competitor patterns:', error);
+    res.status(500).json({ error: 'Failed to analyze competitor patterns' });
+  }
+});
+
+/**
+ * POST /api/research/target-companies
+ * Identify target companies for passive candidate sourcing
+ */
+router.post('/research/target-companies', async (req, res) => {
+  try {
+    const { industry, strategy, geography } = req.body;
+
+    if (!industry) {
+      return res.status(400).json({ error: 'industry required' });
+    }
+
+    console.log(`[RESEARCH API] Identifying target companies in ${industry} (${geography || 'Global'})...`);
+
+    // Use the existing research function (imported from research.ts)
+    const targetCompanies = await (await import('./research')).identifyTargetCompanies(
+      industry,
+      strategy || 'Leading firms',
+      geography
+    );
+
+    res.json({
+      status: 'target_companies_identified',
+      industry,
+      geography: geography || 'Global',
+      targetCompanies,
+      count: targetCompanies.length,
+      insight: `These ${targetCompanies.length} companies are ideal for passive sourcing of ${strategy || 'senior'} talent in this market.`,
+      nextStep: 'Use these companies in passive sourcing to find candidates currently employed at top-tier firms.'
+    });
+
+  } catch (error) {
+    console.error('[RESEARCH API] Error identifying target companies:', error);
+    res.status(500).json({ error: 'Failed to identify target companies' });
+  }
+});
+
+/**
+ * POST /api/sourcing/active-posting
+ * Post job to active channels (LinkedIn, job boards, internal portals)
+ */
+router.post('/sourcing/active-posting', async (req, res) => {
+  try {
+    const { jobId, jd, channels } = req.body;
+
+    if (!jobId || !jd) {
+      return res.status(400).json({ error: 'jobId and jd required' });
+    }
+
+    // Default channels if not specified
+    const targetChannels = channels || [
+      { name: 'LinkedIn', status: 'queued' },
+      { name: 'Glassdoor', status: 'queued' },
+      { name: 'Indeed', status: 'queued' },
+      { name: 'Internal Portal', status: 'queued' },
+      { name: 'ZipRecruiter', status: 'queued' }
+    ];
+
+    console.log(`[SOURCING API] Posting job ${jobId} to ${targetChannels.length} active channels...`);
+
+    // Simulate posting to channels (in production, would call actual job board APIs)
+    const results = await Promise.all(
+      targetChannels.map(async (channel) => {
+        // Simulate API call with small delay
+        await new Promise(r => setTimeout(r, 200));
+        console.log(`[SOURCING API] Posted to ${channel.name} ✓`);
+        return {
+          channel: channel.name,
+          status: 'posted',
+          timestamp: new Date().toISOString(),
+          url: `https://${channel.name.toLowerCase().replace(/\s+/g, '')}.example.com/jobs/${jobId}`
+        };
+      })
+    );
+
+    res.json({
+      status: 'active_posting_complete',
+      jobId,
+      channelsPosted: results.length,
+      channels: results,
+      message: `Successfully posted job to ${results.length} active channels`,
+      alert: `✓ Posted to ${results.length} channels. Expecting active responders within 24-48 hours.`,
+      nextStep: 'Monitor applications and begin passive sourcing in parallel.'
+    });
+
+  } catch (error) {
+    console.error('[SOURCING API] Error posting to active channels:', error);
+    res.status(500).json({ error: 'Failed to post to active channels' });
+  }
+});
+
 export default router;

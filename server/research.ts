@@ -128,7 +128,7 @@ function extractGeography(text: string): string | undefined {
   return regions.length > 0 ? `${regions.join(', ')} focus` : undefined;
 }
 
-async function searchCompetitorPatterns(title: string, industry: string): Promise<string[]> {
+export async function searchCompetitorPatterns(title: string, industry: string): Promise<string[]> {
   try {
     // Identify what profiles similar firms hire for this role
     const patterns = [
@@ -144,7 +144,7 @@ async function searchCompetitorPatterns(title: string, industry: string): Promis
   }
 }
 
-async function identifyTargetCompanies(industry: string, strategy: string, geography?: string): Promise<string[]> {
+export async function identifyTargetCompanies(industry: string, strategy: string, geography?: string): Promise<string[]> {
   try {
     const apiKey = process.env.SERPAPI_API_KEY;
     if (!apiKey) {
