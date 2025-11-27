@@ -2796,25 +2796,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Use selected LLM (default to Grok if not specified)
         const llmProvider = conversation.llmProvider || 'grok';
-        const systemPrompt = `You are an elite executive search consultant. Conduct a consultative NAP (Name-a-Person) interview to understand hiring needs deeply.
+        
+        // DETECT URGENCY & SKIP SIGNALS
+        const lowerMessage = message.toLowerCase();
+        const urgencySignals = ['minutes', 'asap', 'urgent', 'today', 'by then', 'come back', 'expect at', 'i need in', 'right now'];
+        const skipSignals = ['find candidates', 'just find', 'start searching', 'search now', 'search for candidates', 'dump question', 'silly question', 'stop asking', 'no more questions'];
+        const isUserUrgent = urgencySignals.some(s => lowerMessage.includes(s));
+        const userWantsToSkip = skipSignals.some(s => lowerMessage.includes(s));
+        
+        // Extract deadline if user mentioned time
+        let extractedDeadline = '';
+        const timeMatch = message.match(/(\d{1,2}):(\d{2})|in\s+(\d+)\s+(minutes?|hours?)|by\s+(\d+):(\d{2})/i);
+        if (timeMatch) {
+          extractedDeadline = `\n**USER'S DEADLINE:** ${message.substring(timeMatch.index, timeMatch.index + timeMatch[0].length)}\nRESPOND WITH URGENCY - START SEARCH IMMEDIATELY, DON'T ASK MORE QUESTIONS.`;
+        }
+        
+        // Add company intelligence if mentioned
+        let companyIntelligence = '';
+        if (companyContext?.companyName) {
+          companyIntelligence = `\n**COMPANY INTELLIGENCE (Show you know this):**
+- You're hiring for ${companyContext.companyName} (${companyContext.industry || 'Finance'})
+- Size: ${companyContext.companySize || 'Unknown'}
+- IF THIS IS A PE FIRM: Reference typical PE CFO profiles (deal experience, FP&A at scale, investor relations). Show expertise.
+- IF THIS IS A CORPORATION: Reference corporate finance transformation, FP&A leadership, treasury management.
+- DEMONSTRATE knowledge before asking questions.`;
+        }
+
+        const systemPrompt = `You are an elite executive search consultant (Spencer Stuart level). Your job: UNDERSTAND what they need, then EXECUTE the search.
+
+**CRITICAL RULES:**
+1. NEVER ask more than ONE question per response
+2. If user shows urgency or frustration: STOP asking questions immediately
+3. If user says "just find candidates" or "start searching": Activate search mode
+4. DEMONSTRATE company knowledge when possible (don't ask "what's your company" if they already said)
+5. NEVER generate fake candidates - only commit to real sourcing
+6. When you have enough info to search (Title + Company + Location), declare "INITIATING SEARCH" and trigger action
 
 **Current Job Context:**
 - Title: ${currentJobContext.title || 'Not specified'}
-- Skills: ${Array.isArray(currentJobContext.skills) ? currentJobContext.skills.join(', ') : 'Not specified'}
-- Location: ${currentJobContext.location || 'Not specified'}
-- Experience: ${currentJobContext.yearsExperience || 'Any level'}
-- Urgency: ${currentJobContext.urgency || 'Standard'}
-- Salary: ${currentJobContext.salary || 'Not specified'}
-- Team Dynamics: ${currentJobContext.teamDynamics || 'Not specified'}
+- Company: ${companyContext?.companyName || 'Not specified'}
+- Location: ${currentJobContext.location || 'Global'}
+- Experience: ${currentJobContext.yearsExperience || 'Any'}
+- Urgency: ${currentJobContext.urgency || 'Standard'}${isUserUrgent ? ' (⚠️ USER IS TIME-PRESSURED)' : ''}
 
-**Company Context:**
-${companyContext ? `- Company: ${companyContext.companyName}
-- Industry: ${companyContext.industry || 'Not specified'}
-- Size: ${companyContext.companySize || 'Not specified'}` : '- Company information not yet provided'}
-
-**Your role:** Ask ONE clarifying question at a time. Listen deeply. Extract NAP signals: urgency, success criteria, team dynamics. Build rapport. NEVER generate fake candidate names or data. When you have 90%+ of NAP information, indicate "READY TO SEARCH" in your response.
-
-Be conversational, not robotic. Reference what they've told you. Show you understand their specific hiring challenge.`;
+${companyIntelligence}${extractedDeadline}${userWantsToSkip ? '\n**USER WANTS TO SKIP QUESTIONS** - Move to search mode immediately.' : ''}`;
 
         const userPrompt = `User message: "${message}"
 
@@ -2828,13 +2853,18 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           { temperature: 0.7, maxTokens: 1000 }
         );
 
-        // Parse intent from response
+        // Parse intent from response - check for search triggers
         const grokResponse = {
           intent: 'clarification',
           response: llmResponse
         };
 
-        if (llmResponse.includes('READY TO SEARCH') || llmResponse.includes('ready to search')) {
+        // Check for search activation signals
+        const searchTriggers = ['INITIATING SEARCH', 'READY TO SEARCH', 'ready to search', 'ready for search', 'start search', 'begin search', 'activate search'];
+        if (searchTriggers.some(t => llmResponse.includes(t))) {
+          grokResponse.intent = 'ready_to_search';
+        } else if (userWantsToSkip && currentJobContext.title) {
+          // If user explicitly wants to skip and we have a title, trigger search
           grokResponse.intent = 'ready_to_search';
         } else if (conversationHistory.length < 2) {
           grokResponse.intent = 'greeting';
