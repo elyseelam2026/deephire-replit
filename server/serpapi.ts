@@ -204,15 +204,23 @@ export async function searchLinkedInPeople(
   try {
     // Use Google search with regional LinkedIn domain filter + Boolean operators
     // This works with basic SerpAPI plans (linkedin_people engine requires premium)
-    const linkedInQuery = `site:${linkedInDomain}/in ${searchQuery}`;
+    // Simplify query by removing parentheses - just use simple AND logic
+    const cleanQuery = searchQuery
+      .replace(/[()]/g, '') // Remove parentheses
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+    
+    const linkedInQuery = `site:${linkedInDomain}/in ${cleanQuery}`;
     
     const url = new URL('https://serpapi.com/search.json');
     url.searchParams.set('api_key', apiKey);
     url.searchParams.set('engine', 'google');
     url.searchParams.set('q', linkedInQuery);
     url.searchParams.set('num', String(Math.min(rawFetchLimit, 100)));
+    url.searchParams.set('google_domain', 'google.com'); // Use .com for broader results
     
-    console.log(`   🌐 SerpAPI Query: "site:${linkedInDomain}/in ${searchQuery}"`);
+    console.log(`   🌐 SerpAPI Query: "site:${linkedInDomain}/in ${cleanQuery}"`);
+    console.log(`   Full URL params - engine: google, num: ${Math.min(rawFetchLimit, 100)}`);
     
     const response = await fetch(url.toString());
     
@@ -228,6 +236,11 @@ export async function searchLinkedInPeople(
     if (data.error) {
       console.error(`[SerpAPI Error] ${data.error}`);
       throw new Error(`SerpAPI error: ${data.error}`);
+    }
+    
+    // If no results, log for debugging
+    if (!data.organic_results || data.organic_results.length === 0) {
+      console.warn(`[SerpAPI Warning] No organic results returned. Response keys:`, Object.keys(data));
     }
     
     // Parse results from Google organic results
