@@ -183,10 +183,63 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
     let candidateIds: number[] = [];
     let sourcingRunId: number | null = null;
     
+    // 🔧 FIX: Create job BEFORE sourcing run so candidates can be linked properly
+    let jobId = promise.jobId;
+    if (!jobId && searchResults.profiles.length > 0) {
+      console.log(`[Promise Worker] Creating job BEFORE sourcing (required for candidate linking)...`);
+      const conversation = await storage.getConversation(promise.conversationId);
+      let companyId: number;
+      
+      if (conversation?.searchContext?.companyName) {
+        const companies = await storage.searchCompanies(conversation.searchContext.companyName);
+        if (companies.length > 0) {
+          companyId = companies[0].parent.id;
+        } else {
+          const newCompany = await storage.createCompany({
+            name: conversation.searchContext.companyName,
+            industry: conversation.searchContext.industry || 'General',
+            location: conversation.searchContext.location || 'Global'
+          });
+          companyId = newCompany.id;
+          console.log(`✓ Created company #${companyId}: ${conversation.searchContext.companyName}`);
+        }
+      } else {
+        console.error('[Promise Worker] No company name found - cannot create job');
+        throw new Error('Missing company identification in search context');
+      }
+      
+      // Calculate job pricing (computeJobPricing already imported from @shared/pricing at top)
+      const urgency = promise.searchParams.urgency || 'medium';
+      const salary = promise.searchParams.salary || promise.searchParams.salaryRangeMax || promise.searchParams.salaryRangeMin;
+      const pricing = computeJobPricing({ salary, searchTier: 'external', urgency });
+      
+      // Create job FIRST so sourcing run can reference it
+      const job = await storage.createJob({
+        title: promise.searchParams.title || 'Search Result',
+        department: 'General',
+        companyId,
+        jdText: `Automated search from conversation promise: ${promise.promiseText}`,
+        parsedData: promise.searchParams,
+        skills: promise.searchParams.skills || [],
+        urgency,
+        status: 'active',
+        searchTier: 'external',
+        searchExecutionStatus: 'executing',
+        basePlacementFee: pricing.basePlacementFee,
+        estimatedPlacementFee: pricing.estimatedPlacementFee,
+        turnaroundLevel: pricing.turnaroundLevel,
+        turnaroundHours: pricing.turnaroundHours,
+        turnaroundFeeMultiplier: pricing.turnaroundFeeMultiplier
+      });
+      
+      jobId = job.id;
+      console.log(`✅ [Promise Worker] Created job #${jobId} BEFORE sourcing - candidates will link properly`);
+    }
+    
     if (searchResults.profiles.length > 0) {
-      // Create sourcing run to track this external search
+      // Create sourcing run WITH the jobId (now guaranteed to exist)
       const sourcingRun = await storage.createSourcingRun({
-        jobId: promise.jobId || null,
+        jobId: jobId || null,
         searchType: 'linkedin_people_search',
         searchQuery: searchCriteria,
         searchIntent: `Promise execution: ${promise.promiseText}`,
@@ -208,25 +261,19 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       console.log(`[Promise Worker] Created sourcing run #${sourcingRunId}`);
       
       // Fetch and process LinkedIn profiles
+      // NOTE: orchestrateProfileFetching AUTOMATICALLY creates candidates AND links them to the job
+      // via the sourcing run's jobId - we don't need to manually call addCandidatesToJob
       const profileUrls = searchResults.profiles.map(p => p.profileUrl);
-      const fetchResults = await orchestrateProfileFetching({
+      await orchestrateProfileFetching({
         sourcingRunId,
         profileUrls,
         batchSize: 5,
       });
       
-      // Extract candidate IDs from successful profile fetches
-      const successfulProfiles = fetchResults.filter(r => r.success && r.data);
-      
-      // Query the database to find candidates created from these profiles
-      // Note: orchestrateProfileFetching creates candidates automatically
-      // We need to fetch them by checking recent candidates
-      const recentCandidates = await storage.getCandidates();
-      
-      // For now, just use all candidates created in this run (improvement: track by sourcing_run_id)
-      candidateIds = recentCandidates.slice(0, successfulProfiles.length).map(c => c.id);
-      
-      console.log(`[Promise Worker] External search created ${candidateIds.length} new candidates`);
+      // Get candidate count from job_candidates table (orchestrator already linked them)
+      const linkedCandidates = await storage.getJobCandidates(jobId!);
+      candidateIds = linkedCandidates.map(c => c.candidate.id);
+      console.log(`[Promise Worker] External search linked ${candidateIds.length} candidates to job #${jobId}`);
     } else {
       console.log(`[Promise Worker] No LinkedIn profiles found - trying internal database fallback`);
       
@@ -263,24 +310,19 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       console.log(`[Promise Worker] Internal fallback found ${candidateIds.length} candidates`);
     }
     
-    // Get or create job if needed
-    let jobId = promise.jobId;
+    // Get or create job if needed (job may already exist from external search path above)
+    // Note: jobId is already set at line ~190 if we had external search results
     if (!jobId) {
-      // Get conversation to find company context
+      // Internal search path - need to create job now
+      console.log(`[Promise Worker] Creating job for internal search path...`);
       const conversation = await storage.getConversation(promise.conversationId);
       let companyId: number;
       
-      // Try to find company from conversation context
       if (conversation?.searchContext?.companyName) {
         const companies = await storage.searchCompanies(conversation.searchContext.companyName);
         if (companies.length > 0) {
           companyId = companies[0].parent.id;
         } else {
-          // Validate before creating - require at least a company name
-          if (!conversation.searchContext.companyName) {
-            throw new Error('Cannot create job without company name in search context');
-          }
-          // Create company with validated data
           const newCompany = await storage.createCompany({
             name: conversation.searchContext.companyName,
             industry: conversation.searchContext.industry || 'General',
@@ -290,28 +332,15 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
           console.log(`✓ Created company #${companyId}: ${conversation.searchContext.companyName}`);
         }
       } else {
-        // No company name in context - log error instead of creating placeholder
-        console.error('[Promise Worker] No company name found in conversation context. Cannot create job without company identification.');
+        console.error('[Promise Worker] No company name found - cannot create job');
         throw new Error('Missing company identification in search context');
       }
       
-      // Calculate job pricing
-      const searchTier = sourcingRunId ? 'external' : 'internal';
+      // Calculate job pricing for internal search
       const urgency = promise.searchParams.urgency || 'medium';
       const salary = promise.searchParams.salary || promise.searchParams.salaryRangeMax || promise.searchParams.salaryRangeMin;
+      const pricing = computeJobPricing({ salary, searchTier: 'internal', urgency });
       
-      const pricing = computeJobPricing({
-        salary,
-        searchTier,
-        urgency
-      });
-      
-      // Log if salary is missing
-      if (!salary) {
-        console.warn(`⚠️  Job pricing: Missing salary data for promise #${promiseId}. Fees set to null.`);
-      }
-      
-      // Create job order with pricing
       const job = await storage.createJob({
         title: promise.searchParams.title || 'Search Result',
         department: 'General',
@@ -321,15 +350,13 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
         skills: promise.searchParams.skills || [],
         urgency,
         status: 'active',
-        searchTier,
+        searchTier: 'internal',
         searchExecutionStatus: 'completed',
         searchProgress: {
-          candidatesSearched: sourcingRunId ? searchResults?.profiles?.length || 0 : 0,
+          candidatesSearched: 0,
           matchesFound: candidateIds.length,
-          currentStep: 'Completed',
-          sourcingRunId: sourcingRunId || undefined
+          currentStep: 'Completed'
         },
-        // Pricing fields
         basePlacementFee: pricing.basePlacementFee,
         estimatedPlacementFee: pricing.estimatedPlacementFee,
         turnaroundLevel: pricing.turnaroundLevel,
@@ -338,13 +365,26 @@ export async function executeSearchPromise(promiseId: number): Promise<void> {
       });
       
       jobId = job.id;
-      console.log(`[Promise Worker] Created job #${jobId} - ${job.title}`);
+      console.log(`[Promise Worker] Created job #${jobId} (internal search path)`);
+    } else {
+      // Job was already created for external search - just update status to completed
+      await storage.updateJob(jobId, {
+        searchExecutionStatus: 'completed',
+        searchProgress: {
+          candidatesSearched: searchResults?.profiles?.length || 0,
+          matchesFound: candidateIds.length,
+          currentStep: 'Completed',
+          sourcingRunId: sourcingRunId || undefined
+        }
+      });
+      console.log(`[Promise Worker] Updated job #${jobId} status to completed`);
     }
     
-    // Add candidates to job
-    if (candidateIds.length > 0) {
+    // Add candidates to job (ONLY for internal search - external search already links via orchestrator)
+    // sourcingRunId being null means we used internal fallback path
+    if (candidateIds.length > 0 && !sourcingRunId) {
       await storage.addCandidatesToJob(jobId, candidateIds);
-      console.log(`[Promise Worker] Added ${candidateIds.length} candidates to job #${jobId}`);
+      console.log(`[Promise Worker] Added ${candidateIds.length} candidates to job #${jobId} (internal search path)`);
     }
     
     // Re-fetch promise to get LATEST executionLog (includes zero-results event if logged)
