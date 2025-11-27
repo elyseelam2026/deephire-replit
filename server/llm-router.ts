@@ -1,12 +1,12 @@
 /**
  * Multi-LLM Router
  * Provides unified interface to multiple LLM providers
- * Supports: Grok (xAI), OpenAI (GPT-4o), Claude (Anthropic)
+ * Supports: Grok (xAI), OpenAI (GPT-4o), Claude (Anthropic), DeepSeek (via OpenRouter)
  */
 
 import OpenAI from "openai";
 
-export type LLMProvider = 'grok' | 'openai' | 'claude';
+export type LLMProvider = 'grok' | 'openai' | 'claude' | 'deepseek';
 
 const grokClient = new OpenAI({
   baseURL: "https://api.x.ai/v1",
@@ -23,6 +23,11 @@ const claudeClient = new OpenAI({
   baseURL: process.env.CLAUDE_BASE_URL || 'https://api.anthropic.com/v1'
 });
 
+const deepseekClient = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY || '',
+  baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'
+});
+
 function getClient(provider: LLMProvider): OpenAI {
   switch (provider) {
     case 'grok':
@@ -31,6 +36,8 @@ function getClient(provider: LLMProvider): OpenAI {
       return openaiClient;
     case 'claude':
       return claudeClient;
+    case 'deepseek':
+      return deepseekClient;
     default:
       return grokClient;
   }
@@ -44,6 +51,8 @@ function getModel(provider: LLMProvider): string {
       return 'gpt-4o';
     case 'claude':
       return 'claude-3-5-sonnet-20241022';
+    case 'deepseek':
+      return 'deepseek/deepseek-chat';
     default:
       return 'grok-2-1212';
   }
@@ -95,6 +104,11 @@ export function getAvailableProviders(): Array<{ provider: LLMProvider; availabl
       provider: 'grok',
       available: !!process.env.XAI_API_KEY,
       model: 'grok-2-1212'
+    },
+    {
+      provider: 'deepseek',
+      available: !!process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
+      model: 'DeepSeek (via OpenRouter)'
     },
     {
       provider: 'openai',

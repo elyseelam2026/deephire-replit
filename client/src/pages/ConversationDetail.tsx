@@ -54,7 +54,7 @@ export default function ConversationDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [selectedLlm, setSelectedLlm] = useState<'grok' | 'openai' | 'claude'>('grok');
+  const [selectedLlm, setSelectedLlm] = useState<'grok' | 'openai' | 'claude' | 'deepseek'>('grok');
   const [llmProviders, setLlmProviders] = useState<Array<{ provider: string; available: boolean; model: string }>>([]);
 
   const { data: conversation, isLoading } = useQuery<Conversation>({
@@ -256,7 +256,7 @@ export default function ConversationDetail() {
               <label className="text-sm font-medium text-muted-foreground">AI Model:</label>
               <select
                 value={selectedLlm}
-                onChange={(e) => setSelectedLlm(e.target.value as 'grok' | 'openai' | 'claude')}
+                onChange={(e) => setSelectedLlm(e.target.value as 'grok' | 'openai' | 'claude' | 'deepseek')}
                 className="px-3 py-1 rounded-md border border-input bg-background text-sm"
                 data-testid="select-llm-provider"
               >
