@@ -270,6 +270,18 @@ export default function ConversationDetail() {
                   </option>
                 ))}
               </select>
+              <Button
+                size="sm"
+                onClick={() => {
+                  toast({
+                    title: "LLM Selected",
+                    description: `Using ${llmProviders.find(p => p.provider === selectedLlm)?.model || selectedLlm} for this conversation`
+                  });
+                }}
+                data-testid="button-confirm-llm"
+              >
+                Confirm
+              </Button>
             </div>
           )}
         </div>
