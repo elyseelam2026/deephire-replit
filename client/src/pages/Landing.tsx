@@ -2,9 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Building2, Search, User, Settings, ArrowRight, Zap, Users, Target } from "lucide-react";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Landing() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const portals = [
     {
@@ -53,15 +55,7 @@ export default function Landing() {
     }
   ];
 
-  const handlePortalAccess = (route: string, comingSoon?: boolean) => {
-    if (comingSoon) {
-      toast({
-        title: "Coming Soon",
-        description: "This portal will be available soon. Check back later!",
-        variant: "default"
-      });
-      return;
-    }
+  const handlePortalAccess = (route: string) => {
     setLocation(route);
   };
 

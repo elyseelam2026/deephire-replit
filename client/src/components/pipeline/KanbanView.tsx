@@ -160,11 +160,11 @@ export default function KanbanView({ jobId, candidates, onStatusChange, onCandid
         break;
       case 'call':
         // TODO: Integrate with communication platform (Twilio, etc.)
-        if (candidate.candidate.phone) {
-          window.location.href = `tel:${candidate.candidate.phone}`;
+        if (candidate.candidate.phoneNumber) {
+          window.location.href = `tel:${candidate.candidate.phoneNumber}`;
           toast({
             title: "Call Ready",
-            description: `Ready to call ${candidate.candidate.firstName} at ${candidate.candidate.phone}`
+            description: `Ready to call ${candidate.candidate.firstName} at ${candidate.candidate.phoneNumber}`
           });
         } else {
           toast({
