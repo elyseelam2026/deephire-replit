@@ -3030,6 +3030,45 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           console.log(`🚀 [URGENT SEARCH] Triggering real sourcing with title: ${updatedSearchContext.title}`);
           
           try {
+            // STEP 1: CREATE JOB RECORD
+            let jobCompanyId: number | undefined;
+            if (updatedSearchContext.companyName) {
+              try {
+                const existingCompanies = await storage.searchCompanies(updatedSearchContext.companyName);
+                if (existingCompanies.length > 0) {
+                  jobCompanyId = existingCompanies[0].parent.id;
+                } else {
+                  const newCompany = await storage.createCompany({
+                    name: updatedSearchContext.companyName,
+                    location: updatedSearchContext.location || 'Unknown'
+                  });
+                  jobCompanyId = newCompany.id;
+                }
+              } catch (err) {
+                console.error('Error handling company:', err);
+              }
+            }
+            if (!jobCompanyId) {
+              const allCompanies = await storage.getCompanies();
+              if (allCompanies.length > 0) {
+                jobCompanyId = allCompanies[0].id;
+              }
+            }
+            
+            if (jobCompanyId) {
+              const createdJob = await storage.createJob({
+                title: updatedSearchContext.title,
+                companyId: jobCompanyId,
+                jdText: `Search for ${updatedSearchContext.title} at ${updatedSearchContext.companyName || 'Company'}`,
+                skills: updatedSearchContext.skills,
+                status: 'active',
+                searchTier: 'external',
+                needAnalysis: updatedSearchContext as any,
+                urgency: updatedSearchContext.urgency
+              });
+              console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJob.id}`);
+            }
+            
             // Build search criteria from context
             const searchCriteria = {
               title: updatedSearchContext.title,
