@@ -149,26 +149,12 @@ export default function Landing() {
                     </ul>
                     <Button
                       className="w-full"
-                      onClick={() => handlePortalAccess(portal.route, portal.comingSoon)}
-                      disabled={portal.comingSoon}
+                      onClick={() => handlePortalAccess(portal.route)}
                       data-testid={`button-${portal.id}-portal`}
                     >
-                      {portal.comingSoon ? (
-                        "Coming Soon"
-                      ) : (
-                        <>
-                          {portal.buttonText}
-                          <ArrowRight className="h-4 w-4 ml-2" />
-                        </>
-                      )}
+                      {portal.buttonText}
+                      <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
-                    {portal.comingSoon && (
-                      <div className="absolute top-4 right-4">
-                        <div className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs px-2 py-1 rounded-full">
-                          Soon
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               );
