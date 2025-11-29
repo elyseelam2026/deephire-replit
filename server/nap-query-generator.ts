@@ -143,7 +143,7 @@ Respond in JSON format:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "grok-2-1212",
+      model: "deepseek/deepseek-r1",
       messages: [
         {
           role: "system",
@@ -243,7 +243,7 @@ Respond in JSON format:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "grok-2-1212",
+      model: "deepseek/deepseek-r1",
       messages: [
         {
           role: "system",
