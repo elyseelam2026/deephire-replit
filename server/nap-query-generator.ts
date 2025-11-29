@@ -152,11 +152,11 @@ Respond in JSON format:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-r1",
+      model: "grok-2",
       messages: [
         {
           role: "system",
-          content: "You are an expert executive search consultant. Generate comprehensive, targeted LinkedIn search queries. Always respond with valid JSON."
+          content: "You are an expert executive search consultant. Generate comprehensive, targeted LinkedIn search queries. Always respond with valid JSON. Generate ONLY simple keyword queries without Boolean operators, parentheses, or quotes."
         },
         {
           role: "user",
@@ -252,11 +252,11 @@ Respond in JSON format:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-r1",
+      model: "grok-2",
       messages: [
         {
           role: "system",
-          content: "You are an expert at analyzing job requirements and extracting measurable hard skills. Always respond with valid JSON."
+          content: "You are an expert at analyzing job requirements and extracting measurable hard skills. Always respond with valid JSON. Extract only hard skills that appear on LinkedIn profiles."
         },
         {
           role: "user",

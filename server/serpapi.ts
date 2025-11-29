@@ -202,11 +202,13 @@ export async function searchLinkedInPeople(
   console.log(`   Raw fetch: ${rawFetchLimit} profiles (will filter to 12 high-quality)`);
   
   try {
-    // Use Google search with regional LinkedIn domain filter + Boolean operators
+    // Use Google search with regional LinkedIn domain filter
     // This works with basic SerpAPI plans (linkedin_people engine requires premium)
-    // Simplify query by removing parentheses - just use simple AND logic
+    // Simplify query by removing ALL Boolean operators - Google doesn't understand them
     const cleanQuery = searchQuery
       .replace(/[()]/g, '') // Remove parentheses
+      .replace(/\s+(AND|OR|NOT)\s+/gi, ' ') // Remove Boolean operators
+      .replace(/["]/g, '') // Remove quotes
       .replace(/\s+/g, ' ') // Normalize whitespace
       .trim();
     
