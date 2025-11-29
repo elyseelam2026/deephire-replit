@@ -63,6 +63,25 @@ This mirrors how manual recruiters work (Spencer Stuart, Korn Ferry) - they rese
 - Not instant gratification, but thoughtful partnership
 - User got value from research insights, not just speed
 
+### ✅ Session: NAP → Query → SerpAPI Pipeline Fixes (Nov 2025)
+
+**Problems Identified:**
+1. SerpAPI was failing due to Boolean operators in queries - Google doesn't accept `AND/OR/NOT` or parentheses
+2. DeepSeek integration via OpenRouter was failing because `response_format` parameter is OpenAI-specific
+3. Query generator was hardcoded to xAI client, not respecting user's preferred DeepSeek > Grok preference
+
+**Fixes Implemented:**
+1. ✅ `serpapi.ts`: Enhanced query cleaning to remove Boolean operators, parentheses, quotes before sending to Google
+2. ✅ `nap-query-generator.ts`: Refactored to use unified `callLLM` router with proper fallback mechanism
+3. ✅ `llm-router.ts`: Fixed to recognize `OPENROUTER_API_KEY` (not just integration-managed key)
+4. ✅ Provider fallback: DeepSeek tries first (without response_format), falls back to Grok on error
+
+**Query Format Rules:**
+- Simple keywords only: `CFO private equity Hong Kong Mandarin`
+- NO Boolean operators: `AND`, `OR`, `NOT`
+- NO parentheses: `(term1 OR term2)`
+- NO quotes (they get stripped): `"exact phrase"` → `exact phrase`
+
 ### ✅ Session: AI Conversation Quality & Industry Expertise
 
 **Problems Discovered (KKR CFO Conversation):**
