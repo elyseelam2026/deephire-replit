@@ -3030,8 +3030,10 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           console.log(`🚀 [URGENT SEARCH] Triggering real sourcing with title: ${updatedSearchContext.title}`);
           
           try {
-            // STEP 1: CREATE JOB RECORD
+            // STEP 1: CREATE JOB RECORD (CRITICAL: Must happen before sourcing)
             let jobCompanyId: number | undefined;
+            let createdJobId: number | undefined;
+            
             if (updatedSearchContext.companyName) {
               try {
                 const existingCompanies = await storage.searchCompanies(updatedSearchContext.companyName);
@@ -3066,7 +3068,10 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
                 needAnalysis: updatedSearchContext as any,
                 urgency: updatedSearchContext.urgency
               });
-              console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJob.id}`);
+              createdJobId = createdJob.id;
+              console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJobId}`);
+            } else {
+              console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
             }
             
             // Build search criteria from context
@@ -3082,10 +3087,14 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             console.log(`[URGENT SEARCH] Criteria:`, searchCriteria);
             
             // EXECUTE SEARCH SYNCHRONOUSLY - WAIT FOR RESULTS
+            // CRITICAL: Pass jobId so sourcing run links to the job
             const searchRes = await fetch('http://localhost:5000/api/sourcing/search', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ searchCriteria })
+              body: JSON.stringify({ 
+                searchCriteria,
+                jobId: createdJobId  // Link sourcing run to job!
+              })
             });
             const searchResult = await searchRes.json();
             const runId = searchResult.runId;
