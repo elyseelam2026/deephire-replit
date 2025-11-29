@@ -6,18 +6,29 @@
  * 
  * UNIVERSAL: Works for ANY position, ANY industry, ANY client
  * Focuses on HARD SKILLS only (70% weight) - soft skills evaluated by humans later
+ * 
+ * PROVIDER: Uses DeepSeek (via OpenRouter) by default, with Grok fallback
  */
 
-import OpenAI from "openai";
+import { callLLM, getAvailableProviders, type LLMProvider } from "./llm-router";
 
-if (!process.env.XAI_API_KEY) {
-  throw new Error("XAI_API_KEY must be set for query generation");
+// Determine the best available provider for query generation
+// Priority: DeepSeek (user preference) > Grok (fallback)
+function getQueryProvider(): LLMProvider {
+  const providers = getAvailableProviders();
+  const deepseek = providers.find(p => p.provider === 'deepseek' && p.available);
+  const grok = providers.find(p => p.provider === 'grok' && p.available);
+  
+  if (deepseek) {
+    console.log('[Query Generator] Using DeepSeek via OpenRouter');
+    return 'deepseek';
+  }
+  if (grok) {
+    console.log('[Query Generator] Using Grok (fallback)');
+    return 'grok';
+  }
+  throw new Error("No LLM provider available for query generation (need OPENROUTER_API_KEY or XAI_API_KEY)");
 }
-
-const openai = new OpenAI({ 
-  baseURL: "https://api.x.ai/v1", 
-  apiKey: process.env.XAI_API_KEY 
-});
 
 /**
  * NAP Input - Universal structure for any role
@@ -150,25 +161,40 @@ Respond in JSON format:
   "estimatedCoverage": "<Expected % of addressable market these queries will reach>"
 }`;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: "grok-2",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert executive search consultant. Generate comprehensive, targeted LinkedIn search queries. Always respond with valid JSON. Generate ONLY simple keyword queries without Boolean operators, parentheses, or quotes."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 2000,
-      temperature: 0.7 // Slight creativity for query variations
-    });
+  // Try DeepSeek first, fall back to Grok if it fails
+  // DeepSeek may not support response_format, so we handle errors gracefully
+  async function tryGenerateQueries(provider: LLMProvider): Promise<string> {
+    const supportsJsonFormat = provider === 'grok' || provider === 'openai';
+    
+    return callLLM(
+      provider,
+      "You are an expert executive search consultant. Generate comprehensive, targeted LinkedIn search queries. Always respond with valid JSON. Generate ONLY simple keyword queries without Boolean operators, parentheses, or quotes.",
+      prompt,
+      {
+        temperature: 0.7,
+        maxTokens: 2000,
+        ...(supportsJsonFormat ? { responseFormat: { type: 'json_object' as const } } : {})
+      }
+    );
+  }
 
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+  try {
+    let response: string;
+    const primaryProvider = getQueryProvider();
+    
+    try {
+      response = await tryGenerateQueries(primaryProvider);
+    } catch (primaryError) {
+      // If DeepSeek fails, fall back to Grok
+      if (primaryProvider === 'deepseek') {
+        console.log(`[Query Generator] DeepSeek failed, falling back to Grok: ${primaryError}`);
+        response = await tryGenerateQueries('grok');
+      } else {
+        throw primaryError;
+      }
+    }
+
+    const result = JSON.parse(response || "{}");
     
     // Validate and structure response
     const strategy: MultiQueryStrategy = {
@@ -250,24 +276,38 @@ Respond in JSON format:
   "totalPoints": 70
 }`;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: "grok-2",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert at analyzing job requirements and extracting measurable hard skills. Always respond with valid JSON. Extract only hard skills that appear on LinkedIn profiles."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 500
-    });
+  // Try DeepSeek first, fall back to Grok if it fails
+  async function tryExtractSkills(provider: LLMProvider): Promise<string> {
+    const supportsJsonFormat = provider === 'grok' || provider === 'openai';
+    
+    return callLLM(
+      provider,
+      "You are an expert at analyzing job requirements and extracting measurable hard skills. Always respond with valid JSON. Extract only hard skills that appear on LinkedIn profiles.",
+      prompt,
+      {
+        maxTokens: 500,
+        ...(supportsJsonFormat ? { responseFormat: { type: 'json_object' as const } } : {})
+      }
+    );
+  }
 
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+  try {
+    let response: string;
+    const primaryProvider = getQueryProvider();
+    
+    try {
+      response = await tryExtractSkills(primaryProvider);
+    } catch (primaryError) {
+      // If DeepSeek fails, fall back to Grok
+      if (primaryProvider === 'deepseek') {
+        console.log(`[Query Generator] DeepSeek failed for skills, falling back to Grok: ${primaryError}`);
+        response = await tryExtractSkills('grok');
+      } else {
+        throw primaryError;
+      }
+    }
+
+    const result = JSON.parse(response || "{}");
     const hardSkills = result.hardSkills || {};
     
     console.log(`   ✅ Extracted ${Object.keys(hardSkills).length} hard skills:`);

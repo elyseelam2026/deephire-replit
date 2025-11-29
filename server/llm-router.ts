@@ -107,7 +107,7 @@ export function getAvailableProviders(): Array<{ provider: LLMProvider; availabl
     },
     {
       provider: 'deepseek',
-      available: !!process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
+      available: !!(process.env.OPENROUTER_API_KEY || process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY),
       model: 'DeepSeek (via OpenRouter)'
     },
     {
