@@ -3074,66 +3074,88 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
               console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
             }
             
-            // Build search criteria from context
-            const searchCriteria = {
+            // Build search criteria - map to LinkedInSearchParams format
+            const linkedInSearchParams = {
               title: updatedSearchContext.title,
-              skills: updatedSearchContext.skills || [],
+              keywords: updatedSearchContext.skills || [],
               location: updatedSearchContext.location,
-              yearsExperience: updatedSearchContext.yearsExperience,
-              seniorityLevel: (updatedSearchContext as any).seniorityLevel,
               industry: updatedSearchContext.industry
             };
             
-            console.log(`[URGENT SEARCH] Criteria:`, searchCriteria);
+            console.log(`[URGENT SEARCH] LinkedIn Search Params:`, linkedInSearchParams);
             
-            // EXECUTE SEARCH SYNCHRONOUSLY - WAIT FOR RESULTS
+            // EXECUTE SEARCH - Call directly without fetch (avoids localhost issues)
             // CRITICAL: Pass jobId so sourcing run links to the job
-            const searchRes = await fetch('http://localhost:5000/api/sourcing/search', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                searchCriteria,
-                jobId: createdJobId  // Link sourcing run to job!
-              })
-            });
-            const searchResult = await searchRes.json();
-            const runId = searchResult.runId;
-            console.log(`[URGENT SEARCH] Sourcing run started:`, runId);
+            console.log(`[URGENT SEARCH] Starting search with jobId: ${createdJobId}`);
             
-            // WAIT FOR CANDIDATES TO BE FOUND (poll for up to 10 seconds)
-            let foundCandidates: any[] = [];
-            let pollAttempts = 0;
-            const maxPolls = 20; // 20 attempts * 500ms = 10 seconds
-            
-            while (pollAttempts < maxPolls) {
-              await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms between polls
+            try {
+              // Call searchLinkedInPeople directly instead of via fetch
+              const searchResults = await searchLinkedInPeople(linkedInSearchParams);
               
-              const statusRes = await fetch(`http://localhost:5000/api/sourcing/${runId}/candidates`);
-              const statusData = await statusRes.json();
-              foundCandidates = statusData.candidates || [];
-              
-              console.log(`[URGENT SEARCH] Poll ${pollAttempts}: Found ${foundCandidates.length} candidates`);
-              
-              // If we found candidates, stop polling
-              if (foundCandidates.length > 0) {
-                console.log(`[URGENT SEARCH] ✅ Found ${foundCandidates.length} candidates!`);
-                break;
+              if (!searchResults || searchResults.profiles.length === 0) {
+                console.log(`[URGENT SEARCH] No LinkedIn profiles found`);
+                
+                // Create sourcing run with zero results
+                const sourcingRun = await storage.createSourcingRun({
+                  jobId: createdJobId || null,
+                  searchType: 'linkedin_people_search',
+                  searchQuery: linkedInSearchParams,
+                  searchIntent: `LinkedIn search: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
+                  status: 'completed',
+                  progress: {
+                    phase: 'completed',
+                    profilesFound: 0,
+                    profilesFetched: 0,
+                    profilesProcessed: 0,
+                    candidatesCreated: 0,
+                    candidatesDuplicate: 0,
+                    currentBatch: 0,
+                    totalBatches: 0,
+                    message: '⚠️ No LinkedIn profiles found for search criteria'
+                  } as any,
+                  candidatesCreated: []
+                });
+                
+                aiResponse = `🔍 **Search Initiated**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + '+' : 'Any'} years\n\n⏱️ Real LinkedIn search in progress. Candidates will be found and I'll update you shortly.\n\nSearch run ID: ${sourcingRun.id}`;
+              } else {
+                console.log(`[URGENT SEARCH] Found ${searchResults.profiles.length} profiles`);
+                
+                // Create sourcing run
+                const sourcingRun = await storage.createSourcingRun({
+                  jobId: createdJobId || null,
+                  searchType: 'linkedin_people_search',
+                  searchQuery: linkedInSearchParams,
+                  searchIntent: `LinkedIn search: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
+                  status: 'pending',
+                  progress: {
+                    phase: 'pending',
+                    profilesFound: searchResults.profiles.length,
+                    profilesFetched: 0,
+                    profilesProcessed: 0,
+                    candidatesCreated: 0,
+                    candidatesDuplicate: 0,
+                    currentBatch: 0,
+                    totalBatches: Math.ceil(searchResults.profiles.length / 5),
+                    message: `Found ${searchResults.profiles.length} profiles, starting fetch...`
+                  } as any,
+                  candidatesCreated: []
+                });
+                
+                console.log(`[URGENT SEARCH] Created sourcing run ${sourcingRun.id} with ${searchResults.profiles.length} profiles`);
+                
+                // Start async profile fetching in background
+                orchestrateProfileFetching({
+                  sourcingRunId: sourcingRun.id,
+                  profileUrls: searchResults.profiles.map(p => p.profileUrl)
+                }).catch(error => {
+                  console.error('[URGENT SEARCH] Profile fetching failed:', error);
+                });
+                
+                aiResponse = `✅ **Search Started!**\n\nFound **${searchResults.profiles.length} candidates** matching:\n• Role: ${updatedSearchContext.title}\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n\n🔄 Fetching detailed profiles now... This will take a few moments.\n\nSearch run ID: ${sourcingRun.id}`;
               }
-              
-              pollAttempts++;
-            }
-            
-            // BUILD RESPONSE WITH ACTUAL CANDIDATES OR MESSAGE
-            if (foundCandidates.length > 0) {
-              // Show real candidates
-              const candidateList = foundCandidates.slice(0, 10).map((c: any, i: number) => 
-                `${i + 1}. **${c.firstName || 'Candidate'} ${c.lastName || ''}** - ${c.currentTitle || 'Professional'}\n   LinkedIn: ${c.profileUrl || 'N/A'}`
-              ).join('\n\n');
-              
-              aiResponse = `✅ **Search Complete!**\n\nFound **${foundCandidates.length} candidates** matching your criteria:\n\n${candidateList}\n\n---\n\n💼 These are real LinkedIn profiles of ${updatedSearchContext.title} professionals. Review the profiles and reach out directly. I can help with messaging if needed.`;
-            } else {
-              // No candidates found yet but search is running
-              aiResponse = `🔍 **Search Initiated**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + '+' : 'Any'} years\n\n⏱️ Real LinkedIn search in progress. Candidates will be found and I'll update you shortly.\n\nSearch run ID: ${runId}`;
+            } catch (searchError: any) {
+              console.error('[URGENT SEARCH] Search failed:', searchError);
+              aiResponse = `❌ Search error: ${searchError.message || 'Unknown error'}. Please ensure SERPAPI_API_KEY is configured.`;
             }
           } catch (error) {
             console.error('[URGENT SEARCH] Error:', error);
