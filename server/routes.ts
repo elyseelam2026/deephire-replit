@@ -3546,8 +3546,8 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             searchStrategy,
             searchContext: updatedSearchContext,
             companyName: companyName || '',
-            userEmail: (req.session as any)?.email || 'client@example.com',
-            userName: (req.session as any)?.companyId ? 'Company User' : 'Client'
+            userEmail: 'client@example.com', // TODO: Get from auth system
+            userName: 'Client'
           }).catch((error) => {
             console.error(`❌ [ASYNC] Search orchestrator failed for job #${createdJobId}:`, error);
             // Update job status to failed if orchestrator crashes
@@ -4118,11 +4118,10 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
       // Create ingestion job for tracking
       let ingestionJob;
       if (files.length > 0 || urls.length > 0) {
-        const userId = getCurrentUserId(req);
         ingestionJob = await storage.createIngestionJob({
           fileName: files.length > 0 ? files.map(f => f.originalname).join(', ') : `URL batch (${urls.length} URLs)`,
           fileType: files.length > 0 ? await detectFileType(files[0]) : 'url',
-          uploadedById: userId,
+          uploadedById: null, // TODO: Get actual user ID from session when authentication is implemented
           entityType: 'company',
           status: 'processing',
           totalRecords: 0 // Will update after processing
