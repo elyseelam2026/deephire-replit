@@ -92,27 +92,34 @@ ${nap.hardSkillWeights
 **YOUR TASK:**
 Generate a comprehensive multi-query search strategy with 3 components:
 
-1. **PRIMARY BOOLEAN QUERIES (8-15 variations)**
-   - Create diverse LinkedIn Boolean search strings
-   - Include role title variations (e.g., "CFO" OR "Chief Financial Officer" OR "VP Finance")
-   - Combine must-have hard skills from NAP
-   - Add industry/pain-driven keywords
-   - Use geographic targeting if specified
-   - Create both broad and narrow variations
+1. **PRIMARY GOOGLE-FRIENDLY QUERIES (8-15 variations)**
+   - Create simple keyword combinations that Google search understands
+   - These will be executed via: "site:linkedin.com/in [your keywords]"
+   - Include role title variations (CFO, Chief Financial Officer, VP Finance - test each)
+   - Combine top 2-3 hard skills from NAP with each query
+   - Add industry/pain-driven keywords where relevant
+   - Use geographic location if specified
+   - Create both broad queries (2-3 skills) and narrow queries (all 3-4 skills)
+   
+   **FORMAT: Simple keywords separated by spaces, NO parentheses or Boolean operators**
    
    Examples:
-   - ("CFO" OR "Chief Financial Officer") ("M&A" OR "mergers") "Mandarin"
-   - ("VP Finance" OR "Finance Director") ("private equity" OR "PE") ("deal execution")
-   - ("Finance" OR "Financial") ("post-merger integration" OR "PMI") "Hong Kong"
+   - CFO M&A Mandarin (role + top 2 skills)
+   - Chief Financial Officer private equity deal (role + industry + skill)
+   - VP Finance Hong Kong PE (role + location + industry)
+   - CFO Mandarin fluency (role + specific skill)
+   - Finance Director M&A strategy (role variant + skill)
 
 2. **COMPETITOR MAPPING QUERIES (3-5 if applicable)**
    - Identify 3-5 peer companies/competitors in the industry
-   - Create targeted queries: "CompanyName" "Title" year
+   - Create simple queries: CompanyName Title (e.g., "Hillhouse Capital CFO")
+   - Include year if known
    - Only include if industry context is clear
    
    Examples:
-   - "Hillhouse Capital" "CFO" 2024
-   - "Baring Private Equity" "Finance Director" 2024
+   - Hillhouse Capital CFO
+   - Baring Private Equity Director Finance
+   - Blackstone Partner Finance 2024
 
 3. **X/TWITTER STRATEGIES (2-3 social signal queries)**
    - Create Twitter/X advanced search queries
@@ -120,17 +127,19 @@ Generate a comprehensive multi-query search strategy with 3 components:
    - Use from: operators for relevant accounts
    
    Examples:
-   - from:PE_Asia OR from:ChinaPE "mandarin" "CFO"
-   - from:LinkedInPEJobs "M&A" "CFO" "Hong Kong"
+   - from:PE_Asia CFO Mandarin
+   - from:ChinaPE recruitment director
+   - CFO job posting Hong Kong
 
 **CRITICAL RULES:**
 - UNIVERSAL: Queries must work for THIS SPECIFIC role (adapt to CFO, CTO, Associate, VP, etc.)
 - Focus on HARD SKILLS only (what's visible on LinkedIn profiles)
 - Each query must be DISTINCT (no duplicates)
-- Prioritize must-have skills with highest weights
+- **PRIORITY: Include top 2-3 highest-weighted skills in EVERY query**
 - Include location keywords if specified
-- Generate 8-15 Boolean queries minimum
-- Be specific but not overly restrictive
+- Generate 8-15 Google-friendly queries minimum
+- Use simple keywords only - NO parentheses, NO Boolean operators (AND/OR), NO quotes except for exact phrases
+- Be specific but not overly restrictive - start broad, then narrow
 
 Respond in JSON format:
 {
