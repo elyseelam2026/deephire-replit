@@ -2859,13 +2859,21 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           response: llmResponse
         };
 
-        // Check for search activation signals
+        // Check for search activation signals - PRIORITIZE USER INTENT OVER LLM KEYWORDS
+        // If user explicitly asks for candidates and we have title+company, trigger search
+        const userWantsSearchKeywords = ['candidates', 'find', 'help', 'can you', 'please', 'need', 'want', 'list of'];
+        const userExplicitlyWantsSearch = userWantsSearchKeywords.some(kw => message.toLowerCase().includes(kw)) && 
+                                          currentJobContext.title && 
+                                          updatedSearchContext.companyName;
+        
+        // Check for LLM-based search triggers
         const searchTriggers = ['INITIATING SEARCH', 'READY TO SEARCH', 'ready to search', 'ready for search', 'start search', 'begin search', 'activate search'];
-        if (searchTriggers.some(t => llmResponse.includes(t))) {
+        const llmTriggersSearch = searchTriggers.some(t => llmResponse.includes(t));
+        
+        // Trigger search if: user wants search AND we have enough info, OR LLM says to search, OR user wants to skip
+        if (userExplicitlyWantsSearch || llmTriggersSearch || (userWantsToSkip && currentJobContext.title)) {
           grokResponse.intent = 'ready_to_search';
-        } else if (userWantsToSkip && currentJobContext.title) {
-          // If user explicitly wants to skip and we have a title, trigger search
-          grokResponse.intent = 'ready_to_search';
+          console.log(`🎯 [SEARCH TRIGGER] userExplicit=${userExplicitlyWantsSearch}, llmTrigger=${llmTriggersSearch}, userSkip=${userWantsToSkip && currentJobContext.title}`);
         } else if (conversationHistory.length < 2) {
           grokResponse.intent = 'greeting';
         }
