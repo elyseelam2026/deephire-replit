@@ -295,7 +295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: parsedData.description,
           yearsExperience: parsedData.yearsExperience,
           industry: parsedData.industry,
-          responsibilities: parsedData.responsibilities
+          responsibilities: parsedData.responsibilities,
+          clientCompanyName: undefined
         }
       );
 
@@ -400,6 +401,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         
         // Stage 2: Score filtered candidates with AI
+        // Get company name from job's company reference
+        const jobCompany = job.companyId ? await storage.getCompany(job.companyId) : null;
+        
         const matches = await generateCandidateLonglist(
           filteredCandidates,
           job.skills,
@@ -409,7 +413,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             description: job.jdText,
             yearsExperience: (jobData.parsedData as any)?.yearsExperience,
             industry: (jobData.parsedData as any)?.industry,
-            responsibilities: (jobData.parsedData as any)?.responsibilities
+            responsibilities: (jobData.parsedData as any)?.responsibilities,
+            clientCompanyName: jobCompany?.name
           }
         );
 
@@ -707,6 +712,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           
           // Stage 2: Score filtered candidates with AI
+          // Get client company name from job's company reference
+          const clientCompany = job.companyId ? await storage.getCompany(job.companyId) : null;
+          
           const matches = await generateCandidateLonglist(
             filteredCandidates,
             jobSkills,
@@ -716,7 +724,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               description: job.jdText,
               yearsExperience: (job as any)?.yearsExperience,
               industry: (job as any)?.industry,
-              responsibilities: (job as any)?.responsibilities
+              responsibilities: (job as any)?.responsibilities,
+              clientCompanyName: clientCompany?.name
             },
             20
           );
@@ -2572,7 +2581,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               description: jobText,
               yearsExperience: finalCriteria.yearsExperience,
               industry: updatedSearchContext.industry,
-              responsibilities: (finalCriteria as any).responsibilities
+              responsibilities: (finalCriteria as any).responsibilities,
+              clientCompanyName: companyName
             },
             20 // Top 20 candidates
           );

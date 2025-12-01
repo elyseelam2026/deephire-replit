@@ -2224,9 +2224,22 @@ export async function scoreRoleFit(
     yearsExperience?: number;
     industry?: string;
     responsibilities?: string[];
+    clientCompanyName?: string;
   }
 ): Promise<number> {
   try {
+    // CRITICAL: Reject candidates already working at the client company
+    if (jobContext.clientCompanyName && candidate.currentCompany) {
+      const clientNameNorm = jobContext.clientCompanyName.toLowerCase().trim();
+      const candidateCompanyNorm = candidate.currentCompany.toLowerCase().trim();
+      
+      // Check for exact match or substring match (e.g., "PAG" in "Pacific Alliance Group")
+      if (candidateCompanyNorm.includes(clientNameNorm) || clientNameNorm.includes(candidateCompanyNorm)) {
+        console.log(`[Role Fit] ⚠️ REJECTED: ${candidate.firstName} ${candidate.lastName} already works at client "${candidate.currentCompany}"`);
+        return 0; // Disqualify - already at client
+      }
+    }
+    
     // Extract seniority level from job title to guide Grok evaluation
     const seniority = jobContext.title.match(/(head|chief|vp|vice president|director|senior|lead|manager)/i) 
       ? "executive/leadership" 
@@ -2399,6 +2412,7 @@ export async function generateCandidateLonglist(
     yearsExperience?: number;
     industry?: string;
     responsibilities?: string[];
+    clientCompanyName?: string;
   },
   limit: number = 20
 ): Promise<Array<{ candidateId: number; matchScore: number }>> {
@@ -2430,7 +2444,8 @@ export async function generateCandidateLonglist(
           description: jobContext.description || jobText,
           yearsExperience: jobContext.yearsExperience,
           industry: jobContext.industry,
-          responsibilities: jobContext.responsibilities
+          responsibilities: jobContext.responsibilities,
+          clientCompanyName: jobContext.clientCompanyName
         }
       );
       
