@@ -14,6 +14,7 @@ DeepHire is an AI-powered enterprise B2B recruiting platform that leverages xAI 
 - **Candidate visibility**: Added fallback mechanism - if AI scoring returns 0 matches, first 20 candidates auto-populate. 196 candidates in database, now properly displayed
 - **Route ordering**: Fixed Express route precedence bug (specific routes before generic)
 - **Candidate display restored (2025-12-01 12:48 UTC)**: Fixed CandidateLonglist component to properly handle flat API response from real-time candidate matching. Candidates now display in Jobs page "Quick View" with match scores and eligibility status.
+- **Google Search API integration (2025-12-01 15:20 UTC)**: Replaced SerpAPI with Google Custom Search API. Created `googleSearch()` helper and updated all web search functions: researchCompanyTeam(), researchCompanyEmailPattern(), searchLinkedInProfile(), and discoverTeamMembers() fallback searches.
 
 ## System Architecture
 

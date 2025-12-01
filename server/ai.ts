@@ -20,6 +20,41 @@ const openai = new OpenAI({
 });
 
 /**
+ * Google Search API helper function
+ * Replaces SerpAPI with Google Custom Search
+ */
+async function googleSearch(query: string, numResults: number = 10): Promise<any[]> {
+  const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+  const cxId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+  
+  if (!apiKey || !cxId) {
+    console.warn('⚠️ Google Search API not configured (GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID missing)');
+    return [];
+  }
+  
+  try {
+    const url = new URL('https://www.googleapis.com/customsearch/v1');
+    url.searchParams.append('q', query);
+    url.searchParams.append('cx', cxId);
+    url.searchParams.append('key', apiKey);
+    url.searchParams.append('num', Math.min(numResults, 10).toString());
+    
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      console.error(`Google Search API error: ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    return data.items || [];
+  } catch (error) {
+    console.error('Google Search API call failed:', error);
+    return [];
+  }
+}
+
+/**
  * Helper function to strip markdown code blocks from AI responses before JSON parsing
  * Handles: ```json {...} ``` or ``` {...} ```
  */
@@ -1538,24 +1573,14 @@ async function researchCompanyTeam(companyName: string): Promise<any[]> {
   const profiles: any[] = [];
   
   try {
-    // Use SerpAPI to search for company team members
-    const apiKey = process.env.SERPAPI_API_KEY;
-    if (!apiKey) {
-      console.log('[Company DNA] SERPAPI_API_KEY not configured');
-      return profiles;
-    }
-    
+    // Use Google Search API to search for company team members
     const query = `${companyName} employees site:linkedin.com/in`;
     console.log(`🔍 [Company DNA] Searching for team members: "${query}"`);
     
-    const url = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(query)}&engine=google&num=20`;
-    const response = await fetch(url);
+    const results = await googleSearch(query, 20);
     
-    if (response.ok) {
-      const data = await response.json();
-      const results = data.organic_results || [];
-      
-      // Extract basic info from search results (don't scrape full profiles to save credits)
+    if (results.length > 0) {
+      // Extract basic info from search results
       for (const result of results.slice(0, 15)) {
         const title = result.title || '';
         const snippet = result.snippet || '';
@@ -1681,13 +1706,6 @@ export async function researchCompanyEmailPattern(companyName: string): Promise<
   emailPattern: string | null;
 }> {
   try {
-    const apiKey = process.env.SERPAPI_API_KEY;
-    
-    if (!apiKey) {
-      console.error('SERPAPI_API_KEY not configured');
-      return { domain: null, emailPattern: null };
-    }
-    
     // Extract keywords for validation
     const companyKeywords = extractCompanyKeywords(companyName);
     console.log(`Company keywords for validation: ${companyKeywords.join(', ')}`);
@@ -1696,16 +1714,8 @@ export async function researchCompanyEmailPattern(companyName: string): Promise<
     const domainQuery = `${companyName} official website`;
     console.log(`Researching company domain: "${domainQuery}"`);
     
-    const domainSearchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(domainQuery)}&engine=google&num=10`;
-    const domainResponse = await fetch(domainSearchUrl);
-    
-    if (!domainResponse.ok) {
-      console.error(`Domain search failed with status: ${domainResponse.status}`);
-      return { domain: null, emailPattern: null };
-    }
-    
-    const domainData = await domainResponse.json();
-    const organicResults = domainData.organic_results || [];
+    const results = await googleSearch(domainQuery, 10);
+    const organicResults = results;
     
     // Extract and score all candidate domains
     const candidateDomains: Array<{ domain: string; score: number; rank: number }> = [];
@@ -1817,16 +1827,7 @@ export async function researchCompanyEmailPattern(companyName: string): Promise<
     const emailQuery = `${companyName} email format contact`;
     console.log(`Researching email pattern: "${emailQuery}"`);
     
-    const emailSearchUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(emailQuery)}&engine=google&num=5`;
-    const emailResponse = await fetch(emailSearchUrl);
-    
-    if (!emailResponse.ok) {
-      console.log('Email pattern search failed, will use default pattern');
-      return { domain, emailPattern: 'firstname.lastname' };
-    }
-    
-    const emailData = await emailResponse.json();
-    const emailResults = emailData.organic_results || [];
+    const emailResults = await googleSearch(emailQuery, 5);
     
     // Look for email patterns in snippets
     let emailPattern = 'firstname.lastname'; // default
@@ -1898,12 +1899,6 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
   reasons: string[];
 } | null> {
   try {
-    const apiKey = process.env.SERPAPI_API_KEY;
-    
-    if (!apiKey) {
-      console.error('SERPAPI_API_KEY not configured');
-      return null;
-    }
     
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
@@ -1923,15 +1918,10 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
     
     console.log(`\n[LinkedIn Search] Strategy 1 - Exact matching: "${exactQuery}"`);
     
-    const exactUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(exactQuery)}&engine=google&num=10`;
-    const exactResponse = await fetch(exactUrl);
-    
-    if (exactResponse.ok) {
-      const exactData = await exactResponse.json();
-      organicResults = exactData.organic_results || [];
-      queryUsed = exactQuery;
-      console.log(`[LinkedIn Search] Exact matching returned ${organicResults.length} results`);
-    }
+    let results = await googleSearch(exactQuery, 10);
+    organicResults = results;
+    queryUsed = exactQuery;
+    console.log(`[LinkedIn Search] Exact matching returned ${organicResults.length} results`);
     
     // STRATEGY 2: If exact matching finds nothing, try loose matching without quotes
     if (organicResults.length === 0) {
@@ -1947,15 +1937,10 @@ export async function searchLinkedInProfile(firstName: string, lastName: string,
       
       console.log(`[LinkedIn Search] Loose query: "${looseQuery}"`);
       
-      const looseUrl = `https://serpapi.com/search.json?api_key=${apiKey}&q=${encodeURIComponent(looseQuery)}&engine=google&num=10`;
-      const looseResponse = await fetch(looseUrl);
-      
-      if (looseResponse.ok) {
-        const looseData = await looseResponse.json();
-        organicResults = looseData.organic_results || [];
-        queryUsed = looseQuery;
-        console.log(`[LinkedIn Search] Loose matching returned ${organicResults.length} results`);
-      }
+      results = await googleSearch(looseQuery, 10);
+      organicResults = results;
+      queryUsed = looseQuery;
+      console.log(`[LinkedIn Search] Loose matching returned ${organicResults.length} results`);
     }
     
     console.log(`[LinkedIn Search] Found ${organicResults.length} results, validating each...`);
@@ -5008,9 +4993,8 @@ export async function discoverTeamMembers(websiteUrl: string): Promise<{
         for (const pattern of profilePatterns) {
           try {
             console.log(`[GOOGLE FALLBACK] Pattern: ${pattern}`);
-            const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(pattern)}&api_key=${process.env.SERPAPI_API_KEY}&num=100`;
-            const searchResponse = await fetch(serpApiUrl);
-            const searchData: any = await searchResponse.json();
+            const searchResults = await googleSearch(pattern, 100);
+            const searchData: any = { organic_results: searchResults };
             
             if (searchData.organic_results && searchData.organic_results.length > 0) {
               console.log(`[GOOGLE FALLBACK] ✓ Found ${searchData.organic_results.length} SERP results for ${pattern}`);
@@ -5131,11 +5115,9 @@ Return JSON object with "members" array:
         // Fallback to old approach if no individual profiles found
         console.log(`[GOOGLE FALLBACK] No individual profiles found, trying generic search...`);
         const searchQuery = `site:${domain} (team OR people OR leadership OR executives OR "our people" OR "management team" OR "executive team" OR directors OR officers)`;
-        const serpApiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${process.env.SERPAPI_API_KEY}&num=50`;
-        const searchResponse = await fetch(serpApiUrl);
-        const searchData: any = await searchResponse.json();
+        const genericSearchResults = await googleSearch(searchQuery, 50);
+        const searchData: any = { organic_results: genericSearchResults };
         
-        console.log(`[GOOGLE FALLBACK] SerpAPI response status: ${searchResponse.status}`);
         console.log(`[GOOGLE FALLBACK] Organic results count: ${searchData.organic_results?.length || 0}`);
         
         let searchSnippets = '';
