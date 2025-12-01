@@ -3240,55 +3240,63 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           console.log(`🚀 [URGENT SEARCH] Triggering real sourcing with title: ${updatedSearchContext.title}`);
           
           try {
-            // STEP 1: CREATE JOB RECORD (CRITICAL: Must happen before sourcing)
-            let jobCompanyId: number | undefined;
+            // STEP 1: REUSE EXISTING JOB IF AVAILABLE, OTHERWISE CREATE NEW ONE
             let createdJobId: number | undefined;
             
-            if (updatedSearchContext.companyName) {
-              try {
-                const existingCompanies = await storage.searchCompanies(updatedSearchContext.companyName);
-                if (existingCompanies.length > 0) {
-                  jobCompanyId = existingCompanies[0].parent.id;
-                } else {
-                  const newCompany = await storage.createCompany({
-                    name: updatedSearchContext.companyName,
-                    location: updatedSearchContext.location || 'Unknown'
-                  });
-                  jobCompanyId = newCompany.id;
-                }
-              } catch (err) {
-                console.error('Error handling company:', err);
-              }
-            }
-            if (!jobCompanyId) {
-              const allCompanies = await storage.getCompanies();
-              if (allCompanies.length > 0) {
-                jobCompanyId = allCompanies[0].id;
-              }
-            }
-            
-            if (jobCompanyId) {
-              const jobTitle = updatedSearchContext.title || 'Position (title not specified)';
-              const createdJob = await storage.createJob({
-                title: jobTitle,
-                companyId: jobCompanyId,
-                jdText: `Search for ${jobTitle} at ${updatedSearchContext.companyName || 'Company'}`,
-                skills: updatedSearchContext.skills,
-                status: 'active',
-                searchTier: 'external',
-                needAnalysis: updatedSearchContext as any,
-                urgency: updatedSearchContext.urgency
-              });
-              createdJobId = createdJob.id;
-              
-              // Link this job to the conversation (prevents future duplicate jobs in same conversation)
-              await storage.updateConversation(conversationId, {
-                jobId: createdJob.id
-              });
-              
-              console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJobId}`);
+            // CHECK IF CONVERSATION ALREADY HAS A JOB (prevents duplicates)
+            if (conversation.jobId) {
+              console.log(`✅ [URGENT SEARCH] Reusing existing job #${conversation.jobId} for this conversation`);
+              createdJobId = conversation.jobId;
             } else {
-              console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
+              // CREATE NEW JOB ONLY IF THIS CONVERSATION DOESN'T HAVE ONE
+              let jobCompanyId: number | undefined;
+              
+              if (updatedSearchContext.companyName) {
+                try {
+                  const existingCompanies = await storage.searchCompanies(updatedSearchContext.companyName);
+                  if (existingCompanies.length > 0) {
+                    jobCompanyId = existingCompanies[0].parent.id;
+                  } else {
+                    const newCompany = await storage.createCompany({
+                      name: updatedSearchContext.companyName,
+                      location: updatedSearchContext.location || 'Unknown'
+                    });
+                    jobCompanyId = newCompany.id;
+                  }
+                } catch (err) {
+                  console.error('Error handling company:', err);
+                }
+              }
+              if (!jobCompanyId) {
+                const allCompanies = await storage.getCompanies();
+                if (allCompanies.length > 0) {
+                  jobCompanyId = allCompanies[0].id;
+                }
+              }
+              
+              if (jobCompanyId) {
+                const jobTitle = updatedSearchContext.title || 'Position (title not specified)';
+                const createdJob = await storage.createJob({
+                  title: jobTitle,
+                  companyId: jobCompanyId,
+                  jdText: `Search for ${jobTitle} at ${updatedSearchContext.companyName || 'Company'}`,
+                  skills: updatedSearchContext.skills,
+                  status: 'active',
+                  searchTier: 'external',
+                  needAnalysis: updatedSearchContext as any,
+                  urgency: updatedSearchContext.urgency
+                });
+                createdJobId = createdJob.id;
+                
+                // Link this job to the conversation (prevents future duplicate jobs in same conversation)
+                await storage.updateConversation(conversationId, {
+                  jobId: createdJob.id
+                });
+                
+                console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJobId}`);
+              } else {
+                console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
+              }
             }
             
             // Build search criteria - map to LinkedInSearchParams format
