@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Briefcase, MapPin, Clock, Users, TrendingUp, Building2, RotateCcw, Trash2 } from "lucide-react";
+import { Briefcase, MapPin, Clock, Users, TrendingUp, Building2, RotateCcw, Trash2, AlertCircle } from "lucide-react";
 import { Job, Company } from "@shared/schema";
 import { Link } from "wouter";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const formatDate = (dateString: string | Date) => {
   const date = new Date(dateString);
@@ -46,6 +47,21 @@ export default function Jobs() {
 
   const { data: deletedJobs } = useQuery<Job[]>({
     queryKey: ['/api/jobs/deleted'],
+  });
+
+  // Fetch candidates for selected job
+  const { data: candidates = [], isLoading: candidatesLoading } = useQuery<Array<{
+    id: number;
+    firstName: string;
+    lastName: string;
+    currentTitle: string;
+    currentCompany?: string;
+    matchScore?: number;
+    ineligibilityReason?: string;
+    status?: string;
+  }>>({
+    queryKey: selectedJob ? ['/api/jobs', selectedJob.id, 'candidates'] : ['candidates-empty'],
+    enabled: !!selectedJob,
   });
 
   // Create job mutation
@@ -490,6 +506,52 @@ export default function Jobs() {
                   </div>
                 </div>
               )}
+
+              <div className="border-t pt-6">
+                <h4 className="font-medium text-sm mb-3">Matched Candidates</h4>
+                {candidatesLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
+                  </div>
+                ) : candidates.length === 0 ? (
+                  <p className="text-muted-foreground text-sm py-4">No candidates matched this role yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {candidates.map((candidate: any) => (
+                      <div
+                        key={candidate.id}
+                        className="flex items-start justify-between gap-3 p-3 rounded-md border hover-elevate"
+                        data-testid={`candidate-row-${candidate.id}`}
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">
+                            {candidate.firstName} {candidate.lastName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {candidate.currentTitle || 'No title'} {candidate.currentCompany && `@ ${candidate.currentCompany}`}
+                          </div>
+                          {candidate.ineligibilityReason && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-yellow-600 dark:text-yellow-500">
+                              <AlertCircle className="h-3 w-3" />
+                              {candidate.ineligibilityReason}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <div className="font-semibold text-sm">{candidate.matchScore || 0}/100</div>
+                            {candidate.ineligibilityReason ? (
+                              <Badge variant="secondary" className="text-xs mt-1">Ineligible</Badge>
+                            ) : (
+                              <Badge className="text-xs mt-1 bg-green-600 hover:bg-green-700">Eligible</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
