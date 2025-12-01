@@ -79,7 +79,10 @@ export interface IStorage {
   getJobsForCompany(companyId: number): Promise<Job[]>;
   getJob(id: number): Promise<Job | undefined>;
   updateJob(id: number, updates: Partial<InsertJob>): Promise<Job | undefined>;
-  deleteJob(id: number): Promise<void>;
+  deleteJob(id: number): Promise<void>; // Soft delete
+  getDeletedJobs(): Promise<Job[]>; // Recycling bin
+  restoreJob(id: number): Promise<Job | undefined>; // Restore from recycling bin
+  permanentlyDeleteJob(id: number): Promise<void>; // Hard delete
   
   // Candidate management
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
@@ -678,29 +681,56 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getJobs(): Promise<Job[]> {
-    return await db.select().from(jobs).orderBy(desc(jobs.createdAt));
+    return await db.select().from(jobs)
+      .where(sql`${jobs.deletedAt} IS NULL`)
+      .orderBy(desc(jobs.createdAt));
   }
 
   async getJobsForCompany(companyId: number): Promise<Job[]> {
     return await db.select().from(jobs)
-      .where(eq(jobs.companyId, companyId))
+      .where(and(eq(jobs.companyId, companyId), sql`${jobs.deletedAt} IS NULL`))
       .orderBy(desc(jobs.createdAt));
   }
 
   async getJob(id: number): Promise<Job | undefined> {
-    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    const [job] = await db.select().from(jobs)
+      .where(and(eq(jobs.id, id), sql`${jobs.deletedAt} IS NULL`));
     return job || undefined;
   }
 
   async updateJob(id: number, updates: Partial<InsertJob>): Promise<Job | undefined> {
     const [job] = await db.update(jobs)
       .set({ ...updates, updatedAt: sql`now()` })
-      .where(eq(jobs.id, id))
+      .where(and(eq(jobs.id, id), sql`${jobs.deletedAt} IS NULL`))
       .returning();
     return job || undefined;
   }
 
   async deleteJob(id: number): Promise<void> {
+    // Soft delete: set deletedAt instead of hard delete
+    await db.update(jobs)
+      .set({ deletedAt: sql`now()` })
+      .where(eq(jobs.id, id));
+  }
+
+  async getDeletedJobs(): Promise<Job[]> {
+    // Recycling bin: show soft-deleted jobs
+    return await db.select().from(jobs)
+      .where(sql`${jobs.deletedAt} IS NOT NULL`)
+      .orderBy(desc(jobs.deletedAt));
+  }
+
+  async restoreJob(id: number): Promise<Job | undefined> {
+    // Restore from recycling bin
+    const [job] = await db.update(jobs)
+      .set({ deletedAt: null })
+      .where(eq(jobs.id, id))
+      .returning();
+    return job || undefined;
+  }
+
+  async permanentlyDeleteJob(id: number): Promise<void> {
+    // Hard delete: permanently remove job
     await db.delete(jobs).where(eq(jobs.id, id));
   }
 

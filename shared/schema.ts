@@ -368,6 +368,7 @@ export const jobs = pgTable("jobs", {
   
   createdAt: timestamp("created_at").default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`now()`).notNull(),
+  deletedAt: timestamp("deleted_at"), // Soft delete - null means active, timestamp means deleted
 });
 
 // Job Turnaround History - Audit trail for turnaround upgrades/downgrades

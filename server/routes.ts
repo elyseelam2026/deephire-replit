@@ -449,7 +449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete job endpoint
+  // Delete job endpoint (soft delete - moves to recycling bin)
   app.delete("/api/jobs/:id", async (req, res) => {
     try {
       const jobId = parseInt(req.params.id);
@@ -464,10 +464,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.deleteJob(jobId);
-      res.json({ success: true, message: "Job deleted successfully" });
+      res.json({ success: true, message: "Job moved to recycling bin" });
     } catch (error) {
       console.error("Error deleting job:", error);
       res.status(500).json({ error: "Failed to delete job" });
+    }
+  });
+
+  // Get deleted jobs (recycling bin)
+  app.get("/api/jobs/deleted", async (req, res) => {
+    try {
+      const deletedJobs = await storage.getDeletedJobs();
+      res.json(deletedJobs);
+    } catch (error) {
+      console.error("Error fetching deleted jobs:", error);
+      res.status(500).json({ error: "Failed to fetch deleted jobs" });
+    }
+  });
+
+  // Restore job from recycling bin
+  app.patch("/api/jobs/:id/restore", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      
+      if (isNaN(jobId)) {
+        return res.status(400).json({ error: "Invalid job ID" });
+      }
+
+      const restoredJob = await storage.restoreJob(jobId);
+      if (!restoredJob) {
+        return res.status(404).json({ error: "Job not found in recycling bin" });
+      }
+
+      res.json({ success: true, job: restoredJob, message: "Job restored successfully" });
+    } catch (error) {
+      console.error("Error restoring job:", error);
+      res.status(500).json({ error: "Failed to restore job" });
+    }
+  });
+
+  // Permanently delete job
+  app.delete("/api/jobs/:id/permanent", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      
+      if (isNaN(jobId)) {
+        return res.status(400).json({ error: "Invalid job ID" });
+      }
+
+      await storage.permanentlyDeleteJob(jobId);
+      res.json({ success: true, message: "Job permanently deleted" });
+    } catch (error) {
+      console.error("Error permanently deleting job:", error);
+      res.status(500).json({ error: "Failed to permanently delete job" });
     }
   });
 
