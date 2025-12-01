@@ -689,6 +689,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (job && (job.title || job.jdText)) {
           // GROK DISCOVERY: First try to discover real executive candidates
           console.log(`[Grok Discovery] Attempting to discover real candidates for "${job.title}"...`);
+          
+          // Fetch conversation history if available
+          let conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+          if ((job as any)?.conversationId) {
+            try {
+              const conversation = await storage.getConversation((job as any).conversationId);
+              if (conversation && (conversation as any).messages) {
+                conversationHistory = (conversation as any).messages;
+              }
+            } catch (err) {
+              console.log(`[Grok Discovery] Could not fetch conversation history`);
+            }
+          }
+          
           const discoveredCandidates = await discoverExecutiveCandidates({
             title: job.title || "Executive Position",
             industry: (job as any)?.industry,
@@ -696,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             yearsExperience: (job as any)?.yearsExperience,
             targetCompanies: (job as any)?.targetCompanies,
             successCriteria: (job as any)?.successCriteria
-          }, 10);
+          }, 10, conversationHistory);
           
           // If Grok found real candidates, fetch and score them
           if (discoveredCandidates && discoveredCandidates.length > 0) {

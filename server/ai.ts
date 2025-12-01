@@ -7027,8 +7027,8 @@ Format it cleanly in markdown. Make it professional and actionable.`;
 
 /**
  * GROK-POWERED CANDIDATE DISCOVERY
- * Instead of searching database garbage, ask Grok to generate REAL candidate names + LinkedIn URLs
- * This is what Grok is actually good at - knowing who the real executives are
+ * Ask Grok to generate REAL candidate names + LinkedIn URLs WITH FULL CONVERSATION CONTEXT
+ * This works because Grok has the complete dialogue to understand nuanced requirements
  */
 export async function discoverExecutiveCandidates(
   jobData: {
@@ -7036,10 +7036,12 @@ export async function discoverExecutiveCandidates(
     industry?: string;
     skills?: string[];
     yearsExperience?: number;
-    targetCompanies?: string[]; // "Citadel, Jump, Jane Street"
+    targetCompanies?: string[];
     successCriteria?: string;
+    jdText?: string;
   },
-  count: number = 10
+  count: number = 10,
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<Array<{
   name: string;
   currentRole: string;
@@ -7051,42 +7053,55 @@ export async function discoverExecutiveCandidates(
   try {
     const targetFirms = jobData.targetCompanies?.join(', ') || 'Top HFT/crypto firms (Citadel, Jump, Jane Street, DRW, Two Sigma, Binance, Coinbase, Kraken)';
     
-    const prompt = `You are an elite executive headhunter. Based on the job requirements below, identify REAL, SPECIFIC executives who currently work or recently worked at top firms.
+    // Build the full context from conversation if available
+    let fullContext = ``;
+    if (conversationHistory && conversationHistory.length > 0) {
+      fullContext = `**FULL CONVERSATION CONTEXT:**\n`;
+      conversationHistory.forEach(msg => {
+        fullContext += `${msg.role === 'user' ? 'Client' : 'Recruiter'}: ${msg.content}\n\n`;
+      });
+      fullContext += `\n---\n\n`;
+    }
 
-**JOB REQUIREMENTS:**
+    const prompt = `${fullContext}
+
+Based on the conversation and job requirements above, identify ${count} SPECIFIC, REAL executives who are actual fits for this role.
+
+**EXTRACTED JOB PROFILE:**
 - Title: ${jobData.title}
 - Industry: ${jobData.industry}
-- Skills: ${jobData.skills?.join(', ')}
+- Required Skills: ${jobData.skills?.join(', ')}
 - Experience: ${jobData.yearsExperience}+ years
 - Target Firms: ${targetFirms}
 - Success Criteria: ${jobData.successCriteria}
 
 **TASK:**
-Generate ${count} SPECIFIC, REAL candidates with their actual names, current roles, companies, and LinkedIn profile URLs.
-These must be REAL people at REAL firms - not made up.
+Using your knowledge of real executives in this space, provide ${count} SPECIFIC candidates:
+- Real people with real LinkedIn URLs
+- Currently or recently working at relevant firms
+- Whose backgrounds actually match the conversational context
 
-For each candidate, provide:
+For each candidate:
 1. Full name
-2. Current job title
-3. Current company
-4. LinkedIn profile URL (format: https://linkedin.com/in/username)
-5. Why they fit this role (2-3 sentences)
-6. Estimated fit score (0-100 based on background relevance)
+2. Current/recent job title
+3. Current/recent company
+4. LinkedIn URL (real, verifiable format)
+5. Why they fit (based on conversation context)
+6. Fit score (0-100)
 
-Return as JSON array:
+Return JSON array:
 [
   {
-    "name": "Steve Hunt",
-    "currentRole": "CTO",
-    "currentCompany": "DRW Trading",
-    "linkedinUrl": "https://linkedin.com/in/steve-hunt-xxx",
-    "reasoning": "10+ years HFT infrastructure at Jump, 6.5 years VP Engineering at Kraken building crypto matching engines",
-    "estimatedFitScore": 92
-  },
-  ...
+    "name": "First Last",
+    "currentRole": "Title",
+    "currentCompany": "Company",
+    "linkedinUrl": "https://linkedin.com/in/username",
+    "reasoning": "Why they fit based on the conversation",
+    "estimatedFitScore": 85
+  }
 ]
 
-DO NOT make up names or URLs. Only include executives you have REAL knowledge of.`;
+CRITICAL: Only real people you have knowledge of. No fabrications.`;
 
     const response = await openai.chat.completions.create({
       model: "grok-2-1212",
@@ -7101,7 +7116,7 @@ DO NOT make up names or URLs. Only include executives you have REAL knowledge of
     const content = response.choices[0].message.content || "[]";
     const candidates = JSON.parse(stripMarkdownJson(content));
 
-    console.log(`[Grok Discovery] Found ${candidates.length} real executive candidates`);
+    console.log(`[Grok Discovery] Found ${candidates.length} real executive candidates with full context`);
     return Array.isArray(candidates) ? candidates : [];
   } catch (error) {
     console.error("Error discovering executive candidates:", error);
