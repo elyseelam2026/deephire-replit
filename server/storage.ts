@@ -22,7 +22,7 @@ import {
   type ApiUsageLog, type InsertApiUsageLog, type CostAlert, type InsertCostAlert
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, or, ilike, ne } from "drizzle-orm";
+import { eq, desc, sql, and, or, ilike, ne, isNull, isNotNull } from "drizzle-orm";
 
 // Multi-tenant context
 export interface TenantContext {
@@ -682,26 +682,26 @@ export class DatabaseStorage implements IStorage {
 
   async getJobs(): Promise<Job[]> {
     return await db.select().from(jobs)
-      .where(sql`${jobs.deletedAt} IS NULL`)
+      .where(isNull(jobs.deletedAt))
       .orderBy(desc(jobs.createdAt));
   }
 
   async getJobsForCompany(companyId: number): Promise<Job[]> {
     return await db.select().from(jobs)
-      .where(and(eq(jobs.companyId, companyId), sql`${jobs.deletedAt} IS NULL`))
+      .where(and(eq(jobs.companyId, companyId), isNull(jobs.deletedAt)))
       .orderBy(desc(jobs.createdAt));
   }
 
   async getJob(id: number): Promise<Job | undefined> {
     const [job] = await db.select().from(jobs)
-      .where(and(eq(jobs.id, id), sql`${jobs.deletedAt} IS NULL`));
+      .where(and(eq(jobs.id, id), isNull(jobs.deletedAt)));
     return job || undefined;
   }
 
   async updateJob(id: number, updates: Partial<InsertJob>): Promise<Job | undefined> {
     const [job] = await db.update(jobs)
       .set({ ...updates, updatedAt: sql`now()` })
-      .where(and(eq(jobs.id, id), sql`${jobs.deletedAt} IS NULL`))
+      .where(and(eq(jobs.id, id), isNull(jobs.deletedAt)))
       .returning();
     return job || undefined;
   }
@@ -716,7 +716,7 @@ export class DatabaseStorage implements IStorage {
   async getDeletedJobs(): Promise<Job[]> {
     // Recycling bin: show soft-deleted jobs
     return await db.select().from(jobs)
-      .where(sql`${jobs.deletedAt} IS NOT NULL`)
+      .where(isNotNull(jobs.deletedAt))
       .orderBy(desc(jobs.deletedAt));
   }
 

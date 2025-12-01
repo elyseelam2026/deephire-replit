@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Briefcase, MapPin, Clock, Users, TrendingUp, Building2 } from "lucide-react";
+import { Briefcase, MapPin, Clock, Users, TrendingUp, Building2, RotateCcw, Trash2 } from "lucide-react";
 import { Job, Company } from "@shared/schema";
 import { Link } from "wouter";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,7 @@ const formatDate = (dateString: string | Date) => {
 export default function Jobs() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showPostJobDialog, setShowPostJobDialog] = useState(false);
+  const [showRecyclingBin, setShowRecyclingBin] = useState(false);
   const [newJobData, setNewJobData] = useState({
     title: "",
     companyId: "",
@@ -41,6 +42,10 @@ export default function Jobs() {
 
   const { data: companies } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
+  });
+
+  const { data: deletedJobs } = useQuery<Job[]>({
+    queryKey: ['/api/jobs/deleted'],
   });
 
   // Create job mutation
@@ -76,14 +81,60 @@ export default function Jobs() {
     onSuccess: () => {
       toast({
         title: "Success!",
-        description: "Job deleted successfully",
+        description: "Job moved to recycling bin",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/deleted'] });
     },
     onError: (error) => {
       toast({
         title: "Error",
         description: "Failed to delete job",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Restore job mutation
+  const restoreJob = useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await apiRequest('PATCH', `/api/jobs/${jobId}/restore`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success!",
+        description: "Job restored from recycling bin",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/deleted'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to restore job",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Permanently delete job mutation
+  const permanentlyDeleteJob = useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await apiRequest('DELETE', `/api/jobs/${jobId}/permanent`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success!",
+        description: "Job permanently deleted",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/deleted'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to permanently delete job",
         variant: "destructive",
       });
     },
@@ -180,10 +231,16 @@ export default function Jobs() {
             Manage job postings and track candidates ({jobs?.length || 0} total)
           </p>
         </div>
-        <Button onClick={() => setShowPostJobDialog(true)} data-testid="button-post-job">
-          <Briefcase className="h-4 w-4 mr-2" />
-          Post Job
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowRecyclingBin(!showRecyclingBin)} data-testid="button-recycling-bin">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Recycling Bin ({deletedJobs?.length || 0})
+          </Button>
+          <Button onClick={() => setShowPostJobDialog(true)} data-testid="button-post-job">
+            <Briefcase className="h-4 w-4 mr-2" />
+            Post Job
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -289,7 +346,68 @@ export default function Jobs() {
         ))}
       </div>
 
-      {jobs?.length === 0 && (
+      {showRecyclingBin && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold">Recycling Bin</h2>
+            <p className="text-muted-foreground">Deleted jobs can be restored or permanently removed</p>
+          </div>
+          
+          {deletedJobs && deletedJobs.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {deletedJobs.map((job) => (
+                <Card key={job.id} className="opacity-75" data-testid={`deleted-job-card-${job.id}`}>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{job.title}</CardTitle>
+                    {job.department && (
+                      <CardDescription>{job.department}</CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      Deleted {formatDate(job.deletedAt || job.createdAt)}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => restoreJob.mutate(job.id!)}
+                        disabled={restoreJob.isPending}
+                        data-testid={`button-restore-job-${job.id}`}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Restore
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="flex-1"
+                        onClick={() => permanentlyDeleteJob.mutate(job.id!)}
+                        disabled={permanentlyDeleteJob.isPending}
+                        data-testid={`button-permanent-delete-job-${job.id}`}
+                      >
+                        Permanent Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="pt-6 text-center">
+                <Trash2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Recycling bin is empty</h3>
+                <p className="text-muted-foreground">
+                  Deleted jobs will appear here and can be restored.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {!showRecyclingBin && jobs?.length === 0 && (
         <Card>
           <CardContent className="pt-6 text-center">
             <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -305,8 +423,10 @@ export default function Jobs() {
         </Card>
       )}
 
-      {/* Job Detail Modal */}
-      <Dialog open={!!selectedJob} onOpenChange={(open) => !open && setSelectedJob(null)}>
+      {!showRecyclingBin && (
+        <>
+          {/* Job Detail Modal */}
+          <Dialog open={!!selectedJob} onOpenChange={(open) => !open && setSelectedJob(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid={`job-profile-${selectedJob?.id}`}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
@@ -476,6 +596,8 @@ export default function Jobs() {
           </div>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

@@ -427,6 +427,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get deleted jobs (recycling bin) - MUST come before :id route
+  app.get("/api/jobs/deleted", async (req, res) => {
+    try {
+      const deletedJobs = await storage.getDeletedJobs();
+      res.json(deletedJobs);
+    } catch (error) {
+      console.error("Error fetching deleted jobs:", error);
+      res.status(500).json({ error: "Failed to fetch deleted jobs" });
+    }
+  });
+
   // Get job by ID with matches
   app.get("/api/jobs/:id", async (req, res) => {
     try {
@@ -468,17 +479,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting job:", error);
       res.status(500).json({ error: "Failed to delete job" });
-    }
-  });
-
-  // Get deleted jobs (recycling bin)
-  app.get("/api/jobs/deleted", async (req, res) => {
-    try {
-      const deletedJobs = await storage.getDeletedJobs();
-      res.json(deletedJobs);
-    } catch (error) {
-      console.error("Error fetching deleted jobs:", error);
-      res.status(500).json({ error: "Failed to fetch deleted jobs" });
     }
   });
 
