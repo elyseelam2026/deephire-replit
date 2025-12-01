@@ -3243,12 +3243,12 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             // STEP 1: REUSE EXISTING JOB IF AVAILABLE, OTHERWISE CREATE NEW ONE
             let createdJobId: number | undefined;
             
-            // CHECK IF CONVERSATION ALREADY HAS A JOB (prevents duplicates)
-            if (conversation.jobId) {
-              console.log(`✅ [URGENT SEARCH] Reusing existing job #${conversation.jobId} for this conversation`);
-              createdJobId = conversation.jobId;
+            // CHECK IF CONVERSATION ALREADY HAS A JOB FROM PREVIOUS SEARCHES (prevents duplicates)
+            if (existingJob) {
+              console.log(`✅ [URGENT SEARCH] Reusing existing job #${existingJob.id} for this conversation`);
+              createdJobId = existingJob.id;
             } else {
-              // CREATE NEW JOB ONLY IF THIS CONVERSATION DOESN'T HAVE ONE
+              // CREATE NEW JOB ONLY IF THIS CONVERSATION DOESN'T HAVE ONE YET
               let jobCompanyId: number | undefined;
               
               if (updatedSearchContext.companyName) {
