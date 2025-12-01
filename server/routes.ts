@@ -730,7 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             20
           );
           
-          // Return matched candidates with their scores
+          // Return matched candidates with their scores (including ineligible but qualified)
           const matchedWithDetails = [];
           for (const match of matches) {
             const candidate = await storage.getCandidate(match.candidateId);
@@ -738,7 +738,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               matchedWithDetails.push({
                 ...candidate,
                 matchScore: match.matchScore,
-                status: "recommended"
+                ineligibilityReason: (match as any).ineligibilityReason,
+                status: (match as any).ineligibilityReason ? "ineligible" : "recommended"
               });
             }
           }

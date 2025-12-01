@@ -2226,17 +2226,16 @@ export async function scoreRoleFit(
     responsibilities?: string[];
     clientCompanyName?: string;
   }
-): Promise<number> {
+): Promise<{ score: number; ineligibilityReason?: string }> {
   try {
-    // CRITICAL: Reject candidates already working at the client company
+    // Check if candidate already works at client (mark as ineligible but still score)
+    let ineligibilityReason: string | undefined;
     if (jobContext.clientCompanyName && candidate.currentCompany) {
       const clientNameNorm = jobContext.clientCompanyName.toLowerCase().trim();
       const candidateCompanyNorm = candidate.currentCompany.toLowerCase().trim();
       
-      // Check for exact match or substring match (e.g., "PAG" in "Pacific Alliance Group")
       if (candidateCompanyNorm.includes(clientNameNorm) || clientNameNorm.includes(candidateCompanyNorm)) {
-        console.log(`[Role Fit] ⚠️ REJECTED: ${candidate.firstName} ${candidate.lastName} already works at client "${candidate.currentCompany}"`);
-        return 0; // Disqualify - already at client
+        ineligibilityReason = `Already works at client "${candidate.currentCompany}"`;
       }
     }
     
@@ -2294,12 +2293,16 @@ Respond in JSON: {"score": <0-100>, "reasoning": "<brief explanation>"}`;
     const result = JSON.parse(response.choices[0].message.content || "{}");
     const score = Math.max(0, Math.min(100, result.score || 0));
     
-    console.log(`[Role Fit] ${candidate.firstName} ${candidate.lastName} (${candidate.currentTitle}) → ${jobContext.title}: ${score}/100`);
+    if (ineligibilityReason) {
+      console.log(`[Role Fit] ${candidate.firstName} ${candidate.lastName} (${candidate.currentTitle}) → ${jobContext.title}: ${score}/100 ⚠️ ${ineligibilityReason}`);
+    } else {
+      console.log(`[Role Fit] ${candidate.firstName} ${candidate.lastName} (${candidate.currentTitle}) → ${jobContext.title}: ${score}/100`);
+    }
     
-    return score;
+    return { score, ineligibilityReason };
   } catch (error) {
     console.error(`[Role Fit] Error scoring candidate:`, error);
-    return 0; // Fail closed - don't return candidates we can't evaluate
+    return { score: 0 }; // Fail closed - don't return candidates we can't evaluate
   }
 }
 
@@ -2415,7 +2418,7 @@ export async function generateCandidateLonglist(
     clientCompanyName?: string;
   },
   limit: number = 20
-): Promise<Array<{ candidateId: number; matchScore: number }>> {
+): Promise<Array<{ candidateId: number; matchScore: number; ineligibilityReason?: string }>> {
   // QUALITY THRESHOLD: Only return candidates with score >= 60 to prevent API credit waste
   const QUALITY_THRESHOLD = 60;
   
@@ -2423,11 +2426,11 @@ export async function generateCandidateLonglist(
   if (jobContext?.title) {
     console.log(`[Candidate Longlist] Using Grok-powered role-fit scoring for "${jobContext.title}"`);
     
-    const roleScores: Array<{ candidateId: number; matchScore: number }> = [];
+    const roleScores: Array<{ candidateId: number; matchScore: number; ineligibilityReason?: string }> = [];
     
     // Score each candidate against the specific role
     for (const candidate of candidates) {
-      const score = await scoreRoleFit(
+      const result = await scoreRoleFit(
         {
           id: candidate.id,
           firstName: candidate.firstName,
@@ -2449,8 +2452,13 @@ export async function generateCandidateLonglist(
         }
       );
       
-      if (score >= QUALITY_THRESHOLD) {
-        roleScores.push({ candidateId: candidate.id, matchScore: score });
+      // Include all candidates with qualifying scores, even if ineligible (so we can show why)
+      if (result.score >= QUALITY_THRESHOLD) {
+        roleScores.push({ 
+          candidateId: candidate.id, 
+          matchScore: result.score,
+          ineligibilityReason: result.ineligibilityReason
+        });
       }
     }
     
