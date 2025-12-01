@@ -65,13 +65,26 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
   const filtered = candidates
     .filter(jc => {
       if (!search) return true;
-      const text = `${jc.candidate.firstName} ${jc.candidate.lastName} ${jc.candidate.currentTitle || ''} ${jc.candidate.currentCompany || ''}`.toLowerCase();
+      // Handle both flat structure (from real-time match) and nested structure (from DB)
+      const isFlat = !jc.candidate;
+      const firstName = isFlat ? (jc as any).firstName : jc.candidate.firstName;
+      const lastName = isFlat ? (jc as any).lastName : jc.candidate.lastName;
+      const title = isFlat ? (jc as any).currentTitle : jc.candidate.currentTitle;
+      const company = isFlat ? (jc as any).currentCompany : jc.candidate.currentCompany;
+      
+      const text = `${firstName} ${lastName} ${title || ''} ${company || ''}`.toLowerCase();
       return text.includes(search.toLowerCase());
     })
     .sort((a, b) => {
-      if (sortBy === "fit") return (b.fitScore ?? 0) - (a.fitScore ?? 0);
+      if (sortBy === "fit") {
+        const aScore = (a as any).matchScore ?? (a.fitScore ?? 0);
+        const bScore = (b as any).matchScore ?? (b.fitScore ?? 0);
+        return bScore - aScore;
+      }
       if (sortBy === "hardSkill") return (b.hardSkillScore ?? 0) - (a.hardSkillScore ?? 0);
-      return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+      const aDate = (a as any).addedAt ? new Date((a as any).addedAt).getTime() : 0;
+      const bDate = (b as any).addedAt ? new Date((b as any).addedAt).getTime() : 0;
+      return bDate - aDate;
     });
 
   if (isLoading) {
@@ -134,8 +147,18 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
           </div>
         ) : (
           filtered.map((jc) => {
-            const candidate = jc.candidate;
-            const initials = `${candidate.firstName[0]}${candidate.lastName[0]}`.toUpperCase();
+            // Handle both flat structure and nested structure
+            const isFlat = !(jc as any).candidate;
+            const candidate = isFlat ? jc : (jc as any).candidate;
+            const firstName = isFlat ? (jc as any).firstName : candidate?.firstName;
+            const lastName = isFlat ? (jc as any).lastName : candidate?.lastName;
+            const title = isFlat ? (jc as any).currentTitle : candidate?.currentTitle;
+            const company = isFlat ? (jc as any).currentCompany : candidate?.currentCompany;
+            const location = isFlat ? (jc as any).location : candidate?.location;
+            const candidateId = isFlat ? (jc as any).id : candidate?.id;
+            const matchScore = (jc as any).matchScore ?? (jc.fitScore ?? 0);
+            
+            const initials = firstName && lastName ? `${firstName[0]}${lastName[0]}`.toUpperCase() : "?";
             
             return (
               <Card 
@@ -143,7 +166,7 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
                 className="p-4 hover-elevate cursor-pointer" 
                 data-testid={`card-candidate-${jc.id}`}
                 onClick={() => {
-                  setSelectedCandidateId(candidate.id);
+                  setSelectedCandidateId(candidateId);
                   setIsModalOpen(true);
                 }}
               >
@@ -156,31 +179,31 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
                   {/* Main Info */}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-base truncate" data-testid={`text-candidate-name-${jc.id}`}>
-                      {candidate.firstName} {candidate.lastName}
+                      {firstName} {lastName}
                     </h3>
                     
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2 flex-wrap">
-                      {candidate.currentTitle && (
+                      {title && (
                         <span className="flex items-center gap-1">
                           <Briefcase className="h-3 w-3" />
-                          {candidate.currentTitle}
+                          {title}
                         </span>
                       )}
-                      {candidate.currentCompany && (
-                        <span>{candidate.currentCompany}</span>
+                      {company && (
+                        <span>{company}</span>
                       )}
-                      {candidate.location && (
+                      {location && (
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
-                          {candidate.location}
+                          {location}
                         </span>
                       )}
                     </div>
 
                     {/* Skills Tags */}
-                    {candidate.skills && candidate.skills.length > 0 && (
+                    {candidate && candidate.skills && candidate.skills.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-3">
-                        {candidate.skills.slice(0, 4).map((skill) => (
+                        {candidate.skills.slice(0, 4).map((skill: any) => (
                           <Badge key={skill} variant="secondary" className="text-xs py-0">
                             {skill}
                           </Badge>
@@ -198,34 +221,36 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
                   <div className="flex items-start gap-6 flex-shrink-0">
                     <div className="text-right">
                       <div className="text-xs text-muted-foreground mb-1">Fit Score</div>
-                      <div className={`text-3xl font-bold ${getScoreColor(jc.fitScore)}`} data-testid={`text-fit-score-${jc.id}`}>
-                        {jc.fitScore ?? "—"}
+                      <div className={`text-3xl font-bold ${getScoreColor(matchScore)}`} data-testid={`text-fit-score-${jc.id}`}>
+                        {matchScore ?? "—"}
                       </div>
-                      <Badge variant={getScoreBadgeVariant(jc.fitScore)} className="mt-1 text-xs">
-                        {jc.status}
+                      <Badge variant={getScoreBadgeVariant(matchScore)} className="mt-1 text-xs">
+                        {(jc as any).status || 'eligible'}
                       </Badge>
                     </div>
 
-                    <div className="text-right">
-                      <div className="text-xs text-muted-foreground mb-1">Hard / Soft</div>
-                      <div className="text-sm font-semibold space-y-1">
-                        <div>
-                          <span className={getScoreColor(jc.hardSkillScore)}>{jc.hardSkillScore ?? "—"}</span>
-                          <span className="text-muted-foreground">/70</span>
-                        </div>
-                        <div>
-                          <span className={getScoreColor(jc.softSkillScore)}>{jc.softSkillScore ?? "—"}</span>
-                          <span className="text-muted-foreground">/30</span>
+                    {jc.hardSkillScore !== undefined && (
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground mb-1">Hard / Soft</div>
+                        <div className="text-sm font-semibold space-y-1">
+                          <div>
+                            <span className={getScoreColor(jc.hardSkillScore)}>{jc.hardSkillScore ?? "—"}</span>
+                            <span className="text-muted-foreground">/70</span>
+                          </div>
+                          <div>
+                            <span className={getScoreColor(jc.softSkillScore)}>{jc.softSkillScore ?? "—"}</span>
+                            <span className="text-muted-foreground">/30</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Quick View Button */}
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => {
-                        setSelectedCandidateId(candidate.id);
+                        setSelectedCandidateId(candidateId);
                         setIsModalOpen(true);
                       }}
                       data-testid={`button-quick-view-${jc.id}`}
@@ -234,7 +259,7 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
                     </Button>
 
                     {/* Full Profile Link */}
-                    <Link href={`/recruiting/candidates/${candidate.id}`}>
+                    <Link href={`/recruiting/candidates/${candidateId}`}>
                       <Button variant="ghost" size="icon" data-testid={`button-view-profile-${jc.id}`}>
                         <ExternalLink className="h-4 w-4" />
                       </Button>
