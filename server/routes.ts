@@ -3137,10 +3137,11 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             }
             
             if (jobCompanyId) {
+              const jobTitle = updatedSearchContext.title || 'Position (title not specified)';
               const createdJob = await storage.createJob({
-                title: updatedSearchContext.title,
+                title: jobTitle,
                 companyId: jobCompanyId,
-                jdText: `Search for ${updatedSearchContext.title} at ${updatedSearchContext.companyName || 'Company'}`,
+                jdText: `Search for ${jobTitle} at ${updatedSearchContext.companyName || 'Company'}`,
                 skills: updatedSearchContext.skills,
                 status: 'active',
                 searchTier: 'external',
