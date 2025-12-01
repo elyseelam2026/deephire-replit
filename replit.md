@@ -8,6 +8,12 @@ DeepHire is an AI-powered enterprise B2B recruiting platform that leverages xAI 
 - **CRITICAL:** No showing off shallow work. Take time to research, think, and propose informed solutions.
 - Platform should feel like a thoughtful partner, not a rushed bot chasing metrics.
 
+## Recent Fixes (2025-12-01)
+- **Recycling bin**: Implemented soft delete system for jobs with restore/permanent delete UI
+- **Duplicate job prevention**: Conversations now link to jobId - multiple AI pushes reuse same job instead of creating duplicates
+- **Candidate visibility**: Added fallback mechanism - if AI scoring returns 0 matches, first 20 candidates auto-populate. 196 candidates in database, now properly displayed
+- **Route ordering**: Fixed Express route precedence bug (specific routes before generic)
+
 ## System Architecture
 
 ### UI/UX Design

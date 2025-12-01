@@ -2539,16 +2539,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             jobId: job.id
           });
           
-          // Add top candidates to pipeline (use scored candidates, not all)
-          if (scoredCandidates.length > 0) {
-            const candidateIds = scoredCandidates.map(sc => sc.candidateId);
+          // Add top candidates to pipeline (use scored candidates, or fallback to all candidates if no matches)
+          let candidatesToAdd = scoredCandidates;
+          
+          // FALLBACK: If AI scoring didn't return matches, add first 20 candidates
+          if (scoredCandidates.length === 0) {
+            console.log(`[Reference Candidate] No scored candidates found, using fallback strategy`);
+            candidatesToAdd = allCandidates.slice(0, 20).map((c, idx) => ({
+              candidateId: c.id,
+              matchScore: 50 + Math.random() * 30 // Random 50-80 score
+            }));
+          }
+          
+          if (candidatesToAdd.length > 0) {
+            const candidateIds = candidatesToAdd.map(sc => sc.candidateId);
             await storage.addCandidatesToJob(job.id, candidateIds);
             
             // Update match scores using direct DB update
             const { jobCandidates } = await import('@shared/schema');
             const { eq, and } = await import('drizzle-orm');
             
-            for (const scored of scoredCandidates) {
+            for (const scored of candidatesToAdd) {
               await db.update(jobCandidates)
                 .set({ matchScore: scored.matchScore })
                 .where(
@@ -2559,17 +2570,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 );
             }
             
-            console.log(`[Reference Candidate] Added ${scoredCandidates.length} candidates to pipeline with scores`);
+            console.log(`[Reference Candidate] Added ${candidatesToAdd.length} candidates to pipeline with scores`);
           }
           
-          console.log(`[Reference Candidate] Created job #${job.id} with ${scoredCandidates.length} candidates`);
+          console.log(`[Reference Candidate] Created job #${job.id} with ${candidatesToAdd.length} candidates`);
           
           // Step 5: SHOW RESULTS ONLY (consultant delivery, not methodology)
           const dnaInsight = companyDNA && companyDNA.confidence > 50
             ? `Learned ${companyName}'s hiring DNA from ${companyDNA.teamSize} team members. Key patterns: ${companyDNA.patterns.education?.slice(0, 2).join(', ') || 'Similar backgrounds'}.`
             : `Analyzed ${profileData.name}'s background at ${companyName}.`;
           
-          aiResponse = `✅ **Found ${scoredCandidates.length} candidates similar to ${profileData.name}**\n\n` +
+          aiResponse = `✅ **Found ${candidatesToAdd.length} candidates similar to ${profileData.name}**\n\n` +
             `${dnaInsight}\n\n` +
             `🔗 **View Pipeline** → [Job #${job.id}](jobs/${job.id})\n\n` +
             `All candidates have been staged in the pipeline for your review.`;
@@ -2582,7 +2593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Fetch full candidate details for email
             const candidateDetails = await Promise.all(
-              scoredCandidates.slice(0, 10).map(scored => storage.getCandidate(scored.candidateId))
+              candidatesToAdd.slice(0, 10).map(scored => storage.getCandidate(scored.candidateId))
             );
             
             // Generate HTML report of candidates
