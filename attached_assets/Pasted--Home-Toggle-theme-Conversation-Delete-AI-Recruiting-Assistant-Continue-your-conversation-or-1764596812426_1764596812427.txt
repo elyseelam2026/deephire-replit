@@ -1,0 +1,64 @@
+← Home
+Toggle theme
+
+Conversation
+Delete
+AI Recruiting Assistant
+Continue your conversation or ask follow-up questions.
+
+I need to find a Head of Engineering for my company
+
+9:43 PM
+Could you please specify the company for which you need the Head of Engineering?
+
+9:43 PM
+My company is GFO-X
+
+9:43 PM
+Thank you for specifying GFO-X as the company. To proceed with the search for a Head of Engineering, could you please confirm if the position is open to candidates globally, or if there is a specific region you are focusing on?
+
+9:43 PM
+This is a global role but based in London
+
+9:44 PM
+Thank you for confirming that the Head of Engineering role at GFO-X is global but based in London. Given GFO-X's focus on finance, we'll be looking for candidates with strong engineering leadership in financial technology solutions. 
+
+To refine our search further, could you specify if there are any particular technology stacks or industry experience you're looking for in the candidates?
+
+9:44 PM
+Looking for candidates with High Frequency trading, low latency trading, digital assets, hedge fund, exchange environment.
+
+9:45 PM
+✅ **Search Started!**
+
+Found **10 candidates** matching:
+• Role: Head of Engineering
+• Skills: High Frequency Trading, Low Latency Trading, Digital Assets
+• Location: London
+
+🔄 Fetching detailed profiles now... This will take a few moments.
+
+Search run ID: 51
+
+9:45 PM
+How long you will come back to me?
+
+9:45 PM
+Given the urgency you've indicated, I've already initiated the search for the Head of Engineering at GFO-X in London. We're focusing on candidates with expertise in High Frequency Trading, Low Latency Trading, Digital Assets, and experience in hedge funds or exchange environments. 
+
+I'll keep you updated on the progress. Is there anything else specific you need before we proceed further with the candidate selection?
+
+9:45 PM
+Can you come up a long list of 20 top quality candidates in 20 minutes?
+
+9:46 PM
+✅ **Search Started!**
+
+Found **10 candidates** matching:
+• Role: Head of Engineering
+• Skills: High Frequency Trading, Low Latency Trading, Digital Assets
+• Location: London
+
+🔄 Fetching detailed profiles now... This will take a few moments.
+
+Search run ID: 52

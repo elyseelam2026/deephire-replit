@@ -3236,8 +3236,42 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           }
         } else if (grokResponse.intent === 'ready_to_search') {
           // URGENT SEARCH: Trigger real API search with actual search criteria AND WAIT FOR RESULTS
-          newPhase = 'sourcing_started';
           console.log(`🚀 [URGENT SEARCH] Triggering real sourcing with title: ${updatedSearchContext.title}`);
+          
+          // CHECK IF A SEARCH IS ALREADY RUNNING IN THIS CONVERSATION
+          try {
+            const existingRuns = await storage.getSourcingRuns({ status: 'pending' });
+            const activeRunInConversation = existingRuns.find(r => r.conversationId === conversationId);
+            
+            if (activeRunInConversation) {
+              console.log(`⏸️ [DUPLICATE SEARCH] Search already running: run #${activeRunInConversation.id}. Skipping duplicate.`);
+              newPhase = 'sourcing_started';
+              aiResponse = `🔄 **Search Already In Progress**\n\nI've already initiated a search for this profile (Search run ID: ${activeRunInConversation.id}).\n\nI'm actively fetching and analyzing candidates. Please give me a moment to compile the results.\n\nCandidates will appear in your "Quick View" as they're processed.`;
+              
+              // Add response and skip search creation
+              await storage.updateConversation(conversationId, {
+                messages: [...messages, {
+                  role: 'assistant' as const,
+                  content: aiResponse,
+                  timestamp: new Date().toISOString()
+                }]
+              });
+              
+              return res.json({
+                id: conversationId,
+                messages: [...messages, {
+                  role: 'assistant' as const,
+                  content: aiResponse,
+                  timestamp: new Date().toISOString()
+                }],
+                phase: newPhase
+              });
+            }
+          } catch (err) {
+            console.error('[DUPLICATE SEARCH] Check failed, proceeding:', err);
+          }
+          
+          newPhase = 'sourcing_started';
           
           try {
             // STEP 1: CREATE NEW JOB FOR THIS SEARCH
