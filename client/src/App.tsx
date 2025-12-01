@@ -97,6 +97,14 @@ function AppRouter() {
       <Route path="/company/reset-password" component={CompanyPasswordReset} />
       <Route path="/company/portal" component={CompanyPortal} />
       
+      {/* Shortcut Routes (direct access without /client prefix) */}
+      <Route path="/jobs/:id" component={() => <ClientApp><JobDetail /></ClientApp>} />
+      <Route path="/jobs" component={() => <ClientApp><Jobs /></ClientApp>} />
+      <Route path="/candidates/:id" component={() => <ClientApp><CandidateDetail /></ClientApp>} />
+      <Route path="/candidates" component={() => <ClientApp><Candidates /></ClientApp>} />
+      <Route path="/companies/:id" component={() => <ClientApp><CompanyDetail /></ClientApp>} />
+      <Route path="/companies" component={() => <ClientApp><Companies /></ClientApp>} />
+      
       {/* Client Portal Routes */}
       <Route path="/client" component={() => <ClientApp><ClientPortal /></ClientApp>} />
       <Route path="/client/post-job" component={() => <ClientApp><ClientPortal /></ClientApp>} />
