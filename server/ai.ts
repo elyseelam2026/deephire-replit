@@ -2290,6 +2290,96 @@ Respond in JSON: {"score": <0-100>, "reasoning": "<brief explanation>"}`;
   }
 }
 
+/**
+ * PRE-FILTER CANDIDATES BY KEYWORD (no AI cost, database-only)
+ * Filters candidates before expensive AI scoring to save API credits
+ * Stage 1: Database candidates filtered by keyword relevance
+ * Stage 2: AI scores only filtered candidates
+ * Stage 3: External search only if insufficient matches
+ */
+export function filterCandidatesByKeywords(
+  candidates: Array<{
+    id: number;
+    firstName: string;
+    lastName: string;
+    currentTitle: string;
+    skills: string[];
+    cvText?: string;
+    experience?: string;
+    currentCompany?: string;
+  }>,
+  jobSkills: string[],
+  jobTitle: string,
+  minMatches: number = 10
+): Array<{
+  id: number;
+  firstName: string;
+  lastName: string;
+  currentTitle: string;
+  skills: string[];
+  cvText?: string;
+  experience?: string;
+  currentCompany?: string;
+}> {
+  // Normalize job skills and title to lowercase for matching
+  const normalizedJobSkills = jobSkills.map(s => s.toLowerCase());
+  const normalizedJobTitle = jobTitle.toLowerCase();
+  
+  // Score candidates by keyword relevance (no API cost)
+  const scored = candidates.map(candidate => {
+    let score = 0;
+    
+    // Title relevance
+    const normalizedCandidateTitle = (candidate.currentTitle || "").toLowerCase();
+    if (normalizedCandidateTitle.includes(normalizedJobTitle) || normalizedJobTitle.includes(normalizedCandidateTitle)) {
+      score += 20; // Exact or near-exact title match
+    } else {
+      // Check for role-level keywords (CFO, Director, VP, Manager, etc.)
+      const jobRoleLevel = normalizedJobTitle.match(/(cfo|chief|director|vp|vice president|head|senior|lead|manager)/i);
+      const candidateRoleLevel = normalizedCandidateTitle.match(/(cfo|chief|director|vp|vice president|head|senior|lead|manager)/i);
+      if (jobRoleLevel && candidateRoleLevel) {
+        score += 10; // Similar seniority level
+      }
+    }
+    
+    // Skill relevance (how many job skills they have)
+    const candidateSkills = (candidate.skills || []).map(s => s.toLowerCase());
+    const matchedSkills = normalizedJobSkills.filter(skill => 
+      candidateSkills.some(cs => cs.includes(skill) || skill.includes(cs))
+    );
+    score += matchedSkills.length * 5; // 5 points per matched skill
+    
+    // Company/industry hints
+    const industry = normalizedJobTitle.match(/(finance|tech|healthcare|retail|manufacturing|consulting)/i);
+    if (industry && candidate.currentCompany) {
+      const companyName = candidate.currentCompany.toLowerCase();
+      if (companyName.includes(industry[1])) {
+        score += 5;
+      }
+    }
+    
+    // Experience in biography
+    if (candidate.experience || candidate.cvText) {
+      const bio = (candidate.experience || candidate.cvText || "").toLowerCase();
+      const relevantKeywords = [...normalizedJobSkills, normalizedJobTitle];
+      const bioMatches = relevantKeywords.filter(kw => bio.includes(kw)).length;
+      score += bioMatches * 2;
+    }
+    
+    return { candidate, score };
+  });
+  
+  // Sort by score and return top candidates (at least minMatches)
+  const filtered = scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(minMatches, Math.ceil(candidates.length * 0.15))) // Top 15% or minMatches, whichever is larger
+    .map(s => s.candidate);
+  
+  console.log(`[Pre-filter] Filtered ${candidates.length} candidates → ${filtered.length} keyword matches for "${jobTitle}"`);
+  return filtered;
+}
+
 export async function generateCandidateLonglist(
   candidates: Array<{
     id: number;

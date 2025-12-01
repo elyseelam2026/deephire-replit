@@ -18,7 +18,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse, generateJDFromDialogue } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, filterCandidatesByKeywords, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse, generateJDFromDialogue } from "./ai";
 import { startResearchPhase, generateInformedJD, type ResearchContext } from "./research";
 import { recordSearchForPosition } from "./position-keywords";
 import { recordCompanySource } from "./company-learning";
@@ -265,19 +265,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jdText = req.file.buffer.toString('utf-8');
       const parsedData = await parseJobDescription(jdText);
       
-      // Get all candidates for matching
+      // Get all candidates and pre-filter by keywords (no API cost)
       const allCandidates = await storage.getCandidates();
+      const candidateObjects = allCandidates.map((c: any) => ({
+        id: c.id,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        currentTitle: c.currentTitle || "",
+        skills: c.skills || [],
+        cvText: c.cvText || undefined,
+        experience: c.biography || undefined,
+        currentCompany: c.currentCompany || undefined
+      }));
+      
+      // Stage 1: Filter by keyword (database-only, no AI cost)
+      const filteredCandidates = filterCandidatesByKeywords(
+        candidateObjects,
+        parsedData.skills,
+        parsedData.title || "Unknown Position"
+      );
+      
+      // Stage 2: Score filtered candidates with AI
       const longlistMatches = await generateCandidateLonglist(
-        allCandidates.map((c: any) => ({
-          id: c.id,
-          firstName: c.firstName,
-          lastName: c.lastName,
-          currentTitle: c.currentTitle || "",
-          skills: c.skills || [],
-          cvText: c.cvText || undefined,
-          experience: c.biography || undefined,
-          currentCompany: c.currentCompany || undefined
-        })),
+        filteredCandidates,
         parsedData.skills,
         jdText,
         {
@@ -371,17 +381,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If this is a new job with skills, generate candidate matches
       if (job.skills && job.skills.length > 0) {
         const allCandidates = await storage.getCandidates();
+        const candidateObjects = allCandidates.map((c: any) => ({
+          id: c.id,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          currentTitle: c.currentTitle || "",
+          skills: c.skills || [],
+          cvText: c.cvText || undefined,
+          experience: c.biography || undefined,
+          currentCompany: c.currentCompany || undefined
+        }));
+        
+        // Stage 1: Filter by keyword (database-only, no AI cost)
+        const filteredCandidates = filterCandidatesByKeywords(
+          candidateObjects,
+          job.skills,
+          job.title || "Unknown Position"
+        );
+        
+        // Stage 2: Score filtered candidates with AI
         const matches = await generateCandidateLonglist(
-          allCandidates.map((c: any) => ({
-            id: c.id,
-            firstName: c.firstName,
-            lastName: c.lastName,
-            currentTitle: c.currentTitle || "",
-            skills: c.skills || [],
-            cvText: c.cvText || undefined,
-            experience: c.biography || undefined,
-            currentCompany: c.currentCompany || undefined
-          })),
+          filteredCandidates,
           job.skills,
           job.jdText,
           {
@@ -2457,17 +2477,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Use AI to score candidates against job requirements
           const jobSkills = finalCriteria.requiredSkills || [];
           const jobText = `${finalCriteria.title || ''} ${(finalCriteria as any).responsibilities || ''} ${(finalCriteria as any).qualifications || ''}`;
+          
+          const candidateObjects = allCandidates.map((c: any) => ({
+            id: c.id,
+            firstName: c.firstName || '',
+            lastName: c.lastName || '',
+            currentTitle: c.currentTitle || '',
+            skills: c.skills || [],
+            cvText: c.biography || c.cvText || undefined,
+            experience: c.biography || undefined,
+            currentCompany: c.currentCompany || undefined
+          }));
+          
+          // Stage 1: Filter by keyword (database-only, no AI cost)
+          const filteredCandidates = filterCandidatesByKeywords(
+            candidateObjects,
+            jobSkills,
+            finalCriteria.title || profileData.position || "Unknown Position"
+          );
+          
+          // Stage 2: Score filtered candidates with AI
           const scoredCandidates = await generateCandidateLonglist(
-            allCandidates.map((c: any) => ({
-              id: c.id,
-              firstName: c.firstName || '',
-              lastName: c.lastName || '',
-              currentTitle: c.currentTitle || '',
-              skills: c.skills || [],
-              cvText: c.biography || c.cvText || undefined,
-              experience: c.biography || undefined,
-              currentCompany: c.currentCompany || undefined
-            })),
+            filteredCandidates,
             jobSkills,
             jobText,
             {
