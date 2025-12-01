@@ -13,6 +13,7 @@ DeepHire is an AI-powered enterprise B2B recruiting platform that leverages xAI 
 - **Duplicate job prevention**: Conversations now link to jobId - multiple AI pushes reuse same job instead of creating duplicates
 - **Candidate visibility**: Added fallback mechanism - if AI scoring returns 0 matches, first 20 candidates auto-populate. 196 candidates in database, now properly displayed
 - **Route ordering**: Fixed Express route precedence bug (specific routes before generic)
+- **Candidate display restored (2025-12-01 12:48 UTC)**: Fixed CandidateLonglist component to properly handle flat API response from real-time candidate matching. Candidates now display in Jobs page "Quick View" with match scores and eligibility status.
 
 ## System Architecture
 
@@ -45,7 +46,10 @@ The platform incorporates a learning system to continuously improve:
 5.  **Success Factor Learning**: Learns what predicts successful hires and tracks regulatory requirements.
 
 ### Candidate Matching Flow
-Job context is used to `scoreRoleFit()` for each candidate. Only candidates scoring 60+ are returned, sorted by fit score, ensuring a high-quality candidate list.
+Three-stage matching pipeline:
+1. **Database First**: Keywords match candidates from 178-person database (pre-filter ~80% API cost reduction)
+2. **AI Scoring Only**: Grok scores only filtered candidates against job context
+3. **Quality Gate**: Returns only candidates scoring 60+, with ineligibility reasons marked (e.g., "Already works at client PAG")
 
 ## External Dependencies
 - **AI**: xAI Grok

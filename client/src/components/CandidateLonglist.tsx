@@ -219,6 +219,7 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
       <CandidateDetailModal
         isOpen={isModalOpen}
         onOpenChange={setIsModalOpen}
+        jobId={jobId}
         candidateId={selectedCandidateId}
       />
     </div>
