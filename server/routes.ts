@@ -670,10 +670,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get job candidates pipeline (Salesforce-style)
+  // Fallback: If no candidates linked, perform on-the-fly matching based on job data
   app.get("/api/jobs/:id/candidates", async (req, res) => {
     try {
       const jobId = parseInt(req.params.id);
-      const candidates = await storage.getJobCandidates(jobId);
+      let candidates = await storage.getJobCandidates(jobId);
+      
+      // Fallback: If no candidates linked yet, perform real-time matching
+      if (candidates.length === 0) {
+        console.log(`[Job Candidates] No linked candidates for job ${jobId}, performing real-time match...`);
+        const job = await storage.getJob(jobId);
+        
+        if (job && (job.title || job.jdText)) {
+          // Extract keywords from job title and description
+          const jobSkills = job.skills && Array.isArray(job.skills) && job.skills.length > 0 
+            ? job.skills 
+            : (job.jdText ? job.jdText.split(/\s+/).filter((w: string) => w.length > 3).slice(0, 10) : [job.title || ""]);
+          
+          const allCandidates = await storage.getCandidates();
+          const candidateObjects = allCandidates.map((c: any) => ({
+            id: c.id,
+            firstName: c.firstName,
+            lastName: c.lastName,
+            currentTitle: c.currentTitle || "",
+            skills: c.skills || [],
+            cvText: c.cvText || undefined,
+            experience: c.biography || undefined,
+            currentCompany: c.currentCompany || undefined
+          }));
+          
+          // Stage 1: Filter by keyword (no AI cost)
+          const filteredCandidates = filterCandidatesByKeywords(
+            candidateObjects,
+            jobSkills,
+            job.title || "Unknown Position"
+          );
+          
+          // Stage 2: Score filtered candidates with AI
+          const matches = await generateCandidateLonglist(
+            filteredCandidates,
+            jobSkills,
+            job.jdText || job.title || "",
+            {
+              title: job.title || "Unknown Position",
+              description: job.jdText,
+              yearsExperience: (job as any)?.yearsExperience,
+              industry: (job as any)?.industry,
+              responsibilities: (job as any)?.responsibilities
+            },
+            20
+          );
+          
+          // Return matched candidates with their scores
+          const matchedWithDetails = [];
+          for (const match of matches) {
+            const candidate = await storage.getCandidate(match.candidateId);
+            if (candidate) {
+              matchedWithDetails.push({
+                ...candidate,
+                matchScore: match.matchScore,
+                status: "recommended"
+              });
+            }
+          }
+          
+          console.log(`[Job Candidates] Real-time match: ${matchedWithDetails.length} candidates found for "${job.title}"`);
+          res.json(matchedWithDetails);
+          return;
+        }
+      }
+      
       res.json(candidates);
     } catch (error) {
       console.error("Error fetching job candidates:", error);
