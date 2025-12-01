@@ -18,7 +18,7 @@ interface MulterRequest extends Request {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { parseJobDescription, generateCandidateLonglist, filterCandidatesByKeywords, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse, generateJDFromDialogue } from "./ai";
+import { parseJobDescription, generateCandidateLonglist, filterCandidatesByKeywords, generateSearchStrategy, parseCandidateData, parseCandidateFromUrl, parseCompanyData, parseCompanyFromUrl, parseCsvData, parseExcelData, parseHtmlData, extractUrlsFromCsv, parseCsvStructuredData, searchCandidateProfilesByName, researchCompanyEmailPattern, searchLinkedInProfile, discoverTeamMembers, verifyStagingCandidate, analyzeRoleLevel, generateBiographyAndCareerHistory, generateBiographyFromCV, generateConversationalResponse, generateJDFromDialogue, discoverExecutiveCandidates } from "./ai";
 import { startResearchPhase, generateInformedJD, type ResearchContext } from "./research";
 import { recordSearchForPosition } from "./position-keywords";
 import { recordCompanySource } from "./company-learning";
@@ -687,6 +687,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const job = await storage.getJob(jobId);
         
         if (job && (job.title || job.jdText)) {
+          // GROK DISCOVERY: First try to discover real executive candidates
+          console.log(`[Grok Discovery] Attempting to discover real candidates for "${job.title}"...`);
+          const discoveredCandidates = await discoverExecutiveCandidates({
+            title: job.title || "Executive Position",
+            industry: (job as any)?.industry,
+            skills: job.skills && Array.isArray(job.skills) ? job.skills : [],
+            yearsExperience: (job as any)?.yearsExperience,
+            targetCompanies: (job as any)?.targetCompanies,
+            successCriteria: (job as any)?.successCriteria
+          }, 10);
+          
+          // If Grok found real candidates, fetch and score them
+          if (discoveredCandidates && discoveredCandidates.length > 0) {
+            console.log(`[Grok Discovery] Found ${discoveredCandidates.length} real candidates - fetching profiles...`);
+            const matchedWithDetails = [];
+            
+            for (const discoveredCandidate of discoveredCandidates) {
+              try {
+                // Try to fetch LinkedIn profile
+                const profileData = await scrapeLinkedInProfile(discoveredCandidate.linkedinUrl);
+                
+                if (profileData) {
+                  // Create or update candidate record
+                  const candidateData = {
+                    firstName: discoveredCandidate.name.split(' ')[0],
+                    lastName: discoveredCandidate.name.split(' ').slice(1).join(' '),
+                    currentTitle: discoveredCandidate.currentRole,
+                    currentCompany: discoveredCandidate.currentCompany,
+                    skills: job.skills && Array.isArray(job.skills) ? job.skills : [],
+                    biography: discoveredCandidate.reasoning,
+                    linkedinUrl: discoveredCandidate.linkedinUrl
+                  };
+                  
+                  // Score with AI
+                  const fitScore = discoveredCandidate.estimatedFitScore || 50;
+                  
+                  matchedWithDetails.push({
+                    ...candidateData,
+                    matchScore: fitScore,
+                    status: fitScore >= 60 ? "recommended" : "qualified",
+                    source: "grok_discovery"
+                  });
+                }
+              } catch (err) {
+                console.log(`[Grok Discovery] Could not fetch ${discoveredCandidate.name}: ${err}`);
+              }
+            }
+            
+            if (matchedWithDetails.length > 0) {
+              console.log(`[Grok Discovery] Returning ${matchedWithDetails.length} discovered candidates`);
+              res.json(matchedWithDetails);
+              return;
+            }
+          }
+          
+          // FALLBACK: If Grok discovery failed or returned nothing, use database filtering
+          console.log(`[Job Candidates] Grok discovery failed/empty, falling back to database filtering...`);
+          
           // Extract keywords from job title and description
           const jobSkills = job.skills && Array.isArray(job.skills) && job.skills.length > 0 
             ? job.skills 

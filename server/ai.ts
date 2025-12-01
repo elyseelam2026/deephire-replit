@@ -7024,3 +7024,87 @@ Format it cleanly in markdown. Make it professional and actionable.`;
     return `## ${jobContext.title} at ${jobContext.companyName}\n\nLocation: ${jobContext.location}\n\nBased on conversation with client.`;
   }
 }
+
+/**
+ * GROK-POWERED CANDIDATE DISCOVERY
+ * Instead of searching database garbage, ask Grok to generate REAL candidate names + LinkedIn URLs
+ * This is what Grok is actually good at - knowing who the real executives are
+ */
+export async function discoverExecutiveCandidates(
+  jobData: {
+    title: string;
+    industry?: string;
+    skills?: string[];
+    yearsExperience?: number;
+    targetCompanies?: string[]; // "Citadel, Jump, Jane Street"
+    successCriteria?: string;
+  },
+  count: number = 10
+): Promise<Array<{
+  name: string;
+  currentRole: string;
+  currentCompany: string;
+  linkedinUrl: string;
+  reasoning: string;
+  estimatedFitScore: number;
+}>> {
+  try {
+    const targetFirms = jobData.targetCompanies?.join(', ') || 'Top HFT/crypto firms (Citadel, Jump, Jane Street, DRW, Two Sigma, Binance, Coinbase, Kraken)';
+    
+    const prompt = `You are an elite executive headhunter. Based on the job requirements below, identify REAL, SPECIFIC executives who currently work or recently worked at top firms.
+
+**JOB REQUIREMENTS:**
+- Title: ${jobData.title}
+- Industry: ${jobData.industry}
+- Skills: ${jobData.skills?.join(', ')}
+- Experience: ${jobData.yearsExperience}+ years
+- Target Firms: ${targetFirms}
+- Success Criteria: ${jobData.successCriteria}
+
+**TASK:**
+Generate ${count} SPECIFIC, REAL candidates with their actual names, current roles, companies, and LinkedIn profile URLs.
+These must be REAL people at REAL firms - not made up.
+
+For each candidate, provide:
+1. Full name
+2. Current job title
+3. Current company
+4. LinkedIn profile URL (format: https://linkedin.com/in/username)
+5. Why they fit this role (2-3 sentences)
+6. Estimated fit score (0-100 based on background relevance)
+
+Return as JSON array:
+[
+  {
+    "name": "Steve Hunt",
+    "currentRole": "CTO",
+    "currentCompany": "DRW Trading",
+    "linkedinUrl": "https://linkedin.com/in/steve-hunt-xxx",
+    "reasoning": "10+ years HFT infrastructure at Jump, 6.5 years VP Engineering at Kraken building crypto matching engines",
+    "estimatedFitScore": 92
+  },
+  ...
+]
+
+DO NOT make up names or URLs. Only include executives you have REAL knowledge of.`;
+
+    const response = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [{
+        role: "user",
+        content: prompt
+      }],
+      response_format: { type: "json_object" },
+      max_tokens: 3000,
+    });
+
+    const content = response.choices[0].message.content || "[]";
+    const candidates = JSON.parse(stripMarkdownJson(content));
+
+    console.log(`[Grok Discovery] Found ${candidates.length} real executive candidates`);
+    return Array.isArray(candidates) ? candidates : [];
+  } catch (error) {
+    console.error("Error discovering executive candidates:", error);
+    return [];
+  }
+}
