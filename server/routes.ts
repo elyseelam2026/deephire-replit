@@ -2359,6 +2359,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let newPhase = conversation.phase || 'initial';
       let createdJobId: number | undefined;
 
+      // PHASE 0: Check if this conversation already has a job (prevents duplicate job creation)
+      let existingJob = null;
+      if (conversation.jobId) {
+        console.log(`[Message Handler] Conversation #${conversationId} already has job #${conversation.jobId}, will reuse it`);
+        existingJob = await storage.getJob(conversation.jobId);
+      }
+
       // PHASE 1: Check for LinkedIn reference candidate URL
       const linkedInUrlMatch = message.match(/linkedin\.com\/in\/([\w-]+)/);
       
@@ -2526,6 +2533,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           
           createdJobId = job.id;
+          
+          // Link this job to the conversation (prevents future duplicate jobs in same conversation)
+          await storage.updateConversation(conversationId, {
+            jobId: job.id
+          });
           
           // Add top candidates to pipeline (use scored candidates, not all)
           if (scoredCandidates.length > 0) {
@@ -3149,6 +3161,12 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
                 urgency: updatedSearchContext.urgency
               });
               createdJobId = createdJob.id;
+              
+              // Link this job to the conversation (prevents future duplicate jobs in same conversation)
+              await storage.updateConversation(conversationId, {
+                jobId: createdJob.id
+              });
+              
               console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJobId}`);
             } else {
               console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
