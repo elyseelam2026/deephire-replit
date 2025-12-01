@@ -837,8 +837,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get candidates endpoint
-  app.get("/api/candidates", requireAuth, async (req, res) => {
+  // Get candidates endpoint (no auth required for researchers portal)
+  app.get("/api/candidates", async (req, res) => {
     try {
       const { search } = req.query;
       let candidates;
