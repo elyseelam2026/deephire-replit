@@ -67,6 +67,28 @@ export default function Jobs() {
     },
   });
 
+  // Delete job mutation
+  const deleteJob = useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await apiRequest('DELETE', `/api/jobs/${jobId}`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success!",
+        description: "Job deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete job",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-6" data-testid="jobs-page">
@@ -250,6 +272,16 @@ export default function Jobs() {
                 >
                   <Users className="h-4 w-4 mr-2" />
                   Quick View
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="w-full" 
+                  onClick={() => deleteJob.mutate(job.id!)}
+                  disabled={deleteJob.isPending}
+                  data-testid={`button-delete-job-${job.id}`}
+                >
+                  Delete
                 </Button>
               </div>
             </CardContent>

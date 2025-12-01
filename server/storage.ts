@@ -79,6 +79,7 @@ export interface IStorage {
   getJobsForCompany(companyId: number): Promise<Job[]>;
   getJob(id: number): Promise<Job | undefined>;
   updateJob(id: number, updates: Partial<InsertJob>): Promise<Job | undefined>;
+  deleteJob(id: number): Promise<void>;
   
   // Candidate management
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
@@ -697,6 +698,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(jobs.id, id))
       .returning();
     return job || undefined;
+  }
+
+  async deleteJob(id: number): Promise<void> {
+    await db.delete(jobs).where(eq(jobs.id, id));
   }
 
   // Candidate management
