@@ -3240,16 +3240,9 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           console.log(`🚀 [URGENT SEARCH] Triggering real sourcing with title: ${updatedSearchContext.title}`);
           
           try {
-            // STEP 1: REUSE EXISTING JOB IF AVAILABLE, OTHERWISE CREATE NEW ONE
+            // STEP 1: CREATE NEW JOB FOR THIS SEARCH
             let createdJobId: number | undefined;
-            
-            // CHECK IF CONVERSATION ALREADY HAS A JOB FROM PREVIOUS SEARCHES (prevents duplicates)
-            if (existingJob) {
-              console.log(`✅ [URGENT SEARCH] Reusing existing job #${existingJob.id} for this conversation`);
-              createdJobId = existingJob.id;
-            } else {
-              // CREATE NEW JOB ONLY IF THIS CONVERSATION DOESN'T HAVE ONE YET
-              let jobCompanyId: number | undefined;
+            let jobCompanyId: number | undefined;
               
               if (updatedSearchContext.companyName) {
                 try {
@@ -3287,23 +3280,10 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
                   urgency: updatedSearchContext.urgency
                 });
                 createdJobId = createdJob.id;
-                
-                // Link this job to the conversation (prevents future duplicate jobs in same conversation)
-                console.log(`[URGENT SEARCH] Updating conversation #${conversationId} with jobId: ${createdJob.id}`);
-                const updateResult = await storage.updateConversation(conversationId, {
-                  jobId: createdJob.id as any
-                });
-                console.log(`[URGENT SEARCH] Update result:`, updateResult ? `jobId=${updateResult.jobId}` : 'null');
-                
-                // Verify the update persisted
-                const verifyConv = await storage.getConversation(conversationId);
-                console.log(`[URGENT SEARCH] Verification reload: jobId=${verifyConv?.jobId}`);
-                
                 console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJobId}`);
               } else {
                 console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
               }
-            }
             
             // Build search criteria - map to LinkedInSearchParams format
             const linkedInSearchParams = {
