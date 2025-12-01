@@ -3289,9 +3289,15 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
                 createdJobId = createdJob.id;
                 
                 // Link this job to the conversation (prevents future duplicate jobs in same conversation)
-                await storage.updateConversation(conversationId, {
-                  jobId: createdJob.id
+                console.log(`[URGENT SEARCH] Updating conversation #${conversationId} with jobId: ${createdJob.id}`);
+                const updateResult = await storage.updateConversation(conversationId, {
+                  jobId: createdJob.id as any
                 });
+                console.log(`[URGENT SEARCH] Update result:`, updateResult ? `jobId=${updateResult.jobId}` : 'null');
+                
+                // Verify the update persisted
+                const verifyConv = await storage.getConversation(conversationId);
+                console.log(`[URGENT SEARCH] Verification reload: jobId=${verifyConv?.jobId}`);
                 
                 console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJobId}`);
               } else {
