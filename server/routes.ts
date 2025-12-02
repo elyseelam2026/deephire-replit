@@ -676,8 +676,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get target companies for a job (Grok-identified competitors)
   app.get("/api/jobs/:jobId/target-companies", async (req, res) => {
+    const jobId = parseInt(req.params.jobId);
     try {
-      const jobId = parseInt(req.params.jobId);
       const job = await storage.getJob(jobId);
       
       if (!job) {
@@ -699,13 +699,13 @@ Skills: ${(job.skills || []).join(', ')}
 
 Return JSON: {"companies": ["Company1", "Company2"]}`;
 
-      const grokResponse = await grokClient.messages.create({
+      const grokResponse = await grokClient.chat.completions.create({
         model: "grok-beta",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 200
       });
 
-      const responseText = (grokResponse.content[0] as any)?.text || '';
+      const responseText = grokResponse.choices?.[0]?.message?.content || '';
       const jsonMatch = responseText.match(/\{[\s\S]*"companies"[\s\S]*\}/);
       const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
       const targetCompanies = parsed.companies || [];
