@@ -674,6 +674,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get target companies for a job (industry-based competitors)
+  app.get("/api/jobs/:jobId/target-companies", async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const job = await storage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Industry-based competitor mapping
+      const industryCompetitors: Record<string, string[]> = {
+        "Private Equity": ["KKR", "Blackstone", "Apollo Global", "Carlyle Group", "TPG", "Silver Lake", "Warburg Pincus", "Intermediate Capital"],
+        "Finance": ["Goldman Sachs", "JPMorgan Chase", "Morgan Stanley", "Bank of America", "Citigroup", "Wells Fargo", "Barclays", "Credit Suisse"],
+        "Investment Banking": ["Goldman Sachs", "Morgan Stanley", "JPMorgan Chase", "Lazard", "Evercore", "Centerview", "Lazard", "Greenhill"],
+        "Technology": ["Apple", "Google", "Microsoft", "Amazon", "Meta", "Tesla", "Netflix", "Nvidia"],
+        "Healthcare": ["Johnson & Johnson", "Pfizer", "Moderna", "AbbVie", "Eli Lilly", "Merck", "Bristol Myers", "Novo Nordisk"],
+        "Consulting": ["McKinsey", "Boston Consulting", "Bain", "Deloitte", "EY", "Accenture", "Oliver Wyman", "AT Kearney"],
+        "Real Estate": ["CBRE", "Jones Lang LaSalle", "Cushman Wakefield", "Colliers", "SAVILLS", "Sotheby's International"],
+        "Venture Capital": ["Sequoia Capital", "Andreessen Horowitz", "Y Combinator", "Benchmark", "Greylock", "Lightspeed", "First Round"]
+      };
+
+      const industry = (job as any)?.industry || "Finance";
+      const targetCompanies = industryCompetitors[industry] || industryCompetitors["Finance"];
+
+      res.json({
+        jobId,
+        industry,
+        targetCompanies
+      });
+    } catch (error) {
+      console.error("Error fetching target companies:", error);
+      res.status(500).json({ error: "Failed to fetch target companies" });
+    }
+  });
+
   // Get job candidates pipeline (Salesforce-style)
   // Fallback: If no candidates linked, perform on-the-fly matching based on job data
   app.get("/api/jobs/:id/candidates", async (req, res) => {

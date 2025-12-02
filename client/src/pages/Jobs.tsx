@@ -511,7 +511,7 @@ export default function Jobs() {
               <div className="border-t pt-6">
                 <h4 className="font-medium text-sm mb-3">Matched Candidates</h4>
                 {candidatesLoading && candidates.length === 0 ? (
-                  <DiscoveryProgress jobTitle={selectedJob.title} isDiscovering={true} />
+                  <DiscoveryProgress jobTitle={selectedJob.title} isDiscovering={true} jobId={selectedJob.id} />
                 ) : candidates.length === 0 ? (
                   <p className="text-muted-foreground text-sm py-4">No candidates matched this role yet.</p>
                 ) : (

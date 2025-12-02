@@ -6,13 +6,44 @@ interface DiscoveryProgressProps {
   jobTitle: string;
   targetCompanies?: string[];
   isDiscovering?: boolean;
+  jobId?: number;
 }
 
 export default function DiscoveryProgress({ 
   jobTitle, 
-  targetCompanies = ["KKR", "Blackstone", "Apollo Global", "Carlyle Group", "TPG", "Silver Lake"],
-  isDiscovering = true 
+  targetCompanies,
+  isDiscovering = true,
+  jobId
 }: DiscoveryProgressProps) {
+  const [companies, setCompanies] = useState<string[]>(targetCompanies || []);
+
+  // Fetch target companies if not provided
+  useEffect(() => {
+    if (targetCompanies && targetCompanies.length > 0) {
+      setCompanies(targetCompanies);
+      return;
+    }
+
+    if (!jobId) return;
+
+    const fetchCompanies = async () => {
+      try {
+        const response = await fetch(`/api/jobs/${jobId}/target-companies`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.targetCompanies && data.targetCompanies.length > 0) {
+            setCompanies(data.targetCompanies);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch target companies:', error);
+        // Fallback to default if fetch fails
+        setCompanies(["Goldman Sachs", "JPMorgan Chase", "Morgan Stanley", "Bank of America", "Citigroup", "Wells Fargo"]);
+      }
+    };
+
+    fetchCompanies();
+  }, [jobId, targetCompanies]);
   const [currentStep, setCurrentStep] = useState(0);
   
   // Cycle through steps with animation
@@ -30,7 +61,7 @@ export default function DiscoveryProgress({
     { 
       icon: Building2, 
       title: "Identifying Target Companies",
-      companies: targetCompanies
+      companies: companies
     },
     { 
       icon: Users, 
