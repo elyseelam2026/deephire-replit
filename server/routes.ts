@@ -3442,8 +3442,9 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
                   createdJobId = createdJob.id;
                   
                   // Link job to conversation
-                  await storage.updateConversation(conversationId.toString(), { jobId: createdJobId as any });
+                  const updatedConversation = await storage.updateConversation(conversationId, { jobId: createdJobId as any });
                   console.log(`✅ [URGENT SEARCH] Created new job ${createdJobId} and linked to conversation`);
+                  console.log(`📌 [URGENT SEARCH] Conversation now has jobId: ${updatedConversation?.jobId}`);
                 } else {
                   console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
                 }
