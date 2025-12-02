@@ -324,8 +324,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create job posting endpoint - PROTECTED
-  app.post("/api/jobs", requireAuth, async (req, res) => {
+  // Create job posting endpoint
+  app.post("/api/jobs", async (req, res) => {
     try {
       const jobData = insertJobSchema.parse(req.body);
       
