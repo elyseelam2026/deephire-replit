@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Search, Globe, Database, Zap } from "lucide-react";
+import { Building2, Users, CheckCircle2 } from "lucide-react";
 
 interface DiscoveryProgressProps {
   jobTitle: string;
+  targetCompanies?: string[];
   isDiscovering?: boolean;
 }
 
-export default function DiscoveryProgress({ jobTitle, isDiscovering = true }: DiscoveryProgressProps) {
+export default function DiscoveryProgress({ 
+  jobTitle, 
+  targetCompanies = ["KKR", "Blackstone", "Apollo Global", "Carlyle Group", "TPG", "Silver Lake"],
+  isDiscovering = true 
+}: DiscoveryProgressProps) {
   const [currentStep, setCurrentStep] = useState(0);
   
   // Cycle through steps with animation
@@ -15,17 +20,28 @@ export default function DiscoveryProgress({ jobTitle, isDiscovering = true }: Di
     if (!isDiscovering) return;
     
     const interval = setInterval(() => {
-      setCurrentStep(prev => (prev + 1) % 4);
-    }, 2000);
+      setCurrentStep(prev => (prev + 1) % 3);
+    }, 3000);
     
     return () => clearInterval(interval);
   }, [isDiscovering]);
 
   const steps = [
-    { icon: Search, label: "Grok Searching", desc: "Generating search strategies..." },
-    { icon: Globe, label: "Google Finding", desc: "Discovering LinkedIn profiles..." },
-    { icon: Database, label: "BrightData Scraping", desc: "Extracting profile data..." },
-    { icon: Zap, label: "Scoring Candidates", desc: "Evaluating fit..." }
+    { 
+      icon: Building2, 
+      title: "Identifying Target Companies",
+      companies: targetCompanies
+    },
+    { 
+      icon: Users, 
+      title: "Finding Target Candidates",
+      desc: "Searching for executives at identified companies..."
+    },
+    { 
+      icon: CheckCircle2, 
+      title: "Evaluating Hard Skills",
+      desc: "Assessing qualifications for the longlist..."
+    }
   ];
 
   return (
@@ -33,7 +49,7 @@ export default function DiscoveryProgress({ jobTitle, isDiscovering = true }: Di
       {/* Main title */}
       <div className="text-center mb-12">
         <h2 className="text-3xl font-bold mb-2">Discovering Talent</h2>
-        <p className="text-lg text-muted-foreground">Searching for {jobTitle} candidates...</p>
+        <p className="text-lg text-muted-foreground">Finding ideal {jobTitle} candidates...</p>
       </div>
 
       {/* Steps visualization */}
@@ -69,17 +85,17 @@ export default function DiscoveryProgress({ jobTitle, isDiscovering = true }: Di
                       ? 'bg-green-500/20 text-green-600 dark:text-green-400'
                       : 'bg-muted text-muted-foreground'
                   }`}>
-                    <Icon className={`w-5 h-5 ${isActive ? 'animate-spin' : ''}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'animate-pulse' : ''}`} />
                   </div>
                   
                   {/* Content */}
                   <div className="flex-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mb-2">
                       <h3 className={`font-semibold text-lg ${
                         isActive ? 'text-blue-600 dark:text-blue-400' : 
                         isCompleted ? 'text-green-600 dark:text-green-400' : 'text-foreground'
                       }`}>
-                        {step.label}
+                        {step.title}
                       </h3>
                       {isActive && (
                         <div className="flex gap-1">
@@ -88,9 +104,22 @@ export default function DiscoveryProgress({ jobTitle, isDiscovering = true }: Di
                           <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                       )}
-                      {isCompleted && <span className="text-green-600 dark:text-green-400 text-sm font-medium">✓ Done</span>}
+                      {isCompleted && <span className="text-green-600 dark:text-green-400 text-sm font-medium">✓</span>}
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">{step.desc}</p>
+                    
+                    {/* Companies list for step 1 */}
+                    {idx === 0 && (
+                      <div className={`text-sm transition-all duration-500 ${
+                        isActive ? 'text-foreground' : 'text-muted-foreground'
+                      }`}>
+                        <p className="mb-2">Target firms: <span className="font-medium">{step.companies?.join(", ")}</span></p>
+                      </div>
+                    )}
+                    
+                    {/* Descriptions for other steps */}
+                    {idx !== 0 && (
+                      <p className="text-sm text-muted-foreground">{step.desc}</p>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -101,7 +130,7 @@ export default function DiscoveryProgress({ jobTitle, isDiscovering = true }: Di
 
       {/* Footer message */}
       <div className="mt-12 text-center text-sm text-muted-foreground">
-        <p>Candidates will appear below as they're discovered...</p>
+        <p>Candidates will appear below as they're qualified...</p>
         <div className="mt-3 flex justify-center gap-1">
           <div className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-pulse" style={{ animationDelay: '0ms' }} />
           <div className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-pulse" style={{ animationDelay: '150ms' }} />
