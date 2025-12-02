@@ -763,52 +763,42 @@ Return JSON: {"companies": ["Company1", "Company2"]}`;
             successCriteria: (job as any)?.successCriteria
           }, 10, conversationHistory);
           
-          // If Grok found real candidates, fetch and score them
+          // If Grok found real candidates, return them immediately (don't wait for BrightData)
           if (discoveredCandidates && discoveredCandidates.length > 0) {
-            console.log(`[Grok Discovery] Found ${discoveredCandidates.length} real candidates - fetching profiles...`);
-            const matchedWithDetails = [];
+            console.log(`[Grok Discovery] Found ${discoveredCandidates.length} real candidates - returning immediately...`);
+            const matchedWithDetails = discoveredCandidates.map((dc: any) => ({
+              firstName: dc.name.split(' ')[0],
+              lastName: dc.name.split(' ').slice(1).join(' '),
+              currentTitle: dc.currentRole,
+              currentCompany: dc.currentCompany,
+              skills: job.skills && Array.isArray(job.skills) ? job.skills : [],
+              biography: dc.reasoning,
+              linkedinUrl: dc.linkedinUrl,
+              matchScore: dc.estimatedFitScore || 50,
+              status: (dc.estimatedFitScore || 50) >= 60 ? "recommended" : "qualified",
+              source: "grok_discovery"
+            }));
             
-            for (const discoveredCandidate of discoveredCandidates) {
-              try {
-                // Try to fetch LinkedIn profile
-                const profileData = await scrapeLinkedInProfile(discoveredCandidate.linkedinUrl);
-                
-                if (profileData) {
-                  // Create or update candidate record
-                  const candidateData = {
-                    firstName: discoveredCandidate.name.split(' ')[0],
-                    lastName: discoveredCandidate.name.split(' ').slice(1).join(' '),
-                    currentTitle: discoveredCandidate.currentRole,
-                    currentCompany: discoveredCandidate.currentCompany,
-                    skills: job.skills && Array.isArray(job.skills) ? job.skills : [],
-                    biography: discoveredCandidate.reasoning,
-                    linkedinUrl: discoveredCandidate.linkedinUrl
-                  };
-                  
-                  // Score with AI
-                  const fitScore = discoveredCandidate.estimatedFitScore || 50;
-                  
-                  matchedWithDetails.push({
-                    ...candidateData,
-                    matchScore: fitScore,
-                    status: fitScore >= 60 ? "recommended" : "qualified",
-                    source: "grok_discovery"
-                  });
+            // Queue BrightData fetching in background (fire-and-forget)
+            setImmediate(async () => {
+              console.log(`[Background] Queuing BrightData profile fetching for ${discoveredCandidates.length} candidates...`);
+              for (const candidate of discoveredCandidates) {
+                try {
+                  await scrapeLinkedInProfile(candidate.linkedinUrl);
+                  console.log(`[Background] BrightData fetched: ${candidate.name}`);
+                } catch (err) {
+                  console.log(`[Background] BrightData skipped ${candidate.name}: ${err}`);
                 }
-              } catch (err) {
-                console.log(`[Grok Discovery] Could not fetch ${discoveredCandidate.name}: ${err}`);
               }
-            }
+            });
             
-            if (matchedWithDetails.length > 0) {
-              console.log(`[Grok Discovery] Returning ${matchedWithDetails.length} discovered candidates`);
-              res.json(matchedWithDetails);
-              return;
-            }
+            console.log(`[Grok Discovery] Returning ${matchedWithDetails.length} discovered candidates (profiles fetching in background)`);
+            res.json(matchedWithDetails);
+            return;
           }
           
           // FALLBACK: If Grok discovery failed or returned nothing, use database filtering
-          console.log(`[Job Candidates] Grok discovery failed/empty, falling back to database filtering...`);
+          console.log(`[Job Candidates] Grok discovery empty, falling back to database filtering...`);
           
           // Extract keywords from job title and description
           const jobSkills = job.skills && Array.isArray(job.skills) && job.skills.length > 0 
