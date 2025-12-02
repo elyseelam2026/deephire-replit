@@ -1,0 +1,45 @@
+Toggle Sidebar
+← Home
+Toggle theme
+
+Conversation
+Delete
+AI Recruiting Assistant
+Continue your conversation or ask follow-up questions.
+
+Hi DeepHire, how are you today?
+
+11:30 AM
+Hi there! I'm doing well, thanks for asking. Given your time constraints, let's dive right in. What specific role are you looking to fill?
+
+11:30 AM
+I need to find an associate for Boyu Capital for their Healthcare team.
+
+11:32 AM
+Thank you for the details. To proceed with the search for an Associate at Boyu Capital's Healthcare team, could you specify if you have a preferred location or if this role is truly global?
+
+11:32 AM
+This is a position either based in Shanghai or Hong Kong.  Reporting to the Partner of the Healthcare team, the incumbent will be supporting the team to conduct due diligence and financial modelling of the projects.
+
+11:34 AM
+Thank you for the additional details. At Boyu Capital, a leading private equity firm, the Associate role on the Healthcare team will indeed require strong skills in due diligence and financial modeling, which are critical for supporting investment decisions in the healthcare sector. 
+
+Given the role's focus on healthcare investments, and considering Boyu Capital's reputation for thorough investment analysis, candidates should ideally have experience in healthcare financials or related sectors.
+
+To tailor our search effectively, could you confirm if the preferred location for this role is Shanghai, or would Hong Kong be equally suitable?
+
+11:34 AM
+Yes and the person need to speak Mandarin and graduate from top universities.  With not more than 5 years of experience in top investment banks or private equity.
+
+11:35 AM
+🔍 **Starting Informed Research Phase**
+
+I'm researching:
+• Boyu Capital for context (AUM, strategy, geography)
+• Competitor Associate hiring patterns
+• Target companies for passive sourcing
+• Market intelligence (compensation, talent density)
+
+This will take 2-3 minutes. I'll generate a professional, research-backed JD for your review.
+
+*Research running in background...*
