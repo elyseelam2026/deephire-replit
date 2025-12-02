@@ -7024,8 +7024,9 @@ Format it cleanly in markdown. Make it professional and actionable.`;
 
 /**
  * GROK-POWERED CANDIDATE DISCOVERY
- * Ask Grok to generate REAL candidate names + LinkedIn URLs WITH FULL CONVERSATION CONTEXT
- * This works because Grok has the complete dialogue to understand nuanced requirements
+ * Step 1: Analyze NAP conversation → extract role profile and candidate signals
+ * Step 2: Generate search strategies (LinkedIn queries, keywords, filters)
+ * Step 3: Use strategies to actually find candidates via BrightData
  */
 export async function discoverExecutiveCandidates(
   jobData: {
@@ -7048,8 +7049,6 @@ export async function discoverExecutiveCandidates(
   estimatedFitScore: number;
 }>> {
   try {
-    const targetFirms = jobData.targetCompanies?.join(', ') || 'Top HFT/crypto firms (Citadel, Jump, Jane Street, DRW, Two Sigma, Binance, Coinbase, Kraken)';
-    
     // Build the full context from conversation if available
     let fullContext = ``;
     if (conversationHistory && conversationHistory.length > 0) {
@@ -7060,61 +7059,99 @@ export async function discoverExecutiveCandidates(
       fullContext += `\n---\n\n`;
     }
 
-    const prompt = `${fullContext}
+    // STEP 1: Ask Grok to extract the IDEAL PROFILE from the NAP conversation
+    const profileExtractionPrompt = `${fullContext}
 
-Based on the conversation and job requirements above, identify ${count} SPECIFIC, REAL executives who are actual fits for this role.
+Based on the conversation above, extract the IDEAL CANDIDATE PROFILE for this role.
 
-**EXTRACTED JOB PROFILE:**
+**CURRENT JOB CONTEXT:**
 - Title: ${jobData.title}
 - Industry: ${jobData.industry}
-- Required Skills: ${jobData.skills?.join(', ')}
+- Skills: ${jobData.skills?.join(', ')}
 - Experience: ${jobData.yearsExperience}+ years
-- Target Firms: ${targetFirms}
-- Success Criteria: ${jobData.successCriteria}
+- Target Companies: ${jobData.targetCompanies?.join(', ')}
 
 **TASK:**
-Using your knowledge of real executives in this space, provide ${count} SPECIFIC candidates:
-- Real people with real LinkedIn URLs
-- Currently or recently working at relevant firms
-- Whose backgrounds actually match the conversational context
+Extract SPECIFIC signals that identify ideal candidates:
+1. Must-have skills (exact technical skills mentioned)
+2. Career patterns (what progression suggests they're ready for this role?)
+3. Company signals (which companies produce people who succeed here?)
+4. Title patterns (what titles have they held? what titles to search for?)
+5. Industry background (financial services? tech? both?)
+6. Seniority level (director level? VP? C-suite?)
+7. Deal-breakers (what disqualifies someone?)
+8. Geographic focus (any location preferences?)
 
-For each candidate:
-1. Full name
-2. Current/recent job title
-3. Current/recent company
-4. LinkedIn URL (real, verifiable format)
-5. Why they fit (based on conversation context)
-6. Fit score (0-100)
+Return as JSON with actionable search signals.`;
 
-Return JSON array:
-[
-  {
-    "name": "First Last",
-    "currentRole": "Title",
-    "currentCompany": "Company",
-    "linkedinUrl": "https://linkedin.com/in/username",
-    "reasoning": "Why they fit based on the conversation",
-    "estimatedFitScore": 85
-  }
-]
-
-CRITICAL: Only real people you have knowledge of. No fabrications.`;
-
-    const response = await openai.chat.completions.create({
+    const profileResponse = await openai.chat.completions.create({
       model: "grok-2-1212",
       messages: [{
         role: "user",
-        content: prompt
+        content: profileExtractionPrompt
       }],
-      response_format: { type: "json_object" },
-      max_tokens: 3000,
+      max_tokens: 2000,
     });
 
-    const content = response.choices[0].message.content || "[]";
-    const candidates = JSON.parse(stripMarkdownJson(content));
+    const profileAnalysis = profileResponse.choices[0].message.content || "";
+    console.log(`[Grok Discovery] Role profile extracted from NAP conversation`);
 
-    console.log(`[Grok Discovery] Found ${candidates.length} real executive candidates with full context`);
-    return Array.isArray(candidates) ? candidates : [];
+    // STEP 2: Ask Grok to generate SEARCH STRATEGIES based on the extracted profile
+    const searchStrategyPrompt = `Based on this candidate profile analysis:
+
+${profileAnalysis}
+
+Generate 3-5 DIFFERENT LinkedIn search strategies to find real candidates matching this profile.
+
+For each strategy, provide:
+1. Search query (LinkedIn keywords, titles, skills to search for)
+2. Target companies list (companies to search within)
+3. Geographic focus
+4. What this strategy is designed to find
+
+Return as JSON:
+{
+  "strategies": [
+    {
+      "name": "Strategy name",
+      "keywords": ["keyword1", "keyword2"],
+      "titles": ["Title1", "Title2"],
+      "companies": ["Company1", "Company2"],
+      "skills": ["Skill1", "Skill2"],
+      "description": "What this finds"
+    }
+  ]
+}`;
+
+    const strategyResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [{
+        role: "user",
+        content: searchStrategyPrompt
+      }],
+      response_format: { type: "json_object" },
+      max_tokens: 2000,
+    });
+
+    const strategyContent = strategyResponse.choices[0].message.content || "{}";
+    const strategies = JSON.parse(stripMarkdownJson(strategyContent)).strategies || [];
+    
+    console.log(`[Grok Discovery] Generated ${strategies.length} search strategies from role profile`);
+
+    // STEP 3: Use search strategies to find REAL candidates
+    // For now, return empty (in next phase, this will call BrightData with the search strategies)
+    const discovered: Array<{
+      name: string;
+      currentRole: string;
+      currentCompany: string;
+      linkedinUrl: string;
+      reasoning: string;
+      estimatedFitScore: number;
+    }> = [];
+
+    console.log(`[Grok Discovery] Search strategies ready for BrightData execution. Strategies: ${JSON.stringify(strategies)}`);
+    
+    return discovered;
   } catch (error) {
     console.error("Error discovering executive candidates:", error);
     return [];
