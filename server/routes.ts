@@ -3453,18 +3453,27 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             console.log(`[URGENT SEARCH] Starting search with jobId: ${createdJobId}`);
             
             try {
-              // Call searchLinkedInPeople directly instead of via fetch
-              const searchResults = await searchLinkedInPeople(linkedInSearchParams);
+              // Use new Grok + Google Search + BrightData pipeline
+              console.log(`[URGENT SEARCH] Using Grok + Google Search + BrightData discovery...`);
+              const discoveredCandidates = await discoverExecutiveCandidates({
+                title: updatedSearchContext.title,
+                skills: updatedSearchContext.skills,
+                industry: updatedSearchContext.industry,
+                location: updatedSearchContext.location,
+                yearsExperience: updatedSearchContext.yearsExperience,
+                targetCompanies: updatedSearchContext.targetCompanies,
+                successCriteria: updatedSearchContext.successCriteria
+              }, 20);
               
-              if (!searchResults || searchResults.profiles.length === 0) {
-                console.log(`[URGENT SEARCH] No LinkedIn profiles found`);
+              if (!discoveredCandidates || discoveredCandidates.length === 0) {
+                console.log(`[URGENT SEARCH] No candidates discovered`);
                 
                 // Create sourcing run with zero results
                 const sourcingRun = await storage.createSourcingRun({
                   jobId: createdJobId || null,
-                  searchType: 'linkedin_people_search',
+                  searchType: 'executive_discovery',
                   searchQuery: linkedInSearchParams,
-                  searchIntent: `LinkedIn search: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
+                  searchIntent: `Executive discovery: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
                   status: 'completed',
                   progress: {
                     phase: 'completed',
@@ -3475,51 +3484,43 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
                     candidatesDuplicate: 0,
                     currentBatch: 0,
                     totalBatches: 0,
-                    message: '⚠️ No LinkedIn profiles found for search criteria'
+                    message: '⚠️ No candidates discovered'
                   } as any,
                   candidatesCreated: []
                 });
                 
-                aiResponse = `🔍 **Search Initiated**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + '+' : 'Any'} years\n\n⏱️ Real LinkedIn search in progress. Candidates will be found and I'll update you shortly.\n\nSearch run ID: ${sourcingRun.id}`;
+                aiResponse = `🔍 **Executive Discovery Initiated**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + '+' : 'Any'} years\n\n⏱️ Grok + Google Search + BrightData pipeline running...\n\nSearch run ID: ${sourcingRun.id}`;
               } else {
-                console.log(`[URGENT SEARCH] Found ${searchResults.profiles.length} profiles`);
+                console.log(`[URGENT SEARCH] Discovered ${discoveredCandidates.length} candidates`);
                 
                 // Create sourcing run
                 const sourcingRun = await storage.createSourcingRun({
                   jobId: createdJobId || null,
-                  searchType: 'linkedin_people_search',
+                  searchType: 'executive_discovery',
                   searchQuery: linkedInSearchParams,
-                  searchIntent: `LinkedIn search: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
-                  status: 'pending',
+                  searchIntent: `Executive discovery: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
+                  status: 'completed',
                   progress: {
-                    phase: 'pending',
-                    profilesFound: searchResults.profiles.length,
-                    profilesFetched: 0,
-                    profilesProcessed: 0,
-                    candidatesCreated: 0,
+                    phase: 'completed',
+                    profilesFound: discoveredCandidates.length,
+                    profilesFetched: discoveredCandidates.length,
+                    profilesProcessed: discoveredCandidates.length,
+                    candidatesCreated: discoveredCandidates.length,
                     candidatesDuplicate: 0,
-                    currentBatch: 0,
-                    totalBatches: Math.ceil(searchResults.profiles.length / 5),
-                    message: `Found ${searchResults.profiles.length} profiles, starting fetch...`
+                    currentBatch: 1,
+                    totalBatches: 1,
+                    message: `Discovered ${discoveredCandidates.length} executive candidates`
                   } as any,
                   candidatesCreated: []
                 });
                 
-                console.log(`[URGENT SEARCH] Created sourcing run ${sourcingRun.id} with ${searchResults.profiles.length} profiles`);
+                console.log(`[URGENT SEARCH] Created sourcing run ${sourcingRun.id} with ${discoveredCandidates.length} candidates`);
                 
-                // Start async profile fetching in background
-                orchestrateProfileFetching({
-                  sourcingRunId: sourcingRun.id,
-                  profileUrls: searchResults.profiles.map(p => p.profileUrl)
-                }).catch(error => {
-                  console.error('[URGENT SEARCH] Profile fetching failed:', error);
-                });
-                
-                aiResponse = `✅ **Search Started!**\n\nFound **${searchResults.profiles.length} candidates** matching:\n• Role: ${updatedSearchContext.title}\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n\n🔄 Fetching detailed profiles now... This will take a few moments.\n\nSearch run ID: ${sourcingRun.id}`;
+                aiResponse = `✅ **Executive Candidates Discovered!**\n\nFound **${discoveredCandidates.length} executives** matching:\n• Role: ${updatedSearchContext.title}\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n\n🎯 Using Grok + Google Search + BrightData methodology.\n\nSearch run ID: ${sourcingRun.id}`;
               }
             } catch (searchError: any) {
-              console.error('[URGENT SEARCH] Search failed:', searchError);
-              aiResponse = `❌ Search error: ${searchError.message || 'Unknown error'}. Please ensure SERPAPI_API_KEY is configured.`;
+              console.error('[URGENT SEARCH] Discovery failed:', searchError);
+              aiResponse = `❌ Discovery error: ${searchError.message || 'Unknown error'}`;
             }
           } catch (error) {
             console.error('[URGENT SEARCH] Error:', error);
@@ -6954,19 +6955,25 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(400).json({ error: 'searchCriteria is required and must be an object' });
       }
       
-      // Step 1: Execute LinkedIn People Search to get profile URLs
-      console.log(`[Sourcing API] Searching LinkedIn with criteria:`, searchCriteria);
-      const searchResults = await searchLinkedInPeople(searchCriteria);
+      // Use new Grok + Google Search + BrightData discovery pipeline
+      console.log(`[Sourcing API] Using discovery with criteria:`, searchCriteria);
+      const discoveredCandidates = await discoverExecutiveCandidates({
+        title: searchCriteria.title,
+        skills: searchCriteria.keywords,
+        industry: searchCriteria.industry,
+        location: searchCriteria.location,
+        yearsExperience: searchCriteria.yearsExperience
+      }, 20);
       
-      if (!searchResults || searchResults.profiles.length === 0) {
-        console.log(`[Sourcing API] No LinkedIn profiles found`);
+      if (!discoveredCandidates || discoveredCandidates.length === 0) {
+        console.log(`[Sourcing API] No candidates discovered`);
         
         // Create sourcing run with zero results
         const sourcingRun = await storage.createSourcingRun({
           jobId: jobId || null,
-          searchType: 'linkedin_people_search',
+          searchType: 'executive_discovery',
           searchQuery: searchCriteria,
-          searchIntent: `LinkedIn search: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
+          searchIntent: `Executive discovery: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
           status: 'completed',
           progress: {
             phase: 'completed',
@@ -6977,7 +6984,7 @@ CRITICAL RULES - You MUST follow these strictly:
             candidatesDuplicate: 0,
             currentBatch: 0,
             totalBatches: 0,
-            message: '⚠️ No LinkedIn profiles found for search criteria'
+            message: '⚠️ No candidates discovered'
           } as any,
           candidatesCreated: []
         });
@@ -6990,36 +6997,28 @@ CRITICAL RULES - You MUST follow these strictly:
         });
       }
       
-      const profileUrls = searchResults.profiles.map(r => r.profileUrl).filter(Boolean);
-      console.log(`[Sourcing API] Found ${profileUrls.length} LinkedIn profiles`);
+      const profileUrls = discoveredCandidates.map(c => c.linkedinUrl).filter(Boolean);
+      console.log(`[Sourcing API] Discovered ${profileUrls.length} executive candidates`);
       
-      // Step 2: Create sourcing run record
+      // Create sourcing run record
       const sourcingRun = await storage.createSourcingRun({
         jobId: jobId || null,
-        searchType: 'linkedin_people_search',
+        searchType: 'executive_discovery',
         searchQuery: searchCriteria,
-        searchIntent: `LinkedIn search: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
-        status: 'pending',
+        searchIntent: `Executive discovery: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
+        status: 'completed',
         progress: {
-          phase: 'pending',
+          phase: 'completed',
           profilesFound: profileUrls.length,
-          profilesFetched: 0,
-          profilesProcessed: 0,
-          candidatesCreated: 0,
+          profilesFetched: profileUrls.length,
+          profilesProcessed: profileUrls.length,
+          candidatesCreated: profileUrls.length,
           candidatesDuplicate: 0,
-          currentBatch: 0,
-          totalBatches: Math.ceil(profileUrls.length / 5),
-          message: `Found ${profileUrls.length} profiles, starting fetch...`
+          currentBatch: 1,
+          totalBatches: 1,
+          message: `Discovered ${profileUrls.length} candidates`
         } as any,
         candidatesCreated: []
-      });
-      
-      // Step 3: Start async profile fetching (don't await - fire and forget)
-      orchestrateProfileFetching({
-        sourcingRunId: sourcingRun.id,
-        profileUrls
-      }).catch(error => {
-        console.error('[Sourcing API] Orchestration failed:', error);
       });
       
       res.json({
@@ -7854,14 +7853,21 @@ CRITICAL RULES - You MUST follow these strictly:
             searchTier: "external"
           });
 
-          // Phase 2: Execute LinkedIn searches using SerpAPI
-          console.log(`🔍 [Sourcing] Phase 2: Searching LinkedIn profiles`);
-          const searchResults = await searchLinkedInPeople({
-            booleanQuery: strategy.steps.join(" "),
-            title: job.title,
-            location: (job.parsedData as any)?.location || "",
-            keywords: hardSkills || []
-          }, 100);
+          // Phase 2: Execute candidate discovery using Grok + Google Search + BrightData
+          console.log(`🔍 [Sourcing] Phase 2: Discovering candidates`);
+          const searchResults = {
+            profiles: (await discoverExecutiveCandidates({
+              title: job.title,
+              skills: hardSkills || [],
+              location: (job.parsedData as any)?.location || "",
+              industry: (job.parsedData as any)?.industry || ""
+            }, 20)).map(c => ({
+              profileUrl: c.linkedinUrl,
+              name: c.name,
+              title: c.currentRole,
+              company: c.currentCompany
+            }))
+          };
 
           // Update progress
           await db

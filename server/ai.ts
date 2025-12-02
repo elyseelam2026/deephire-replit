@@ -7042,6 +7042,7 @@ export async function discoverExecutiveCandidates(
     targetCompanies?: string[];
     successCriteria?: string;
     jdText?: string;
+    location?: string;
   },
   count: number = 10,
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
