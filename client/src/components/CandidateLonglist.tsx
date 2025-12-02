@@ -8,12 +8,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ExternalLink, MapPin, Briefcase, Eye, Search } from "lucide-react";
 import { Link } from "wouter";
 import { CandidateDetailModal } from "./CandidateDetailModal";
+import DiscoveryProgress from "./DiscoveryProgress";
 
 interface CandidateLonglistProps {
   jobId: number;
+  jobTitle?: string;
 }
 
-export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
+export default function CandidateLonglist({ jobId, jobTitle = "the role" }: CandidateLonglistProps) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"fit" | "recent">("fit");
   const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
@@ -23,7 +25,7 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
   const { data: rawCandidates = [], isLoading } = useQuery<Array<any>>({
     queryKey: ['/api/jobs', jobId, 'candidates'],
     enabled: !!jobId,
-    refetchInterval: 10000
+    refetchInterval: 5000
   });
 
   // Filter and sort
@@ -40,8 +42,9 @@ export default function CandidateLonglist({ jobId }: CandidateLonglistProps) {
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-96 text-muted-foreground">Loading candidates...</div>;
+  // Show animated discovery progress when loading with no candidates yet
+  if (isLoading && rawCandidates.length === 0) {
+    return <DiscoveryProgress jobTitle={jobTitle} isDiscovering={true} />;
   }
 
   return (

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import DiscoveryProgress from "@/components/DiscoveryProgress";
 
 const formatDate = (dateString: string | Date) => {
   const date = new Date(dateString);
@@ -509,10 +510,8 @@ export default function Jobs() {
 
               <div className="border-t pt-6">
                 <h4 className="font-medium text-sm mb-3">Matched Candidates</h4>
-                {candidatesLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
-                  </div>
+                {candidatesLoading && candidates.length === 0 ? (
+                  <DiscoveryProgress jobTitle={selectedJob.title} isDiscovering={true} />
                 ) : candidates.length === 0 ? (
                   <p className="text-muted-foreground text-sm py-4">No candidates matched this role yet.</p>
                 ) : (
