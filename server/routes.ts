@@ -2527,6 +2527,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let newPhase = conversation.phase || 'initial';
       let createdJobId: number | undefined;
 
+      // **FIX**: If research is already running, don't ask more NAP questions
+      if (conversation.phase === 'research_phase') {
+        console.log(`⏳ [Research In Progress] Phase is research_phase, skipping NAP logic`);
+        aiResponse = `⏳ **Research Still In Progress**\n\nI'm analyzing market intelligence for the **${conversation.searchContext?.companyName || 'your company'}** ${conversation.searchContext?.title || 'position'}.\n\nPlease wait while I gather insights on:\n• Competitor hiring patterns\n• Target company talent pools  \n• Market salary ranges\n\nI'll have your research-backed JD ready shortly. Stay tuned!`;
+        
+        const assistantMessage = {
+          role: 'assistant' as const,
+          content: aiResponse,
+          timestamp: new Date().toISOString()
+        };
+        
+        await storage.updateConversation(conversationId, {
+          messages: [...messages, assistantMessage],
+          phase: newPhase
+        });
+        
+        return res.json({
+          id: conversationId,
+          messages: [...messages, assistantMessage],
+          phase: newPhase
+        });
+      }
+
+      // **FIX**: If JD is ready from research, show it instead of asking NAP questions
+      if (conversation.phase === 'jd_ready' && (conversation as any).generatedJD) {
+        console.log(`✅ [JD Ready] Showing generated JD to user`);
+        const generatedJD = (conversation as any).generatedJD;
+        aiResponse = `📋 **Professional JD - Research Backed**\n\n${generatedJD}\n\n---\n\n✅ **Approve this JD?** Reply "yes" or "approve" to move forward with sourcing.`;
+        
+        const assistantMessage = {
+          role: 'assistant' as const,
+          content: aiResponse,
+          timestamp: new Date().toISOString()
+        };
+        
+        await storage.updateConversation(conversationId, {
+          messages: [...messages, assistantMessage],
+          phase: newPhase
+        });
+        
+        return res.json({
+          id: conversationId,
+          messages: [...messages, assistantMessage],
+          phase: newPhase
+        });
+      }
+
       // PHASE 0: Check if this conversation already has a job (prevents duplicate job creation)
       let existingJob = null;
       if (conversation.jobId) {
