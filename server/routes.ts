@@ -3393,50 +3393,61 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
           newPhase = 'sourcing_started';
           
           try {
-            // STEP 1: CREATE NEW JOB FOR THIS SEARCH
+            // STEP 1: REUSE CONVERSATION'S JOB OR CREATE NEW ONE
             let createdJobId: number | undefined;
-            let jobCompanyId: number | undefined;
-              
-              if (updatedSearchContext.companyName) {
-                try {
-                  const existingCompanies = await storage.searchCompanies(updatedSearchContext.companyName);
-                  if (existingCompanies.length > 0) {
-                    jobCompanyId = existingCompanies[0].parent.id;
-                  } else {
-                    const newCompany = await storage.createCompany({
-                      name: updatedSearchContext.companyName,
-                      location: updatedSearchContext.location || 'Unknown'
-                    });
-                    jobCompanyId = newCompany.id;
+            
+            // Check if conversation already has a job linked
+            if ((conversation as any).jobId) {
+              createdJobId = (conversation as any).jobId;
+              console.log(`✅ [URGENT SEARCH] Reusing existing job from conversation: ${createdJobId}`);
+            } else {
+              // Create new job only if conversation doesn't have one
+              let jobCompanyId: number | undefined;
+                
+                if (updatedSearchContext.companyName) {
+                  try {
+                    const existingCompanies = await storage.searchCompanies(updatedSearchContext.companyName);
+                    if (existingCompanies.length > 0) {
+                      jobCompanyId = existingCompanies[0].parent.id;
+                    } else {
+                      const newCompany = await storage.createCompany({
+                        name: updatedSearchContext.companyName,
+                        location: updatedSearchContext.location || 'Unknown'
+                      });
+                      jobCompanyId = newCompany.id;
+                    }
+                  } catch (err) {
+                    console.error('Error handling company:', err);
                   }
-                } catch (err) {
-                  console.error('Error handling company:', err);
                 }
-              }
-              if (!jobCompanyId) {
-                const allCompanies = await storage.getCompanies();
-                if (allCompanies.length > 0) {
-                  jobCompanyId = allCompanies[0].id;
+                if (!jobCompanyId) {
+                  const allCompanies = await storage.getCompanies();
+                  if (allCompanies.length > 0) {
+                    jobCompanyId = allCompanies[0].id;
+                  }
                 }
-              }
-              
-              if (jobCompanyId) {
-                const jobTitle = updatedSearchContext.title || 'Position (title not specified)';
-                const createdJob = await storage.createJob({
-                  title: jobTitle,
-                  companyId: jobCompanyId,
-                  jdText: `Search for ${jobTitle} at ${updatedSearchContext.companyName || 'Company'}`,
-                  skills: updatedSearchContext.skills,
-                  status: 'active',
-                  searchTier: 'external',
-                  needAnalysis: updatedSearchContext as any,
-                  urgency: updatedSearchContext.urgency
-                });
-                createdJobId = createdJob.id;
-                console.log(`✅ [URGENT SEARCH] Job created with ID: ${createdJobId}`);
-              } else {
-                console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
-              }
+                
+                if (jobCompanyId) {
+                  const jobTitle = updatedSearchContext.title || 'Position (title not specified)';
+                  const createdJob = await storage.createJob({
+                    title: jobTitle,
+                    companyId: jobCompanyId,
+                    jdText: `Search for ${jobTitle} at ${updatedSearchContext.companyName || 'Company'}`,
+                    skills: updatedSearchContext.skills,
+                    status: 'active',
+                    searchTier: 'external',
+                    needAnalysis: updatedSearchContext as any,
+                    urgency: updatedSearchContext.urgency
+                  });
+                  createdJobId = createdJob.id;
+                  
+                  // Link job to conversation
+                  await storage.updateConversation(conversationId.toString(), { jobId: createdJobId as any });
+                  console.log(`✅ [URGENT SEARCH] Created new job ${createdJobId} and linked to conversation`);
+                } else {
+                  console.warn(`⚠️ [URGENT SEARCH] Could not create job - no company available`);
+                }
+            }
             
             // Build search criteria - map to LinkedInSearchParams format
             const linkedInSearchParams = {
