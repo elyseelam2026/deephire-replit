@@ -700,7 +700,7 @@ Skills: ${(job.skills || []).join(', ')}
 Return JSON: {"companies": ["Company1", "Company2"]}`;
 
       const grokResponse = await grokClient.chat.completions.create({
-        model: "grok-beta",
+        model: "grok-3",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 200
       });
