@@ -3453,74 +3453,98 @@ ${conversationHistory.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n\n')
             console.log(`[URGENT SEARCH] Starting search with jobId: ${createdJobId}`);
             
             try {
-              // Use new Grok + Google Search + BrightData pipeline
-              console.log(`[URGENT SEARCH] Using Grok + Google Search + BrightData discovery...`);
-              const discoveredCandidates = await discoverExecutiveCandidates({
-                title: updatedSearchContext.title,
-                skills: updatedSearchContext.skills,
-                industry: updatedSearchContext.industry,
-                location: updatedSearchContext.location,
-                yearsExperience: updatedSearchContext.yearsExperience,
-                targetCompanies: updatedSearchContext.targetCompanies,
-                successCriteria: updatedSearchContext.successCriteria
-              }, 20);
+              // Create sourcing run with pending status first
+              const sourcingRun = await storage.createSourcingRun({
+                jobId: createdJobId || null,
+                searchType: 'executive_discovery',
+                searchQuery: linkedInSearchParams,
+                searchIntent: `Executive discovery: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
+                status: 'pending',
+                progress: {
+                  phase: 'searching',
+                  profilesFound: 0,
+                  profilesFetched: 0,
+                  profilesProcessed: 0,
+                  candidatesCreated: 0,
+                  candidatesDuplicate: 0,
+                  currentBatch: 0,
+                  totalBatches: 0,
+                  message: 'Starting executive discovery...'
+                } as any,
+                candidatesCreated: []
+              });
+
+              console.log(`[URGENT SEARCH] Created sourcing run ${sourcingRun.id}, starting discovery in background...`);
               
-              if (!discoveredCandidates || discoveredCandidates.length === 0) {
-                console.log(`[URGENT SEARCH] No candidates discovered`);
-                
-                // Create sourcing run with zero results
-                const sourcingRun = await storage.createSourcingRun({
-                  jobId: createdJobId || null,
-                  searchType: 'executive_discovery',
-                  searchQuery: linkedInSearchParams,
-                  searchIntent: `Executive discovery: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
-                  status: 'completed',
-                  progress: {
-                    phase: 'completed',
-                    profilesFound: 0,
-                    profilesFetched: 0,
-                    profilesProcessed: 0,
-                    candidatesCreated: 0,
-                    candidatesDuplicate: 0,
-                    currentBatch: 0,
-                    totalBatches: 0,
-                    message: '⚠️ No candidates discovered'
-                  } as any,
-                  candidatesCreated: []
-                });
-                
-                aiResponse = `🔍 **Executive Discovery Initiated**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + '+' : 'Any'} years\n\n⏱️ Grok + Google Search + BrightData pipeline running...\n\nSearch run ID: ${sourcingRun.id}`;
-              } else {
-                console.log(`[URGENT SEARCH] Discovered ${discoveredCandidates.length} candidates`);
-                
-                // Create sourcing run
-                const sourcingRun = await storage.createSourcingRun({
-                  jobId: createdJobId || null,
-                  searchType: 'executive_discovery',
-                  searchQuery: linkedInSearchParams,
-                  searchIntent: `Executive discovery: ${JSON.stringify(linkedInSearchParams).substring(0, 200)}`,
-                  status: 'completed',
-                  progress: {
-                    phase: 'completed',
-                    profilesFound: discoveredCandidates.length,
-                    profilesFetched: discoveredCandidates.length,
-                    profilesProcessed: discoveredCandidates.length,
-                    candidatesCreated: discoveredCandidates.length,
-                    candidatesDuplicate: 0,
-                    currentBatch: 1,
-                    totalBatches: 1,
-                    message: `Discovered ${discoveredCandidates.length} executive candidates`
-                  } as any,
-                  candidatesCreated: []
-                });
-                
-                console.log(`[URGENT SEARCH] Created sourcing run ${sourcingRun.id} with ${discoveredCandidates.length} candidates`);
-                
-                aiResponse = `✅ **Executive Candidates Discovered!**\n\nFound **${discoveredCandidates.length} executives** matching:\n• Role: ${updatedSearchContext.title}\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n\n🎯 Using Grok + Google Search + BrightData methodology.\n\nSearch run ID: ${sourcingRun.id}`;
-              }
+              // Fire off discovery in background - DON'T AWAIT
+              setImmediate(async () => {
+                try {
+                  const discoveredCandidates = await discoverExecutiveCandidates({
+                    title: updatedSearchContext.title,
+                    skills: updatedSearchContext.skills,
+                    industry: updatedSearchContext.industry,
+                    location: updatedSearchContext.location,
+                    yearsExperience: updatedSearchContext.yearsExperience,
+                    targetCompanies: updatedSearchContext.targetCompanies,
+                    successCriteria: updatedSearchContext.successCriteria
+                  }, 20);
+                  
+                  if (!discoveredCandidates || discoveredCandidates.length === 0) {
+                    console.log(`[URGENT SEARCH] No candidates discovered in background`);
+                    await storage.updateSourcingRun(sourcingRun.id, {
+                      status: 'completed',
+                      progress: {
+                        phase: 'completed',
+                        profilesFound: 0,
+                        profilesFetched: 0,
+                        profilesProcessed: 0,
+                        candidatesCreated: 0,
+                        candidatesDuplicate: 0,
+                        currentBatch: 0,
+                        totalBatches: 0,
+                        message: '⚠️ No candidates discovered'
+                      } as any
+                    });
+                  } else {
+                    console.log(`[URGENT SEARCH] Discovered ${discoveredCandidates.length} candidates in background`);
+                    await storage.updateSourcingRun(sourcingRun.id, {
+                      status: 'completed',
+                      progress: {
+                        phase: 'completed',
+                        profilesFound: discoveredCandidates.length,
+                        profilesFetched: discoveredCandidates.length,
+                        profilesProcessed: discoveredCandidates.length,
+                        candidatesCreated: discoveredCandidates.length,
+                        candidatesDuplicate: 0,
+                        currentBatch: 1,
+                        totalBatches: 1,
+                        message: `Discovered ${discoveredCandidates.length} executive candidates`
+                      } as any
+                    });
+                  }
+                } catch (bgError: any) {
+                  console.error('[URGENT SEARCH] Background discovery failed:', bgError);
+                  await storage.updateSourcingRun(sourcingRun.id, {
+                    status: 'failed',
+                    progress: {
+                      phase: 'failed',
+                      profilesFound: 0,
+                      profilesFetched: 0,
+                      profilesProcessed: 0,
+                      candidatesCreated: 0,
+                      candidatesDuplicate: 0,
+                      currentBatch: 0,
+                      totalBatches: 0,
+                      message: `Error: ${bgError.message}`
+                    } as any
+                  });
+                }
+              });
+              
+              aiResponse = `🔍 **Executive Discovery Started!**\n\nSearching for **${updatedSearchContext.title}** candidates with:\n• Skills: ${(updatedSearchContext.skills || []).slice(0, 3).join(', ') || 'Various'}\n• Location: ${updatedSearchContext.location || 'Global'}\n• Experience: ${updatedSearchContext.yearsExperience ? updatedSearchContext.yearsExperience + '+' : 'Any'} years\n\n⏱️ Using Grok + Google Search + BrightData pipeline. Candidates will appear as they're discovered.\n\nSearch run ID: ${sourcingRun.id}`;
             } catch (searchError: any) {
-              console.error('[URGENT SEARCH] Discovery failed:', searchError);
-              aiResponse = `❌ Discovery error: ${searchError.message || 'Unknown error'}`;
+              console.error('[URGENT SEARCH] Failed to create sourcing run:', searchError);
+              aiResponse = `❌ Error starting search: ${searchError.message || 'Unknown error'}`;
             }
           } catch (error) {
             console.error('[URGENT SEARCH] Error:', error);
@@ -6955,77 +6979,96 @@ CRITICAL RULES - You MUST follow these strictly:
         return res.status(400).json({ error: 'searchCriteria is required and must be an object' });
       }
       
-      // Use new Grok + Google Search + BrightData discovery pipeline
-      console.log(`[Sourcing API] Using discovery with criteria:`, searchCriteria);
-      const discoveredCandidates = await discoverExecutiveCandidates({
-        title: searchCriteria.title,
-        skills: searchCriteria.keywords,
-        industry: searchCriteria.industry,
-        location: searchCriteria.location,
-        yearsExperience: searchCriteria.yearsExperience
-      }, 20);
-      
-      if (!discoveredCandidates || discoveredCandidates.length === 0) {
-        console.log(`[Sourcing API] No candidates discovered`);
-        
-        // Create sourcing run with zero results
-        const sourcingRun = await storage.createSourcingRun({
-          jobId: jobId || null,
-          searchType: 'executive_discovery',
-          searchQuery: searchCriteria,
-          searchIntent: `Executive discovery: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
-          status: 'completed',
-          progress: {
-            phase: 'completed',
-            profilesFound: 0,
-            profilesFetched: 0,
-            profilesProcessed: 0,
-            candidatesCreated: 0,
-            candidatesDuplicate: 0,
-            currentBatch: 0,
-            totalBatches: 0,
-            message: '⚠️ No candidates discovered'
-          } as any,
-          candidatesCreated: []
-        });
-        
-        return res.json({
-          runId: sourcingRun.id,
-          status: 'completed',
-          message: 'No candidates found',
-          profilesFound: 0
-        });
-      }
-      
-      const profileUrls = discoveredCandidates.map(c => c.linkedinUrl).filter(Boolean);
-      console.log(`[Sourcing API] Discovered ${profileUrls.length} executive candidates`);
-      
-      // Create sourcing run record
+      // Create sourcing run with pending status first
+      console.log(`[Sourcing API] Starting discovery in background with criteria:`, searchCriteria);
       const sourcingRun = await storage.createSourcingRun({
         jobId: jobId || null,
         searchType: 'executive_discovery',
         searchQuery: searchCriteria,
         searchIntent: `Executive discovery: ${JSON.stringify(searchCriteria).substring(0, 200)}`,
-        status: 'completed',
+        status: 'pending',
         progress: {
-          phase: 'completed',
-          profilesFound: profileUrls.length,
-          profilesFetched: profileUrls.length,
-          profilesProcessed: profileUrls.length,
-          candidatesCreated: profileUrls.length,
+          phase: 'searching',
+          profilesFound: 0,
+          profilesFetched: 0,
+          profilesProcessed: 0,
+          candidatesCreated: 0,
           candidatesDuplicate: 0,
-          currentBatch: 1,
-          totalBatches: 1,
-          message: `Discovered ${profileUrls.length} candidates`
+          currentBatch: 0,
+          totalBatches: 0,
+          message: 'Starting executive discovery...'
         } as any,
         candidatesCreated: []
+      });
+      
+      // Fire off discovery in background - DON'T AWAIT
+      setImmediate(async () => {
+        try {
+          const discoveredCandidates = await discoverExecutiveCandidates({
+            title: searchCriteria.title,
+            skills: searchCriteria.keywords,
+            industry: searchCriteria.industry,
+            location: searchCriteria.location,
+            yearsExperience: searchCriteria.yearsExperience
+          }, 20);
+          
+          if (!discoveredCandidates || discoveredCandidates.length === 0) {
+            console.log(`[Sourcing API] No candidates discovered in background`);
+            await storage.updateSourcingRun(sourcingRun.id, {
+              status: 'completed',
+              progress: {
+                phase: 'completed',
+                profilesFound: 0,
+                profilesFetched: 0,
+                profilesProcessed: 0,
+                candidatesCreated: 0,
+                candidatesDuplicate: 0,
+                currentBatch: 0,
+                totalBatches: 0,
+                message: '⚠️ No candidates discovered'
+              } as any
+            });
+          } else {
+            console.log(`[Sourcing API] Discovered ${discoveredCandidates.length} candidates in background`);
+            await storage.updateSourcingRun(sourcingRun.id, {
+              status: 'completed',
+              progress: {
+                phase: 'completed',
+                profilesFound: discoveredCandidates.length,
+                profilesFetched: discoveredCandidates.length,
+                profilesProcessed: discoveredCandidates.length,
+                candidatesCreated: discoveredCandidates.length,
+                candidatesDuplicate: 0,
+                currentBatch: 1,
+                totalBatches: 1,
+                message: `Discovered ${discoveredCandidates.length} candidates`
+              } as any
+            });
+          }
+        } catch (bgError: any) {
+          console.error('[Sourcing API] Background discovery failed:', bgError);
+          await storage.updateSourcingRun(sourcingRun.id, {
+            status: 'failed',
+            progress: {
+              phase: 'failed',
+              profilesFound: 0,
+              profilesFetched: 0,
+              profilesProcessed: 0,
+              candidatesCreated: 0,
+              candidatesDuplicate: 0,
+              currentBatch: 0,
+              totalBatches: 0,
+              message: `Error: ${bgError.message}`
+            } as any
+          });
+        }
       });
       
       res.json({
         runId: sourcingRun.id,
         status: 'pending',
-        message: `Found ${profileUrls.length} candidates, fetching profiles...`,
-        profilesFound: profileUrls.length
+        message: 'Discovery started in background...',
+        profilesFound: 0
       });
       
     } catch (error: any) {
@@ -7853,21 +7896,16 @@ CRITICAL RULES - You MUST follow these strictly:
             searchTier: "external"
           });
 
-          // Phase 2: Execute candidate discovery using Grok + Google Search + BrightData
-          console.log(`🔍 [Sourcing] Phase 2: Discovering candidates`);
-          const searchResults = {
-            profiles: (await discoverExecutiveCandidates({
-              title: job.title,
-              skills: hardSkills || [],
-              location: (job.parsedData as any)?.location || "",
-              industry: (job.parsedData as any)?.industry || ""
-            }, 20)).map(c => ({
-              profileUrl: c.linkedinUrl,
-              name: c.name,
-              title: c.currentRole,
-              company: c.currentCompany
-            }))
-          };
+          // Phase 2: Start candidate discovery (fire and forget)
+          console.log(`🔍 [Sourcing] Phase 2: Starting candidate discovery in background`);
+          discoverExecutiveCandidates({
+            title: job.title,
+            skills: hardSkills || [],
+            location: (job.parsedData as any)?.location || "",
+            industry: (job.parsedData as any)?.industry || ""
+          }, 20).catch(err => console.error(`[Sourcing] Discovery error for run #${sourcingRunId}:`, err));
+          
+          const searchResults = { profiles: [] };
 
           // Update progress
           await db
