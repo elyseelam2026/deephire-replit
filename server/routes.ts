@@ -674,7 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get target companies for a job (industry-based competitors)
+  // Get target companies for a job (Grok-identified competitors)
   app.get("/api/jobs/:jobId/target-companies", async (req, res) => {
     try {
       const jobId = parseInt(req.params.jobId);
@@ -684,29 +684,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
 
-      // Industry-based competitor mapping
-      const industryCompetitors: Record<string, string[]> = {
-        "Private Equity": ["KKR", "Blackstone", "Apollo Global", "Carlyle Group", "TPG", "Silver Lake", "Warburg Pincus", "Intermediate Capital"],
-        "Finance": ["Goldman Sachs", "JPMorgan Chase", "Morgan Stanley", "Bank of America", "Citigroup", "Wells Fargo", "Barclays", "Credit Suisse"],
-        "Investment Banking": ["Goldman Sachs", "Morgan Stanley", "JPMorgan Chase", "Lazard", "Evercore", "Centerview", "Lazard", "Greenhill"],
-        "Technology": ["Apple", "Google", "Microsoft", "Amazon", "Meta", "Tesla", "Netflix", "Nvidia"],
-        "Healthcare": ["Johnson & Johnson", "Pfizer", "Moderna", "AbbVie", "Eli Lilly", "Merck", "Bristol Myers", "Novo Nordisk"],
-        "Consulting": ["McKinsey", "Boston Consulting", "Bain", "Deloitte", "EY", "Accenture", "Oliver Wyman", "AT Kearney"],
-        "Real Estate": ["CBRE", "Jones Lang LaSalle", "Cushman Wakefield", "Colliers", "SAVILLS", "Sotheby's International"],
-        "Venture Capital": ["Sequoia Capital", "Andreessen Horowitz", "Y Combinator", "Benchmark", "Greylock", "Lightspeed", "First Round"]
-      };
+      // Ask Grok to identify the best target companies for this specific role
+      const OpenAI = await import('openai').then(m => m.default);
+      const grokClient = new OpenAI({
+        baseURL: "https://api.x.ai/v1",
+        apiKey: process.env.XAI_API_KEY
+      });
 
-      const industry = (job as any)?.industry || "Finance";
-      const targetCompanies = industryCompetitors[industry] || industryCompetitors["Finance"];
+      const prompt = `You are an elite executive recruiter. Based on this role, identify the top 6 companies where candidates for this position are most likely to be found.
+
+Role: ${job.title}
+Industry: ${(job as any)?.industry || 'Finance'}
+Skills: ${(job.skills || []).join(', ')}
+
+Return JSON: {"companies": ["Company1", "Company2"]}`;
+
+      const grokResponse = await grokClient.messages.create({
+        model: "grok-beta",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 200
+      });
+
+      const responseText = (grokResponse.content[0] as any)?.text || '';
+      const jsonMatch = responseText.match(/\{[\s\S]*"companies"[\s\S]*\}/);
+      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+      const targetCompanies = parsed.companies || [];
 
       res.json({
         jobId,
-        industry,
-        targetCompanies
+        industry: (job as any)?.industry,
+        targetCompanies: targetCompanies.length > 0 ? targetCompanies : ["Goldman Sachs", "JPMorgan Chase", "Morgan Stanley"]
       });
     } catch (error) {
       console.error("Error fetching target companies:", error);
-      res.status(500).json({ error: "Failed to fetch target companies" });
+      // Fallback to defaults
+      res.json({
+        jobId,
+        targetCompanies: ["Goldman Sachs", "JPMorgan Chase", "Morgan Stanley", "Bank of America", "Citigroup", "Wells Fargo"]
+      });
     }
   });
 
