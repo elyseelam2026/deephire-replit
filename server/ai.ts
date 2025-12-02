@@ -7023,10 +7023,15 @@ Format it cleanly in markdown. Make it professional and actionable.`;
 }
 
 /**
- * GROK-POWERED CANDIDATE DISCOVERY
- * Step 1: Analyze NAP conversation → extract role profile and candidate signals
- * Step 2: Generate search strategies (LinkedIn queries, keywords, filters)
- * Step 3: Use strategies to actually find candidates via BrightData
+ * GROK-POWERED CANDIDATE DISCOVERY (Executive Search Methodology)
+ * 
+ * Mimics human executive consultant methodology:
+ * 1. Analyze NAP to extract ideal candidate profile
+ * 2. Generate LinkedIn search queries (Boolean searches)
+ * 3. Execute queries via SerpAPI to get profile URLs
+ * 4. Fetch full profiles via BrightData
+ * 5. Score via Grok for fit
+ * 6. Return top candidates
  */
 export async function discoverExecutiveCandidates(
   jobData: {
@@ -7049,111 +7054,147 @@ export async function discoverExecutiveCandidates(
   estimatedFitScore: number;
 }>> {
   try {
-    // Build the full context from conversation if available
-    let fullContext = ``;
-    if (conversationHistory && conversationHistory.length > 0) {
-      fullContext = `**FULL CONVERSATION CONTEXT:**\n`;
-      conversationHistory.forEach(msg => {
-        fullContext += `${msg.role === 'user' ? 'Client' : 'Recruiter'}: ${msg.content}\n\n`;
-      });
-      fullContext += `\n---\n\n`;
-    }
-
-    // STEP 1: Ask Grok to extract the IDEAL PROFILE from the NAP conversation
-    const profileExtractionPrompt = `${fullContext}
-
-Based on the conversation above, extract the IDEAL CANDIDATE PROFILE for this role.
-
-**CURRENT JOB CONTEXT:**
-- Title: ${jobData.title}
-- Industry: ${jobData.industry}
-- Skills: ${jobData.skills?.join(', ')}
-- Experience: ${jobData.yearsExperience}+ years
-- Target Companies: ${jobData.targetCompanies?.join(', ')}
-
-**TASK:**
-Extract SPECIFIC signals that identify ideal candidates:
-1. Must-have skills (exact technical skills mentioned)
-2. Career patterns (what progression suggests they're ready for this role?)
-3. Company signals (which companies produce people who succeed here?)
-4. Title patterns (what titles have they held? what titles to search for?)
-5. Industry background (financial services? tech? both?)
-6. Seniority level (director level? VP? C-suite?)
-7. Deal-breakers (what disqualifies someone?)
-8. Geographic focus (any location preferences?)
-
-Return as JSON with actionable search signals.`;
-
-    const profileResponse = await openai.chat.completions.create({
-      model: "grok-2-1212",
-      messages: [{
-        role: "user",
-        content: profileExtractionPrompt
-      }],
-      max_tokens: 2000,
-    });
-
-    const profileAnalysis = profileResponse.choices[0].message.content || "";
-    console.log(`[Grok Discovery] Role profile extracted from NAP conversation`);
-
-    // STEP 2: Ask Grok to generate SEARCH STRATEGIES based on the extracted profile
-    const searchStrategyPrompt = `Based on this candidate profile analysis:
-
-${profileAnalysis}
-
-Generate 3-5 DIFFERENT LinkedIn search strategies to find real candidates matching this profile.
-
-For each strategy, provide:
-1. Search query (LinkedIn keywords, titles, skills to search for)
-2. Target companies list (companies to search within)
-3. Geographic focus
-4. What this strategy is designed to find
-
-Return as JSON:
-{
-  "strategies": [
-    {
-      "name": "Strategy name",
-      "keywords": ["keyword1", "keyword2"],
-      "titles": ["Title1", "Title2"],
-      "companies": ["Company1", "Company2"],
-      "skills": ["Skill1", "Skill2"],
-      "description": "What this finds"
-    }
-  ]
-}`;
-
-    const strategyResponse = await openai.chat.completions.create({
-      model: "grok-2-1212",
-      messages: [{
-        role: "user",
-        content: searchStrategyPrompt
-      }],
-      response_format: { type: "json_object" },
-      max_tokens: 2000,
-    });
-
-    const strategyContent = strategyResponse.choices[0].message.content || "{}";
-    const strategies = JSON.parse(stripMarkdownJson(strategyContent)).strategies || [];
+    // Import required modules
+    const { batchFingerprintSearch } = await import('./serpapi');
+    const { scrapeLinkedInProfile } = await import('./brightdata');
     
-    console.log(`[Grok Discovery] Generated ${strategies.length} search strategies from role profile`);
+    console.log(`\n🎯 [Executive Discovery] Starting discovery for "${jobData.title}"`);
 
-    // STEP 3: Use search strategies to find REAL candidates
-    // For now, return empty (in next phase, this will call BrightData with the search strategies)
-    const discovered: Array<{
+    // STEP 1: Build target company queries (PRIMARY: Current role holders)
+    const targetCompanyQueries: string[] = [];
+    if (jobData.targetCompanies && jobData.targetCompanies.length > 0) {
+      // For each target company, search for people in the same/similar role
+      for (const company of jobData.targetCompanies) {
+        // Search for current role holders
+        targetCompanyQueries.push(`"${jobData.title}" "${company}"`);
+        // Also search for equivalent roles (Director + VP variations)
+        if (jobData.title.includes('VP')) {
+          targetCompanyQueries.push(`"Director" "${company}" ${jobData.industry || ''}`);
+        }
+      }
+    }
+
+    // STEP 2: Build keyword queries (SECONDARY: Keyword searches)
+    const keywordQueries: string[] = [];
+    if (jobData.skills && jobData.skills.length > 0) {
+      // Build Boolean queries from skills
+      const topSkills = jobData.skills.slice(0, 3);
+      keywordQueries.push(topSkills.join(' AND '));
+      
+      // Industry + skills combination
+      if (jobData.industry) {
+        keywordQueries.push(`${jobData.industry} ${topSkills[0]} ${topSkills[1] || ''}`);
+      }
+      
+      // Years of experience filter
+      if (jobData.yearsExperience) {
+        keywordQueries.push(`${topSkills[0]} experience:${jobData.yearsExperience - 2}-${jobData.yearsExperience + 5}`);
+      }
+    }
+
+    // Combine all queries
+    const allQueries = [...targetCompanyQueries, ...keywordQueries].filter(q => q.length > 0);
+    
+    if (allQueries.length === 0) {
+      console.log(`[Executive Discovery] No search queries generated`);
+      return [];
+    }
+
+    console.log(`[Executive Discovery] Generated ${allQueries.length} search queries`);
+    console.log(`  - Target company queries: ${targetCompanyQueries.length}`);
+    console.log(`  - Keyword queries: ${keywordQueries.length}`);
+
+    // STEP 3: Execute all queries via SerpAPI (fingerprinting)
+    console.log(`[Executive Discovery] Executing fingerprinting via SerpAPI...`);
+    const fingerprintResult = await batchFingerprintSearch(allQueries, undefined, 30);
+    
+    console.log(`[Executive Discovery] Found ${fingerprintResult.fingerprints.length} unique profiles from SerpAPI`);
+
+    if (fingerprintResult.fingerprints.length === 0) {
+      console.log(`[Executive Discovery] No candidates found from search queries`);
+      return [];
+    }
+
+    // STEP 4: Fetch full profiles from BrightData
+    console.log(`[Executive Discovery] Fetching ${Math.min(count * 2, fingerprintResult.fingerprints.length)} profiles from BrightData...`);
+    
+    const fetchedProfiles: Array<{
       name: string;
       currentRole: string;
       currentCompany: string;
       linkedinUrl: string;
       reasoning: string;
-      estimatedFitScore: number;
     }> = [];
 
-    console.log(`[Grok Discovery] Search strategies ready for BrightData execution. Strategies: ${JSON.stringify(strategies)}`);
+    // Fetch profiles in parallel (batch of 5)
+    const batchSize = 5;
+    const profilesToFetch = fingerprintResult.fingerprints.slice(0, count * 2);
     
-    return discovered;
+    for (let i = 0; i < profilesToFetch.length; i += batchSize) {
+      const batch = profilesToFetch.slice(i, i + batchSize);
+      const promises = batch.map(async (fingerprint) => {
+        try {
+          const profile = await scrapeLinkedInProfile(fingerprint.url);
+          if (profile && profile.name) {
+            return {
+              name: profile.name || fingerprint.name,
+              currentRole: profile.position || fingerprint.title,
+              currentCompany: profile.current_company_name || fingerprint.company,
+              linkedinUrl: fingerprint.url,
+              reasoning: fingerprint.snippet || `Found via query: ${fingerprint.source}`
+            };
+          }
+        } catch (err) {
+          console.log(`[Executive Discovery] Could not fetch profile: ${fingerprint.url}`);
+        }
+        return null;
+      });
+
+      const results = await Promise.all(promises);
+      fetchedProfiles.push(...results.filter(r => r !== null) as any[]);
+    }
+
+    console.log(`[Executive Discovery] Successfully fetched ${fetchedProfiles.length} full profiles`);
+
+    // STEP 5: Score all candidates via Grok
+    console.log(`[Executive Discovery] Scoring ${fetchedProfiles.length} candidates via Grok...`);
+    
+    const scored = await Promise.all(fetchedProfiles.map(async (profile) => {
+      const score = await scoreRoleFit(
+        {
+          id: Math.random(),
+          firstName: profile.name.split(' ')[0],
+          lastName: profile.name.split(' ').slice(1).join(' '),
+          currentTitle: profile.currentRole,
+          currentCompany: profile.currentCompany,
+          skills: jobData.skills || [],
+          experience: `${jobData.yearsExperience || 10}+ years`
+        },
+        {
+          title: jobData.title,
+          skills: jobData.skills || [],
+          description: jobData.jdText || jobData.successCriteria || `${jobData.title} at ${jobData.industry || 'target company'}`,
+          yearsExperience: jobData.yearsExperience,
+          industry: jobData.industry
+        }
+      );
+
+      return {
+        ...profile,
+        estimatedFitScore: score.score
+      };
+    }));
+
+    // Sort by score, return top candidates
+    const ranked = scored
+      .sort((a, b) => b.estimatedFitScore - a.estimatedFitScore)
+      .slice(0, count);
+
+    console.log(`[Executive Discovery] Ranked top ${ranked.length} candidates for "${jobData.title}"`);
+    return ranked;
+
   } catch (error) {
-    console.error("Error discovering executive candidates:", error);
+    console.error("[Executive Discovery] Error:", error);
     return [];
   }
 }
