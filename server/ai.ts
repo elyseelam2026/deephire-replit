@@ -7024,14 +7024,14 @@ Format it cleanly in markdown. Make it professional and actionable.`;
 
 /**
  * GROK-POWERED CANDIDATE DISCOVERY (Executive Search Methodology)
+ * Uses: Grok (strategy) + Google Search (discovery) + BrightData (profiles) + Grok (scoring)
  * 
  * Mimics human executive consultant methodology:
- * 1. Analyze NAP to extract ideal candidate profile
- * 2. Generate LinkedIn search queries (Boolean searches)
- * 3. Execute queries via SerpAPI to get profile URLs
- * 4. Fetch full profiles via BrightData
- * 5. Score via Grok for fit
- * 6. Return top candidates
+ * 1. Grok generates search strategies from job context
+ * 2. Google Search finds LinkedIn profiles matching strategies
+ * 3. BrightData fetches full profiles
+ * 4. Grok scores fit
+ * 5. Return top candidates
  */
 export async function discoverExecutiveCandidates(
   jobData: {
@@ -7054,69 +7054,121 @@ export async function discoverExecutiveCandidates(
   estimatedFitScore: number;
 }>> {
   try {
-    // Import required modules
-    const { batchFingerprintSearch } = await import('./serpapi');
     const { scrapeLinkedInProfile } = await import('./brightdata');
     
     console.log(`\n🎯 [Executive Discovery] Starting discovery for "${jobData.title}"`);
 
-    // STEP 1: Build target company queries (PRIMARY: Current role holders)
-    const targetCompanyQueries: string[] = [];
-    if (jobData.targetCompanies && jobData.targetCompanies.length > 0) {
-      // For each target company, search for people in the same/similar role
-      for (const company of jobData.targetCompanies) {
-        // Search for current role holders
-        targetCompanyQueries.push(`"${jobData.title}" "${company}"`);
-        // Also search for equivalent roles (Director + VP variations)
-        if (jobData.title.includes('VP')) {
-          targetCompanyQueries.push(`"Director" "${company}" ${jobData.industry || ''}`);
+    // STEP 1: Use Grok to generate search strategies from job context
+    console.log(`[Executive Discovery] Using Grok to generate search strategies...`);
+    
+    const strategyPrompt = `You are an executive search consultant. Generate 5-8 specific LinkedIn search queries to find ideal candidates for this role.
+
+**ROLE CONTEXT:**
+- Title: ${jobData.title}
+- Industry: ${jobData.industry || 'Not specified'}
+- Required Skills: ${jobData.skills?.join(', ') || 'Not specified'}
+- Experience: ${jobData.yearsExperience}+ years
+- Target Companies: ${jobData.targetCompanies?.join(', ') || 'Top tier firms in the industry'}
+
+**TASK:**
+Generate LinkedIn search queries that find:
+1. Current role holders at target companies (PRIMARY method)
+2. Equivalent roles at competitor firms
+3. People with specific skills + background
+
+Return ONLY a JSON array of search query strings (NO explanations):
+["query1", "query2", "query3", ...]
+
+Examples of good queries:
+- "VP Engineering Citadel"
+- "Head of Trading Jane Street"
+- "CTO fintech blockchain"
+- "Director Engineering site:linkedin.com/in"`;
+
+    const strategyResponse = await openai.chat.completions.create({
+      model: "grok-2-1212",
+      messages: [{
+        role: "user",
+        content: strategyPrompt
+      }],
+      max_tokens: 1000,
+    });
+
+    let searchQueries: string[] = [];
+    try {
+      const strategyContent = strategyResponse.choices[0].message.content || "[]";
+      searchQueries = JSON.parse(stripMarkdownJson(strategyContent));
+    } catch (e) {
+      console.log(`[Executive Discovery] Could not parse Grok strategy, using fallback queries`);
+      searchQueries = [
+        `"${jobData.title}" site:linkedin.com/in`,
+        `${jobData.industry} ${jobData.skills?.[0] || ''} site:linkedin.com/in`,
+        `${jobData.targetCompanies?.[0] || ''} engineer site:linkedin.com/in`
+      ].filter(q => q.length > 10);
+    }
+
+    console.log(`[Executive Discovery] Generated ${searchQueries.length} search queries via Grok`);
+
+    // STEP 2: Execute all queries via Google Search
+    console.log(`[Executive Discovery] Executing searches via Google Search...`);
+    
+    const linkedinProfileUrls = new Set<string>();
+    const profileDetails: Array<{
+      url: string;
+      name: string;
+      title: string;
+      company: string;
+      snippet: string;
+    }> = [];
+
+    for (let i = 0; i < searchQueries.length; i++) {
+      const query = searchQueries[i];
+      if (!query || query.length < 3) continue;
+      
+      // Ensure we're searching on LinkedIn
+      const linkedinQuery = query.includes('site:linkedin.com') 
+        ? query 
+        : `${query} site:linkedin.com/in`;
+
+      console.log(`[Executive Discovery] Query ${i + 1}/${searchQueries.length}: "${linkedinQuery.substring(0, 60)}..."`);
+
+      const results = await googleSearch(linkedinQuery, 10);
+      
+      for (const result of results) {
+        const url = result.link || '';
+        
+        // Extract LinkedIn profile URL
+        if (url.includes('linkedin.com/in/')) {
+          linkedinProfileUrls.add(url);
+          
+          // Parse name/title from search result
+          const title = result.title || '';
+          const snippet = result.snippet || '';
+          const parts = title.split(/[\-|]/);
+          
+          profileDetails.push({
+            url,
+            name: parts[0]?.trim() || 'Unknown',
+            title: parts[1]?.trim() || 'Professional',
+            company: parts[2]?.replace('LinkedIn', '').trim() || 'Unknown',
+            snippet
+          });
         }
       }
+      
+      // Small delay between queries to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // STEP 2: Build keyword queries (SECONDARY: Keyword searches)
-    const keywordQueries: string[] = [];
-    if (jobData.skills && jobData.skills.length > 0) {
-      // Build Boolean queries from skills
-      const topSkills = jobData.skills.slice(0, 3);
-      keywordQueries.push(topSkills.join(' AND '));
-      
-      // Industry + skills combination
-      if (jobData.industry) {
-        keywordQueries.push(`${jobData.industry} ${topSkills[0]} ${topSkills[1] || ''}`);
-      }
-      
-      // Years of experience filter
-      if (jobData.yearsExperience) {
-        keywordQueries.push(`${topSkills[0]} experience:${jobData.yearsExperience - 2}-${jobData.yearsExperience + 5}`);
-      }
-    }
+    console.log(`[Executive Discovery] Found ${linkedinProfileUrls.size} unique LinkedIn profiles from Google Search`);
 
-    // Combine all queries
-    const allQueries = [...targetCompanyQueries, ...keywordQueries].filter(q => q.length > 0);
-    
-    if (allQueries.length === 0) {
-      console.log(`[Executive Discovery] No search queries generated`);
+    if (linkedinProfileUrls.size === 0) {
+      console.log(`[Executive Discovery] No candidates found`);
       return [];
     }
 
-    console.log(`[Executive Discovery] Generated ${allQueries.length} search queries`);
-    console.log(`  - Target company queries: ${targetCompanyQueries.length}`);
-    console.log(`  - Keyword queries: ${keywordQueries.length}`);
-
-    // STEP 3: Execute all queries via SerpAPI (fingerprinting)
-    console.log(`[Executive Discovery] Executing fingerprinting via SerpAPI...`);
-    const fingerprintResult = await batchFingerprintSearch(allQueries, undefined, 30);
-    
-    console.log(`[Executive Discovery] Found ${fingerprintResult.fingerprints.length} unique profiles from SerpAPI`);
-
-    if (fingerprintResult.fingerprints.length === 0) {
-      console.log(`[Executive Discovery] No candidates found from search queries`);
-      return [];
-    }
-
-    // STEP 4: Fetch full profiles from BrightData
-    console.log(`[Executive Discovery] Fetching ${Math.min(count * 2, fingerprintResult.fingerprints.length)} profiles from BrightData...`);
+    // STEP 3: Fetch full profiles from BrightData
+    console.log(`[Executive Discovery] Fetching full profiles from BrightData (up to ${Math.min(count * 2, linkedinProfileUrls.size)})...`);
     
     const fetchedProfiles: Array<{
       name: string;
@@ -7126,26 +7178,26 @@ export async function discoverExecutiveCandidates(
       reasoning: string;
     }> = [];
 
-    // Fetch profiles in parallel (batch of 5)
+    const urlsToFetch = Array.from(linkedinProfileUrls).slice(0, count * 2);
     const batchSize = 5;
-    const profilesToFetch = fingerprintResult.fingerprints.slice(0, count * 2);
-    
-    for (let i = 0; i < profilesToFetch.length; i += batchSize) {
-      const batch = profilesToFetch.slice(i, i + batchSize);
-      const promises = batch.map(async (fingerprint) => {
+
+    for (let i = 0; i < urlsToFetch.length; i += batchSize) {
+      const batch = urlsToFetch.slice(i, i + batchSize);
+      const promises = batch.map(async (url) => {
         try {
-          const profile = await scrapeLinkedInProfile(fingerprint.url);
+          const profile = await scrapeLinkedInProfile(url);
           if (profile && profile.name) {
+            const detail = profileDetails.find(p => p.url === url);
             return {
-              name: profile.name || fingerprint.name,
-              currentRole: profile.position || fingerprint.title,
-              currentCompany: profile.current_company_name || fingerprint.company,
-              linkedinUrl: fingerprint.url,
-              reasoning: fingerprint.snippet || `Found via query: ${fingerprint.source}`
+              name: profile.name || detail?.name || 'Unknown',
+              currentRole: profile.position || detail?.title || 'Professional',
+              currentCompany: profile.current_company_name || detail?.company || 'Unknown',
+              linkedinUrl: url,
+              reasoning: profile.about || detail?.snippet || `Found via LinkedIn search`
             };
           }
         } catch (err) {
-          console.log(`[Executive Discovery] Could not fetch profile: ${fingerprint.url}`);
+          console.log(`[Executive Discovery] Could not fetch ${url}`);
         }
         return null;
       });
@@ -7154,9 +7206,9 @@ export async function discoverExecutiveCandidates(
       fetchedProfiles.push(...results.filter(r => r !== null) as any[]);
     }
 
-    console.log(`[Executive Discovery] Successfully fetched ${fetchedProfiles.length} full profiles`);
+    console.log(`[Executive Discovery] Successfully fetched ${fetchedProfiles.length} full profiles from BrightData`);
 
-    // STEP 5: Score all candidates via Grok
+    // STEP 4: Score all candidates via Grok
     console.log(`[Executive Discovery] Scoring ${fetchedProfiles.length} candidates via Grok...`);
     
     const scored = await Promise.all(fetchedProfiles.map(async (profile) => {
