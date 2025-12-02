@@ -2404,9 +2404,6 @@ export async function generateCandidateLonglist(
   },
   limit: number = 20
 ): Promise<Array<{ candidateId: number; matchScore: number; ineligibilityReason?: string }>> {
-  // QUALITY THRESHOLD: Only return candidates with score >= 60 to prevent API credit waste
-  const QUALITY_THRESHOLD = 60;
-  
   // Use Grok-powered role-fit scoring if job context provided, otherwise fall back to keyword matching
   if (jobContext?.title) {
     console.log(`[Candidate Longlist] Using Grok-powered role-fit scoring for "${jobContext.title}"`);
@@ -2437,8 +2434,8 @@ export async function generateCandidateLonglist(
         }
       );
       
-      // Include all candidates with qualifying scores, even if ineligible (so we can show why)
-      if (result.score >= QUALITY_THRESHOLD) {
+      // Include all candidates with any score (real quality gate is discovery with context)
+      if (result.score > 0) {
         roleScores.push({ 
           candidateId: candidate.id, 
           matchScore: result.score,
@@ -2448,7 +2445,7 @@ export async function generateCandidateLonglist(
     }
     
     const sorted = roleScores.sort((a, b) => b.matchScore - a.matchScore);
-    console.log(`[Candidate Longlist] Grok evaluation: ${candidates.length} candidates evaluated, ${sorted.length} met quality threshold (${QUALITY_THRESHOLD}+), returning ${Math.min(sorted.length, limit)}`);
+    console.log(`[Candidate Longlist] Grok evaluation: ${candidates.length} candidates evaluated, ${sorted.length} scored and returned, showing top ${Math.min(sorted.length, limit)}`);
     return sorted.slice(0, limit);
   }
   
