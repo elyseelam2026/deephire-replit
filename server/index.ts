@@ -95,3 +95,4 @@ app.use((req, res, next) => {
     log(`serving on port ${port}`);
   });
 })();
+module.exports = app;   // ← this line makes Vercel work
