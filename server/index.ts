@@ -96,3 +96,4 @@ app.use((req, res, next) => {
   });
 })();
 module.exports = app;   // ← this line makes Vercel work
+Fix Vercel deploy - export server
