@@ -95,5 +95,9 @@ app.use((req, res, next) => {
     log(`serving on port ${port}`);
   });
 })();
-module.exports = app;   // ← this line makes Vercel work
-Fix Vercel deploy - export server
+// Export for Vercel serverless
+if (process.env.NODE_ENV === 'production') {
+  module.exports = app;
+} else {
+  app.listen(port, () => console.log(`Server running on port ${port}`));
+}
