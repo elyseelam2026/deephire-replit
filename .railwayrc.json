@@ -1,0 +1,3 @@
+{
+  "startCommand": "NODE_ENV=production node start.mjs"
+}
